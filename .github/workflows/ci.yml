@@ -19,7 +19,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # STEP_TIMEOUT_MINUTES: 60
   DOTNET_VERSION: '10.0.x'
   VERSION_PREFIX: '0.1'
   WINUI_PUBLISH_PROFILE: './SubZeroFramework/Properties/PublishProfiles/'
@@ -57,13 +56,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # - name: Install Dependencies
-      #   timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-      #   uses: "./.github/steps/install_dependencies"
-      #   with:
-      #     dotnet-version: ${{ env.DOTNET_VERSION }}
-      #     sdkVersion: ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
-
       - name: Install .NET
         uses: actions/setup-dotnet@v5
         with:
@@ -79,13 +71,13 @@ jobs:
         run: dotnet nuget sources Add -Name "GitHub" -Source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json -Username "${{ github.actor }}" -Password "${{ env.GITHUB_TOKEN }}"
 
       - name: Restore
-        run: dotnet restore ${{ env.SOLUTION_NAME }} /p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
+        run: dotnet restore ${{ env.SOLUTION_NAME }} -v detailed /p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
          
       - name: Build
-        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} /p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
+        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v detailed -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} /p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
          
       - name: Publish
-        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:PublishDir=${{ env.ARTIFACT_OUTPUT }}
+        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v detailed -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
           
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
@@ -120,13 +112,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # - name: Install Dependencies
-      #   timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
-      #   uses: "./.github/steps/install_dependencies"
-      #   with:
-      #     dotnet-version: ${{ env.DOTNET_VERSION }}
-      #     sdkVersion: ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
-
       - name: Install .NET
         uses: actions/setup-dotnet@v5
         with:
@@ -142,13 +127,13 @@ jobs:
         run: dotnet nuget sources Add -Name "GitHub" -Source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json -Username "${{ github.actor }}" -Password "${{ env.GITHUB_TOKEN }}"
 
       - name: Restore
-        run: dotnet restore ${{ env.SOLUTION_NAME }} -r ${{ matrix.platform }}
+        run: dotnet restore ${{ env.SOLUTION_NAME }} -v detailed -r ${{ matrix.platform }}
          
       - name: Build
-        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }}
+        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v detailed -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
          
       - name: Publish
-        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:PublishDir=${{ env.ARTIFACT_OUTPUT }}
+        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v detailed -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
           
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
@@ -157,7 +142,3 @@ jobs:
           name: SubZero Framework - Linux ${{ matrix.type }} SKIA
           path: ${{ env.ARTIFACT_OUTPUT }}
           if-no-files-found: error
-
-      # - name: Build SubZeroFramework (Debug)
-      #   shell: pwsh
-      #   run: msbuild ./SubZeroFramework/SubZeroFramework.csproj /r
