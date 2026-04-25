@@ -24,7 +24,7 @@ env:
   VERSION_PREFIX: '0.1'
   WINUI_PUBLISH_PROFILE: './SubZeroFramework/Properties/PublishProfiles/'
   SOLUTION_NAME: './SubZeroFramework/SubZeroFramework.csproj'
-  ARTIFACT_OUTPUT: '~/artifacts'
+  ARTIFACT_OUTPUT: '${{ github.workspace }}/artifacts'
   GITHUB_TOKEN: ${{ secrets.GTH_EXTENDED_TOKEN }}
 
 permissions:
@@ -70,11 +70,9 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Install UNO.Check
-        shell: pwsh
         run: dotnet tool install -g uno.check
 
       - name: Install UNO Workloads
-        shell: pwsh
         run: uno-check -v --ci --non-interactive --fix --target windows --skip vswin --skip vsmac --skip xcode --skip vswinworkloads --skip androidemulator --skip dotnetnewunotemplates
 
       - name: Add GitHub Package Registry as a NuGet Source
@@ -87,7 +85,7 @@ jobs:
         run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} /p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
          
       - name: Publish
-        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} /p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml p:PublishDir=${{ env.ARTIFACT_OUTPUT }}
+        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:PublishDir=${{ env.ARTIFACT_OUTPUT }}
           
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
@@ -95,6 +93,7 @@ jobs:
         with:
           name: SubZero Framework - Windows ${{ matrix.type }} WinUI3
           path: ${{ env.ARTIFACT_OUTPUT }}
+          if-no-files-found: error
 
   build_and_publish_linux:
     name: Build and publish app on Linux - (${{ matrix.type }})
@@ -134,11 +133,9 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Install UNO.Check
-        shell: pwsh
         run: dotnet tool install -g uno.check
 
       - name: Install UNO Workloads
-        shell: pwsh
         run: uno-check -v --ci --non-interactive --fix --target desktop --skip vswin --skip vsmac --skip xcode --skip vswinworkloads --skip androidemulator --skip dotnetnewunotemplates
 
       - name: Add GitHub Package Registry as a NuGet Source
@@ -159,6 +156,7 @@ jobs:
         with:
           name: SubZero Framework - Linux ${{ matrix.type }} SKIA
           path: ${{ env.ARTIFACT_OUTPUT }}
+          if-no-files-found: error
 
       # - name: Build SubZeroFramework (Debug)
       #   shell: pwsh
