@@ -25,6 +25,7 @@ env:
   WINUI_PUBLISH_PROFILE: './SubZeroFramework/Properties/PublishProfiles/'
   SOLUTION_NAME: './SubZeroFramework/SubZeroFramework.csproj'
   ARTIFACT_OUTPUT: '~/artifacts'
+  GITHUB_TOKEN: ${{ secrets.GTH_EXTENDED_TOKEN }}
 
 permissions:
   packages: write
@@ -77,8 +78,7 @@ jobs:
         run: uno-check -v --ci --non-interactive --fix --target windows --skip vswin --skip vsmac --skip xcode --skip vswinworkloads --skip androidemulator --skip dotnetnewunotemplates
 
       - name: Add GitHub Package Registry as a NuGet Source
-        run: |
-          nuget sources Add -Name "GitHub" -Source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json -Username "${{ github.actor }}" -Password "${{ secrets.GITHUB_TOKEN }}"
+        run: dotnet nuget sources Add -Name "GitHub" -Source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json -Username "${{ github.actor }}" -Password "${{ env.GITHUB_TOKEN }}"
 
       - name: Restore
         run: dotnet restore ${{ env.SOLUTION_NAME }} /p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
@@ -142,8 +142,7 @@ jobs:
         run: uno-check -v --ci --non-interactive --fix --target desktop --skip vswin --skip vsmac --skip xcode --skip vswinworkloads --skip androidemulator --skip dotnetnewunotemplates
 
       - name: Add GitHub Package Registry as a NuGet Source
-        run: |
-          nuget sources Add -Name "GitHub" -Source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json -Username "${{ github.actor }}" -Password "${{ secrets.GITHUB_TOKEN }}"
+        run: dotnet nuget sources Add -Name "GitHub" -Source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json -Username "${{ github.actor }}" -Password "${{ env.GITHUB_TOKEN }}"
 
       - name: Restore
         run: dotnet restore ${{ env.SOLUTION_NAME }} -r ${{ matrix.platform }}
