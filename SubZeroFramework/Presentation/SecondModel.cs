@@ -1,5 +1,7 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace SubZeroFramework.Presentation;
 
-public partial record SecondModel(Entity Entity)
+public partial class SecondModel(Entity Entity) : ObservableObject
 {
 }

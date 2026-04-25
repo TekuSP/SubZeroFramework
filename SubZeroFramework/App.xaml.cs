@@ -71,7 +71,7 @@ public partial class App : Application
                     // TODO: Register your services
                     //services.AddSingleton<IMyService, MyService>();
                 })
-                .UseNavigation(ReactiveViewModelMappings.ViewModelMappings, RegisterRoutes)
+        .UseNavigation(RegisterRoutes)
             );
         MainWindow = builder.Window;
 

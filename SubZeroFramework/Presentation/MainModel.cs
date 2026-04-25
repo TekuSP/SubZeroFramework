@@ -1,6 +1,8 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+
 namespace SubZeroFramework.Presentation;
 
-public partial record MainModel
+public partial class MainModel : ObservableObject
 {
     private INavigator _navigator;
 
@@ -15,13 +17,14 @@ public partial record MainModel
         Title += $" - {appInfo?.Value?.Environment}";
     }
 
-    public string? Title { get; }
+    [ObservableProperty]
+    public partial string? Title { get; set; }
 
-    public IState<string> Name => State<string>.Value(this, () => string.Empty);
-
+    [ObservableProperty]
+    public partial string? Name { get; set; }
     public async Task GoToSecond()
     {
-        var name = await Name;
+        var name = Name;
         await _navigator.NavigateViewModelAsync<SecondModel>(this, data: new Entity(name!));
     }
 

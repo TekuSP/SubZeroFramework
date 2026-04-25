@@ -1,2 +1,15 @@
 <Project>
+  <Target Name="IncludeUnoFontAssetsInPublish"
+          BeforeTargets="ComputeFilesToPublish"
+          Condition="'$(TargetFramework)' == 'net10.0-desktop'">
+    <ItemGroup>
+      <_UnoFontAsset Include="$(NuGetPackageRoot)uno.fonts.fluent\*\lib\**\Uno.Fonts.Fluent\Fonts\**\*.*" />
+      <_UnoFontAsset Include="$(NuGetPackageRoot)uno.fonts.opensans\*\lib\**\Uno.Fonts.OpenSans\Fonts\**\*.*" />
+
+      <ResolvedFileToPublish Include="@(_UnoFontAsset)">
+        <RelativePath>$([System.String]::Copy('%(_UnoFontAsset.Identity)').Replace('$(NuGetPackageRoot)', '').Replace('\\', '/').Split('/lib/', 2)[1].Split('/', 2)[1])</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 </Project>
