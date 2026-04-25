@@ -29,6 +29,7 @@ env:
 permissions:
   packages: write
   contents: read
+  actions: write
 
 jobs:
   build_and_publish_windows:
@@ -87,6 +88,15 @@ jobs:
           path: ${{ env.ARTIFACT_OUTPUT }}
           if-no-files-found: error
 
+      - name: "Cancel self, we failed"
+        if: ${{ failure() }}
+        uses: potiuk/cancel-workflow-runs@master
+        with:
+          cancelMode: self
+          cancelFutureDuplicates: false
+          selfPreservation: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   build_and_publish_linux:
     name: Build and publish app on Linux - (${{ matrix.type }})
     strategy:
@@ -142,3 +152,12 @@ jobs:
           name: SubZero Framework - Linux ${{ matrix.type }} SKIA
           path: ${{ env.ARTIFACT_OUTPUT }}
           if-no-files-found: error
+
+      - name: "Cancel self, we failed"
+        if: ${{ failure() }}
+        uses: potiuk/cancel-workflow-runs@master
+        with:
+          cancelMode: self
+          cancelFutureDuplicates: false
+          selfPreservation: false
+          token: ${{ secrets.GITHUB_TOKEN }}
