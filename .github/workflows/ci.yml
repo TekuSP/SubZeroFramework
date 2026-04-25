@@ -1,0 +1,166 @@
+name: Build and Publish CI
+
+on:
+  push:
+    branches:
+      - main
+      - release/**
+
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - release/**
+
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # STEP_TIMEOUT_MINUTES: 60
+  DOTNET_VERSION: '10.0.x'
+  VERSION_PREFIX: '0.1'
+  WINUI_PUBLISH_PROFILE: './SubZeroFramework/Properties/PublishProfiles/'
+  SOLUTION_NAME: './SubZeroFramework/SubZeroFramework.csproj'
+  ARTIFACT_OUTPUT: '~/artifacts'
+
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  build_and_publish_windows:
+    name: Build and publish app on Windows - (${{ matrix.type }})
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: Windows
+            runsOn: windows-latest
+            platform: win-x64
+            type: x64
+          - os: Windows
+            runsOn: windows-11-arm
+            platform: win-arm64
+            type: arm64
+
+    runs-on: ${{ matrix.runsOn }}
+
+    env:
+      PUBLISH_DOTNET_TARGET_FRAMEWORK: 'net10.0-windows10.0.26100'
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # - name: Install Dependencies
+      #   timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+      #   uses: "./.github/steps/install_dependencies"
+      #   with:
+      #     dotnet-version: ${{ env.DOTNET_VERSION }}
+      #     sdkVersion: ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install UNO.Check
+        shell: pwsh
+        run: dotnet tool install -g uno.check
+
+      - name: Install UNO Workloads
+        shell: pwsh
+        run: uno-check -v --ci --non-interactive --fix --target windows --skip vswin --skip vsmac --skip xcode --skip vswinworkloads --skip androidemulator --skip dotnetnewunotemplates
+
+      - name: Add GitHub Package Registry as a NuGet Source
+        run: |
+          nuget sources Add -Name "GitHub" -Source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json -Username "${{ github.actor }}" -Password "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION_NAME }} /p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
+         
+      - name: Build
+        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} /p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
+         
+      - name: Publish
+        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} /p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml p:PublishDir=${{ env.ARTIFACT_OUTPUT }}
+          
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        continue-on-error: false
+        with:
+          name: SubZero Framework - Windows ${{ matrix.type }} WinUI3
+          path: ${{ env.ARTIFACT_OUTPUT }}
+
+  build_and_publish_linux:
+    name: Build and publish app on Linux - (${{ matrix.type }})
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: Linux
+            runsOn: ubuntu-latest
+            platform: linux-x64
+            type: x64
+          - os: Linux
+            runsOn: ubuntu-24.04-arm
+            platform: linux-arm64
+            type: arm64
+
+    runs-on: ${{ matrix.runsOn }}
+
+    env:
+      PUBLISH_DOTNET_TARGET_FRAMEWORK: 'net10.0-desktop'
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # - name: Install Dependencies
+      #   timeout-minutes: ${{ fromJSON(env.STEP_TIMEOUT_MINUTES) }}
+      #   uses: "./.github/steps/install_dependencies"
+      #   with:
+      #     dotnet-version: ${{ env.DOTNET_VERSION }}
+      #     sdkVersion: ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install UNO.Check
+        shell: pwsh
+        run: dotnet tool install -g uno.check
+
+      - name: Install UNO Workloads
+        shell: pwsh
+        run: uno-check -v --ci --non-interactive --fix --target desktop --skip vswin --skip vsmac --skip xcode --skip vswinworkloads --skip androidemulator --skip dotnetnewunotemplates
+
+      - name: Add GitHub Package Registry as a NuGet Source
+        run: |
+          nuget sources Add -Name "GitHub" -Source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json -Username "${{ github.actor }}" -Password "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Restore
+        run: dotnet restore ${{ env.SOLUTION_NAME }} -r ${{ matrix.platform }}
+         
+      - name: Build
+        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }}
+         
+      - name: Publish
+        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:PublishDir=${{ env.ARTIFACT_OUTPUT }}
+          
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        continue-on-error: false
+        with:
+          name: SubZero Framework - Linux ${{ matrix.type }} SKIA
+          path: ${{ env.ARTIFACT_OUTPUT }}
+
+      # - name: Build SubZeroFramework (Debug)
+      #   shell: pwsh
+      #   run: msbuild ./SubZeroFramework/SubZeroFramework.csproj /r

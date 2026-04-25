@@ -1,0 +1,80 @@
+pull_request_rules:
+    - name: Automatically merge PRs
+      conditions:   
+      - "#approved-reviews-by>=1"
+      actions:
+        merge:
+          method: merge
+          commit_message_template: |
+            Merge from {{ head }}
+                        
+            {{ title }} (#{{ number }})
+                        
+            {{ body }}
+                        
+            {% for user in approved_reviews_by %}
+            Approved-By: {{user}}
+            {% endfor %}
+          
+    - name: Automatically Dependenabot bot's PRs
+      conditions:
+      - author=dependabot[bot]
+      actions:
+        merge:
+          method: merge
+          commit_message_template: |
+            Automerge from {{ head }}
+            
+            {{ title }} (#{{ number }})
+            
+            {{ body }}
+          
+    - name: Automatically approve Dependenabot bot's PRs
+      conditions:
+      - author=dependabot[bot]
+      actions:
+        review:
+          type: APPROVE
+        label:
+            toggle:
+              - approved
+              
+    - name: Automatic update Depenedabot pull requests if they are commits behind
+      conditions:
+      - author=dependabot[bot]
+      - "#commits-behind > 1"
+      actions:
+         update:
+      
+    - name: Ask to resolve conflict
+      conditions:
+      - conflict
+      actions:
+        comment:
+          message: This pull request is now in conflict. Could you fix it @{{author}}? :)
+        label:
+            toggle:
+              - conflict
+          
+    - name: Comment when is merged
+      conditions:
+      - merged
+      actions:
+        comment:
+           message: Thank you for your contribution @{{author}}! Your pull request has been merged.
+        label:
+           toggle:
+             - merged
+            
+    - name: "Assign non Dependabot PR to author: TekuSP"
+      conditions:
+      - "#files = 1"
+      - "author!=dependabot[bot]"
+      actions:
+        assign:
+          add_users:
+            - "TekuSP"
+        label:
+          toggle:
+            - "In Review"
+                

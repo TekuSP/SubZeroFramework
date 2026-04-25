@@ -1,0 +1,17 @@
+<Project ToolsVersion="15.0">
+    <!--
+    To update the version of Uno, you should instead update the Sdk version in the global.json file.
+
+    See https://aka.platform.uno/using-uno-sdk for more information.
+    See https://aka.platform.uno/using-uno-sdk#implicit-packages for more information regarding the Implicit Packages.
+  -->
+    <PropertyGroup>
+        <MicrosoftLoggingVersion>10.0.7</MicrosoftLoggingVersion>
+        <CommunityToolkitMvvmVersion>8.4.2</CommunityToolkitMvvmVersion>
+        <WinAppSdkVersion>1.8.260416003</WinAppSdkVersion>
+        <WinAppSdkBuildToolsVersion>10.0.28000.1721</WinAppSdkBuildToolsVersion>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageVersion Include="Tmds.DBus.Protocol" Version="0.92.0" />
+    </ItemGroup>
+</Project>
