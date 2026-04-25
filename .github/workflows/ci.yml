@@ -90,7 +90,7 @@ jobs:
         run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} /p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml p:PublishDir=${{ env.ARTIFACT_OUTPUT }}
           
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         continue-on-error: false
         with:
           name: SubZero Framework - Windows ${{ matrix.type }} WinUI3
@@ -155,7 +155,7 @@ jobs:
         run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:PublishDir=${{ env.ARTIFACT_OUTPUT }}
           
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         continue-on-error: false
         with:
           name: SubZero Framework - Linux ${{ matrix.type }} SKIA
