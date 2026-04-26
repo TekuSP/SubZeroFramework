@@ -12,4 +12,34 @@
       </ResolvedFileToPublish>
     </ItemGroup>
   </Target>
+
+  <Target Name="RemoveUnwantedWindowsMuiFiles"
+          AfterTargets="Build;Publish"
+          Condition="'$(TargetPlatformIdentifier)' == 'Windows' and '$(WindowsPackageType)' == 'None' and '$(WindowsMuiLanguagesToKeep)' != ''">
+    <ItemGroup>
+      <_MuiLanguageToKeep Include="$(WindowsMuiLanguagesToKeep)" />
+      <_MuiDirectoryToKeep Include="@(_MuiLanguageToKeep->'$(TargetDir)%(Identity)')"
+                           Condition="'$(TargetDir)' != '' and Exists('$(TargetDir)')" />
+      <_MuiDirectoryToKeep Include="@(_MuiLanguageToKeep->'$(PublishDir)%(Identity)')"
+                           Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)')" />
+
+      <_MuiFileToKeep Include="@(_MuiLanguageToKeep->'$(TargetDir)%(Identity)\*.mui')"
+                      Condition="'$(TargetDir)' != '' and Exists('$(TargetDir)')" />
+      <_MuiFileToKeep Include="@(_MuiLanguageToKeep->'$(PublishDir)%(Identity)\*.mui')"
+                      Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)')" />
+
+      <_MuiFileToRemove Include="$(TargetDir)**\*.mui"
+                        Exclude="@(_MuiFileToKeep)"
+                        Condition="'$(TargetDir)' != '' and Exists('$(TargetDir)')" />
+      <_MuiFileToRemove Include="$(PublishDir)**\*.mui"
+                        Exclude="@(_MuiFileToKeep)"
+                        Condition="'$(PublishDir)' != '' and Exists('$(PublishDir)')" />
+
+      <_MuiDirectoryToRemove Include="@(_MuiFileToRemove->'%(RootDir)%(Directory)')"
+                             Exclude="@(_MuiDirectoryToKeep)" />
+    </ItemGroup>
+
+    <Delete Files="@(_MuiFileToRemove)" />
+    <RemoveDir Directories="@(_MuiDirectoryToRemove)" />
+  </Target>
 </Project>
