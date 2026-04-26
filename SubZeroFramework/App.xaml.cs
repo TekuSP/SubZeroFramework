@@ -6,6 +6,7 @@ namespace SubZeroFramework;
 
 public partial class App : Application
 {
+
     /// <summary>
     /// Initializes the singleton application object. This is the first line of authored code
     /// executed, and as such is the logical equivalent of main() or WinMain().
@@ -73,6 +74,7 @@ public partial class App : Application
                 })
         .UseNavigation(RegisterRoutes)
             );
+
         MainWindow = builder.Window;
 
 #if DEBUG
@@ -87,8 +89,7 @@ public partial class App : Application
     {
         views.Register(
             new ViewMap(ViewModel: typeof(ShellModel)),
-            new ViewMap<MainPage, MainModel>(),
-            new DataViewMap<SecondPage, SecondModel, Entity>()
+            new ViewMap<MainPage, MainModel>()
         );
 
         routes.Register(
@@ -96,7 +97,6 @@ public partial class App : Application
                 Nested:
                 [
                     new ("Main", View: views.FindByViewModel<MainModel>(), IsDefault:true),
-                    new ("Second", View: views.FindByViewModel<SecondModel>()),
                 ]
             )
         );

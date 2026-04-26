@@ -19,6 +19,7 @@
         <ApplicationPublisher>Richard "TekuSP" Torhan</ApplicationPublisher>
         <!-- Package Description -->
         <Description>SubZeroFrame, SubZero version for Framework laptops, powered by Uno Platform.</Description>
+        
         <!--
       If you encounter this error message:
 
@@ -46,6 +47,7 @@
             Localization;
             Navigation;
             ThemeService;
+            Svg;
         </UnoFeatures>
         <Platforms>x64;ARM64</Platforms>
     </PropertyGroup>
@@ -53,5 +55,13 @@
         <PackageReference Include="FrameworkDotnet" />
         <PackageReference Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" />
         <PackageReference Include="Tmds.DBus.Protocol" />
+    </ItemGroup>
+    <PropertyGroup>
+        <UnoSplashScreenColor>#5b5b5c</UnoSplashScreenColor>
+        <UnoSplashScreenBaseSize>1000,300</UnoSplashScreenBaseSize>
+        <UnoSplashScreenFile>Assets/Splash/splash_screen.svg</UnoSplashScreenFile>
+    </PropertyGroup>
+    <ItemGroup>
+        <Content Include="Assets\Svg\**\*.svg" />
     </ItemGroup>
 </Project>

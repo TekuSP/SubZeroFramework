@@ -22,10 +22,4 @@ public partial class MainModel : ObservableObject
 
     [ObservableProperty]
     public partial string? Name { get; set; }
-    public async Task GoToSecond()
-    {
-        var name = Name;
-        await _navigator.NavigateViewModelAsync<SecondModel>(this, data: new Entity(name!));
-    }
-
 }
