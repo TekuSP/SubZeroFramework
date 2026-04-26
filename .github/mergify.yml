@@ -63,11 +63,11 @@ pull_request_rules:
     conditions:
       - author=dependabot[bot]
       - "#commits-behind > 0"
-      actions:
-         update:
+    actions:
+       update:
     
-    - name: Automatic update ChangeRequest pull requests if they are commits behind
-      conditions:
+  - name: Automatic update ChangeRequest pull requests if they are commits behind
+    conditions:
       - author=TekuSP
       - "head ~=update-changelog"
       - "#commits-behind > 0"
