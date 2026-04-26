@@ -21,15 +21,16 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="2*" />
-                        <RowDefinition />
+                        <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
 
                     <Image
                         x:Name="SplashLogo"
                         Grid.Row="0"
-                        HorizontalAlignment="Stretch"
+                        Margin="50"
+                        HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Stretch="Uniform" />
+                        Stretch="UniformToFill" />
 
                     <ProgressRing
                         Grid.Row="1"
@@ -37,7 +38,26 @@
                         Height="100"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        IsActive="True" />
+                        IsActive="True">
+                        <ProgressRing.Resources>
+                            <ResourceDictionary>
+                                <ResourceDictionary.ThemeDictionaries>
+                                    <ResourceDictionary x:Key="Default">
+                                        <SolidColorBrush x:Key="ProgressRingBackgroundThemeBrush" Color="#D7D8FF" />
+                                        <SolidColorBrush x:Key="ProgressRingForegroundThemeBrush" Color="#8F7FFF" />
+                                    </ResourceDictionary>
+                                    <ResourceDictionary x:Key="Light">
+                                        <SolidColorBrush x:Key="ProgressRingBackgroundThemeBrush" Color="#D7D8FF" />
+                                        <SolidColorBrush x:Key="ProgressRingForegroundThemeBrush" Color="#8F7FFF" />
+                                    </ResourceDictionary>
+                                    <ResourceDictionary x:Key="HighContrast">
+                                        <SolidColorBrush x:Key="ProgressRingBackgroundThemeBrush" Color="#D7D8FF" />
+                                        <SolidColorBrush x:Key="ProgressRingForegroundThemeBrush" Color="#8F7FFF" />
+                                    </ResourceDictionary>
+                                </ResourceDictionary.ThemeDictionaries>
+                            </ResourceDictionary>
+                        </ProgressRing.Resources>
+                    </ProgressRing>
                 </Grid>
             </utu:ExtendedSplashScreen.LoadingContent>
         </utu:ExtendedSplashScreen>
