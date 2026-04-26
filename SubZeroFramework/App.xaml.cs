@@ -1,5 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
 
+using FrameworkDotnet;
+using FrameworkDotnet.Enums;
+using FrameworkDotnet.Interfaces;
+using FrameworkDotnet.Snapshots;
+
 using Uno.Resizetizer;
 
 namespace SubZeroFramework;
@@ -69,8 +74,14 @@ public partial class App : Application
                 .UseLocalization()
                 .ConfigureServices((context, services) =>
                 {
-                    // TODO: Register your services
-                    //services.AddSingleton<IMyService, MyService>();
+                    services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
+
+                    services.AddSingleton<IFrameworkEcConnection>(x => x.GetRequiredService<IFrameworkSystem>().OpenDefaultEc());
+
+                    services.AddTransient<FrameworkEcFlashSnapshot>(x => x.GetRequiredService<IFrameworkEcConnection>().GetFlashSnapshot());
+                    services.AddTransient<FrameworkFanCapabilitiesSnapshot>(x => x.GetRequiredService<IFrameworkEcConnection>().GetFanCapabilitiesSnapshot());
+                    services.AddTransient<FrameworkPowerSnapshot>(x => x.GetRequiredService<IFrameworkEcConnection>().GetPowerSnapshot());
+                    services.AddTransient<FrameworkThermalSnapshot>(x => x.GetRequiredService<IFrameworkEcConnection>().GetThermalSnapshot());
                 })
         .UseNavigation(RegisterRoutes)
             );
