@@ -14,7 +14,9 @@
     <File Path=".github/workflows/ci.yml" />
   </Folder>
   <Folder Name="/Solution Items/Design/">
+    <File Path="Design Ideas/fan_control_error_page_design.png" />
     <File Path="Design Ideas/fan_control_prototype_design.png" />
+    <File Path="Design Ideas/fan_control_unknown_framework.png" />
   </Folder>
   <Project Path="SubZeroFramework/SubZeroFramework.csproj">
     <Platform Solution="*|ARM64" Project="ARM64" />

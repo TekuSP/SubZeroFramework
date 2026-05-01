@@ -54,6 +54,8 @@
     <ItemGroup>
         <PackageReference Include="FrameworkDotnet" />
         <PackageReference Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" />
+        <PackageReference Include="Material.Icons" />
+        <PackageReference Include="System.Reactive" />
         <PackageReference Include="Tmds.DBus.Protocol" />
     </ItemGroup>
     <PropertyGroup>
