@@ -4,12 +4,17 @@
     <Platform Name="x64" />
   </Configurations>
   <Folder Name="/Solution Items/">
-    <File Path=".github/workflows/ci.yml" />
     <File Path=".gitignore" />
     <File Path="Directory.Build.props" />
     <File Path="Directory.Build.targets" />
     <File Path="Directory.Packages.props" />
     <File Path="global.json" />
+  </Folder>
+  <Folder Name="/Solution Items/CI/">
+    <File Path=".github/workflows/ci.yml" />
+  </Folder>
+  <Folder Name="/Solution Items/Design/">
+    <File Path="Design Ideas/fan_control_prototype_design.png" />
   </Folder>
   <Project Path="SubZeroFramework/SubZeroFramework.csproj">
     <Platform Solution="*|ARM64" Project="ARM64" />

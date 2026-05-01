@@ -8,12 +8,12 @@
   <PropertyGroup>
     <MicrosoftLoggingVersion>10.0.7</MicrosoftLoggingVersion>
     <CommunityToolkitMvvmVersion>8.4.2</CommunityToolkitMvvmVersion>
-    <WinAppSdkVersion>1.8.260416003</WinAppSdkVersion>
+    <WinAppSdkVersion>2.0.1</WinAppSdkVersion>
     <WinAppSdkBuildToolsVersion>10.0.28000.1721</WinAppSdkBuildToolsVersion>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="FrameworkDotnet" Version="0.1.25" />
-    <PackageVersion Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" Version="2.0.1" />
-    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.92.0" />
+    <PackageVersion Include="FrameworkDotnet" Version="0.2.0.34" />
+    <PackageVersion Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" Version="2.0.2" />
+    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.93.0" />
   </ItemGroup>
 </Project>
