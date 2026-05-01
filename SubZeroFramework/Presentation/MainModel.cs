@@ -1,24 +1,14 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-using FrameworkDotnet.Interfaces;
-
 namespace SubZeroFramework.Presentation;
 
 public partial class MainModel : ObservableObject
 {
-    private INavigator _navigator;
-
     public MainModel(
         IStringLocalizer localizer,
-        IOptions<AppConfig> appInfo,
-        INavigator navigator,
-        IFrameworkSystem frameworkSystem)
+        IOptions<AppConfig> appInfo)
     {
-        _navigator = navigator;
-        Title = "Main";
-        Title += $" - {localizer["ApplicationName"]}";
-        Title += $" - {appInfo?.Value?.Environment}";
-        Title += $" - {frameworkSystem.GetProductName()}";
+        Title = $"Main - {localizer["ApplicationName"]} - {appInfo?.Value?.Environment}";
     }
 
     [ObservableProperty]

@@ -12,6 +12,7 @@
     <WinAppSdkBuildToolsVersion>10.0.28000.1839</WinAppSdkBuildToolsVersion>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="DynamicData" Version="9.4.31" />
     <PackageVersion Include="FrameworkDotnet" Version="0.2.0.34" />
     <PackageVersion Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" Version="2.0.2" />
     <PackageVersion Include="Material.Icons" Version="3.0.2" />

@@ -3,7 +3,8 @@ using System.Diagnostics.CodeAnalysis;
 using FrameworkDotnet;
 using FrameworkDotnet.Enums;
 using FrameworkDotnet.Interfaces;
-using FrameworkDotnet.Snapshots;
+
+using SubZeroFramework.Services;
 
 using Uno.Resizetizer;
 
@@ -75,13 +76,7 @@ public partial class App : Application
                 .ConfigureServices((context, services) =>
                 {
                     services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
-
-                    services.AddSingleton<IFrameworkEcConnection>(x => x.GetRequiredService<IFrameworkSystem>().OpenDefaultEc());
-
-                    services.AddTransient<FrameworkEcFlashSnapshot>(x => x.GetRequiredService<IFrameworkEcConnection>().GetFlashSnapshot());
-                    services.AddTransient<FrameworkFanCapabilitiesSnapshot>(x => x.GetRequiredService<IFrameworkEcConnection>().GetFanCapabilitiesSnapshot());
-                    services.AddTransient<FrameworkPowerSnapshot>(x => x.GetRequiredService<IFrameworkEcConnection>().GetPowerSnapshot());
-                    services.AddTransient<FrameworkThermalSnapshot>(x => x.GetRequiredService<IFrameworkEcConnection>().GetThermalSnapshot());
+                    services.AddSingleton<IFrameworkDataProvider,FrameworkDataProvider>();
                 })
         .UseNavigation(RegisterRoutes)
             );

@@ -19,7 +19,7 @@
         <ApplicationPublisher>Richard "TekuSP" Torhan</ApplicationPublisher>
         <!-- Package Description -->
         <Description>SubZeroFrame, SubZero version for Framework laptops, powered by Uno Platform.</Description>
-        
+
         <!--
       If you encounter this error message:
 
@@ -52,6 +52,7 @@
         <Platforms>x64;ARM64</Platforms>
     </PropertyGroup>
     <ItemGroup>
+        <PackageReference Include="DynamicData" />
         <PackageReference Include="FrameworkDotnet" />
         <PackageReference Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" />
         <PackageReference Include="Material.Icons" />
