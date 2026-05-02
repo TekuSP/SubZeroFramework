@@ -9,7 +9,8 @@ namespace SubZeroFramework.Extensions;
 /// Creates a <see cref="FontIcon"/> from a glyph string.
 /// </summary>
 [MarkupExtensionReturnType(ReturnType = typeof(FontIcon))]
-public sealed class FontIconStringExt : MarkupExtension {
+public sealed class FontIconStringExt : MarkupExtension
+{
     /// <summary>
     /// Initializes a new instance of the <see cref="FontIconStringExt"/> class.
     /// </summary>
@@ -19,7 +20,8 @@ public sealed class FontIconStringExt : MarkupExtension {
     /// Initializes a new instance of the <see cref="FontIconStringExt"/> class.
     /// </summary>
     /// <param name="glyph">The glyph string to render.</param>
-    public FontIconStringExt(string glyph) {
+    public FontIconStringExt(string glyph)
+    {
         Glyph = glyph;
     }
 
@@ -29,14 +31,9 @@ public sealed class FontIconStringExt : MarkupExtension {
     public string? Glyph { get; set; }
 
     /// <summary>
-    /// Gets or sets the optional font size.
+    /// Gets or sets the optional horizontal alignment.
     /// </summary>
-    public double? IconSize { get; set; }
-
-    /// <summary>
-    /// Gets or sets the optional foreground brush.
-    /// </summary>
-    public Brush? IconForeground { get; set; }
+    public HorizontalAlignment? HorizontalAlignment { get; set; }
 
     /// <summary>
     /// Gets or sets the optional font family.
@@ -44,45 +41,33 @@ public sealed class FontIconStringExt : MarkupExtension {
     public FontFamily? IconFontFamily { get; set; }
 
     /// <summary>
+    /// Gets or sets the optional foreground brush.
+    /// </summary>
+    public Brush? IconForeground { get; set; }
+
+    /// <summary>
+    /// Gets or sets the optional font size.
+    /// </summary>
+    public double? IconSize { get; set; }
+
+    /// <summary>
     /// Gets or sets the optional vertical alignment.
     /// </summary>
     public VerticalAlignment? VerticalAlignment { get; set; }
 
-    /// <summary>
-    /// Gets or sets the optional horizontal alignment.
-    /// </summary>
-    public HorizontalAlignment? HorizontalAlignment { get; set; }
-
     /// <inheritdoc />
-    protected override object ProvideValue(IXamlServiceProvider serviceProvider) {
-        if (string.IsNullOrWhiteSpace(Glyph)) {
-            throw new ArgumentException("The glyph string must not be null, empty, or whitespace.", nameof(Glyph));
-        }
-
+    protected override object ProvideValue(IXamlServiceProvider serviceProvider)
+    {
         var result = new FontIcon
         {
-            Glyph = Glyph
+            Glyph = string.IsNullOrWhiteSpace(Glyph) ? throw new ArgumentException("The glyph string must not be null, empty, or whitespace.", nameof(Glyph)) : Glyph
         };
 
-        if (IconSize is not null) {
-            result.FontSize = IconSize.Value;
-        }
-
-        if (IconForeground is not null) {
-            result.Foreground = IconForeground;
-        }
-
-        if (IconFontFamily is not null) {
-            result.FontFamily = IconFontFamily;
-        }
-
-        if (VerticalAlignment is not null) {
-            result.VerticalAlignment = VerticalAlignment.Value;
-        }
-
-        if (HorizontalAlignment is not null) {
-            result.HorizontalAlignment = HorizontalAlignment.Value;
-        }
+        result.FontSize = IconSize ?? result.FontSize;
+        result.Foreground = IconForeground ?? result.Foreground;
+        result.FontFamily = IconFontFamily ?? result.FontFamily;
+        result.VerticalAlignment = VerticalAlignment ?? result.VerticalAlignment;
+        result.HorizontalAlignment = HorizontalAlignment ?? result.HorizontalAlignment;
 
         return result;
     }

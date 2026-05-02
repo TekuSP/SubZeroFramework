@@ -11,7 +11,10 @@
     NavigationCacheMode="Required">
     <ScrollViewer IsTabStop="True">
         <Grid utu:SafeArea.Insets="VisibleBounds">
-            <NavigationView IsBackButtonVisible="Collapsed" IsBackEnabled="False">
+            <NavigationView
+                IsBackButtonVisible="Collapsed"
+                IsBackEnabled="False"
+                IsSettingsVisible="False">
                 <NavigationView.MenuItems>
                     <NavigationViewItem
                         Content="Dashboard"
@@ -27,8 +30,8 @@
                         Tag="SamplePage3" />
                     <controls:NavigationMaterialViewItem
                         MaterialIconKindName="{StaticResource FanCurveMenuIcon}"
-                        Text="Fan Curve"
-                        Tag="SamplePage4" />
+                        Tag="SamplePage4"
+                        Text="Fan Curve" />
                     <NavigationViewItem
                         Content="Device Capabilities"
                         Icon="{len:FontIconStringExt Glyph={StaticResource DeviceCapabilitiesMenuIcon}}"
@@ -37,8 +40,8 @@
                 <NavigationView.FooterMenuItems>
                     <controls:NavigationMaterialViewItem
                         MaterialIconKindName="{StaticResource GithubMenuIcon}"
-                        Text="Project Github"
-                        Tag="SamplePage4" />
+                        Tag="SamplePage4"
+                        Text="Project Github" />
                     <NavigationViewItem
                         Content="Settings"
                         Icon="{len:FontIconStringExt Glyph={StaticResource SettingsMenuIcon}}"
