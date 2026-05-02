@@ -9,49 +9,75 @@
     xmlns:utu="using:Uno.Toolkit.UI"
     Background="{StaticResource AppBackgroundBrush}"
     NavigationCacheMode="Required">
-    <ScrollViewer IsTabStop="True">
-        <Grid utu:SafeArea.Insets="VisibleBounds">
-            <NavigationView
-                Background="{StaticResource SidebarBackgroundBrush}"
-                IsBackButtonVisible="Collapsed"
-                IsBackEnabled="False"
-                IsSettingsVisible="False"
-                PaneTitle="Options">
-                <NavigationView.MenuItems>
-                    <NavigationViewItem
-                        Content="Dashboard"
-                        Icon="{len:FontIconStringExt Glyph={StaticResource DashboardMenuIcon}}"
-                        IsSelected="True"
-                        Tag="Dashboard" />
-                    <NavigationViewItem
-                        Content="Thermal Telemetry"
-                        Icon="{len:FontIconStringExt Glyph={StaticResource ThermalTelemetryMenuIcon}}"
-                        Tag="ThermalTelemetry" />
-                    <NavigationViewItem
-                        Content="Power Telemetry"
-                        Icon="{len:FontIconStringExt Glyph={StaticResource PowerTelemetryMenuIcon}}"
-                        Tag="PowerTelemetry" />
-                    <controls:NavigationMaterialViewItem
-                        MaterialIconKindName="{StaticResource FanCurveMenuIcon}"
-                        Tag="FanCurve"
-                        Text="Fan Curve" />
-                    <NavigationViewItem
-                        Content="Device Capabilities"
-                        Icon="{len:FontIconStringExt Glyph={StaticResource DeviceCapabilitiesMenuIcon}}"
-                        Tag="DeviceCapabilities" />
-                </NavigationView.MenuItems>
-                <NavigationView.FooterMenuItems>
-                    <controls:NavigationMaterialViewItem
-                        MaterialIconKindName="{StaticResource GithubMenuIcon}"
-                        Tag="Github"
-                        Text="Project Github" />
-                    <NavigationViewItem
-                        Content="Settings"
-                        Icon="{len:FontIconStringExt Glyph={StaticResource SettingsMenuIcon}}"
-                        Tag="Settings" />
-                </NavigationView.FooterMenuItems>
-                <Frame x:Name="contentFrame" />
-            </NavigationView>
+    <Grid utu:SafeArea.Insets="VisibleBounds">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid
+            x:Name="TitleBarHost"
+            Height="48"
+            Background="{StaticResource SidebarBackgroundBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="48" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <AppBarButton
+                Grid.Column="0"
+                Margin="5,0,0,0"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Click="{x:Bind PaneToggleButton_Click}"
+                Icon="GlobalNavigationButton" />
         </Grid>
-    </ScrollViewer>
+        <NavigationView
+            x:Name="MainNavigationView"
+            Grid.Row="1"
+            Background="{StaticResource SidebarBackgroundBrush}"
+            IsBackButtonVisible="Collapsed"
+            IsBackEnabled="False"
+            IsPaneToggleButtonVisible="False"
+            IsSettingsVisible="False"
+            PaneDisplayMode="LeftCompact">
+            <NavigationView.MenuItems>
+                <NavigationViewItem
+                    Content="Dashboard"
+                    Icon="{len:FontIconStringExt Glyph={StaticResource DashboardMenuIcon}}"
+                    IsSelected="True"
+                    Tag="Dashboard" />
+                <NavigationViewItem
+                    Content="Thermal Telemetry"
+                    Icon="{len:FontIconStringExt Glyph={StaticResource ThermalTelemetryMenuIcon}}"
+                    Tag="ThermalTelemetry" />
+                <NavigationViewItem
+                    Content="Power Telemetry"
+                    Icon="{len:FontIconStringExt Glyph={StaticResource PowerTelemetryMenuIcon}}"
+                    Tag="PowerTelemetry" />
+                <controls:NavigationMaterialViewItem
+                    MaterialIconKindName="{StaticResource FanCurveMenuIcon}"
+                    Tag="FanCurve"
+                    Text="Fan Curve Profiles" />
+                <NavigationViewItem
+                    Content="Device Capabilities"
+                    Icon="{len:FontIconStringExt Glyph={StaticResource DeviceCapabilitiesMenuIcon}}"
+                    Tag="DeviceCapabilities" />
+            </NavigationView.MenuItems>
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem
+                    Content="Warnings and issues"
+                    Icon="{len:FontIconStringExt Glyph={StaticResource WarningsMenuIcon}}"
+                    IsEnabled="False"
+                    Tag="Warnings" />
+                <controls:NavigationMaterialViewItem
+                    MaterialIconKindName="{StaticResource GithubMenuIcon}"
+                    Tag="Github"
+                    Text="Project Github" />
+                <NavigationViewItem
+                    Content="Settings"
+                    Icon="{len:FontIconStringExt Glyph={StaticResource SettingsMenuIcon}}"
+                    Tag="Settings" />
+            </NavigationView.FooterMenuItems>
+            <Frame x:Name="contentFrame" />
+        </NavigationView>
+    </Grid>
 </Page>

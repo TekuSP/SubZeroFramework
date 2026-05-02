@@ -1,7 +1,14 @@
 using System.Diagnostics.CodeAnalysis;
 
+using CommunityToolkit.Mvvm.DependencyInjection;
+
 using FrameworkDotnet;
 using FrameworkDotnet.Interfaces;
+
+using LiveChartsCore;
+
+using Microsoft.UI.Windowing;
+using Microsoft.UI.Xaml.Media;
 
 using SubZeroFramework.Services;
 
@@ -21,7 +28,7 @@ public partial class App : Application
         this.InitializeComponent();
     }
 
-    protected Window? MainWindow { get; private set; }
+    public Window? MainWindow { get; protected set; }
     protected IHost? Host { get; private set; }
 
     [SuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Uno.Extensions APIs are used in a way that is safe for trimming in this template context.")]
@@ -75,9 +82,9 @@ public partial class App : Application
                 .ConfigureServices((context, services) =>
                 {
                     services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
-                    services.AddSingleton<IFrameworkDataProvider,FrameworkDataProvider>();
+                    services.AddSingleton<IFrameworkDataProvider, FrameworkDataProvider>();
                 })
-        .UseNavigation(RegisterRoutes)
+                .UseNavigation(RegisterRoutes)
             );
 
         MainWindow = builder.Window;
@@ -85,16 +92,38 @@ public partial class App : Application
 #if DEBUG
         MainWindow.UseStudio();
 #endif
+
+        ConfigureWindowTitleBar();
         MainWindow.SetWindowIcon();
 
         Host = await builder.NavigateAsync<Shell>();
+    }
+
+    private void ConfigureWindowTitleBar()
+    {
+        if (MainWindow is null || !AppWindowTitleBar.IsCustomizationSupported())
+        {
+            return;
+        }
+
+        MainWindow.AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
+        MainWindow.AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Standard;
+
+        if (MainWindow.Content is FrameworkElement rootElement)
+        {
+            MainWindow.SetTitleBar(rootElement);
+        }
+
+#if HAS_UNO
+        Uno.UI.Xaml.WindowHelper.SetBackground(MainWindow, (Brush)Current.Resources["SidebarBackgroundBrush"]);
+#endif
     }
 
     private static void RegisterRoutes(IViewRegistry views, IRouteRegistry routes)
     {
         views.Register(
             new ViewMap(ViewModel: typeof(ShellModel)),
-            new ViewMap<MainPage, MainModel>()
+            new ViewMap(ViewModel: typeof(MainModel), View: typeof(MainPage))
         );
 
         routes.Register(

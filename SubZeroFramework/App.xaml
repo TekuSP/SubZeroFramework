@@ -55,6 +55,7 @@
             <x:String x:Key="PowerTelemetryMenuIcon">&#xE945;</x:String>
             <x:String x:Key="FanCurveMenuIcon">Fan</x:String>
             <x:String x:Key="DeviceCapabilitiesMenuIcon">&#xE950;</x:String>
+            <x:String x:Key="WarningsMenuIcon">&#xF736;</x:String>
             <x:String x:Key="GithubMenuIcon">Github</x:String>
             <x:String x:Key="SettingsMenuIcon">&#xE713;</x:String>
 
@@ -89,7 +90,18 @@
             <StaticResource x:Key="NavigationViewButtonBackgroundPointerOver" ResourceKey="BrandHoverBrush" />
             <StaticResource x:Key="NavigationViewButtonBackgroundPressed" ResourceKey="BrandCheckedBrush" />
             <StaticResource x:Key="NavigationViewButtonBackgroundDisabled" ResourceKey="BrandDisabledBrush" />
+            <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="SidebarBackgroundBrush" />
+            <StaticResource x:Key="NavigationViewExpandedPaneBackground" ResourceKey="SidebarBackgroundBrush" />
+            <StaticResource x:Key="NavigationViewTopPaneBackground" ResourceKey="SidebarBackgroundBrush" />
             <StaticResource x:Key="NavigationViewContentBackground" ResourceKey="AppBackgroundBrush" />
+            <StaticResource x:Key="TitleBarPaneToggleButtonForeground" ResourceKey="BrandSecondaryBrush" />
+            <StaticResource x:Key="TitleBarPaneToggleButtonForegroundPointerOver" ResourceKey="BrandPrimaryBrush" />
+            <StaticResource x:Key="TitleBarPaneToggleButtonForegroundPressed" ResourceKey="BrandPrimaryBrush" />
+            <StaticResource x:Key="TitleBarPaneToggleButtonForegroundDisabled" ResourceKey="BrandDisabledBrush" />
+            <StaticResource x:Key="TitleBarPaneToggleButtonBackground" ResourceKey="SidebarBackgroundBrush" />
+            <StaticResource x:Key="TitleBarPaneToggleButtonBackgroundPointerOver" ResourceKey="BrandHoverBrush" />
+            <StaticResource x:Key="TitleBarPaneToggleButtonBackgroundPressed" ResourceKey="BrandCheckedBrush" />
+            <StaticResource x:Key="TitleBarPaneToggleButtonBackgroundDisabled" ResourceKey="BrandDisabledBrush" />
 
             <!--  Add resources here  -->
 
