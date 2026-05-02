@@ -21,6 +21,10 @@
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Spacing="16">
+                <TextBox
+                    FontFamily="{StaticResource MontserratFont}"
+                    PlaceholderText="Enter your name:"
+                    Text="{Binding Name, Mode=TwoWay}" />
                 <TextBox PlaceholderText="Enter your name:" Text="{Binding Name, Mode=TwoWay}" />
 
                 <uno:MaterialIcon

@@ -15,6 +15,8 @@
                 <ResourceDictionary Source="/MaterialIcons/Themes/Generic.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
+            <FontFamily x:Key="MontserratFont">ms-appx:///Assets/Fonts/Montserrat-Light.ttf#Montserrat</FontFamily>
+
             <!--  App main color scheme  -->
 
             <SolidColorBrush x:Key="BrandPrimaryBrush" Color="#0078D7" />
