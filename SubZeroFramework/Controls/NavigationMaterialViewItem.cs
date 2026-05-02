@@ -4,7 +4,6 @@ using Material.Icons.UNO;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
 
 namespace SubZeroFramework.Controls;
 
@@ -13,6 +12,7 @@ namespace SubZeroFramework.Controls;
 /// </summary>
 public class NavigationMaterialViewItem : NavigationViewItem
 {
+    private readonly TranslateTransform _contentTransform = new();
     private readonly MaterialIconText _content = new()
     {
         Spacing = 14.5,
@@ -20,30 +20,30 @@ public class NavigationMaterialViewItem : NavigationViewItem
         VerticalContentAlignment = VerticalAlignment.Center,
         HorizontalContentAlignment = HorizontalAlignment.Left,
         HorizontalAlignment = HorizontalAlignment.Left,
-        FontSize = 14,
-        Transitions = [new RepositionThemeTransition()]
+        FontSize = 14
     };
 
     public NavigationMaterialViewItem()
     {
         SizeChanged += NavigationMaterialViewItem_SizeChanged;
+        _content.RenderTransform = _contentTransform;
         Content = _content;
     }
 
     // WinUI 3 and Skia have different default NavigationViewItem padding, so adjust the hosted content margin accordingly.
 #if DESKTOP1_0_OR_GREATER
-    private Thickness ExpandedThickness { get; } = new Thickness(-6, 0, 0, 0);
-    private Thickness CollapsedThickness { get; } = new Thickness(-2, 0, 0, 0);
+    private double ExpandedOffsetX { get; } = -6;
+    private double CollapsedOffsetX { get; } = -2;
 #endif
 #if !DESKTOP1_0_OR_GREATER
-    private Thickness ExpandedThickness { get; } = new Thickness(-3, 0, 0, 0);
-    private Thickness CollapsedThickness { get; } = new Thickness(1.5, 0, 0, 0);
+    private double ExpandedOffsetX { get; } = -2.5;
+    private double CollapsedOffsetX { get; } = 1.5;
 #endif
 
     private void NavigationMaterialViewItem_SizeChanged(object sender, SizeChangedEventArgs args)
     {
         bool isExpanding = args.NewSize.Width > args.PreviousSize.Width;
-        _content.Margin = isExpanding ? ExpandedThickness : CollapsedThickness;
+        _contentTransform.X = isExpanding ? ExpandedOffsetX : CollapsedOffsetX;
     }
 
     /// <summary>
@@ -150,7 +150,7 @@ public class NavigationMaterialViewItem : NavigationViewItem
         _content.Text = Text;
         _content.FontFamily = FontFamily;
         _content.FontWeight = FontWeight;
-        _content.Margin = IsExpanded ? ExpandedThickness : CollapsedThickness;
+        _contentTransform.X = IsExpanded ? ExpandedOffsetX : CollapsedOffsetX;
         _content.Foreground = MaterialIconForeground ?? Foreground;
         _content.IconSize = double.IsNaN(MaterialIconSize) ? 20 : MaterialIconSize;
     }
