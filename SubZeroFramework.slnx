@@ -15,6 +15,13 @@
   </Folder>
   <Folder Name="/Solution Items/Design/">
     <File Path="Design Ideas/fan_control_color_scheme.png" />
+    <File Path="Design Ideas/fan_control_color_scheme_dashboard.png" />
+    <File Path="Design Ideas/fan_control_color_scheme_dev_cap.png" />
+    <File Path="Design Ideas/fan_control_color_scheme_error_page_design.png" />
+    <File Path="Design Ideas/fan_control_color_scheme_fan_curves.png" />
+    <File Path="Design Ideas/fan_control_color_scheme_power.png" />
+    <File Path="Design Ideas/fan_control_color_scheme_settings.png" />
+    <File Path="Design Ideas/fan_control_color_scheme_thermal.png" />
     <File Path="Design Ideas/fan_control_error_page_design.png" />
     <File Path="Design Ideas/fan_control_prototype_design.png" />
     <File Path="Design Ideas/fan_control_unknown_framework.png" />

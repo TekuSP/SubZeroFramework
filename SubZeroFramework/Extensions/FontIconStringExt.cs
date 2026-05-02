@@ -63,11 +63,30 @@ public sealed class FontIconStringExt : MarkupExtension
             Glyph = string.IsNullOrWhiteSpace(Glyph) ? throw new ArgumentException("The glyph string must not be null, empty, or whitespace.", nameof(Glyph)) : Glyph
         };
 
-        result.FontSize = IconSize ?? result.FontSize;
-        result.Foreground = IconForeground ?? result.Foreground;
-        result.FontFamily = IconFontFamily ?? result.FontFamily;
-        result.VerticalAlignment = VerticalAlignment ?? result.VerticalAlignment;
-        result.HorizontalAlignment = HorizontalAlignment ?? result.HorizontalAlignment;
+        if (IconForeground is not null)
+        {
+            result.Foreground = IconForeground;
+        }
+
+        if (IconSize is not null)
+        {
+            result.FontSize = IconSize.Value;
+        }
+
+        if (IconFontFamily is not null)
+        {
+            result.FontFamily = IconFontFamily;
+        }
+
+        if (VerticalAlignment is not null)
+        {
+            result.VerticalAlignment = VerticalAlignment.Value;
+        }
+
+        if (HorizontalAlignment is not null)
+        {
+            result.HorizontalAlignment = HorizontalAlignment.Value;
+        }
 
         return result;
     }

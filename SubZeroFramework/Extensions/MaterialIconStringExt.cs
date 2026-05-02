@@ -82,11 +82,26 @@ public sealed class MaterialIconStringExt : MarkupExtension
             Animation = Animation,
         };
 
-        result.Height = IconSize ?? result.Height;
-        result.Width = IconSize ?? result.Width;
-        result.Foreground = IconForeground ?? result.Foreground;
-        result.VerticalAlignment = VerticalAlignment ?? result.VerticalAlignment;
-        result.HorizontalAlignment = HorizontalAlignment ?? result.HorizontalAlignment;
+        if (IconSize is not null)
+        {
+            result.Height = IconSize.Value;
+            result.Width = IconSize.Value;
+        }
+
+        if (IconForeground is not null)
+        {
+            result.Foreground = IconForeground;
+        }
+
+        if (VerticalAlignment is not null)
+        {
+            result.VerticalAlignment = VerticalAlignment.Value;
+        }
+
+        if (HorizontalAlignment is not null)
+        {
+            result.HorizontalAlignment = HorizontalAlignment.Value;
+        }
 
         return result;
     }

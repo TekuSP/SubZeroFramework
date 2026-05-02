@@ -9,14 +9,14 @@
     d:DesignHeight="300"
     d:DesignWidth="400"
     mc:Ignorable="d">
-    <Border Background="#5b5b5c">
+    <Border Background="{StaticResource BrandBackgroundBrush}">
         <utu:ExtendedSplashScreen
             x:Name="Splash"
             HorizontalAlignment="Stretch"
             VerticalAlignment="Stretch"
             HorizontalContentAlignment="Stretch"
             VerticalContentAlignment="Stretch"
-            Background="#5b5b5c">
+            Background="{StaticResource BrandBackgroundBrush}">
             <utu:ExtendedSplashScreen.LoadingContent>
                 <Grid>
                     <Grid.RowDefinitions>

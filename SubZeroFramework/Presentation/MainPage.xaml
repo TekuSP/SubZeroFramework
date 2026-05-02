@@ -7,45 +7,48 @@
     xmlns:local="using:SubZeroFramework.Presentation"
     xmlns:uen="using:Uno.Extensions.Navigation.UI"
     xmlns:utu="using:Uno.Toolkit.UI"
-    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+    Background="{StaticResource AppBackgroundBrush}"
     NavigationCacheMode="Required">
     <ScrollViewer IsTabStop="True">
         <Grid utu:SafeArea.Insets="VisibleBounds">
             <NavigationView
+                Background="{StaticResource SidebarBackgroundBrush}"
                 IsBackButtonVisible="Collapsed"
                 IsBackEnabled="False"
-                IsSettingsVisible="False">
+                IsSettingsVisible="False"
+                PaneTitle="Options">
                 <NavigationView.MenuItems>
                     <NavigationViewItem
                         Content="Dashboard"
                         Icon="{len:FontIconStringExt Glyph={StaticResource DashboardMenuIcon}}"
-                        Tag="SamplePage1" />
+                        IsSelected="True"
+                        Tag="Dashboard" />
                     <NavigationViewItem
                         Content="Thermal Telemetry"
                         Icon="{len:FontIconStringExt Glyph={StaticResource ThermalTelemetryMenuIcon}}"
-                        Tag="SamplePage2" />
+                        Tag="ThermalTelemetry" />
                     <NavigationViewItem
                         Content="Power Telemetry"
                         Icon="{len:FontIconStringExt Glyph={StaticResource PowerTelemetryMenuIcon}}"
-                        Tag="SamplePage3" />
+                        Tag="PowerTelemetry" />
                     <controls:NavigationMaterialViewItem
                         MaterialIconKindName="{StaticResource FanCurveMenuIcon}"
-                        Tag="SamplePage4"
+                        Tag="FanCurve"
                         Text="Fan Curve" />
                     <NavigationViewItem
                         Content="Device Capabilities"
                         Icon="{len:FontIconStringExt Glyph={StaticResource DeviceCapabilitiesMenuIcon}}"
-                        Tag="SamplePage4" />
+                        Tag="DeviceCapabilities" />
                 </NavigationView.MenuItems>
                 <NavigationView.FooterMenuItems>
                     <controls:NavigationMaterialViewItem
                         MaterialIconKindName="{StaticResource GithubMenuIcon}"
-                        Tag="SamplePage4"
+                        Tag="Github"
                         Text="Project Github" />
                     <NavigationViewItem
                         Content="Settings"
                         Icon="{len:FontIconStringExt Glyph={StaticResource SettingsMenuIcon}}"
-                        Tag="SamplePage5" />
+                        Tag="Settings" />
                 </NavigationView.FooterMenuItems>
                 <Frame x:Name="contentFrame" />
             </NavigationView>

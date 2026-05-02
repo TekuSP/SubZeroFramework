@@ -1,7 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
 using FrameworkDotnet;
-using FrameworkDotnet.Enums;
 using FrameworkDotnet.Interfaces;
 
 using SubZeroFramework.Services;

@@ -23,18 +23,30 @@
 
             <SolidColorBrush x:Key="BrandPrimaryBrush" Color="#0078D7" />
             <SolidColorBrush x:Key="BrandSecondaryBrush" Color="#D7D8FF" />
-            <SolidColorBrush x:Key="BrandBackgroundBrush" Color="#5b5b5c" />
-            <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1b2428" />
-            <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#13191C" />
-            <SolidColorBrush x:Key="CardBackgroundBrush" Color="#263136" />
-            <SolidColorBrush x:Key="CardHeaderBackgroundBrush" Color="#2D3A40" />
-            <SolidColorBrush x:Key="CardBorderBrush" Color="#3E4C54" />
-            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#f9f9f9" />
-            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#9BA7B0" />
-            <SolidColorBrush x:Key="StatusSuccessBrush" Color="#54C06A" />
-            <SolidColorBrush x:Key="StatusWarningBrush" Color="#CBA358" />
-            <SolidColorBrush x:Key="StatusErrorBrush" Color="#D15B5B" />
-            <SolidColorBrush x:Key="ControlTrackBrush" Color="#34434A" />
+            <SolidColorBrush x:Key="BrandBackgroundBrush" Color="#545454" />
+            <SolidColorBrush x:Key="BrandHoverBrush" Color="#15191B" />
+            <SolidColorBrush x:Key="BrandCheckedBrush" Color="#1c2828" />
+            <SolidColorBrush x:Key="BrandDisabledBrush" Color="#4A4C59" />
+
+            <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1b2727" />
+            <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#000000" />
+
+            <SolidColorBrush x:Key="CardBackgroundBrush" Color="#2b2e2d" />
+            <SolidColorBrush x:Key="CardBorderBrush" Color="#2b2e2d" />
+            <SolidColorBrush x:Key="CardSecondaryBackgroundBrush" Color="#1f1f1f" />
+            <SolidColorBrush x:Key="CardSecondaryBorderBrush" Color="#1f1f1f" />
+
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#fffffa" />
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#D7D8FF" />
+
+            <SolidColorBrush x:Key="StatusSuccessBrush" Color="#6ccb5f" />
+            <SolidColorBrush x:Key="StatusSuccessForegroundBrush" Color="#000000" />
+
+            <SolidColorBrush x:Key="StatusWarningBrush" Color="#f46762" />
+            <SolidColorBrush x:Key="StatusWarningForegroundBrush" Color="#000000" />
+
+            <SolidColorBrush x:Key="StatusErrorBrush" Color="#442726" />
+            <SolidColorBrush x:Key="StatusErrorForegroundBrush" Color="#fffffa" />
 
             <!--  App Main Icon Scheme  -->
 
@@ -45,6 +57,39 @@
             <x:String x:Key="DeviceCapabilitiesMenuIcon">&#xE950;</x:String>
             <x:String x:Key="GithubMenuIcon">Github</x:String>
             <x:String x:Key="SettingsMenuIcon">&#xE713;</x:String>
+
+            <!--  App Navigation View Color Scheme  -->
+
+            <StaticResource x:Key="NavigationViewItemForeground" ResourceKey="BrandSecondaryBrush" />
+            <StaticResource x:Key="NavigationViewItemForegroundPointerOver" ResourceKey="BrandSecondaryBrush" />
+            <StaticResource x:Key="NavigationViewItemForegroundPressed" ResourceKey="BrandPrimaryBrush" />
+            <StaticResource x:Key="NavigationViewItemForegroundDisabled" ResourceKey="BrandDisabledBrush" />
+            <StaticResource x:Key="NavigationViewItemForegroundChecked" ResourceKey="BrandPrimaryBrush" />
+            <StaticResource x:Key="NavigationViewItemForegroundCheckedPointerOver" ResourceKey="BrandPrimaryBrush" />
+            <StaticResource x:Key="NavigationViewItemForegroundCheckedPressed" ResourceKey="BrandPrimaryBrush" />
+            <StaticResource x:Key="NavigationViewItemForegroundCheckedDisabled" ResourceKey="BrandDisabledBrush" />
+            <StaticResource x:Key="NavigationViewItemForegroundSelected" ResourceKey="BrandPrimaryBrush" />
+            <StaticResource x:Key="NavigationViewItemForegroundSelectedPointerOver" ResourceKey="BrandPrimaryBrush" />
+            <StaticResource x:Key="NavigationViewItemForegroundSelectedPressed" ResourceKey="BrandPrimaryBrush" />
+            <StaticResource x:Key="NavigationViewItemForegroundSelectedDisabled" ResourceKey="BrandDisabledBrush" />
+            <StaticResource x:Key="NavigationViewItemBackgroundPointerOver" ResourceKey="BrandHoverBrush" />
+            <StaticResource x:Key="NavigationViewItemBackgroundPressed" ResourceKey="BrandCheckedBrush" />
+            <StaticResource x:Key="NavigationViewItemBackgroundChecked" ResourceKey="BrandCheckedBrush" />
+            <StaticResource x:Key="NavigationViewItemBackgroundCheckedPointerOver" ResourceKey="BrandCheckedBrush" />
+            <StaticResource x:Key="NavigationViewItemBackgroundCheckedPressed" ResourceKey="BrandCheckedBrush" />
+            <StaticResource x:Key="NavigationViewItemBackgroundCheckedDisabled" ResourceKey="BrandDisabledBrush" />
+            <StaticResource x:Key="NavigationViewItemBackgroundSelected" ResourceKey="BrandCheckedBrush" />
+            <StaticResource x:Key="NavigationViewItemBackgroundSelectedPointerOver" ResourceKey="BrandCheckedBrush" />
+            <StaticResource x:Key="NavigationViewItemBackgroundSelectedPressed" ResourceKey="BrandCheckedBrush" />
+            <StaticResource x:Key="NavigationViewItemBackgroundSelectedDisabled" ResourceKey="BrandDisabledBrush" />
+            <StaticResource x:Key="NavigationViewSelectionIndicatorForeground" ResourceKey="BrandPrimaryBrush" />
+            <StaticResource x:Key="NavigationViewButtonForegroundPointerOver" ResourceKey="BrandPrimaryBrush" />
+            <StaticResource x:Key="NavigationViewButtonForegroundPressed" ResourceKey="BrandPrimaryBrush" />
+            <StaticResource x:Key="NavigationViewButtonForegroundDisabled" ResourceKey="BrandDisabledBrush" />
+            <StaticResource x:Key="NavigationViewButtonBackgroundPointerOver" ResourceKey="BrandHoverBrush" />
+            <StaticResource x:Key="NavigationViewButtonBackgroundPressed" ResourceKey="BrandCheckedBrush" />
+            <StaticResource x:Key="NavigationViewButtonBackgroundDisabled" ResourceKey="BrandDisabledBrush" />
+            <StaticResource x:Key="NavigationViewContentBackground" ResourceKey="AppBackgroundBrush" />
 
             <!--  Add resources here  -->
 
