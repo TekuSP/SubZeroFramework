@@ -1,19 +1,47 @@
-<Application x:Class="SubZeroFramework.App"
-       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+﻿<Application
+    x:Class="SubZeroFramework.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:icons="using:Material.Icons.UNO">
 
-  <Application.Resources>
-    <ResourceDictionary>
-      <ResourceDictionary.MergedDictionaries>
-        <!-- Load WinUI resources -->
-        <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
-        <!-- Load Uno.UI.Toolkit resources -->
-        <ToolkitResources xmlns="using:Uno.Toolkit.UI" />
-      </ResourceDictionary.MergedDictionaries>
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!--  Load WinUI resources  -->
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+                <!--  Load Uno.UI.Toolkit resources  -->
+                <ToolkitResources xmlns="using:Uno.Toolkit.UI" />
+            </ResourceDictionary.MergedDictionaries>
 
-      <!-- Add resources here -->
+            <!--  App main color scheme  -->
 
-    </ResourceDictionary>
-  </Application.Resources>
+            <SolidColorBrush x:Key="BrandPrimaryBrush" Color="#0078D7" />
+            <SolidColorBrush x:Key="BrandSecondaryBrush" Color="#D7D8FF" />
+            <SolidColorBrush x:Key="BrandBackgroundBrush" Color="#5b5b5c" />
+            <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1b2428" />
+            <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#13191C" />
+            <SolidColorBrush x:Key="CardBackgroundBrush" Color="#263136" />
+            <SolidColorBrush x:Key="CardHeaderBackgroundBrush" Color="#2D3A40" />
+            <SolidColorBrush x:Key="CardBorderBrush" Color="#3E4C54" />
+            <SolidColorBrush x:Key="TextPrimaryBrush" Color="#f9f9f9" />
+            <SolidColorBrush x:Key="TextSecondaryBrush" Color="#9BA7B0" />
+            <SolidColorBrush x:Key="StatusSuccessBrush" Color="#54C06A" />
+            <SolidColorBrush x:Key="StatusWarningBrush" Color="#CBA358" />
+            <SolidColorBrush x:Key="StatusErrorBrush" Color="#D15B5B" />
+            <SolidColorBrush x:Key="ControlTrackBrush" Color="#34434A" />
+
+            <!--  App Main Icon Scheme  -->
+
+            <FontIcon x:Key="DashboardMenuIcon" Glyph="&#xF246;" />
+            <FontIcon x:Key="ThermalTelemetryMenuIcon" Glyph="&#xE9CA;" />
+            <FontIcon x:Key="PowerTelemetryMenuIcon" Glyph="&#xE95F;" />
+            <icons:MaterialIcon x:Key="FanCurveMenuIcon" Kind="Fan" />
+            <FontIcon x:Key="DeviceCapabilitiesMenuIcon" Glyph="&#xE950;" />
+            <icons:MaterialIcon x:Key="GithubMenuIcon" Kind="Github" />
+
+            <!--  Add resources here  -->
+
+        </ResourceDictionary>
+    </Application.Resources>
 
 </Application>

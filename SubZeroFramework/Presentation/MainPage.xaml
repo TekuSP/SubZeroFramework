@@ -1,26 +1,35 @@
-﻿<Page x:Class="SubZeroFramework.Presentation.MainPage"
-      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:local="using:SubZeroFramework.Presentation"
-      xmlns:uen="using:Uno.Extensions.Navigation.UI"
-      xmlns:utu="using:Uno.Toolkit.UI"
-      NavigationCacheMode="Required"
-      Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-  <ScrollViewer IsTabStop="True">
-    <Grid utu:SafeArea.Insets="VisibleBounds">
-      <Grid.RowDefinitions>
-        <RowDefinition Height="Auto" />
-        <RowDefinition />
-      </Grid.RowDefinitions>
-      <utu:NavigationBar Content="{Binding Title}" />
+﻿<Page
+    x:Class="SubZeroFramework.Presentation.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:SubZeroFramework.Presentation"
+    xmlns:uen="using:Uno.Extensions.Navigation.UI"
+    xmlns:uno="using:Material.Icons.UNO"
+    xmlns:utu="using:Uno.Toolkit.UI"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+    NavigationCacheMode="Required">
+    <ScrollViewer IsTabStop="True">
+        <Grid utu:SafeArea.Insets="VisibleBounds">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition />
+            </Grid.RowDefinitions>
+            <utu:NavigationBar Content="{Binding Title}" />
 
-      <StackPanel Grid.Row="1"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            Spacing="16">
-                <TextBox Text="{Binding Name, Mode=TwoWay}"
-            PlaceholderText="Enter your name:" />
+            <StackPanel
+                Grid.Row="1"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="16">
+                <TextBox PlaceholderText="Enter your name:" Text="{Binding Name, Mode=TwoWay}" />
+
+                <uno:MaterialIcon
+                    Width="30"
+                    Height="30"
+                    Background="Blue"
+                    Foreground="Yellow"
+                    Kind="Github" />
             </StackPanel>
-    </Grid>
-  </ScrollViewer>
+        </Grid>
+    </ScrollViewer>
 </Page>
