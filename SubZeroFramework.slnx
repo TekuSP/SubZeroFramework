@@ -9,10 +9,6 @@
     <File Path="Directory.Build.targets" />
     <File Path="Directory.Packages.props" />
     <File Path="global.json" />
-    <Project Path="SubZeroFramework/SubZeroFramework.csproj">
-      <Platform Solution="*|ARM64" Project="ARM64" />
-      <Platform Solution="*|x64" Project="x64" />
-    </Project>
   </Folder>
   <Folder Name="/Solution Items/CI/">
     <File Path=".github/workflows/ci.yml" />
@@ -23,4 +19,8 @@
     <File Path="Design Ideas/fan_control_prototype_design.png" />
     <File Path="Design Ideas/fan_control_unknown_framework.png" />
   </Folder>
+  <Project Path="SubZeroFramework/SubZeroFramework.csproj">
+    <Platform Solution="*|ARM64" Project="ARM64" />
+    <Platform Solution="*|x64" Project="x64" />
+  </Project>
 </Solution>

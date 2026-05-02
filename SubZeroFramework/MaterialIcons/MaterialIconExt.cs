@@ -1,42 +1,56 @@
-using System;
-using Microsoft.UI.Xaml.Markup;
-using Material.Icons;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Markup;
+using Microsoft.UI.Xaml.Media;
 
 namespace Material.Icons.UNO;
 
 [MarkupExtensionReturnType(ReturnType = typeof(MaterialIcon))]
-public class MaterialIconExt : MarkupExtension
-{
-    public MaterialIconExt()
-    { }
+public partial class MaterialIconExt : MarkupExtension {
+    public MaterialIconExt() { }
 
-    public MaterialIconExt(MaterialIconKind kind)
-    {
+    public MaterialIconExt(MaterialIconKind kind) {
         Kind = kind;
     }
 
-    public MaterialIconExt(MaterialIconKind kind, double size)
-    {
+    public MaterialIconExt(MaterialIconKind kind, MaterialIconAnimation animation) {
         Kind = kind;
-        Size = size;
+        Animation = animation;
     }
 
-    // [ConstructorArgument("kind")]
+    public MaterialIconExt(MaterialIconKind kind, double iconSize, MaterialIconAnimation animation = MaterialIconAnimation.None) {
+        Kind = kind;
+        IconSize = iconSize;
+        Animation = animation;
+    }
+
     public MaterialIconKind Kind { get; set; }
 
-    // [ConstructorArgument("size")]
-    public double? Size { get; set; }
+    public MaterialIconAnimation Animation { get; set; }
 
-    protected override object ProvideValue(IXamlServiceProvider serviceProvider)
-    {
-        var result = new MaterialIcon { Kind = Kind };
+    public double? IconSize { get; set; }
 
-        if (Size.HasValue)
+    public Brush? IconForeground { get; set; }
+
+    public VerticalAlignment? VerticalAlignment { get; set; }
+
+    public HorizontalAlignment? HorizontalAlignment { get; set; }
+
+    protected override object ProvideValue(IXamlServiceProvider serviceProvider) {
+        var result = new MaterialIcon
         {
-            result.Height = Size.Value;
-            result.Width = Size.Value;
+            Kind = Kind,
+            Animation = Animation
+        };
+
+        if (IconSize is not null) {
+            result.Height = IconSize.Value;
+            result.Width = IconSize.Value;
         }
+
+        if (IconForeground is not null) result.Foreground = IconForeground;
+
+        if (VerticalAlignment is not null) result.VerticalAlignment = VerticalAlignment.Value;
+        if (HorizontalAlignment is not null) result.HorizontalAlignment = HorizontalAlignment.Value;
 
         return result;
     }
