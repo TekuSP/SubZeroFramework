@@ -2,38 +2,50 @@
     x:Class="SubZeroFramework.Presentation.MainPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:len="using:SubZeroFramework.Extensions"
     xmlns:local="using:SubZeroFramework.Presentation"
     xmlns:uen="using:Uno.Extensions.Navigation.UI"
-    xmlns:uno="using:Material.Icons.UNO"
     xmlns:utu="using:Uno.Toolkit.UI"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
     NavigationCacheMode="Required">
     <ScrollViewer IsTabStop="True">
         <Grid utu:SafeArea.Insets="VisibleBounds">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition />
-            </Grid.RowDefinitions>
-            <utu:NavigationBar Content="{Binding Title}" />
-
-            <StackPanel
-                Grid.Row="1"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Spacing="16">
-                <TextBox
-                    FontFamily="{StaticResource MontserratFont}"
-                    PlaceholderText="Enter your name:"
-                    Text="{Binding Name, Mode=TwoWay}" />
-                <TextBox PlaceholderText="Enter your name:" Text="{Binding Name, Mode=TwoWay}" />
-
-                <uno:MaterialIcon
-                    Width="30"
-                    Height="30"
-                    Background="Blue"
-                    Foreground="Yellow"
-                    Kind="Github" />
-            </StackPanel>
+            <NavigationView IsBackButtonVisible="Collapsed" IsBackEnabled="False">
+                <NavigationView.MenuItems>
+                    <NavigationViewItem
+                        Content="Dashboard"
+                        Icon="{len:FontIconStringExt Glyph={StaticResource DashboardMenuIcon}}"
+                        Tag="SamplePage1" />
+                    <NavigationViewItem
+                        Content="Thermal Telemetry"
+                        Icon="{len:FontIconStringExt Glyph={StaticResource ThermalTelemetryMenuIcon}}"
+                        Tag="SamplePage2" />
+                    <NavigationViewItem
+                        Content="Power Telemetry"
+                        Icon="{len:FontIconStringExt Glyph={StaticResource PowerTelemetryMenuIcon}}"
+                        Tag="SamplePage3" />
+                    <controls:NavigationMaterialViewItem
+                        MaterialIconKindName="{StaticResource FanCurveMenuIcon}"
+                        Text="Fan Curve"
+                        Tag="SamplePage4" />
+                    <NavigationViewItem
+                        Content="Device Capabilities"
+                        Icon="{len:FontIconStringExt Glyph={StaticResource DeviceCapabilitiesMenuIcon}}"
+                        Tag="SamplePage4" />
+                </NavigationView.MenuItems>
+                <NavigationView.FooterMenuItems>
+                    <controls:NavigationMaterialViewItem
+                        MaterialIconKindName="{StaticResource GithubMenuIcon}"
+                        Text="Project Github"
+                        Tag="SamplePage4" />
+                    <NavigationViewItem
+                        Content="Settings"
+                        Icon="{len:FontIconStringExt Glyph={StaticResource SettingsMenuIcon}}"
+                        Tag="SamplePage5" />
+                </NavigationView.FooterMenuItems>
+                <Frame x:Name="contentFrame" />
+            </NavigationView>
         </Grid>
     </ScrollViewer>
 </Page>

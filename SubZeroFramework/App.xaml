@@ -2,7 +2,7 @@
     x:Class="SubZeroFramework.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:icons="using:Material.Icons.UNO">
+    xmlns:icons="using:Material.Icons">
 
     <Application.Resources>
         <ResourceDictionary>
@@ -14,6 +14,8 @@
                 <!--  Load Material.Icons.UNO resources  -->
                 <ResourceDictionary Source="/MaterialIcons/Themes/Generic.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!--  App main fonts  -->
 
             <FontFamily x:Key="MontserratFont">ms-appx:///Assets/Fonts/Montserrat-Light.ttf#Montserrat</FontFamily>
 
@@ -36,12 +38,13 @@
 
             <!--  App Main Icon Scheme  -->
 
-            <FontIcon x:Key="DashboardMenuIcon" Glyph="&#xF246;" />
-            <FontIcon x:Key="ThermalTelemetryMenuIcon" Glyph="&#xE9CA;" />
-            <FontIcon x:Key="PowerTelemetryMenuIcon" Glyph="&#xE95F;" />
-            <icons:MaterialIcon x:Key="FanCurveMenuIcon" Kind="Fan" />
-            <FontIcon x:Key="DeviceCapabilitiesMenuIcon" Glyph="&#xE950;" />
-            <icons:MaterialIcon x:Key="GithubMenuIcon" Kind="Github" />
+            <x:String x:Key="DashboardMenuIcon">&#xF246;</x:String>
+            <x:String x:Key="ThermalTelemetryMenuIcon">&#xE9CA;</x:String>
+            <x:String x:Key="PowerTelemetryMenuIcon">&#xE945;</x:String>
+            <x:String x:Key="FanCurveMenuIcon">Fan</x:String>
+            <x:String x:Key="DeviceCapabilitiesMenuIcon">&#xE950;</x:String>
+            <x:String x:Key="GithubMenuIcon">Github</x:String>
+            <x:String x:Key="SettingsMenuIcon">&#xE713;</x:String>
 
             <!--  Add resources here  -->
 
