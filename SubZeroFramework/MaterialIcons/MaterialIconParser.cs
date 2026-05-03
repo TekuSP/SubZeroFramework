@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using Microsoft.UI.Xaml.Media;
+
 using Windows.Foundation;
 
 namespace Material.Icons.UNO;

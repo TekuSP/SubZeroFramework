@@ -1,18 +1,14 @@
-using System;
-using System.Collections.Generic;
-using System.Text;
-
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.WinUI;
-
-using FrameworkDotnet.Interfaces;
 
 using Hardware.Info;
 
 using Microsoft.UI.Dispatching;
-using System.Reactive;
+
 using SubZeroFramework.Services;
+
 using System.Reactive.Linq;
+
 using Material.Icons;
 namespace SubZeroFramework.Presentation.Header;
 

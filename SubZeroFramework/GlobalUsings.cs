@@ -8,5 +8,3 @@ global using Microsoft.Extensions.Options;
 
 global using SubZeroFramework.Models;
 global using SubZeroFramework.Presentation;
-
-global using ApplicationExecutionState = Windows.ApplicationModel.Activation.ApplicationExecutionState;

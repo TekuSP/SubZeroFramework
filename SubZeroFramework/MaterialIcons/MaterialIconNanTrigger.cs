@@ -1,5 +1,3 @@
-using Microsoft.UI.Xaml;
-
 namespace Material.Icons.UNO;
 
 /// <summary>

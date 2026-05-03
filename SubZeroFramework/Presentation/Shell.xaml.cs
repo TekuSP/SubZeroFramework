@@ -1,5 +1,3 @@
-using Microsoft.UI.Xaml.Media.Imaging;
-
 namespace SubZeroFramework.Presentation;
 
 public sealed partial class Shell : UserControl, IContentControlProvider

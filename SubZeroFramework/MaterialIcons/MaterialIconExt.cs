@@ -1,6 +1,4 @@
-using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Markup;
-using Microsoft.UI.Xaml.Media;
 
 namespace Material.Icons.UNO;
 

@@ -1,7 +1,5 @@
 using System.ComponentModel;
 
-using CommunityToolkit.Mvvm.ComponentModel;
-
 using Microsoft.UI.Windowing;
 
 namespace SubZeroFramework.Presentation;

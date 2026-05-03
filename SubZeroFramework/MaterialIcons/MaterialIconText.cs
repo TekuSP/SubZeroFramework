@@ -1,6 +1,3 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-
 namespace Material.Icons.UNO;
 
 public partial class MaterialIconText : MaterialIcon {

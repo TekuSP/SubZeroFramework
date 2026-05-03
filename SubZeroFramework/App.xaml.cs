@@ -1,17 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
 
-using CommunityToolkit.Mvvm.DependencyInjection;
-
 using FrameworkDotnet;
 using FrameworkDotnet.Interfaces;
 
 using Hardware.Info;
 
-using LiveChartsCore;
-
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
-using Microsoft.UI.Xaml.Media;
 
 using SubZeroFramework.Presentation.MenuItems.Dashboard;
 using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
@@ -21,8 +16,6 @@ using SubZeroFramework.Presentation.MenuItems.Settings;
 using SubZeroFramework.Presentation.MenuItems.ThermalTelemetry;
 using SubZeroFramework.Presentation.MenuItems.WarningsIssues;
 using SubZeroFramework.Services;
-
-using Uno.Resizetizer;
 
 namespace SubZeroFramework;
 
