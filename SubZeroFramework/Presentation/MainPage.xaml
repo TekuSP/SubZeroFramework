@@ -30,10 +30,7 @@
                 VerticalAlignment="Center"
                 Click="PaneToggleButton_Click"
                 Icon="GlobalNavigationButton" />
-            <Grid
-                x:Name="DraggableTitleBar"
-                Grid.Column="1"
-                Background="Transparent" />
+            <Grid Grid.Column="1" />
         </Grid>
         <NavigationView
             x:Name="MainNavigationView"
@@ -43,6 +40,7 @@
             IsBackEnabled="False"
             IsPaneToggleButtonVisible="False"
             IsSettingsVisible="False"
+            OpenPaneLength="200"
             PaneDisplayMode="LeftCompact">
             <NavigationView.MenuItems>
                 <NavigationViewItem

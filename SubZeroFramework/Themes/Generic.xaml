@@ -2,26 +2,36 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:SubZeroFramework.Controls"
-    xmlns:icons="using:Material.Icons.UNO">
+    xmlns:icons="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:not_win="http://uno.ui/not_win"
+    xmlns:win="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    mc:Ignorable="not_win">
 
     <Style TargetType="controls:NavigationMaterialViewItemPresenter">
         <Setter Property="IsTabStop" Value="False" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="controls:NavigationMaterialViewItemPresenter">
-                    <Grid>
-                        <icons:MaterialIcon
+                    <Grid HorizontalAlignment="Left" VerticalAlignment="Center">
+                        <Grid
                             x:Name="CompactIcon"
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            Foreground="{TemplateBinding Foreground}"
-                            IconSize="{TemplateBinding IconSize}"
-                            Kind="{TemplateBinding Kind}"
-                            Visibility="Collapsed" />
+                            not_win:Margin="-2,0,0,0"
+                            win:Margin="1.5,0,0,0"
+                            Visibility="Collapsed">
+                            <icons:MaterialIcon
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Foreground="{TemplateBinding Foreground}"
+                                IconSize="{TemplateBinding IconSize}"
+                                Kind="{TemplateBinding Kind}" />
+                        </Grid>
                         <StackPanel
                             x:Name="ExpandedContent"
                             HorizontalAlignment="Left"
                             VerticalAlignment="Center"
+                            not_win:Margin="-6,0,0,0"
+                            win:Margin="-2.5,0,0,0"
                             Orientation="Horizontal"
                             Spacing="{TemplateBinding Spacing}">
                             <icons:MaterialIcon

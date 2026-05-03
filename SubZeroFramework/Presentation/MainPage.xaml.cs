@@ -7,16 +7,21 @@ public sealed partial class MainPage : Page
     public MainPage()
     {
         this.InitializeComponent();
-        DraggableTitleBar.Loaded += TitleBarHost_Loaded;
+        TitleBarHost.Loaded += TitleBarHost_Loaded;
     }
 
     private void TitleBarHost_Loaded(object sender, RoutedEventArgs e)
     {
-        DraggableTitleBar.Loaded -= TitleBarHost_Loaded;
+        TitleBarHost.Loaded -= TitleBarHost_Loaded;
 
         if (Application.Current is App app && app.MainWindow is not null && AppWindowTitleBar.IsCustomizationSupported())
         {
-            app.MainWindow.SetTitleBar(DraggableTitleBar);
+            app.MainWindow.SetTitleBar(TitleBarHost);
+        }
+        else if (!AppWindowTitleBar.IsCustomizationSupported())
+        {
+            TitleBarHost.Visibility = Visibility.Collapsed;
+            MainNavigationView.IsPaneToggleButtonVisible = true;
         }
     }
 

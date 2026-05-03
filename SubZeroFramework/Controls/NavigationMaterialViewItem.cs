@@ -119,8 +119,6 @@ public class NavigationMaterialViewItem : NavigationViewItem
 
     private void UpdateIcon()
     {
-        Icon = null;
-
         if (string.IsNullOrWhiteSpace(MaterialIconKindName))
         {
             _content.Kind = null;
