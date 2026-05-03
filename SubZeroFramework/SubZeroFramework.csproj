@@ -69,6 +69,9 @@
     </PropertyGroup>
     <ItemGroup>
         <Content Update="@(Content)" CopyToOutputDirectory="PreserveNewest" />
+        <Content Update="Assets\Fonts\Montserrat-Light.ttf">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
     <ItemGroup>
         <Content Include="Assets\Svg\**\*.svg" />
