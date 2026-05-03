@@ -68,6 +68,9 @@
         <WindowsMuiLanguagesToKeep>en-US</WindowsMuiLanguagesToKeep>
     </PropertyGroup>
     <ItemGroup>
+        <Content Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest"/>
+    </ItemGroup>
+    <ItemGroup>
         <Content Include="Assets\Svg\**\*.svg" />
     </ItemGroup>
     <ItemGroup>

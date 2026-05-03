@@ -137,10 +137,10 @@ jobs:
         run: dotnet nuget add source --store-password-in-clear-text --name "GitHub" https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --username "${{ github.actor }}" --password "${{ env.GITHUB_TOKEN }}"
 
       - name: Restore
-        run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }}
+        run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
          
       - name: Build
-        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
+        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
          
       - name: Publish
         run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }}  -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
