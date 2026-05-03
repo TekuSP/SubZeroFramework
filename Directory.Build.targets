@@ -32,12 +32,6 @@
                 <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
             </ResolvedFileToPublish>
 
-            <_LibVlcFolder Include="$(TargetDir)libvlc\**\*.*" />
-            <ResolvedFileToPublish Include="@(_LibVlcFolder)">
-                <RelativePath>libvlc/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
-                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-            </ResolvedFileToPublish>
-
             <_LiveChartsFolder Include="$(TargetDir)LiveChartsCore.SkiaSharpView.Uno.WinUI\**\*.*" />
             <ResolvedFileToPublish Include="@(_LiveChartsFolder)">
                 <RelativePath>LiveChartsCore.SkiaSharpView.Uno.WinUI/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
