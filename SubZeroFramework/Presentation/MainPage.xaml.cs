@@ -1,20 +1,22 @@
+using Microsoft.UI.Windowing;
+
 namespace SubZeroFramework.Presentation;
 
 public sealed partial class MainPage : Page
 {
     public MainPage()
-    {   
+    {
         this.InitializeComponent();
-        this.Loaded += MainPage_Loaded;
+        DraggableTitleBar.Loaded += TitleBarHost_Loaded;
     }
 
-    private void MainPage_Loaded(object sender, RoutedEventArgs e)
+    private void TitleBarHost_Loaded(object sender, RoutedEventArgs e)
     {
-        Loaded -= MainPage_Loaded;
+        DraggableTitleBar.Loaded -= TitleBarHost_Loaded;
 
-        if (Application.Current is App app && app.MainWindow is not null)
+        if (Application.Current is App app && app.MainWindow is not null && AppWindowTitleBar.IsCustomizationSupported())
         {
-            app.MainWindow.SetTitleBar(TitleBarHost);
+            app.MainWindow.SetTitleBar(DraggableTitleBar);
         }
     }
 

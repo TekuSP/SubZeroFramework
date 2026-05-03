@@ -19,16 +19,21 @@
             Height="48"
             Background="{StaticResource SidebarBackgroundBrush}">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="48" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="PaneToggleButtonColumn" Width="48" />
+                <ColumnDefinition x:Name="DraggableAreaColumn" Width="*" />
             </Grid.ColumnDefinitions>
             <AppBarButton
+                x:Name="PaneToggleButton"
                 Grid.Column="0"
                 Margin="5,0,0,0"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                Click="{x:Bind PaneToggleButton_Click}"
+                Click="PaneToggleButton_Click"
                 Icon="GlobalNavigationButton" />
+            <Grid
+                x:Name="DraggableTitleBar"
+                Grid.Column="1"
+                Background="Transparent" />
         </Grid>
         <NavigationView
             x:Name="MainNavigationView"

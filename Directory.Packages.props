@@ -6,17 +6,19 @@
     See https://aka.platform.uno/using-uno-sdk#implicit-packages for more information regarding the Implicit Packages.
   -->
   <PropertyGroup>
+      <!--
     <MicrosoftLoggingVersion>10.0.7</MicrosoftLoggingVersion>
     <CommunityToolkitMvvmVersion>8.4.2</CommunityToolkitMvvmVersion>
+      -->
     <WinAppSdkVersion>2.0.1</WinAppSdkVersion>
     <WinAppSdkBuildToolsVersion>10.0.28000.1839</WinAppSdkBuildToolsVersion>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="CodeBrix.Platform.LinuxDBus.MitLicenseForever" Version="1.0.117" />
     <PackageVersion Include="DynamicData" Version="9.4.31" />
     <PackageVersion Include="FrameworkDotnet" Version="0.2.1.82" />
     <PackageVersion Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" Version="2.0.2" />
     <PackageVersion Include="Material.Icons" Version="3.0.2" />
     <PackageVersion Include="System.Reactive" Version="6.1.0" />
-    <PackageVersion Include="Tmds.DBus.Protocol" Version="0.93.0" />
   </ItemGroup>
 </Project>

@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Uno.Sdk">
     <PropertyGroup>
-        <TargetFrameworks>net10.0-desktop1.0;net10.0-windows10.0.26100</TargetFrameworks>
+        <TargetFrameworks>net10.0-desktop;net10.0-windows10.0.26100</TargetFrameworks>
 
         <OutputType>Exe</OutputType>
         <UnoSingleProject>true</UnoSingleProject>
@@ -57,7 +57,6 @@
         <PackageReference Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" />
         <PackageReference Include="Material.Icons" />
         <PackageReference Include="System.Reactive" />
-        <PackageReference Include="Tmds.DBus.Protocol" />
     </ItemGroup>
     <PropertyGroup>
         <UnoSplashScreenColor>#5b5b5c</UnoSplashScreenColor>
@@ -68,5 +67,10 @@
     </PropertyGroup>
     <ItemGroup>
         <Content Include="Assets\Svg\**\*.svg" />
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Themes\Generic.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
     </ItemGroup>
 </Project>

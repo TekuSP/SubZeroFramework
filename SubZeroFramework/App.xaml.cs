@@ -109,11 +109,6 @@ public partial class App : Application
         MainWindow.AppWindow.TitleBar.ExtendsContentIntoTitleBar = true;
         MainWindow.AppWindow.TitleBar.PreferredHeightOption = TitleBarHeightOption.Standard;
 
-        if (MainWindow.Content is FrameworkElement rootElement)
-        {
-            MainWindow.SetTitleBar(rootElement);
-        }
-
 #if HAS_UNO
         Uno.UI.Xaml.WindowHelper.SetBackground(MainWindow, (Brush)Current.Resources["SidebarBackgroundBrush"]);
 #endif

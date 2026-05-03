@@ -1,5 +1,4 @@
 using Material.Icons;
-using Material.Icons.UNO;
 
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -8,17 +7,16 @@ using Microsoft.UI.Xaml.Media;
 namespace SubZeroFramework.Controls;
 
 /// <summary>
-/// A <see cref="NavigationViewItem"/> that renders its content using <see cref="MaterialIconText"/>.
+/// A <see cref="NavigationViewItem"/> that renders its content using <see cref="NavigationMaterialViewItemPresenter"/>.
 /// </summary>
 public class NavigationMaterialViewItem : NavigationViewItem
 {
-    private readonly TranslateTransform _contentTransform = new();
-    private readonly MaterialIconText _content = new()
+    private const double CompactWidthThreshold = 56;
+
+    private readonly NavigationMaterialViewItemPresenter _content = new()
     {
         Spacing = 14.5,
         VerticalAlignment = VerticalAlignment.Center,
-        VerticalContentAlignment = VerticalAlignment.Center,
-        HorizontalContentAlignment = HorizontalAlignment.Left,
         HorizontalAlignment = HorizontalAlignment.Left,
         FontSize = 14
     };
@@ -26,24 +24,12 @@ public class NavigationMaterialViewItem : NavigationViewItem
     public NavigationMaterialViewItem()
     {
         SizeChanged += NavigationMaterialViewItem_SizeChanged;
-        _content.RenderTransform = _contentTransform;
         Content = _content;
     }
 
-    // WinUI 3 and Skia have different default NavigationViewItem padding, so adjust the hosted content margin accordingly.
-#if DESKTOP1_0_OR_GREATER
-    private double ExpandedOffsetX { get; } = -6;
-    private double CollapsedOffsetX { get; } = -2;
-#endif
-#if !DESKTOP1_0_OR_GREATER
-    private double ExpandedOffsetX { get; } = -2.5;
-    private double CollapsedOffsetX { get; } = 1.5;
-#endif
-
     private void NavigationMaterialViewItem_SizeChanged(object sender, SizeChangedEventArgs args)
     {
-        bool isExpanding = args.NewSize.Width > args.PreviousSize.Width;
-        _contentTransform.X = isExpanding ? ExpandedOffsetX : CollapsedOffsetX;
+        UpdateLayoutMode(args.NewSize.Width);
     }
 
     /// <summary>
@@ -123,6 +109,7 @@ public class NavigationMaterialViewItem : NavigationViewItem
     {
         base.OnApplyTemplate();
         UpdateIcon();
+        UpdateLayoutMode(ActualWidth);
     }
 
     private static void OnMaterialIconPropertyChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
@@ -150,8 +137,21 @@ public class NavigationMaterialViewItem : NavigationViewItem
         _content.Text = Text;
         _content.FontFamily = FontFamily;
         _content.FontWeight = FontWeight;
-        _contentTransform.X = IsExpanded ? ExpandedOffsetX : CollapsedOffsetX;
-        _content.Foreground = MaterialIconForeground ?? Foreground;
+
+        if (MaterialIconForeground is not null)
+        {
+            _content.Foreground = MaterialIconForeground;
+        }
+        else
+        {
+            _content.ClearValue(ForegroundProperty);
+        }
+
         _content.IconSize = double.IsNaN(MaterialIconSize) ? 20 : MaterialIconSize;
+    }
+
+    private void UpdateLayoutMode(double width)
+    {
+        _content.IsCompact = width <= CompactWidthThreshold;
     }
 }

@@ -12,15 +12,17 @@
       "commandName": "Project",
       "compatibleTargetFramework": "windows"
     },
-    "SubZeroFramework (Desktop)": {
-      "commandName": "Project",
-      "compatibleTargetFramework": "desktop"
-    },
+    //"SubZeroFramework (Desktop)": {
+    //  "commandName": "Project",
+    //  "compatibleTargetFramework": "desktop"
+    //},
     "SubZeroFramework (Desktop WSL2)": {
       "commandName": "WSL2",
-      "commandLineArgs": "{ProjectDir}/bin/Debug/net10.0-desktop/SubZeroFramework.dll",
+      "commandLineArgs": "{ProjectDir}/bin/x64/Debug/net10.0-desktop/SubZeroFramework.dll",
       "distributionName": "archlinux",
-      "compatibleTargetFramework": "desktop"
+      "compatibleTargetFramework": "desktop",
+      "DISPLAY": ":0",
+      "GDK_GL": "gles" // use this line when running under WSL on Windows 11
     }
   }
 }

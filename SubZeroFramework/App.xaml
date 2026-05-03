@@ -2,7 +2,8 @@
     x:Class="SubZeroFramework.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:icons="using:Material.Icons">
+    xmlns:icons="using:Material.Icons"
+    RequestedTheme="Dark">
 
     <Application.Resources>
         <ResourceDictionary>
@@ -11,6 +12,8 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <!--  Load Uno.UI.Toolkit resources  -->
                 <ToolkitResources xmlns="using:Uno.Toolkit.UI" />
+                <!--  Load project control resources  -->
+                <ResourceDictionary Source="/Themes/Generic.xaml" />
                 <!--  Load Material.Icons.UNO resources  -->
                 <ResourceDictionary Source="/MaterialIcons/Themes/Generic.xaml" />
             </ResourceDictionary.MergedDictionaries>
@@ -55,7 +58,7 @@
             <x:String x:Key="PowerTelemetryMenuIcon">&#xE945;</x:String>
             <x:String x:Key="FanCurveMenuIcon">Fan</x:String>
             <x:String x:Key="DeviceCapabilitiesMenuIcon">&#xE950;</x:String>
-            <x:String x:Key="WarningsMenuIcon">&#xF736;</x:String>
+            <x:String x:Key="WarningsMenuIcon">&#xE814;</x:String>
             <x:String x:Key="GithubMenuIcon">Github</x:String>
             <x:String x:Key="SettingsMenuIcon">&#xE713;</x:String>
 

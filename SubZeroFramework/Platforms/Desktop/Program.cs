@@ -12,7 +12,7 @@ internal class Program
             .App(() => new App())
             .UseX11()
             .UseLinuxFrameBuffer()
-            .UseWin32()
+            //.UseWin32() No more Win32 support, run WinUI3
             .Build();
 
         host.Run();
