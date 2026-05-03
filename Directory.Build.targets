@@ -51,7 +51,7 @@
     <Delete Files="@(_MuiFileToRemove)" />
     <RemoveDir Directories="@(_MuiDirectoryToRemove)" />
   </Target>
-    <Target Name="ForceCopyToPublish" AfterTargets="ComputeFilesToPublish">
+    <Target Name="ForceCopyToPublish" AfterTargets="ComputeFilesToPublish" Condition="'$(TargetFramework)' == 'net10.0-desktop'">
         <ItemGroup>
             <_AllOutputFiles Include="@(Content)" Condition="'%(Content.CopyToOutputDirectory)' == 'PreserveNewest' Or '%(Content.CopyToOutputDirectory)' == 'Always'" />
 
