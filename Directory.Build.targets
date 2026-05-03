@@ -2,12 +2,12 @@
     <Target Name="FixUnoAssetsPublish" AfterTargets="ComputeFilesToPublish" Condition="'$(TargetFramework)' == 'net10.0-desktop'">
         <ItemGroup>
 
-            <_UnoFontAsset Include="$(NuGetPackageRoot)uno.fonts.fluent\*\lib\**\Uno.Fonts.Fluent\Fonts\**\*.*" />
-            <_UnoFontAsset Include="$(NuGetPackageRoot)uno.fonts.opensans\*\lib\**\Uno.Fonts.OpenSans\Fonts\**\*.*" />
-            <_UnoFontAsset Include="$(NuGetPackageRoot)uno.fonts.roboto\*\lib\**\Uno.Fonts.Roboto\Fonts\**\*.*" />
+            <_UnoFontAsset Include="$(TargetDir)Uno.Fonts.Fluent\Fonts\**\*.*" />
+            <_UnoFontAsset Include="$(TargetDir)Uno.Fonts.OpenSans\Fonts\**\*.*" />
+            <_UnoFontAsset Include="$(TargetDir)Uno.Fonts.Roboto\Fonts\**\*.*" />
 
             <ResolvedFileToPublish Include="@(_UnoFontAsset)">
-                <RelativePath>$([System.Text.RegularExpressions.Regex]::Match('%(FullPath)', 'Uno\.Fonts\.[^\\/]+[\\/]Fonts[\\/].*').Value)</RelativePath>
+                <RelativePath>$([MSBuild]::MakeRelative('$(TargetDir)', '%(FullPath)'))</RelativePath>
                 <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
             </ResolvedFileToPublish>
 
