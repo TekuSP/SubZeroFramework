@@ -71,8 +71,16 @@ jobs:
       - name: Add GitHub Package Registry as a NuGet Source
         run: dotnet nuget add source --store-password-in-clear-text --name "GitHub" https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --username "${{ github.actor }}" --password "${{ env.GITHUB_TOKEN }}"
 
+      - name: Cache and restore nugets
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-${{ runner.arch }}-windows-${{ github.workflow }}-${{ github.ref }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-windows-${{ github.workflow }}-${{ github.ref }}-
+
       - name: Restore
-        run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:PublishReadyToRun=true -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
+        run: dotnet restore ${{ env.SOLUTION_NAME }} --locked-mode -v normal -r ${{ matrix.platform }} -p:PublishReadyToRun=true -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
          
       - name: Build
         run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
@@ -136,8 +144,16 @@ jobs:
       - name: Add GitHub Package Registry as a NuGet Source
         run: dotnet nuget add source --store-password-in-clear-text --name "GitHub" https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --username "${{ github.actor }}" --password "${{ env.GITHUB_TOKEN }}"
 
+      - name: Cache and restore nugets
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-${{ runner.arch }}-linux-${{ github.workflow }}-${{ github.ref }}-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-linux-${{ github.workflow }}-${{ github.ref }}-
+
       - name: Restore
-        run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
+        run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal --locked-mode  -r ${{ matrix.platform }} -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
          
       - name: Build
         run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
