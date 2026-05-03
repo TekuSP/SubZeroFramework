@@ -6,16 +6,204 @@
     xmlns:local="using:SubZeroFramework.Presentation.MenuItems.WarningsIssues"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:uen="using:Uno.Extensions.Navigation.UI"
+    xmlns:uno="using:Material.Icons.UNO"
     xmlns:utu="using:Uno.Toolkit.UI"
     Background="{StaticResource AppBackgroundBrush}"
     NavigationCacheMode="Required"
     mc:Ignorable="d">
 
-    <Grid utu:SafeArea.Insets="VisibleBounds">
-        <TextBlock
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            FontSize="24"
-            Text="Warning Issues Page" />
+    <Grid Margin="5,0,5,5" utu:SafeArea.Insets="VisibleBounds">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid
+                x:Name="errorGrid"
+                Margin="5,0,5,5"
+                Background="{StaticResource StatusWarningBrush}"
+                BorderBrush="{StaticResource StatusErrorBrush}"
+                CornerRadius="8">
+                <StackPanel>
+                    <Viewbox Height="130" Margin="10">
+                        <Grid>
+                            <FontIcon Foreground="{StaticResource BrandPrimaryBrush}" Glyph="&#xEA39;" />
+                            <Viewbox Height="10" Margin="15,15,0,0">
+                                <Grid>
+                                    <FontIcon Foreground="{StaticResource BrandPrimaryBrush}" Glyph="&#xEA3A;" />
+                                    <uno:MaterialIcon Foreground="White" Kind="FanOff" />
+                                </Grid>
+                            </Viewbox>
+                        </Grid>
+                    </Viewbox>
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Foreground="White"
+                        Style="{ThemeResource TitleTextBlockStyle}"
+                        Text="NON-FRAMEWORK DEVICE DETECTED" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Foreground="White"
+                        Style="{ThemeResource BodyTextBlockStyle}"
+                        Text="Unsupported hardware has been detected."
+                        TextAlignment="Center"
+                        TextWrapping="WrapWholeWords" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Foreground="White"
+                        Style="{ThemeResource BodyTextBlockStyle}"
+                        Text="This tool was designed for Framework devices only."
+                        TextAlignment="Center"
+                        TextWrapping="WrapWholeWords" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Foreground="White"
+                        Style="{ThemeResource BodyTextBlockStyle}"
+                        Text="If you believe this is a mistake, please open bug issue on Github."
+                        TextAlignment="Center"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+            </Grid>
+
+            <Border
+                Margin="5"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                CornerRadius="{ThemeResource OverlayCornerRadius}"
+                Loaded="{x:Bind ErrorGridShadow_Loaded}"
+                Translation="0,0,30">
+                <Border.Shadow>
+                    <ThemeShadow x:Name="errorGridShadow" />
+                </Border.Shadow>
+            </Border>
+        </Grid>
+        <Grid
+            Grid.Row="1"
+            ColumnSpacing="5"
+            RowSpacing="5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition />
+                <RowDefinition />
+            </Grid.RowDefinitions>
+            <Grid
+                x:Name="card00"
+                Grid.Row="0"
+                Grid.Column="0"
+                Margin="5"
+                Background="{StaticResource CardBackgroundBrush}"
+                CornerRadius="8">
+                <StackPanel Margin="15,5">
+                    <TextBlock
+                        Foreground="White"
+                        Style="{ThemeResource SubtitleTextBlockStyle}"
+                        Text="Detected System Profile" />
+                </StackPanel>
+            </Grid>
+
+            <Border
+                Grid.Row="0"
+                Grid.Column="0"
+                Margin="5"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                CornerRadius="{ThemeResource OverlayCornerRadius}"
+                Loaded="{x:Bind Card00Shadow_Loaded}"
+                Translation="0,0,30">
+                <Border.Shadow>
+                    <ThemeShadow x:Name="card00Shadow" />
+                </Border.Shadow>
+            </Border>
+
+            <Grid
+                x:Name="card01"
+                Grid.Row="1"
+                Grid.Column="0"
+                Margin="5"
+                Background="{StaticResource CardBackgroundBrush}"
+                CornerRadius="8">
+                <StackPanel Margin="15,5">
+                    <TextBlock
+                        Foreground="White"
+                        Style="{ThemeResource SubtitleTextBlockStyle}"
+                        Text="Explanation" />
+                </StackPanel>
+            </Grid>
+
+            <Border
+                Grid.Row="1"
+                Grid.Column="0"
+                Margin="5"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                CornerRadius="{ThemeResource OverlayCornerRadius}"
+                Loaded="{x:Bind Card01Shadow_Loaded}"
+                Translation="0,0,30">
+                <Border.Shadow>
+                    <ThemeShadow x:Name="card01Shadow" />
+                </Border.Shadow>
+            </Border>
+
+            <Grid
+                x:Name="card10"
+                Grid.Row="0"
+                Grid.Column="1"
+                Margin="5"
+                Background="{StaticResource CardBackgroundBrush}"
+                CornerRadius="8">
+                <StackPanel Margin="15,5">
+                    <TextBlock
+                        Foreground="White"
+                        Style="{ThemeResource SubtitleTextBlockStyle}"
+                        Text="Disabled controls" />
+                </StackPanel>
+            </Grid>
+
+            <Border
+                Grid.Row="0"
+                Grid.Column="1"
+                Margin="5"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                CornerRadius="{ThemeResource OverlayCornerRadius}"
+                Loaded="{x:Bind Card10Shadow_Loaded}"
+                Translation="0,0,30">
+                <Border.Shadow>
+                    <ThemeShadow x:Name="card10Shadow" />
+                </Border.Shadow>
+            </Border>
+
+            <Grid
+                x:Name="card11"
+                Grid.Row="1"
+                Grid.Column="1"
+                Margin="5"
+                Background="{StaticResource CardBackgroundBrush}"
+                CornerRadius="8">
+                <StackPanel Margin="15,5">
+                    <TextBlock
+                        Foreground="White"
+                        Style="{ThemeResource SubtitleTextBlockStyle}"
+                        Text="Actions" />
+                </StackPanel>
+            </Grid>
+
+            <Border
+                Grid.Row="1"
+                Grid.Column="1"
+                Margin="5"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                CornerRadius="{ThemeResource OverlayCornerRadius}"
+                Loaded="{x:Bind Card11Shadow_Loaded}"
+                Translation="0,0,30">
+                <Border.Shadow>
+                    <ThemeShadow x:Name="card11Shadow" />
+                </Border.Shadow>
+            </Border>
+        </Grid>
     </Grid>
 </Page>

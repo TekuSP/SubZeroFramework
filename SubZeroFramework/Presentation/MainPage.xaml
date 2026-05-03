@@ -94,16 +94,23 @@
                     Content="Settings"
                     Icon="{len:FontIconStringExt Glyph={StaticResource SettingsMenuIcon}}" />
             </NavigationView.FooterMenuItems>
-            <StackPanel>
-                <header:SubZeroHeaderControl SystemContainer="{x:Bind ViewModel.ServiceProvider, Mode=OneWay}" />
-                <Grid uen:Region.Attached="True" uen:Region.Navigator="Visibility">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <header:SubZeroHeaderControl Grid.Row="0" SystemContainer="{x:Bind ViewModel.ServiceProvider, Mode=OneWay}" />
+                <Grid
+                    Grid.Row="1"
+                    uen:Region.Attached="True"
+                    uen:Region.Navigator="Visibility">
                     <Grid.ChildrenTransitions>
                         <TransitionCollection>
                             <EntranceThemeTransition />
                         </TransitionCollection>
                     </Grid.ChildrenTransitions>
                 </Grid>
-            </StackPanel>
+            </Grid>
         </NavigationView>
     </Grid>
 </Page>

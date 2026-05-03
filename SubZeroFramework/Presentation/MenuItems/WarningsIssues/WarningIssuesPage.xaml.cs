@@ -33,4 +33,24 @@ public sealed partial class WarningIssuesPage : Page, INotifyPropertyChanged
             ViewModel = model;
         }
     }
+    private void ErrorGridShadow_Loaded(object sender, RoutedEventArgs e)
+    {
+        errorGridShadow.Receivers.Add(errorGrid);
+    }
+    private void Card00Shadow_Loaded(object sender, RoutedEventArgs e)
+    {
+        card00Shadow.Receivers.Add(card00);
+    }
+    private void Card01Shadow_Loaded(object sender, RoutedEventArgs e)
+    {
+        card01Shadow.Receivers.Add(card01);
+    }
+    private void Card10Shadow_Loaded(object sender, RoutedEventArgs e)
+    {
+        card10Shadow.Receivers.Add(card10);
+    }
+    private void Card11Shadow_Loaded(object sender, RoutedEventArgs e)
+    {
+        card11Shadow.Receivers.Add(card11);
+    }
 }

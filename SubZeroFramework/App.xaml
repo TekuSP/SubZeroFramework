@@ -45,7 +45,7 @@
             <SolidColorBrush x:Key="StatusSuccessBrush" Color="#6ccb5f" />
             <SolidColorBrush x:Key="StatusSuccessForegroundBrush" Color="#000000" />
 
-            <SolidColorBrush x:Key="StatusWarningBrush" Color="#f46762" />
+            <SolidColorBrush x:Key="StatusWarningBrush" Color="#c5994e" />
             <SolidColorBrush x:Key="StatusWarningForegroundBrush" Color="#000000" />
 
             <SolidColorBrush x:Key="StatusErrorBrush" Color="#442726" />

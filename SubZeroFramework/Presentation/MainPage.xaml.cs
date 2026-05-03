@@ -61,7 +61,7 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
         if (string.Equals(args.SelectedItemContainer.Tag?.ToString(), "Github", StringComparison.OrdinalIgnoreCase))
         {
             _ = Launcher.LaunchUriAsync(new Uri("https://github.com/TekuSP/SubZeroFramework"));
-            ViewModel.navigator.GoBack(this);
+            ViewModel!.navigator.GoBack(this);
         }
     }
 }
