@@ -71,7 +71,6 @@
         <Content Update="@(Content)" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
     <ItemGroup>
-        <Content Include="Assets\Svg\**\*.png" />
         <Content Include="Assets\Svg\**\*.svg" />
     </ItemGroup>
     <ItemGroup>
