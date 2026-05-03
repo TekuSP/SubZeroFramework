@@ -68,7 +68,6 @@
         <WindowsMuiLanguagesToKeep>en-US</WindowsMuiLanguagesToKeep>
     </PropertyGroup>
     <ItemGroup>
-        <Content Update="@(Content)" CopyToOutputDirectory="PreserveNewest" />
         <Content Update="Assets\Fonts\Montserrat-Light.ttf">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>

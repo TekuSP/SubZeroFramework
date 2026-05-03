@@ -45,8 +45,13 @@
   </Target>
     <Target Name="ForceCopyToPublish" AfterTargets="ComputeFilesToPublish">
         <ItemGroup>
-            <_AllOutputFiles Include="@(Content);@(None);@(ReferenceCopyLocalPaths)"
-                             Condition="'%(CopyToOutputDirectory)' == 'PreserveNewest' Or '%(CopyToOutputDirectory)' == 'Always'" />
+            <_AllOutputFiles Include="@(Content)"/>
+
+            <_AllOutputFiles Include="@(None)"
+                             Condition="'%(None.CopyToOutputDirectory)' == 'PreserveNewest' Or '%(None.CopyToOutputDirectory)' == 'Always'" />
+
+            <_AllOutputFiles Include="@(ReferenceCopyLocalPaths)"
+                             Condition="'%(ReferenceCopyLocalPaths.CopyToOutputDirectory)' == 'PreserveNewest' Or '%(ReferenceCopyLocalPaths.CopyToOutputDirectory)' == 'Always'" />
 
             <ResolvedFileToPublish Include="@(_AllOutputFiles)">
                 <RelativePath>%(RelativeDir)%(Filename)%(Extension)</RelativePath>
