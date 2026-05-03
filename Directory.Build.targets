@@ -1,18 +1,26 @@
 <Project>
-  <Target Name="IncludeUnoFontAssetsInPublish"
-          BeforeTargets="ComputeFilesToPublish"
-          Condition="'$(TargetFramework)' == 'net10.0-desktop'">
-    <ItemGroup>
-      <_UnoFontAsset Include="$(NuGetPackageRoot)uno.fonts.fluent\*\lib\**\Uno.Fonts.Fluent\Fonts\**\*.*" />
-      <_UnoFontAsset Include="$(NuGetPackageRoot)uno.fonts.opensans\*\lib\**\Uno.Fonts.OpenSans\Fonts\**\*.*" />
-      <_UnoFontAsset Include="$(NuGetPackageRoot)uno.fonts.roboto\*\lib\**\Uno.Fonts.Roboto\Fonts\**\*.*" />
+    <Target Name="FixUnoAssetsPublish" AfterTargets="ComputeFilesToPublish" Condition="'$(TargetFramework)' == 'net10.0-desktop'">
+        <ItemGroup>
 
-        <ResolvedFileToPublish Include="@(_UnoFontAsset)">
-        <RelativePath>$([System.String]::Copy('%(_UnoFontAsset.Identity)').Replace('$(NuGetPackageRoot)', '').Replace('\\', '/').Split('/lib/', 2)[1].Split('/', 2)[1])</RelativePath>
-        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      </ResolvedFileToPublish>
-    </ItemGroup>
-  </Target>
+            <_UnoFontAsset Include="$(NuGetPackageRoot)uno.fonts.fluent\*\lib\**\Uno.Fonts.Fluent\Fonts\**\*.*" />
+            <_UnoFontAsset Include="$(NuGetPackageRoot)uno.fonts.opensans\*\lib\**\Uno.Fonts.OpenSans\Fonts\**\*.*" />
+            <_UnoFontAsset Include="$(NuGetPackageRoot)uno.fonts.roboto\*\lib\**\Uno.Fonts.Roboto\Fonts\**\*.*" />
+
+            <ResolvedFileToPublish Include="@(_UnoFontAsset)">
+                <RelativePath>$([System.Text.RegularExpressions.Regex]::Match('%(FullPath)', 'Uno\.Fonts\.[^\\/]+[\\/]Fonts[\\/].*').Value)</RelativePath>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            </ResolvedFileToPublish>
+
+
+            <_ResizetizerAsset Include="$(IntermediateOutputPath)resizetizer\r\**\*.*" />
+
+            <ResolvedFileToPublish Include="@(_ResizetizerAsset)">
+                <RelativePath>%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            </ResolvedFileToPublish>
+
+        </ItemGroup>
+    </Target>
 
   <Target Name="RemoveUnwantedWindowsMuiFiles"
           AfterTargets="Build;Publish"
@@ -45,7 +53,7 @@
   </Target>
     <Target Name="ForceCopyToPublish" AfterTargets="ComputeFilesToPublish">
         <ItemGroup>
-            <_AllOutputFiles Include="@(Content)"/>
+            <_AllOutputFiles Include="@(Content)" Condition="'%(Content.CopyToOutputDirectory)' == 'PreserveNewest' Or '%(Content.CopyToOutputDirectory)' == 'Always'" />
 
             <_AllOutputFiles Include="@(None)"
                              Condition="'%(None.CopyToOutputDirectory)' == 'PreserveNewest' Or '%(None.CopyToOutputDirectory)' == 'Always'" />
