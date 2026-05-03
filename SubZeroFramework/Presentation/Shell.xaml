@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:SubZeroFramework.Presentation"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:uen="using:Uno.Extensions.Navigation.UI"
     xmlns:utu="using:Uno.Toolkit.UI"
     d:DesignHeight="300"
     d:DesignWidth="400"
@@ -16,6 +17,7 @@
             VerticalAlignment="Stretch"
             HorizontalContentAlignment="Stretch"
             VerticalContentAlignment="Stretch"
+            uen:Navigation.Request="-/Main"
             Background="{StaticResource BrandBackgroundBrush}">
             <utu:ExtendedSplashScreen.LoadingContent>
                 <Grid>
@@ -25,11 +27,11 @@
                     </Grid.RowDefinitions>
 
                     <Image
-                        x:Name="SplashLogo"
                         Grid.Row="0"
                         Margin="50"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
+                        Source="ms-appx:///Assets/Svg/main_logo.png"
                         Stretch="UniformToFill" />
 
                     <ProgressRing

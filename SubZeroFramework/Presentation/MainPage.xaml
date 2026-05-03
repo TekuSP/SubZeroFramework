@@ -9,7 +9,12 @@
     xmlns:utu="using:Uno.Toolkit.UI"
     Background="{StaticResource AppBackgroundBrush}"
     NavigationCacheMode="Required">
-    <Grid utu:SafeArea.Insets="VisibleBounds">
+    <Page.Transitions>
+        <TransitionCollection>
+            <NavigationThemeTransition />
+        </TransitionCollection>
+    </Page.Transitions>
+    <Grid uen:Region.Attached="True" utu:SafeArea.Insets="VisibleBounds">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -35,6 +40,7 @@
         <NavigationView
             x:Name="MainNavigationView"
             Grid.Row="1"
+            uen:Region.Attached="True"
             Background="{StaticResource SidebarBackgroundBrush}"
             IsBackButtonVisible="Collapsed"
             IsBackEnabled="False"
@@ -44,43 +50,48 @@
             PaneDisplayMode="LeftCompact">
             <NavigationView.MenuItems>
                 <NavigationViewItem
+                    uen:Region.Name="Dashboard"
                     Content="Dashboard"
-                    Icon="{len:FontIconStringExt Glyph={StaticResource DashboardMenuIcon}}"
-                    IsSelected="True"
-                    Tag="Dashboard" />
+                    Icon="{len:FontIconStringExt Glyph={StaticResource DashboardMenuIcon}}" />
                 <NavigationViewItem
+                    uen:Region.Name="ThermalTelemetry"
                     Content="Thermal Telemetry"
-                    Icon="{len:FontIconStringExt Glyph={StaticResource ThermalTelemetryMenuIcon}}"
-                    Tag="ThermalTelemetry" />
+                    Icon="{len:FontIconStringExt Glyph={StaticResource ThermalTelemetryMenuIcon}}" />
                 <NavigationViewItem
+                    uen:Region.Name="PowerTelemetry"
                     Content="Power Telemetry"
-                    Icon="{len:FontIconStringExt Glyph={StaticResource PowerTelemetryMenuIcon}}"
-                    Tag="PowerTelemetry" />
+                    Icon="{len:FontIconStringExt Glyph={StaticResource PowerTelemetryMenuIcon}}" />
                 <controls:NavigationMaterialViewItem
+                    uen:Region.Name="FanCurveProfiles"
                     MaterialIconKindName="{StaticResource FanCurveMenuIcon}"
-                    Tag="FanCurve"
                     Text="Fan Curve Profiles" />
                 <NavigationViewItem
+                    uen:Region.Name="DeviceCapabilities"
                     Content="Device Capabilities"
-                    Icon="{len:FontIconStringExt Glyph={StaticResource DeviceCapabilitiesMenuIcon}}"
-                    Tag="DeviceCapabilities" />
+                    Icon="{len:FontIconStringExt Glyph={StaticResource DeviceCapabilitiesMenuIcon}}" />
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
                 <NavigationViewItem
+                    uen:Region.Name="WarningIssues"
                     Content="Warnings and issues"
                     Icon="{len:FontIconStringExt Glyph={StaticResource WarningsMenuIcon}}"
-                    IsEnabled="False"
-                    Tag="Warnings" />
+                    IsEnabled="False" />
                 <controls:NavigationMaterialViewItem
                     MaterialIconKindName="{StaticResource GithubMenuIcon}"
                     Tag="Github"
                     Text="Project Github" />
                 <NavigationViewItem
+                    uen:Region.Name="Settings"
                     Content="Settings"
-                    Icon="{len:FontIconStringExt Glyph={StaticResource SettingsMenuIcon}}"
-                    Tag="Settings" />
+                    Icon="{len:FontIconStringExt Glyph={StaticResource SettingsMenuIcon}}" />
             </NavigationView.FooterMenuItems>
-            <Frame x:Name="contentFrame" />
+            <Grid uen:Region.Attached="True" uen:Region.Navigator="Visibility">
+                <Grid.ChildrenTransitions>
+                    <TransitionCollection>
+                        <NavigationThemeTransition />
+                    </TransitionCollection>
+                </Grid.ChildrenTransitions>
+            </Grid>
         </NavigationView>
     </Grid>
 </Page>

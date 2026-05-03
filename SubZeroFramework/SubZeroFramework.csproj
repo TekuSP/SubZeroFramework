@@ -69,7 +69,53 @@
         <Content Include="Assets\Svg\**\*.svg" />
     </ItemGroup>
     <ItemGroup>
+      <Content Remove="Assets\Svg\main_logo.svg" />
+    </ItemGroup>
+    <ItemGroup>
+      <UnoImage Include="Assets\Svg\main_logo.svg" />
+    </ItemGroup>
+    <ItemGroup>
       <Page Update="Themes\Generic.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Presentation\Header\SubZeroHeaderControl.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Presentation\MenuItems\Dashboard\DashboardPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\DeviceCapabilitiesPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Presentation\MenuItems\FanCurveProfiles\FanCurveProfilesPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Presentation\MenuItems\PowerTelemetry\PowerTelemetryPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Presentation\MenuItems\Settings\SettingsPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Presentation\MenuItems\ThermalTelemetry\ThermalTelemetryPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Presentation\MenuItems\WarningsIssues\WarningIssuesPage.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>
     </ItemGroup>

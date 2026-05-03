@@ -10,6 +10,13 @@ using LiveChartsCore;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Media;
 
+using SubZeroFramework.Presentation.MenuItems.Dashboard;
+using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
+using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
+using SubZeroFramework.Presentation.MenuItems.PowerTelemetry;
+using SubZeroFramework.Presentation.MenuItems.Settings;
+using SubZeroFramework.Presentation.MenuItems.ThermalTelemetry;
+using SubZeroFramework.Presentation.MenuItems.WarningsIssues;
 using SubZeroFramework.Services;
 
 using Uno.Resizetizer;
@@ -57,20 +64,19 @@ public partial class App : Application
                     // Uno Platform namespace filter groups
                     // Uncomment individual methods to see more detailed logging
                     //// Generic Xaml events
-                    //logBuilder.XamlLogLevel(LogLevel.Debug);
+                    logBuilder.XamlLogLevel(LogLevel.Debug);
                     //// Layout specific messages
-                    //logBuilder.XamlLayoutLogLevel(LogLevel.Debug);
+                    logBuilder.XamlLayoutLogLevel(LogLevel.Debug);
                     //// Storage messages
                     //logBuilder.StorageLogLevel(LogLevel.Debug);
                     //// Binding related messages
-                    //logBuilder.XamlBindingLogLevel(LogLevel.Debug);
+                    logBuilder.XamlBindingLogLevel(LogLevel.Debug);
                     //// Binder memory references tracking
-                    //logBuilder.BinderMemoryReferenceLogLevel(LogLevel.Debug);
+                    logBuilder.BinderMemoryReferenceLogLevel(LogLevel.Debug);
                     //// DevServer and HotReload related
-                    //logBuilder.HotReloadCoreLogLevel(LogLevel.Information);
+                    logBuilder.HotReloadCoreLogLevel(LogLevel.Information);
                     //// Debug JS interop
                     //logBuilder.WebAssemblyLogLevel(LogLevel.Debug);
-
                 }, enableUnoLogging: true)
                 .UseConfiguration(configure: configBuilder =>
                     configBuilder
@@ -117,15 +123,32 @@ public partial class App : Application
     private static void RegisterRoutes(IViewRegistry views, IRouteRegistry routes)
     {
         views.Register(
-            new ViewMap(ViewModel: typeof(ShellModel)),
-            new ViewMap(ViewModel: typeof(MainModel), View: typeof(MainPage))
+            new ViewMap<Shell, ShellModel>(),
+            new ViewMap<MainPage, MainModel>(),
+            new ViewMap<DashboardPage, DashboardModel>(),
+            new ViewMap<DeviceCapabilitiesPage, DeviceCapabilitiesModel>(),
+            new ViewMap<FanCurveProfilesPage, FanCurveProfilesModel>(),
+            new ViewMap<PowerTelemetryPage, PowerTelemetryModel>(),
+            new ViewMap<ThermalTelemetryPage, ThermalTelemetryModel>(),
+            new ViewMap<WarningIssuesPage, WarningIssuesModel>(),
+            new ViewMap<SettingsPage, SettingsModel>()
         );
 
         routes.Register(
             new RouteMap("", View: views.FindByViewModel<ShellModel>(),
                 Nested:
                 [
-                    new ("Main", View: views.FindByViewModel<MainModel>(), IsDefault:true),
+                    new RouteMap("Main", View: views.FindByViewModel<MainModel>(), IsDefault:true,
+                    Nested:
+                    [
+                        new RouteMap("Dashboard", View: views.FindByViewModel<DashboardModel>(), IsDefault: true),
+                        new RouteMap("DeviceCapabilities",  View: views.FindByViewModel<DeviceCapabilitiesModel>()),
+                        new RouteMap("FanCurveProfiles",  View: views.FindByViewModel<FanCurveProfilesModel>()),
+                        new RouteMap("PowerTelemetry",  View: views.FindByViewModel<PowerTelemetryModel>()),
+                        new RouteMap("ThermalTelemetry",  View: views.FindByViewModel<ThermalTelemetryModel>()),
+                        new RouteMap("WarningIssues",  View: views.FindByViewModel<WarningIssuesModel>()),
+                        new RouteMap("Settings",  View: views.FindByViewModel<SettingsModel>()),
+                    ]),
                 ]
             )
         );
