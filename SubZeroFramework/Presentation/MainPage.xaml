@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:header="using:SubZeroFramework.Presentation.Header"
     xmlns:len="using:SubZeroFramework.Extensions"
     xmlns:local="using:SubZeroFramework.Presentation"
     xmlns:uen="using:Uno.Extensions.Navigation.UI"
@@ -11,7 +12,7 @@
     NavigationCacheMode="Required">
     <Page.Transitions>
         <TransitionCollection>
-            <NavigationThemeTransition />
+            <EntranceThemeTransition />
         </TransitionCollection>
     </Page.Transitions>
     <Grid uen:Region.Attached="True" utu:SafeArea.Insets="VisibleBounds">
@@ -85,13 +86,16 @@
                     Content="Settings"
                     Icon="{len:FontIconStringExt Glyph={StaticResource SettingsMenuIcon}}" />
             </NavigationView.FooterMenuItems>
-            <Grid uen:Region.Attached="True" uen:Region.Navigator="Visibility">
-                <Grid.ChildrenTransitions>
-                    <TransitionCollection>
-                        <NavigationThemeTransition />
-                    </TransitionCollection>
-                </Grid.ChildrenTransitions>
-            </Grid>
+            <StackPanel>
+                <header:SubZeroHeaderControl />
+                <Grid uen:Region.Attached="True" uen:Region.Navigator="Visibility">
+                    <Grid.ChildrenTransitions>
+                        <TransitionCollection>
+                            <EntranceThemeTransition />
+                        </TransitionCollection>
+                    </Grid.ChildrenTransitions>
+                </Grid>
+            </StackPanel>
         </NavigationView>
     </Grid>
 </Page>

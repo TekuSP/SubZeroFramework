@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -24,5 +24,14 @@ public sealed partial class SubZeroHeaderControl : UserControl
     public SubZeroHeaderControl()
     {
         this.InitializeComponent();
+    }
+
+    private void CardShadow_Loaded(object sender, RoutedEventArgs e)
+    {
+        cardShadow.Receivers.Add(cardGrid);
+    }
+    private void BrandShadow_Loaded(object sender, RoutedEventArgs e)
+    {
+        brandShadow.Receivers.Add(brandGrid);
     }
 }

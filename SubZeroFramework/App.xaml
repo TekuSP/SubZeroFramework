@@ -34,7 +34,7 @@
             <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1b2727" />
             <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#000000" />
 
-            <SolidColorBrush x:Key="CardBackgroundBrush" Color="#2b2e2d" />
+            <SolidColorBrush x:Key="CardBackgroundBrush" Color="#2e2e2e" />
             <SolidColorBrush x:Key="CardBorderBrush" Color="#2b2e2d" />
             <SolidColorBrush x:Key="CardSecondaryBackgroundBrush" Color="#1f1f1f" />
             <SolidColorBrush x:Key="CardSecondaryBorderBrush" Color="#1f1f1f" />

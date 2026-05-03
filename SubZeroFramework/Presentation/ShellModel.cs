@@ -9,7 +9,7 @@ public class ShellModel
     {
         _navigator = navigator;
 
-        Thread.Sleep(2500);
+        Thread.Sleep(250);
         _ = _navigator.NavigateRouteAsync(this, "-/Main");
     }
 }
