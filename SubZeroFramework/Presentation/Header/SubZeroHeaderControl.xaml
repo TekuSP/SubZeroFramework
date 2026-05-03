@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:SubZeroFramework.Presentation.Header"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:uno="using:Material.Icons.UNO"
     d:DesignHeight="300"
     d:DesignWidth="400"
     mc:Ignorable="d">
@@ -56,6 +57,13 @@
                     Foreground="White"
                     Style="{ThemeResource SubtitleTextBlockStyle}"
                     Text="System Information" />
+                <uno:MaterialIconText
+                    Margin="0,5,0,0"
+                    Kind="Laptop"
+                    Text="Model:" />
+                <uno:MaterialIconText Kind="Chip" Text="CPU:" />
+                <uno:MaterialIconText Kind="Memory" Text="RAM:" />
+                <uno:MaterialIconText Kind="Connection" Text="Driver:" />
             </StackPanel>
         </Grid>
 
@@ -65,7 +73,7 @@
             Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
             CornerRadius="{ThemeResource OverlayCornerRadius}"
             Loaded="{x:Bind CardShadow_Loaded}"
-            Translation="0,0,30 ">
+            Translation="0,0,30">
             <Border.Shadow>
                 <ThemeShadow x:Name="cardShadow" />
             </Border.Shadow>

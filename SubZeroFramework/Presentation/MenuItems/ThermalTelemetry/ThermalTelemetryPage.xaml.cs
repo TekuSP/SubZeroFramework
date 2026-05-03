@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
@@ -12,6 +13,8 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 
+using SubZeroFramework.Presentation.MenuItems.WarningsIssues;
+
 using Windows.Foundation;
 using Windows.Foundation.Collections;
 
@@ -22,10 +25,30 @@ namespace SubZeroFramework.Presentation.MenuItems.ThermalTelemetry;
 /// <summary>
 /// An empty page that can be used on its own or navigated to within a Frame.
 /// </summary>
-public sealed partial class ThermalTelemetryPage : Page
+public sealed partial class ThermalTelemetryPage : Page, INotifyPropertyChanged
 {
     public ThermalTelemetryPage()
     {
         this.InitializeComponent();
+        DataContextChanged += DataContextChanged_Handler;
+    }
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public ThermalTelemetryModel? ViewModel
+    {
+        get => field;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ViewModel)));
+        }
+    }
+
+    private void DataContextChanged_Handler(FrameworkElement sender, DataContextChangedEventArgs args)
+    {
+        if (args.NewValue is ThermalTelemetryModel model)
+        {
+            ViewModel = model;
+        }
     }
 }

@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
@@ -22,10 +23,30 @@ namespace SubZeroFramework.Presentation.MenuItems.PowerTelemetry;
 /// <summary>
 /// An empty page that can be used on its own or navigated to within a Frame.
 /// </summary>
-public sealed partial class PowerTelemetryPage : Page
+public sealed partial class PowerTelemetryPage : Page, INotifyPropertyChanged
 {
     public PowerTelemetryPage()
     {
         this.InitializeComponent();
+        DataContextChanged += DataContextChanged_Handler;
+    }
+    public event PropertyChangedEventHandler? PropertyChanged;
+    public PowerTelemetryModel? ViewModel
+    {
+        get => field;
+        set
+        {
+            if (field == value) return;
+            field = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ViewModel)));
+        }
+    }
+
+    private void DataContextChanged_Handler(FrameworkElement sender, DataContextChangedEventArgs args)
+    {
+        if (args.NewValue is PowerTelemetryModel model)
+        {
+            ViewModel = model;
+        }
     }
 }
