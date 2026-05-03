@@ -17,20 +17,23 @@ public class ShellModel
     {
         _navigator = navigator;
 
-        dispatcherQueue.EnqueueAsync(() =>
+        Task.Run(async () =>
         {
-            hardwareInfo.RefreshCPUList(false, 500, false);
-            hardwareInfo.RefreshMemoryList();
-        }).GetAwaiter().GetResult();
+            await dispatcherQueue.EnqueueAsync(() =>
+            {
+                hardwareInfo.RefreshCPUList(false, 500, false);
+                hardwareInfo.RefreshMemoryList();
+            });
 
-        var lastStatus = dataProvider.RefreshAsync().GetAwaiter().GetResult();
+            var lastStatus = await dataProvider.RefreshAsync();
 
-        if (lastStatus.IsLibraryAvailable && lastStatus.IsFrameworkDevice == true) //Proactively start polling if the library is available and it's a framework device, otherwise wait for user to navigate to main page where polling will be started
-        {
-            dataProvider.SetPolling(TimeSpan.FromSeconds(1)); //This should be read from config file
-            dataProvider.StartPolling();
-        }
+            if (lastStatus.IsLibraryAvailable && lastStatus.IsFrameworkDevice == true) //Proactively start polling if the library is available and it's a framework device, otherwise wait for user to navigate to main page where polling will be started
+            {
+                dataProvider.SetPolling(TimeSpan.FromSeconds(1)); //This should be read from config file
+                dataProvider.StartPolling();
+            }
 
-        _ = _navigator.NavigateRouteAsync(this, "-/Main");
+            await _navigator.NavigateRouteAsync(this, "-/Main");
+        });
     }
 }
