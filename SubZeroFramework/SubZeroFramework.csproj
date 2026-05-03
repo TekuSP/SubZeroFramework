@@ -19,7 +19,7 @@
         <ApplicationPublisher>Richard "TekuSP" Torhan</ApplicationPublisher>
         <!-- Package Description -->
         <Description>SubZeroFrame, SubZero version for Framework laptops, powered by Uno Platform.</Description>
-
+        <SupportsFontManifest>true</SupportsFontManifest>
         <!--
       If you encounter this error message:
 
@@ -68,9 +68,10 @@
         <WindowsMuiLanguagesToKeep>en-US</WindowsMuiLanguagesToKeep>
     </PropertyGroup>
     <ItemGroup>
-        <Content Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest"/>
+        <Content Update="@(Content)" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
     <ItemGroup>
+        <Content Include="Assets\Svg\**\*.png" />
         <Content Include="Assets\Svg\**\*.svg" />
     </ItemGroup>
     <ItemGroup>
