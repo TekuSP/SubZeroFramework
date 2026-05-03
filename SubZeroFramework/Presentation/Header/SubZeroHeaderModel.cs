@@ -16,7 +16,7 @@ using System.Reactive.Linq;
 using Material.Icons;
 namespace SubZeroFramework.Presentation.Header;
 
-public partial class SubZeroHeaderModel : ObservableObject
+public partial class SubZeroHeaderModel : ObservableObject, IDisposable
 {
     //Error part
 
@@ -55,12 +55,11 @@ public partial class SubZeroHeaderModel : ObservableObject
     private DispatcherQueue? _dispatcherQueue = null;
     private SynchronizationContext? _synchronizationContext = null;
     private IDisposable? _runningSubscription = null;
+    private bool disposedValue;
 
     public void IServiceProviderChanged(IServiceProvider serviceProvider)
     {
         _serviceProvider = serviceProvider;
-        if (_frameworkDataProvider != null)
-            _frameworkDataProvider.Dispose(); //Dispose old connection
 
         //Get new providers
         _frameworkDataProvider = serviceProvider.GetRequiredService<IFrameworkDataProvider>();
@@ -82,7 +81,7 @@ public partial class SubZeroHeaderModel : ObservableObject
         if (_synchronizationContext is null)
             return;
 
-        await _dispatcherQueue?.EnqueueAsync(() =>
+        await _dispatcherQueue!.EnqueueAsync(() =>
         {
             _hardwareInfo.RefreshCPUList(false, 500, false);
             _hardwareInfo.RefreshMemoryList();
@@ -94,8 +93,6 @@ public partial class SubZeroHeaderModel : ObservableObject
             _runningSubscription.Dispose();
 
         _runningSubscription = _frameworkDataProvider.SystemStatus.ObserveOn(_synchronizationContext).Subscribe(FrameworkSystemDataUpdated);
-
-        await _frameworkDataProvider.RefreshAsync();
     }
 
     private void FrameworkSystemDataUpdated(FrameworkSystemStatus status)
@@ -139,7 +136,7 @@ public partial class SubZeroHeaderModel : ObservableObject
             IsErrorClosable = true;
         }
 
-        ECDriver = $"Driver: {status.ActiveDriver.ToString() ?? "Unknown driver"} {status.EcBuildInfo.Split(' ', StringSplitOptions.TrimEntries).FirstOrDefault()}";
+        ECDriver = $"Driver: {status.ActiveDriver.ToString() ?? "Unknown driver"} {status.EcBuildInfo?.Split(' ', StringSplitOptions.TrimEntries).FirstOrDefault() ?? string.Empty}";
         ProductName = $"Model: {status.DeviceModel ?? "Unknown device"}";
 
         if (status.PlatformFamily == FrameworkDotnet.Enums.FrameworkPlatformFamily.FrameworkDesktop)
@@ -150,5 +147,25 @@ public partial class SubZeroHeaderModel : ObservableObject
         {
             ProductIcon = MaterialIconKind.Laptop;
         }
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposedValue)
+        {
+            if (disposing)
+            {
+                _runningSubscription?.Dispose();
+                _frameworkDataProvider = null; //intentionally not disposed as its singleton and may be used elsewhere, just dereferenced here to allow GC to collect it if no longer used anywhere else
+            }
+            
+            disposedValue = true;
+        }
+    }
+
+    public void Dispose()
+    {
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
     }
 }

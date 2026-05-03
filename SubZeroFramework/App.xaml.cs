@@ -93,9 +93,9 @@ public partial class App : Application
                     services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
                     services.AddSingleton<IFrameworkDataProvider, FrameworkDataProvider>();
 
-                    services.AddSingleton<IHardwareInfo, HardwareInfo>();
+                    services.AddSingleton<IHardwareInfo>(new HardwareInfo());
                     services.AddSingleton<DispatcherQueue>(DispatcherQueue.GetForCurrentThread());
-                    services.AddSingleton<SynchronizationContext>(SynchronizationContext.Current);
+                    services.AddSingleton<SynchronizationContext>(SynchronizationContext.Current!);
                 })
                 .UseNavigation(RegisterRoutes)
             );

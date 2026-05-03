@@ -1,3 +1,11 @@
+using CommunityToolkit.WinUI;
+
+using Hardware.Info;
+
+using Microsoft.UI.Dispatching;
+
+using SubZeroFramework.Services;
+
 namespace SubZeroFramework.Presentation;
 
 public class ShellModel
@@ -5,11 +13,24 @@ public class ShellModel
     private readonly INavigator _navigator;
 
     public ShellModel(
-        INavigator navigator)
+        INavigator navigator, DispatcherQueue dispatcherQueue, IFrameworkDataProvider dataProvider, IHardwareInfo hardwareInfo)
     {
         _navigator = navigator;
 
-        Thread.Sleep(250);
+        dispatcherQueue.EnqueueAsync(() =>
+        {
+            hardwareInfo.RefreshCPUList(false, 500, false);
+            hardwareInfo.RefreshMemoryList();
+        }).GetAwaiter().GetResult();
+
+        var lastStatus = dataProvider.RefreshAsync().GetAwaiter().GetResult();
+
+        if (lastStatus.IsLibraryAvailable && lastStatus.IsFrameworkDevice == true) //Proactively start polling if the library is available and it's a framework device, otherwise wait for user to navigate to main page where polling will be started
+        {
+            dataProvider.SetPolling(TimeSpan.FromSeconds(1)); //This should be read from config file
+            dataProvider.StartPolling();
+        }
+
         _ = _navigator.NavigateRouteAsync(this, "-/Main");
     }
 }

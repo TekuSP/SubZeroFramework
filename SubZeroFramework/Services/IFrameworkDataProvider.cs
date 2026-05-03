@@ -6,7 +6,7 @@ using SubZeroFramework.Models;
 
 namespace SubZeroFramework.Services;
 
-public interface IFrameworkDataProvider : IDisposable
+public interface IFrameworkDataProvider
 {
     bool IsPolling { get; }
 
@@ -56,5 +56,5 @@ public interface IFrameworkDataProvider : IDisposable
 
     bool StopPolling();
 
-    Task RefreshAsync(CancellationToken cancellationToken = default);
+    Task<FrameworkSystemStatus> RefreshAsync(CancellationToken cancellationToken = default);
 }

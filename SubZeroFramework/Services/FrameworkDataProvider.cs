@@ -232,7 +232,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 		return true;
 	}
 
-	public Task RefreshAsync(CancellationToken cancellationToken = default)
+	public async Task<FrameworkSystemStatus> RefreshAsync(CancellationToken cancellationToken = default)
 	{
 		ThrowIfDisposed();
 		cancellationToken.ThrowIfCancellationRequested();
@@ -244,7 +244,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 			DisposeConnection();
 			MarkAllTelemetryUnavailable(systemStatus.ObservedAt);
 			_systemStatus.Publish(systemStatus, systemStatus.ObservedAt);
-			return Task.CompletedTask;
+            return systemStatus;
 		}
 
 		var connection = EnsureConnection();
@@ -254,7 +254,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 			var unavailableStatus = systemStatus with { LastError = systemStatus.LastError ?? "Unable to open the default EC connection." };
 			MarkAllTelemetryUnavailable(unavailableStatus.ObservedAt);
 			_systemStatus.Publish(unavailableStatus, unavailableStatus.ObservedAt);
-			return Task.CompletedTask;
+            return systemStatus;
 		}
 
 		var observedAt = DateTimeOffset.UtcNow;
@@ -304,7 +304,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
 		_systemStatus.Publish(publishedStatus, publishedStatus.ObservedAt);
 
-		return Task.CompletedTask;
+        return systemStatus;
 	}
 
 	public void Dispose()
