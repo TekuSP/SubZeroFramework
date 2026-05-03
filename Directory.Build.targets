@@ -1,21 +1,46 @@
 <Project>
-    <Target Name="FixUnoAssetsPublish" AfterTargets="ComputeFilesToPublish" Condition="'$(TargetFramework)' == 'net10.0-desktop'">
+    <Target Name="PublishUnoAssets" AfterTargets="ComputeFilesToPublish" Condition="'$(TargetFramework)' == 'net10.0-desktop'">
         <ItemGroup>
 
-            <_UnoFontAsset Include="$(TargetDir)Uno.Fonts.Fluent\Fonts\**\*.*" />
-            <_UnoFontAsset Include="$(TargetDir)Uno.Fonts.OpenSans\Fonts\**\*.*" />
-            <_UnoFontAsset Include="$(TargetDir)Uno.Fonts.Roboto\Fonts\**\*.*" />
-
-            <ResolvedFileToPublish Include="@(_UnoFontAsset)">
-                <RelativePath>$([MSBuild]::MakeRelative('$(TargetDir)', '%(FullPath)'))</RelativePath>
+            <_FluentFont Include="$(TargetDir)Uno.Fonts.Fluent\Fonts\**\*.*" />
+            <ResolvedFileToPublish Include="@(_FluentFont)">
+                <RelativePath>Uno.Fonts.Fluent/Fonts/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
                 <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
             </ResolvedFileToPublish>
 
+            <_OpenSansFont Include="$(TargetDir)Uno.Fonts.OpenSans\Fonts\**\*.*" />
+            <ResolvedFileToPublish Include="@(_OpenSansFont)">
+                <RelativePath>Uno.Fonts.OpenSans/Fonts/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            </ResolvedFileToPublish>
 
-            <_ResizetizerAsset Include="$(IntermediateOutputPath)resizetizer\r\**\*.*" />
+            <_RobotoFont Include="$(TargetDir)Uno.Fonts.Roboto\Fonts\**\*.*" />
+            <ResolvedFileToPublish Include="@(_RobotoFont)">
+                <RelativePath>Uno.Fonts.Roboto/Fonts/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            </ResolvedFileToPublish>
 
-            <ResolvedFileToPublish Include="@(_ResizetizerAsset)">
-                <RelativePath>%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+            <_CompiledAsset Include="$(TargetDir)Assets\**\*.*" />
+            <ResolvedFileToPublish Include="@(_CompiledAsset)">
+                <RelativePath>Assets/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            </ResolvedFileToPublish>
+
+            <_ImagesFolder Include="$(TargetDir)images\**\*.*" />
+            <ResolvedFileToPublish Include="@(_ImagesFolder)">
+                <RelativePath>images/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            </ResolvedFileToPublish>
+
+            <_LibVlcFolder Include="$(TargetDir)libvlc\**\*.*" />
+            <ResolvedFileToPublish Include="@(_LibVlcFolder)">
+                <RelativePath>libvlc/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
+                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+            </ResolvedFileToPublish>
+
+            <_LiveChartsFolder Include="$(TargetDir)LiveChartsCore.SkiaSharpView.Uno.WinUI\**\*.*" />
+            <ResolvedFileToPublish Include="@(_LiveChartsFolder)">
+                <RelativePath>LiveChartsCore.SkiaSharpView.Uno.WinUI/%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
                 <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
             </ResolvedFileToPublish>
 
@@ -51,20 +76,4 @@
     <Delete Files="@(_MuiFileToRemove)" />
     <RemoveDir Directories="@(_MuiDirectoryToRemove)" />
   </Target>
-    <Target Name="ForceCopyToPublish" AfterTargets="ComputeFilesToPublish" Condition="'$(TargetFramework)' == 'net10.0-desktop'">
-        <ItemGroup>
-            <_AllOutputFiles Include="@(Content)" Condition="'%(Content.CopyToOutputDirectory)' == 'PreserveNewest' Or '%(Content.CopyToOutputDirectory)' == 'Always'" />
-
-            <_AllOutputFiles Include="@(None)"
-                             Condition="'%(None.CopyToOutputDirectory)' == 'PreserveNewest' Or '%(None.CopyToOutputDirectory)' == 'Always'" />
-
-            <_AllOutputFiles Include="@(ReferenceCopyLocalPaths)"
-                             Condition="'%(ReferenceCopyLocalPaths.CopyToOutputDirectory)' == 'PreserveNewest' Or '%(ReferenceCopyLocalPaths.CopyToOutputDirectory)' == 'Always'" />
-
-            <ResolvedFileToPublish Include="@(_AllOutputFiles)">
-                <RelativePath>%(RelativeDir)%(Filename)%(Extension)</RelativePath>
-                <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-            </ResolvedFileToPublish>
-        </ItemGroup>
-    </Target>
 </Project>
