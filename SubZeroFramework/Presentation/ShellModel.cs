@@ -31,9 +31,19 @@ public class ShellModel
             {
                 dataProvider.SetPolling(TimeSpan.FromSeconds(1)); //This should be read from config file
                 dataProvider.StartPolling();
+                await dispatcherQueue.EnqueueAsync(async () =>
+                {
+                    await _navigator.NavigateRouteAsync(this, "/Main/Dashboard");
+                });
+            }
+            else
+            {
+                await dispatcherQueue.EnqueueAsync(async () =>
+                {
+                    await _navigator.NavigateRouteAsync(this, "/Main/WarningIssues"); //We have a problem, navigate to warning page to show the user
+                });
             }
 
-            await _navigator.NavigateRouteAsync(this, "-/Main");
         });
     }
 }

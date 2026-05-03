@@ -2,6 +2,8 @@ using System.ComponentModel;
 
 using Microsoft.UI.Windowing;
 
+using Windows.System;
+
 namespace SubZeroFramework.Presentation;
 
 public sealed partial class MainPage : Page, INotifyPropertyChanged
@@ -52,5 +54,14 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
     private void PaneToggleButton_Click(object sender, RoutedEventArgs e)
     {
         MainNavigationView.IsPaneOpen = !MainNavigationView.IsPaneOpen;
+    }
+
+    private void MainNavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    {
+        if (string.Equals(args.SelectedItemContainer.Tag?.ToString(), "Github", StringComparison.OrdinalIgnoreCase))
+        {
+            _ = Launcher.LaunchUriAsync(new Uri("https://github.com/TekuSP/SubZeroFramework"));
+            ViewModel.navigator.GoBack(this);
+        }
     }
 }

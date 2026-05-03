@@ -33,6 +33,8 @@ public partial class App : Application
 
     public Window? MainWindow { get; protected set; }
     protected IHost? Host { get; private set; }
+    protected ILogger? Logger { get; private set; }
+
 
     [SuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Uno.Extensions APIs are used in a way that is safe for trimming in this template context.")]
     protected async override void OnLaunched(LaunchActivatedEventArgs args)
@@ -93,6 +95,8 @@ public partial class App : Application
                 .UseNavigation(RegisterRoutes)
             );
 
+        Logger = builder.Log();
+
         MainWindow = builder.Window;
 
         MainWindow.Title = $"SubZero Framework Edition";
@@ -104,7 +108,28 @@ public partial class App : Application
         ConfigureWindowTitleBar();
         MainWindow.SetWindowIcon();
 
+        AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+        TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
+        App.Current.UnhandledException += Current_UnhandledException;
+
         Host = await builder.NavigateAsync<Shell>();
+
+        Logger = Host.Log();
+    }
+
+    private void Current_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+    {
+        Logger?.LogError(e.Exception, $"App Current unhandled exception! Message: {e.Message}");
+    }
+
+    private void TaskScheduler_UnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        Logger?.LogError(e.Exception, $"TaskScheduler unobserved task exception!");
+    }
+
+    private void CurrentDomain_UnhandledException(object sender, System.UnhandledExceptionEventArgs e)
+    {
+        Logger?.LogError(e.ExceptionObject as Exception, $"Current Domain unhandled exception! Is terminating: {e.IsTerminating}");
     }
 
     private void ConfigureWindowTitleBar()
@@ -137,22 +162,18 @@ public partial class App : Application
         );
 
         routes.Register(
-            new RouteMap("", View: views.FindByViewModel<ShellModel>(),
-                Nested:
-                [
-                    new RouteMap("Main", View: views.FindByViewModel<MainModel>(), IsDefault:true,
-                    Nested:
-                    [
-                        new RouteMap("Dashboard", View: views.FindByViewModel<DashboardModel>(), IsDefault: true),
-                        new RouteMap("DeviceCapabilities",  View: views.FindByViewModel<DeviceCapabilitiesModel>()),
-                        new RouteMap("FanCurveProfiles",  View: views.FindByViewModel<FanCurveProfilesModel>()),
-                        new RouteMap("PowerTelemetry",  View: views.FindByViewModel<PowerTelemetryModel>()),
-                        new RouteMap("ThermalTelemetry",  View: views.FindByViewModel<ThermalTelemetryModel>()),
-                        new RouteMap("WarningIssues",  View: views.FindByViewModel<WarningIssuesModel>()),
-                        new RouteMap("Settings",  View: views.FindByViewModel<SettingsModel>()),
-                    ]),
-                ]
-            )
+            new RouteMap("", View: views.FindByViewModel<ShellModel>()),
+            new RouteMap("Main", View: views.FindByViewModel<MainModel>(),
+            Nested:
+            [
+                new RouteMap("Dashboard", View: views.FindByViewModel<DashboardModel>()),
+                new RouteMap("DeviceCapabilities",  View: views.FindByViewModel<DeviceCapabilitiesModel>()),
+                new RouteMap("FanCurveProfiles",  View: views.FindByViewModel<FanCurveProfilesModel>()),
+                new RouteMap("PowerTelemetry",  View: views.FindByViewModel<PowerTelemetryModel>()),
+                new RouteMap("ThermalTelemetry",  View: views.FindByViewModel<ThermalTelemetryModel>()),
+                new RouteMap("WarningIssues",  View: views.FindByViewModel<WarningIssuesModel>()),
+                new RouteMap("Settings",  View: views.FindByViewModel<SettingsModel>()),
+            ])
         );
     }
 }

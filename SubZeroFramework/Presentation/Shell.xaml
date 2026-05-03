@@ -17,7 +17,6 @@
             VerticalAlignment="Stretch"
             HorizontalContentAlignment="Stretch"
             VerticalContentAlignment="Stretch"
-            uen:Navigation.Request="-/Main"
             Background="{StaticResource BrandBackgroundBrush}">
             <utu:ExtendedSplashScreen.LoadingContent>
                 <Grid>

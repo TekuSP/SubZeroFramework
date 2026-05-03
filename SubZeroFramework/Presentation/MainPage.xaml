@@ -48,35 +48,43 @@
             IsPaneToggleButtonVisible="False"
             IsSettingsVisible="False"
             OpenPaneLength="200"
-            PaneDisplayMode="LeftCompact">
+            PaneDisplayMode="LeftCompact"
+            SelectedItem="{x:Bind ViewModel.SelectedItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+            SelectionChanged="{x:Bind MainNavigationView_SelectionChanged}">
             <NavigationView.MenuItems>
                 <NavigationViewItem
                     uen:Region.Name="Dashboard"
                     Content="Dashboard"
-                    Icon="{len:FontIconStringExt Glyph={StaticResource DashboardMenuIcon}}" />
+                    Icon="{len:FontIconStringExt Glyph={StaticResource DashboardMenuIcon}}"
+                    IsEnabled="{x:Bind ViewModel.IsDashboardEnabled, Mode=OneWay}" />
                 <NavigationViewItem
                     uen:Region.Name="ThermalTelemetry"
                     Content="Thermal Telemetry"
-                    Icon="{len:FontIconStringExt Glyph={StaticResource ThermalTelemetryMenuIcon}}" />
+                    Icon="{len:FontIconStringExt Glyph={StaticResource ThermalTelemetryMenuIcon}}"
+                    IsEnabled="{x:Bind ViewModel.IsThermalTelemetryEnabled, Mode=OneWay}" />
                 <NavigationViewItem
                     uen:Region.Name="PowerTelemetry"
                     Content="Power Telemetry"
-                    Icon="{len:FontIconStringExt Glyph={StaticResource PowerTelemetryMenuIcon}}" />
+                    Icon="{len:FontIconStringExt Glyph={StaticResource PowerTelemetryMenuIcon}}"
+                    IsEnabled="{x:Bind ViewModel.IsPowerTelemetryEnabled, Mode=OneWay}" />
                 <controls:NavigationMaterialViewItem
                     uen:Region.Name="FanCurveProfiles"
+                    IsEnabled="{x:Bind ViewModel.IsFanCurveProfilesEnabled, Mode=OneWay}"
                     MaterialIconKindName="{StaticResource FanCurveMenuIcon}"
                     Text="Fan Curve Profiles" />
                 <NavigationViewItem
                     uen:Region.Name="DeviceCapabilities"
                     Content="Device Capabilities"
-                    Icon="{len:FontIconStringExt Glyph={StaticResource DeviceCapabilitiesMenuIcon}}" />
+                    Icon="{len:FontIconStringExt Glyph={StaticResource DeviceCapabilitiesMenuIcon}}"
+                    IsEnabled="{x:Bind ViewModel.IsDeviceCapabilitiesEnabled, Mode=OneWay}" />
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
                 <NavigationViewItem
                     uen:Region.Name="WarningIssues"
                     Content="Warnings and issues"
                     Icon="{len:FontIconStringExt Glyph={StaticResource WarningsMenuIcon}}"
-                    IsEnabled="False" />
+                    IsEnabled="{x:Bind ViewModel.IsWarningIssuesEnabled, Mode=OneWay}"
+                    Tag="WarningIssues" />
                 <controls:NavigationMaterialViewItem
                     MaterialIconKindName="{StaticResource GithubMenuIcon}"
                     Tag="Github"

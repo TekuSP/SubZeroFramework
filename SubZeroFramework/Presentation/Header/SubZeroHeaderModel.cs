@@ -81,8 +81,10 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
         {
             _hardwareInfo.RefreshCPUList(false, 500, false);
             _hardwareInfo.RefreshMemoryList();
-            CPUName = $"CPU: {string.Join(" + ", _hardwareInfo.CpuList.Select(x => x.Name.Trim()))}";
-            RAMAmount = $"RAM: {string.Join(" + ", _hardwareInfo.MemoryList.Select(x => x.Capacity / (1024d * 1024d * 1024d)))} GB RAM";
+            if (_hardwareInfo.CpuList.Count > 0)
+                CPUName = $"CPU: {string.Join(" + ", _hardwareInfo.CpuList.Select(x => x.Name.Trim()))}";
+            if (_hardwareInfo.MemoryList.Count > 0)
+                RAMAmount = $"RAM: {string.Join(" + ", _hardwareInfo.MemoryList.Select(x => x.Capacity / (1024d * 1024d * 1024d)))} ({_hardwareInfo.MemoryList.Select(x => x.Capacity / (1024d * 1024d * 1024d)).Sum()}) GB RAM";
         });
 
         if (_runningSubscription is not null)
