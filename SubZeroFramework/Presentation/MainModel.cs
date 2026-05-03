@@ -6,14 +6,11 @@ public partial class MainModel : ObservableObject
 {
     public MainModel(
         IStringLocalizer localizer,
-        IOptions<AppConfig> appInfo)
+        IOptions<AppConfig> appInfo, IServiceProvider serviceProvider)
     {
-        Title = $"Main - {localizer["ApplicationName"]} - {appInfo?.Value?.Environment}";
+        ServiceProvider = serviceProvider;
     }
 
     [ObservableProperty]
-    public partial string? Title { get; set; }
-
-    [ObservableProperty]
-    public partial string? Name { get; set; }
+    public partial IServiceProvider ServiceProvider { get; set; }
 }

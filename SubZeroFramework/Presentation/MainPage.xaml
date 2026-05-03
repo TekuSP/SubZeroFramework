@@ -87,7 +87,7 @@
                     Icon="{len:FontIconStringExt Glyph={StaticResource SettingsMenuIcon}}" />
             </NavigationView.FooterMenuItems>
             <StackPanel>
-                <header:SubZeroHeaderControl />
+                <header:SubZeroHeaderControl SystemContainer="{x:Bind ViewModel.ServiceProvider, Mode=OneWay}" />
                 <Grid uen:Region.Attached="True" uen:Region.Navigator="Visibility">
                     <Grid.ChildrenTransitions>
                         <TransitionCollection>

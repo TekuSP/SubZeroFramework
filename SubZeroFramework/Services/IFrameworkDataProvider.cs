@@ -6,7 +6,7 @@ using SubZeroFramework.Models;
 
 namespace SubZeroFramework.Services;
 
-public interface IFrameworkDataProvider
+public interface IFrameworkDataProvider : IDisposable
 {
     bool IsPolling { get; }
 

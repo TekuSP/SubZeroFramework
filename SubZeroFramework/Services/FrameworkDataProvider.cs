@@ -31,7 +31,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 		.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
 		.InformationalVersion;
 
-	private readonly IFrameworkSystem _frameworkSystem;
+	private IFrameworkSystem _frameworkSystem;
 	private readonly ILogger<FrameworkDataProvider> _logger;
 	private readonly Lock _syncLock = new();
 	private readonly RetainedSnapshotStream<FrameworkSystemStatus> _systemStatus = new(MaximumHistoryWindow, TelemetryScheduler);
@@ -332,6 +332,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 		_telemetryChannels.Dispose();
 		_currentTelemetryValues.Dispose();
 		_telemetryPoints.Dispose();
+        _connection = null;
+        _frameworkSystem = null!;
 	}
 
 	private FrameworkSystemStatus ReadSystemStatus()
@@ -430,7 +432,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
 	private ImmutableArray<FrameworkEcDriver> ReadSupportedDrivers(ref string? lastError)
 	{
-		var supportedDrivers = ImmutableArray.CreateBuilder<FrameworkEcDriver>(KnownDrivers.Length);
+		var supportedDrivers = ImmutableArray.CreateBuilder<FrameworkEcDriver>();
 
 		foreach (var driver in KnownDrivers)
 		{
@@ -447,7 +449,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 			}
 		}
 
-		return supportedDrivers.MoveToImmutable();
+		return supportedDrivers.ToImmutable();
 	}
 
 	private bool TryReadSnapshot<T>(Func<T> getSnapshot, string snapshotName, ref string? snapshotError, out T? snapshot)

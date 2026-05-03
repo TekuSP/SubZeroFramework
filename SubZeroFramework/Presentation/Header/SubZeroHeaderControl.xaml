@@ -11,72 +11,91 @@
     mc:Ignorable="d">
 
     <Grid
-        Height="130"
+        MinHeight="130"
+        MaxHeight="180"
         Margin="5,5,5,10"
         HorizontalAlignment="Stretch"
         VerticalAlignment="Top">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition />
-            <ColumnDefinition />
-        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid Grid.Row="0" Height="130">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition />
+            </Grid.ColumnDefinitions>
 
-        <Grid
-            x:Name="brandGrid"
-            Grid.Column="0"
-            Margin="5"
-            Background="{StaticResource BrandBackgroundBrush}"
-            CornerRadius="8">
-            <Image
+            <Grid
+                x:Name="brandGrid"
+                Grid.Column="0"
                 Margin="5"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Source="ms-appx:///Assets/Svg/main_logo.png"
-                Stretch="UniformToFill" />
+                Background="{StaticResource BrandBackgroundBrush}"
+                CornerRadius="8">
+                <Image
+                    Margin="5"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Source="ms-appx:///Assets/Svg/main_logo.png"
+                    Stretch="UniformToFill" />
+            </Grid>
+
+            <Border
+                Grid.Column="0"
+                Margin="5"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                CornerRadius="{ThemeResource OverlayCornerRadius}"
+                Loaded="{x:Bind BrandShadow_Loaded}"
+                Translation="0,0,30">
+                <Border.Shadow>
+                    <ThemeShadow x:Name="brandShadow" />
+                </Border.Shadow>
+            </Border>
+
+            <Grid
+                x:Name="cardGrid"
+                Grid.Column="1"
+                Margin="5"
+                Background="{StaticResource CardBackgroundBrush}"
+                CornerRadius="8">
+                <StackPanel Margin="10,3">
+                    <TextBlock
+                        Foreground="White"
+                        Style="{ThemeResource SubtitleTextBlockStyle}"
+                        Text="System Information" />
+                    <uno:MaterialIconText
+                        Margin="0,5,0,0"
+                        Kind="{x:Bind ViewModel.ProductIcon, Mode=OneWay}"
+                        Text="{x:Bind ViewModel.ProductName, Mode=OneWay}" />
+                    <uno:MaterialIconText Kind="Chip" Text="{x:Bind ViewModel.CPUName, Mode=OneWay}" />
+                    <uno:MaterialIconText Kind="Memory" Text="{x:Bind ViewModel.RAMAmount, Mode=OneWay}" />
+                    <uno:MaterialIconText Kind="Connection" Text="{x:Bind ViewModel.ECDriver, Mode=OneWay}" />
+                </StackPanel>
+            </Grid>
+
+            <Border
+                Grid.Column="1"
+                Margin="5"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                CornerRadius="{ThemeResource OverlayCornerRadius}"
+                Loaded="{x:Bind CardShadow_Loaded}"
+                Translation="0,0,30">
+                <Border.Shadow>
+                    <ThemeShadow x:Name="cardShadow" />
+                </Border.Shadow>
+            </Border>
         </Grid>
-
-        <Border
-            Grid.Column="0"
-            Margin="5"
-            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-            CornerRadius="{ThemeResource OverlayCornerRadius}"
-            Loaded="{x:Bind BrandShadow_Loaded}"
-            Translation="0,0,30">
-            <Border.Shadow>
-                <ThemeShadow x:Name="brandShadow" />
-            </Border.Shadow>
-        </Border>
-
         <Grid
-            x:Name="cardGrid"
-            Grid.Column="1"
-            Margin="5"
-            Background="{StaticResource CardBackgroundBrush}"
-            CornerRadius="8">
-            <StackPanel Margin="10,3">
-                <TextBlock
-                    Foreground="White"
-                    Style="{ThemeResource SubtitleTextBlockStyle}"
-                    Text="System Information" />
-                <uno:MaterialIconText
-                    Margin="0,5,0,0"
-                    Kind="Laptop"
-                    Text="Model:" />
-                <uno:MaterialIconText Kind="Chip" Text="CPU:" />
-                <uno:MaterialIconText Kind="Memory" Text="RAM:" />
-                <uno:MaterialIconText Kind="Connection" Text="Driver:" />
-            </StackPanel>
+            Grid.Row="1"
+            MinHeight="0"
+            MaxHeight="50">
+            <InfoBar
+                Title="{x:Bind ViewModel.ErrorTitle, Mode=OneWay}"
+                IsClosable="{x:Bind ViewModel.IsErrorClosable, Mode=OneWay}"
+                IsOpen="{x:Bind ViewModel.IsInError, Mode=OneWay}"
+                Message="{x:Bind ViewModel.ErrorReason, Mode=OneWay}"
+                Severity="{x:Bind ViewModel.ErrorSeverity, Mode=OneWay}" />
         </Grid>
-
-        <Border
-            Grid.Column="1"
-            Margin="5"
-            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-            CornerRadius="{ThemeResource OverlayCornerRadius}"
-            Loaded="{x:Bind CardShadow_Loaded}"
-            Translation="0,0,30">
-            <Border.Shadow>
-                <ThemeShadow x:Name="cardShadow" />
-            </Border.Shadow>
-        </Border>
     </Grid>
+
 </UserControl>

@@ -5,8 +5,11 @@ using CommunityToolkit.Mvvm.DependencyInjection;
 using FrameworkDotnet;
 using FrameworkDotnet.Interfaces;
 
+using Hardware.Info;
+
 using LiveChartsCore;
 
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Media;
 
@@ -89,6 +92,10 @@ public partial class App : Application
                 {
                     services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
                     services.AddSingleton<IFrameworkDataProvider, FrameworkDataProvider>();
+
+                    services.AddSingleton<IHardwareInfo, HardwareInfo>();
+                    services.AddSingleton<DispatcherQueue>(DispatcherQueue.GetForCurrentThread());
+                    services.AddSingleton<SynchronizationContext>(SynchronizationContext.Current);
                 })
                 .UseNavigation(RegisterRoutes)
             );
