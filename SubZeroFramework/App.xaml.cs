@@ -95,6 +95,8 @@ public partial class App : Application
 
         MainWindow = builder.Window;
 
+        MainWindow.Title = $"SubZero Framework Edition";
+
 #if DEBUG
         MainWindow.UseStudio();
 #endif
