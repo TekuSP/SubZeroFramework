@@ -25,33 +25,39 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
 
     public override async Task WatchStatus(WatchStatusRequest request, IServerStreamWriter<FrameworkStatusReply> responseStream, ServerCallContext context)
     {
-        var initialStatus = await _frameworkDataProvider.RefreshAsync(context.CancellationToken).ConfigureAwait(false);
-        await responseStream.WriteAsync(MapStatus(initialStatus), context.CancellationToken).ConfigureAwait(false);
-
-        var statusStream = _frameworkDataProvider.SystemStatus
-            .DistinctUntilChanged(status => new
-            {
-                status.IsLibraryAvailable,
-                status.IsFrameworkDevice,
-                status.DeviceModel,
-                status.Platform,
-                status.PlatformFamily,
-                status.ActiveDriver,
-                status.EcBuildInfo,
-                status.IsEcPollingEnabled,
-                status.IsConnectionOpen,
-                status.RequiresElevation,
-                status.LastError,
-            });
-
-        var reader = ObservableChannelBridge.CreateBoundedReader(statusStream.Skip(1), context.CancellationToken);
-
-        while (await reader.WaitToReadAsync(context.CancellationToken).ConfigureAwait(false))
+        try
         {
-            while (reader.TryRead(out var status))
+            var initialStatus = await _frameworkDataProvider.RefreshAsync(context.CancellationToken).ConfigureAwait(false);
+            await responseStream.WriteAsync(MapStatus(initialStatus), context.CancellationToken).ConfigureAwait(false);
+
+            var statusStream = _frameworkDataProvider.SystemStatus
+                .DistinctUntilChanged(status => new
+                {
+                    status.IsLibraryAvailable,
+                    status.IsFrameworkDevice,
+                    status.DeviceModel,
+                    status.Platform,
+                    status.PlatformFamily,
+                    status.ActiveDriver,
+                    status.EcBuildInfo,
+                    status.IsEcPollingEnabled,
+                    status.IsConnectionOpen,
+                    status.RequiresElevation,
+                    status.LastError,
+                });
+
+            var reader = ObservableChannelBridge.CreateBoundedReader(statusStream.Skip(1), context.CancellationToken);
+
+            while (await reader.WaitToReadAsync(context.CancellationToken).ConfigureAwait(false))
             {
-                await responseStream.WriteAsync(MapStatus(status), context.CancellationToken).ConfigureAwait(false);
+                while (reader.TryRead(out var status))
+                {
+                    await responseStream.WriteAsync(MapStatus(status), context.CancellationToken).ConfigureAwait(false);
+                }
             }
+        }
+        catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+        {
         }
     }
 

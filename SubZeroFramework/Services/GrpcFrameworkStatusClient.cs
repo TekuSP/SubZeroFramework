@@ -53,8 +53,7 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
 
                     try
                     {
-                        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationSource.Token);
-                        call = _client.WatchStatus(new WatchStatusRequest(), cancellationToken: timeoutSource.Token);
+                        call = _client.WatchStatus(new WatchStatusRequest(), cancellationToken: cancellationSource.Token);
 
                         while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
                         {

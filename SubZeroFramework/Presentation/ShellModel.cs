@@ -13,7 +13,7 @@ public class ShellModel
     private readonly INavigator _navigator;
 
     public ShellModel(
-        INavigator navigator, DispatcherQueue dispatcherQueue, IFrameworkDataProvider dataProvider, IHardwareInfo hardwareInfo)
+        INavigator navigator, DispatcherQueue dispatcherQueue, IFrameworkStatusClient frameworkStatusClient, IHardwareInfo hardwareInfo)
     {
         _navigator = navigator;
 
@@ -25,12 +25,10 @@ public class ShellModel
                 hardwareInfo.RefreshMemoryList();
             });
 
-            var lastStatus = await dataProvider.RefreshAsync();
+            var lastStatus = await frameworkStatusClient.GetStatusAsync().ConfigureAwait(false);
 
-            if (lastStatus.IsLibraryAvailable && lastStatus.IsFrameworkDevice == true) //Proactively start polling if the library is available and it's a framework device, otherwise wait for user to navigate to main page where polling will be started
+            if (lastStatus.IsGrpcActive && lastStatus.IsLibraryAvailable && lastStatus.IsFrameworkDevice == true)
             {
-                dataProvider.SetPolling(TimeSpan.FromSeconds(1)); //This should be read from config file
-                dataProvider.StartPolling();
                 await dispatcherQueue.EnqueueAsync(async () =>
                 {
                     await _navigator.NavigateRouteAsync(this, "/Main/Dashboard");

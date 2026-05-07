@@ -75,7 +75,6 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
                     try
                     {
-                        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationSource.Token);
                         call = _client.WatchTelemetrySeries(new WatchTelemetrySeriesRequest
                         {
                             Area = channelId.Area.ToString(),
@@ -83,7 +82,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
                             Index = channelId.Index,
                             Metric = channelId.Metric.ToString(),
                             HistoryWindowSeconds = checked((int)Math.Ceiling(historyWindow.TotalSeconds)),
-                        }, cancellationToken: timeoutSource.Token);
+                        }, cancellationToken: cancellationSource.Token);
 
                         using var connection = points.Connect().Subscribe(observer);
 
@@ -157,8 +156,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
                     try
                     {
-                        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationSource.Token);
-                        call = _client.WatchTelemetryChannels(new WatchTelemetryChannelsRequest(), cancellationToken: timeoutSource.Token);
+                        call = _client.WatchTelemetryChannels(new WatchTelemetryChannelsRequest(), cancellationToken: cancellationSource.Token);
 
                         while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
                         {
@@ -215,8 +213,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
                     try
                     {
-                        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationSource.Token);
-                        call = _client.WatchCurrentTelemetryValues(new WatchCurrentTelemetryValuesRequest(), cancellationToken: timeoutSource.Token);
+                        call = _client.WatchCurrentTelemetryValues(new WatchCurrentTelemetryValuesRequest(), cancellationToken: cancellationSource.Token);
 
                         while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
                         {
