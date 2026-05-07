@@ -105,6 +105,16 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
             return;
         }
 
+        if (status.RequiresElevation)
+        {
+            IsInError = true;
+            ErrorReason = "Linux fan control requires the background service to run as root.";
+            ErrorTitle = "Service elevation required";
+            ErrorSeverity = InfoBarSeverity.Warning;
+            IsErrorClosable = false;
+            return;
+        }
+
         if (status.IsFrameworkDevice != true)
         {
             IsInError = true;

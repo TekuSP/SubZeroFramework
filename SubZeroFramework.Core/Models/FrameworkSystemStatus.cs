@@ -30,5 +30,7 @@ public sealed record FrameworkSystemStatus
 
     public bool IsConnectionOpen { get; init; }
 
+    public bool RequiresElevation { get; init; }
+
     public string? LastError { get; init; }
 }

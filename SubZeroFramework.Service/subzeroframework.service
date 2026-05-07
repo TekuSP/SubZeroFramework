@@ -1,0 +1,16 @@
+[Unit]
+Description=SubZero Framework fan control service
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+ExecStart=/usr/local/bin/SubZeroFramework.Service
+Restart=always
+RestartSec=5
+User=root
+WorkingDirectory=/usr/local/lib/subzeroframework
+Environment=DOTNET_ENVIRONMENT=Production
+
+[Install]
+WantedBy=multi-user.target

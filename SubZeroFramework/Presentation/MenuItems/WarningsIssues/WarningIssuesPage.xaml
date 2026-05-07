@@ -74,7 +74,7 @@
                 Margin="5"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 CornerRadius="{ThemeResource OverlayCornerRadius}"
-                Loaded="{x:Bind ErrorGridShadow_Loaded}"
+                Loaded="ErrorGridShadow_Loaded"
                 Translation="0,0,30">
                 <Border.Shadow>
                     <ThemeShadow x:Name="errorGridShadow" />
@@ -114,7 +114,7 @@
                 Margin="5"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 CornerRadius="{ThemeResource OverlayCornerRadius}"
-                Loaded="{x:Bind Card00Shadow_Loaded}"
+                Loaded="Card00Shadow_Loaded"
                 Translation="0,0,30">
                 <Border.Shadow>
                     <ThemeShadow x:Name="card00Shadow" />
@@ -142,7 +142,7 @@
                 Margin="5"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 CornerRadius="{ThemeResource OverlayCornerRadius}"
-                Loaded="{x:Bind Card01Shadow_Loaded}"
+                Loaded="Card01Shadow_Loaded"
                 Translation="0,0,30">
                 <Border.Shadow>
                     <ThemeShadow x:Name="card01Shadow" />
@@ -170,7 +170,7 @@
                 Margin="5"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 CornerRadius="{ThemeResource OverlayCornerRadius}"
-                Loaded="{x:Bind Card10Shadow_Loaded}"
+                Loaded="Card10Shadow_Loaded"
                 Translation="0,0,30">
                 <Border.Shadow>
                     <ThemeShadow x:Name="card10Shadow" />
@@ -198,7 +198,7 @@
                 Margin="5"
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 CornerRadius="{ThemeResource OverlayCornerRadius}"
-                Loaded="{x:Bind Card11Shadow_Loaded}"
+                Loaded="Card11Shadow_Loaded"
                 Translation="0,0,30">
                 <Border.Shadow>
                     <ThemeShadow x:Name="card11Shadow" />

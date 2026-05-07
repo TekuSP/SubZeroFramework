@@ -1,7 +1,6 @@
 using DynamicData;
 
 using System.Reactive.Concurrency;
-using System.Reactive.Linq;
 using System.Reactive.Subjects;
 
 namespace SubZeroFramework.Services;
