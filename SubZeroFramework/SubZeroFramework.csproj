@@ -55,6 +55,7 @@
         <PackageReference Include="CommunityToolkit.WinUI.Extensions" />
         <PackageReference Include="DynamicData" />
         <PackageReference Include="FrameworkDotnet" />
+        <PackageReference Include="Grpc.Net.Client" />
         <PackageReference Include="Hardware.Info.Aot" />
         <PackageReference Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" />
         <PackageReference Include="Material.Icons" />
@@ -62,6 +63,7 @@
     </ItemGroup>
  <ItemGroup>
         <ProjectReference Include="..\SubZeroFramework.Core\SubZeroFramework.Core.csproj" />
+        <ProjectReference Include="..\SubZeroFramework.GrpcContracts\SubZeroFramework.GrpcContracts.csproj" />
     </ItemGroup>
     <PropertyGroup>
         <UnoSplashScreenColor>#5b5b5c</UnoSplashScreenColor>

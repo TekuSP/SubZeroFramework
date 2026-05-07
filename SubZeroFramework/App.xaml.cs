@@ -87,6 +87,7 @@ public partial class App : Application
                 {
                     services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
                     services.AddSingleton<IFrameworkDataProvider, FrameworkDataProvider>();
+                    services.AddSingleton<IFrameworkStatusClient, GrpcFrameworkStatusClient>();
 
                     services.AddSingleton<IHardwareInfo>(new HardwareInfo());
                     services.AddSingleton<DispatcherQueue>(DispatcherQueue.GetForCurrentThread());

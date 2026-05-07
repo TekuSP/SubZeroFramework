@@ -7,13 +7,15 @@
 - Decide whether the UNO app should fall back to in-process provider usage during development only.
 
 ## IPC
-- Choose the IPC transport between the UNO UI and `SubZeroFramework.Service`.
+- Use gRPC over Unix domain sockets as the initial IPC transport baseline for Windows 10/11 and Linux.
 - Add a strongly typed contract assembly for service requests, responses, snapshots, and command acknowledgements.
 - Implement a request/response channel for status reads and fan commands.
 - Implement a streaming/subscription channel for telemetry snapshots and state changes.
+- Integrate Rx-friendly adapters over gRPC streams with explicit buffering, throttling, and backpressure strategy for UI subscriptions.
 - Add reconnect behavior when the service restarts.
 - Add request cancellation and timeouts.
 - Add local-only endpoint restrictions.
+- Add server-side caller validation and client-side server validation for the Unix domain socket transport.
 
 ## Windows service operations
 - Add an installation script for `sc.exe create` and service recovery configuration.

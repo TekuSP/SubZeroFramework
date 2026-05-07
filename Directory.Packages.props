@@ -18,6 +18,11 @@
     <PackageVersion Include="CommunityToolkit.WinUI.Extensions" Version="8.2.251219" />
     <PackageVersion Include="DynamicData" Version="9.4.31" />
     <PackageVersion Include="FrameworkDotnet" Version="0.2.1.82" />
+    <PackageVersion Include="Google.Protobuf" Version="3.34.1" />
+    <PackageVersion Include="Grpc.AspNetCore" Version="2.80.0" />
+    <PackageVersion Include="Grpc.Core.Api" Version="2.80.0" />
+    <PackageVersion Include="Grpc.Net.Client" Version="2.80.0" />
+    <PackageVersion Include="Grpc.Tools" Version="2.80.0" />
     <PackageVersion Include="Hardware.Info.Aot" Version="101.1.1.1" />
     <PackageVersion Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" Version="2.0.2" />
     <PackageVersion Include="Material.Icons" Version="3.0.2" />

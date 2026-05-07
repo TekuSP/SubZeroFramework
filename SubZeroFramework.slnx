@@ -27,6 +27,7 @@
     <File Path="Design Ideas/fan_control_unknown_framework.png" />
   </Folder>
   <Project Path="SubZeroFramework.Core/SubZeroFramework.Core.csproj" />
+  <Project Path="SubZeroFramework.GrpcContracts/SubZeroFramework.GrpcContracts.csproj" />
   <Project Path="SubZeroFramework.Service/SubZeroFramework.Service.csproj" />
   <Project Path="SubZeroFramework/SubZeroFramework.csproj">
     <Platform Solution="*|ARM64" Project="ARM64" />
