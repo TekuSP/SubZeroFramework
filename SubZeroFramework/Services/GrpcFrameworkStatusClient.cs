@@ -1,5 +1,7 @@
 using System.Net.Sockets;
+using System.Reactive.Linq;
 
+using Grpc.Core;
 using Grpc.Net.Client;
 
 using SubZeroFramework.GrpcContracts;
@@ -8,6 +10,8 @@ namespace SubZeroFramework.Services;
 
 public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposable
 {
+    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(2);
+
     private readonly GrpcChannel _channel;
     private readonly FrameworkStatusService.FrameworkStatusServiceClient _client;
 
@@ -36,6 +40,80 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
     public async Task<FrameworkSystemStatus> GetStatusAsync(CancellationToken cancellationToken = default)
     {
         var reply = await _client.GetStatusAsync(new GetStatusRequest(), cancellationToken: cancellationToken).ResponseAsync.ConfigureAwait(false);
+        return MapStatus(reply);
+    }
+
+    public IObservable<FrameworkSystemStatus> WatchStatus()
+    {
+        return Observable.Create<FrameworkSystemStatus>(observer =>
+        {
+            var cancellationSource = new CancellationTokenSource();
+
+            _ = Task.Run(async () =>
+            {
+                while (!cancellationSource.IsCancellationRequested)
+                {
+                    AsyncServerStreamingCall<FrameworkStatusReply>? call = null;
+
+                    try
+                    {
+                        call = _client.WatchStatus(new WatchStatusRequest(), cancellationToken: cancellationSource.Token);
+
+                        while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
+                        {
+                            observer.OnNext(MapStatus(call.ResponseStream.Current));
+                        }
+
+                        if (!cancellationSource.IsCancellationRequested)
+                        {
+                            observer.OnNext(CreateUnavailableStatus("The background service status stream ended unexpectedly."));
+                        }
+                    }
+                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (RpcException exception) when (!cancellationSource.IsCancellationRequested)
+                    {
+                        observer.OnNext(CreateUnavailableStatus($"Unable to connect to SubZeroFramework.Service. {exception.Status.Detail}"));
+                    }
+                    catch (Exception exception) when (!cancellationSource.IsCancellationRequested)
+                    {
+                        observer.OnNext(CreateUnavailableStatus($"Unable to connect to SubZeroFramework.Service. {exception.Message}"));
+                    }
+                    finally
+                    {
+                        call?.Dispose();
+                    }
+
+                    try
+                    {
+                        await Task.Delay(ReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                }
+
+                observer.OnCompleted();
+            }, cancellationSource.Token);
+
+            return () =>
+            {
+                cancellationSource.Cancel();
+                cancellationSource.Dispose();
+            };
+        });
+    }
+
+    public void Dispose()
+    {
+        _channel.Dispose();
+    }
+
+    private static FrameworkSystemStatus MapStatus(FrameworkStatusReply reply)
+    {
         return new FrameworkSystemStatus
         {
             ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
@@ -56,13 +134,31 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
             EcBuildInfo = string.IsNullOrEmpty(reply.EcBuildInfo) ? null : reply.EcBuildInfo,
             IsEcPollingEnabled = reply.IsEcPollingEnabled,
             IsConnectionOpen = reply.IsConnectionOpen,
+            IsGrpcActive = true,
             RequiresElevation = reply.RequiresElevation,
             LastError = string.IsNullOrEmpty(reply.LastError) ? null : reply.LastError,
         };
     }
 
-    public void Dispose()
+    private static FrameworkSystemStatus CreateUnavailableStatus(string message)
     {
-        _channel.Dispose();
+        return new FrameworkSystemStatus
+        {
+            ObservedAt = DateTimeOffset.UtcNow,
+            ConnectionLibraryVersion = string.Empty,
+            IsLibraryAvailable = false,
+            IsFrameworkDevice = null,
+            DeviceModel = null,
+            Platform = null,
+            PlatformFamily = null,
+            SupportedDrivers = [],
+            ActiveDriver = null,
+            EcBuildInfo = null,
+            IsEcPollingEnabled = false,
+            IsConnectionOpen = false,
+            IsGrpcActive = false,
+            RequiresElevation = false,
+            LastError = message,
+        };
     }
 }

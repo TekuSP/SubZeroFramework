@@ -5,4 +5,6 @@ namespace SubZeroFramework.Services;
 public interface IFrameworkStatusClient
 {
     Task<FrameworkSystemStatus> GetStatusAsync(CancellationToken cancellationToken = default);
+
+    IObservable<FrameworkSystemStatus> WatchStatus();
 }

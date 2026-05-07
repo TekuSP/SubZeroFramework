@@ -6,9 +6,13 @@ package subzeroframework.grpc;
 
 service FrameworkStatusService {
   rpc GetStatus (GetStatusRequest) returns (FrameworkStatusReply);
+  rpc WatchStatus (WatchStatusRequest) returns (stream FrameworkStatusReply);
 }
 
 message GetStatusRequest {
+}
+
+message WatchStatusRequest {
 }
 
 message FrameworkStatusReply {
@@ -26,6 +30,7 @@ message FrameworkStatusReply {
   string ec_build_info = 12;
   bool is_ec_polling_enabled = 13;
   bool is_connection_open = 14;
-  bool requires_elevation = 15;
-  string last_error = 16;
+  bool is_grpc_active = 15;
+  bool requires_elevation = 16;
+  string last_error = 17;
 }

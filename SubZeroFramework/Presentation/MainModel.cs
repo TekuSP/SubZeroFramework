@@ -17,28 +17,32 @@ public partial class MainModel : ObservableObject, IDisposable
     private readonly DispatcherQueue dispatcherQueue;
     private readonly SynchronizationContext context;
     private readonly IHardwareInfo hwInfo;
-    private readonly IFrameworkDataProvider frameworkDataProvider;
+    private readonly IFrameworkStatusClient frameworkStatusClient;
     private readonly IDisposable frameworkStatusProvider;
     public MainModel(
         IStringLocalizer localizer,
-        IOptions<AppConfig> appInfo, INavigator navigator, IServiceProvider serviceProvider, DispatcherQueue dispatcherQueue, SynchronizationContext context, IHardwareInfo hwInfo, IFrameworkDataProvider frameworkDataProvider)
+        IOptions<AppConfig> appInfo, INavigator navigator, IServiceProvider serviceProvider, DispatcherQueue dispatcherQueue, SynchronizationContext context, IHardwareInfo hwInfo, IFrameworkStatusClient frameworkStatusClient)
     {
         this.navigator = navigator;
         ServiceProvider = serviceProvider;
         this.dispatcherQueue = dispatcherQueue;
         this.context = context;
         this.hwInfo = hwInfo;
-        this.frameworkDataProvider = frameworkDataProvider;
+        this.frameworkStatusClient = frameworkStatusClient;
 
-        frameworkStatusProvider = frameworkDataProvider.SystemStatus.ObserveOn(context).Subscribe(SystemStatusChanged);
+        frameworkStatusProvider = frameworkStatusClient.WatchStatus().ObserveOn(context).Subscribe(SystemStatusChanged);
     }
 
     private void SystemStatusChanged(FrameworkSystemStatus status)
     {
-        bool isWorking = status.IsLibraryAvailable && status.IsFrameworkDevice == true;
-        if (!isWorking || true) //Okay, we have a problem
+        bool isWorking = status.IsGrpcActive
+            && status.IsLibraryAvailable
+            && status.IsFrameworkDevice == true
+            && !status.RequiresElevation
+            && string.IsNullOrEmpty(status.LastError);
+
+        if (!isWorking)
         {
-            //We have fatal problem
             IsDashboardEnabled = false;
             IsThermalTelemetryEnabled = false;
             IsPowerTelemetryEnabled = false;
@@ -95,5 +99,5 @@ public partial class MainModel : ObservableObject, IDisposable
     public partial bool IsWarningIssuesEnabled { get; set; }
 
     [ObservableProperty]
-    public partial object SelectedItem { get; set; }
+    public partial object? SelectedItem { get; set; }
 }

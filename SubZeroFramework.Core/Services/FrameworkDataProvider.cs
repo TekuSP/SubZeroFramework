@@ -374,6 +374,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             SupportedDrivers = supportedDrivers,
             IsEcPollingEnabled = isLibraryAvailable && isFrameworkDevice == true && !requiresElevation,
             IsConnectionOpen = false,
+            IsGrpcActive = false,
             RequiresElevation = requiresElevation,
             LastError = requiresElevation
                 ? "Framework EC access on Linux requires running the service as root."
@@ -424,6 +425,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         return systemStatus with
         {
             IsConnectionOpen = true,
+            IsGrpcActive = systemStatus.IsGrpcActive,
             ActiveDriver = activeDriver,
             EcBuildInfo = ecBuildInfo,
             LastError = lastError,

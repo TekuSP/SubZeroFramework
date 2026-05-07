@@ -46,7 +46,7 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
     public partial string RAMAmount { get; set; } = "RAM: ";
 
     private IServiceProvider? _serviceProvider = null;
-    private IFrameworkDataProvider? _frameworkDataProvider = null;
+    private IFrameworkStatusClient? _frameworkStatusClient = null;
     private IHardwareInfo? _hardwareInfo = null;
     private DispatcherQueue? _dispatcherQueue = null;
     private SynchronizationContext? _synchronizationContext = null;
@@ -58,7 +58,7 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
         _serviceProvider = serviceProvider;
 
         //Get new providers
-        _frameworkDataProvider = serviceProvider.GetRequiredService<IFrameworkDataProvider>();
+        _frameworkStatusClient = serviceProvider.GetRequiredService<IFrameworkStatusClient>();
         _hardwareInfo = serviceProvider.GetRequiredService<IHardwareInfo>();
         _dispatcherQueue = serviceProvider.GetRequiredService<DispatcherQueue>();
         _synchronizationContext = serviceProvider.GetRequiredService<SynchronizationContext>();
@@ -68,7 +68,7 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
 
     public async Task GatherNewInformation()
     {
-        if (_frameworkDataProvider is null)
+        if (_frameworkStatusClient is null)
             return;
         if (_hardwareInfo is null)
             return;
@@ -90,11 +90,21 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
         if (_runningSubscription is not null)
             _runningSubscription.Dispose();
 
-        _runningSubscription = _frameworkDataProvider.SystemStatus.ObserveOn(_synchronizationContext).Subscribe(FrameworkSystemDataUpdated);
+        _runningSubscription = _frameworkStatusClient.WatchStatus().ObserveOn(_synchronizationContext).Subscribe(FrameworkSystemDataUpdated);
     }
 
     private void FrameworkSystemDataUpdated(FrameworkSystemStatus status)
     {
+        if (!status.IsGrpcActive)
+        {
+            IsInError = true;
+            ErrorReason = "The SubZero Framework background service is not reachable over local gRPC IPC. Is your service running?";
+            ErrorTitle = "SubZero Framework Service offline";
+            ErrorSeverity = InfoBarSeverity.Error;
+            IsErrorClosable = false;
+            return;
+        }
+
         if (!status.IsLibraryAvailable)
         {
             IsInError = true;
@@ -108,9 +118,9 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
         if (status.RequiresElevation)
         {
             IsInError = true;
-            ErrorReason = "Linux fan control requires the background service to run as root.";
-            ErrorTitle = "Service elevation required";
-            ErrorSeverity = InfoBarSeverity.Warning;
+            ErrorReason = "SubZero Framework fan control requires the Framework-System provider for SubZero Framework service to run as root.";
+            ErrorTitle = "SubZero Framework Service elevation required";
+            ErrorSeverity = InfoBarSeverity.Error;
             IsErrorClosable = false;
             return;
         }
@@ -164,7 +174,7 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
             if (disposing)
             {
                 _runningSubscription?.Dispose();
-                _frameworkDataProvider = null; //intentionally not disposed as its singleton and may be used elsewhere, just dereferenced here to allow GC to collect it if no longer used anywhere else
+                _frameworkStatusClient = null;
             }
             
             disposedValue = true;

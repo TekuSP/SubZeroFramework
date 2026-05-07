@@ -32,12 +32,13 @@
                 Margin="5"
                 Background="{StaticResource BrandBackgroundBrush}"
                 CornerRadius="8">
-                <Image
-                    Margin="5"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Source="ms-appx:///Assets/Svg/main_logo.png"
-                    Stretch="UniformToFill" />
+                <Grid Margin="10">
+                    <Image
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Source="ms-appx:///Assets/Svg/main_logo.png"
+                        Stretch="UniformToFill" />
+                </Grid>
             </Grid>
 
             <Border
@@ -91,6 +92,7 @@
             MaxHeight="50">
             <InfoBar
                 Title="{x:Bind ViewModel.ErrorTitle, Mode=OneWay}"
+                Margin="4,0"
                 IsClosable="{x:Bind ViewModel.IsErrorClosable, Mode=OneWay}"
                 IsOpen="{x:Bind ViewModel.IsInError, Mode=OneWay}"
                 Message="{x:Bind ViewModel.ErrorReason, Mode=OneWay}"

@@ -1,12 +1,22 @@
-﻿{
-  "$schema": "https://json.schemastore.org/launchsettings.json",
+{
   "profiles": {
     "SubZeroFramework.Service": {
       "commandName": "Project",
-      "dotnetRunMessages": true,
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Development"
-      }
+      },
+      "dotnetRunMessages": true
+    },
+    "WSL": {
+      "commandName": "WSL2",
+      "environmentVariables": {
+        "DOTNET_ENVIRONMENT": "Development"
+      },
+      "distributionName": "archlinux",
+      "compatibleTargetFramework": "desktop",
+      "DISPLAY": ":0",
+      "GDK_GL": "gles" // use this line when running under WSL on Windows 11
     }
-  }
+  },
+  "$schema": "https://json.schemastore.org/launchsettings.json"
 }
