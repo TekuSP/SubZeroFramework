@@ -3,16 +3,16 @@
 ## Service architecture
 - Move fan write operations fully behind `SubZeroFramework.Service` so the UNO UI never talks to Framework EC directly.
 - Design a clear separation between read-only telemetry APIs and fan-control command APIs.
-- Add a service status surface that reports connection state, driver, elevation status, and last error through IPC.
+- Add a service status surface that reports connection state, driver, elevation status, and last error through IPC. Done for read-only status streaming via gRPC, including `IsGrpcActive` transport state.
 - Decide whether the UNO app should fall back to in-process provider usage during development only.
 
 ## IPC
 - Use gRPC over Unix domain sockets as the initial IPC transport baseline for Windows 10/11 and Linux.
-- Add a strongly typed contract assembly for service requests, responses, snapshots, and command acknowledgements.
-- Implement a request/response channel for status reads and fan commands.
-- Implement a streaming/subscription channel for telemetry snapshots and state changes.
-- Integrate Rx-friendly adapters over gRPC streams with explicit buffering, throttling, and backpressure strategy for UI subscriptions.
-- Add reconnect behavior when the service restarts.
+- Add a strongly typed contract assembly for service requests, responses, snapshots, and command acknowledgements. Done for the current status contract in `SubZeroFramework.GrpcContracts`.
+- Implement a request/response channel for status reads and fan commands. Done for status reads. Fan commands still pending.
+- Implement a streaming/subscription channel for telemetry snapshots and state changes. Done for service status streaming. Snapshot streaming still pending.
+- Integrate Rx-friendly adapters over gRPC streams with explicit buffering, throttling, and backpressure strategy for UI subscriptions. Done for status streaming with bounded channel buffering. Shared-stream consolidation and snapshot throttling still pending.
+- Add reconnect behavior when the service restarts. Done for the status client.
 - Add request cancellation and timeouts.
 - Add local-only endpoint restrictions.
 - Add server-side caller validation and client-side server validation for the Unix domain socket transport.
@@ -41,16 +41,24 @@
 - Consider a watchdog or heartbeat model if fan safety requires external recovery guarantees.
 
 ## UI integration
-- Replace direct `IFrameworkDataProvider` usage in the UNO app with an IPC client abstraction.
+- Replace direct `IFrameworkDataProvider` usage in the UNO app with an IPC client abstraction. Done for service status reads and status streaming.
 - Update warning and settings pages to show service installation, elevation, and connection guidance.
-- Add a visible service-health indicator in the UI.
+- Add a visible service-health indicator in the UI. Partially done through header and warning page status handling.
 - Add user actions to open logs or copy diagnostics.
 
 ## Testing and validation
 - Add tests for Linux root detection behavior.
 - Add tests for service startup configuration and option binding.
-- Add integration tests for IPC contracts once the transport is chosen.
+- Add integration tests for IPC contracts once the transport is chosen. Status IPC coverage is now the first priority here.
 - Add a manual deployment checklist for Windows and Linux.
+
+## Near-term next work
+- Add local caller validation for the gRPC socket before introducing fan-control commands.
+- Add client-side validation of the expected local service endpoint identity and permissions where the platform allows it.
+- Add explicit cancellation and timeout policies to the gRPC status client calls and reconnect loop.
+- Consolidate UI status subscriptions behind a shared observable so multiple view-models do not each create their own streaming gRPC call.
+- Start the command contract for fan-control writes with explicit acknowledgements and validation boundaries.
+- Start telemetry snapshot streaming over gRPC once the command boundary is defined.
 
 ## Packaging and deployment
 - Decide publish layout for the worker service on Windows and Linux.

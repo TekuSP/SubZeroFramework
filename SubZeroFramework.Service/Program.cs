@@ -26,10 +26,7 @@ public static class Program
 
         builder.WebHost.ConfigureKestrel(serverOptions =>
         {
-            if (File.Exists(socketPath))
-            {
-                File.Delete(socketPath);
-            }
+            FrameworkGrpcSocketSecurity.PrepareServerSocketPath(socketPath);
 
             serverOptions.ListenUnixSocket(socketPath, listenOptions =>
             {
@@ -48,6 +45,7 @@ public static class Program
 
         var app = builder.Build();
         app.MapGrpcService<FrameworkStatusGrpcService>();
+        app.MapGrpcService<FrameworkTelemetryGrpcService>();
         await app.RunAsync().ConfigureAwait(false);
     }
 }

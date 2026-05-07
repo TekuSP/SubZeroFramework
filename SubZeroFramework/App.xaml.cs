@@ -1,8 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 
-using FrameworkDotnet;
-using FrameworkDotnet.Interfaces;
-
 using Hardware.Info;
 
 using Microsoft.UI.Dispatching;
@@ -85,9 +82,9 @@ public partial class App : Application
                 .UseLocalization()
                 .ConfigureServices((context, services) =>
                 {
-                    services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
-                    services.AddSingleton<IFrameworkDataProvider, FrameworkDataProvider>();
+                    services.AddSingleton<FrameworkGrpcChannelFactory>();
                     services.AddSingleton<IFrameworkStatusClient, GrpcFrameworkStatusClient>();
+                    services.AddSingleton<IFrameworkTelemetryClient, GrpcFrameworkTelemetryClient>();
 
                     services.AddSingleton<IHardwareInfo>(new HardwareInfo());
                     services.AddSingleton<DispatcherQueue>(DispatcherQueue.GetForCurrentThread());

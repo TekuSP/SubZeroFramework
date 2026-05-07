@@ -12,38 +12,34 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
 {
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(2);
 
-    private readonly GrpcChannel _channel;
+    private readonly FrameworkGrpcChannelFactory _channelFactory;
     private readonly FrameworkStatusService.FrameworkStatusServiceClient _client;
+    private readonly IObservable<FrameworkSystemStatus> _sharedStatusStream;
 
-    public GrpcFrameworkStatusClient()
+    public GrpcFrameworkStatusClient(FrameworkGrpcChannelFactory channelFactory)
     {
-        var socketPath = OperatingSystem.IsWindows()
-            ? Path.Combine(Path.GetTempPath(), "SubZeroFramework", "subzeroframework.grpc.sock")
-            : Path.Combine("/run", "subzeroframework.grpc.sock");
-        var connectionFactory = new UnixDomainSocketsConnectionFactory(new UnixDomainSocketEndPoint(socketPath));
-        var socketsHttpHandler = new SocketsHttpHandler
-        {
-            ConnectCallback = connectionFactory.ConnectAsync,
-            PooledConnectionIdleTimeout = Timeout.InfiniteTimeSpan,
-            KeepAlivePingDelay = TimeSpan.FromSeconds(60),
-            KeepAlivePingTimeout = TimeSpan.FromSeconds(30),
-            EnableMultipleHttp2Connections = true,
-        };
+        ArgumentNullException.ThrowIfNull(channelFactory);
 
-        _channel = GrpcChannel.ForAddress("http://localhost", new GrpcChannelOptions
-        {
-            HttpHandler = socketsHttpHandler,
-        });
-        _client = new FrameworkStatusService.FrameworkStatusServiceClient(_channel);
+        _channelFactory = channelFactory;
+        _client = new FrameworkStatusService.FrameworkStatusServiceClient(_channelFactory.Channel);
+        _sharedStatusStream = _channelFactory.ShareLatest(CreateStatusStream());
     }
 
     public async Task<FrameworkSystemStatus> GetStatusAsync(CancellationToken cancellationToken = default)
     {
-        var reply = await _client.GetStatusAsync(new GetStatusRequest(), cancellationToken: cancellationToken).ResponseAsync.ConfigureAwait(false);
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.GetStatusAsync(new GetStatusRequest(), cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
         return MapStatus(reply);
     }
 
     public IObservable<FrameworkSystemStatus> WatchStatus()
+        => _sharedStatusStream;
+
+    public void Dispose()
+    {
+    }
+
+    private IObservable<FrameworkSystemStatus> CreateStatusStream()
     {
         return Observable.Create<FrameworkSystemStatus>(observer =>
         {
@@ -57,7 +53,8 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
 
                     try
                     {
-                        call = _client.WatchStatus(new WatchStatusRequest(), cancellationToken: cancellationSource.Token);
+                        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationSource.Token);
+                        call = _client.WatchStatus(new WatchStatusRequest(), cancellationToken: timeoutSource.Token);
 
                         while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
                         {
@@ -105,11 +102,6 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
                 cancellationSource.Dispose();
             };
         });
-    }
-
-    public void Dispose()
-    {
-        _channel.Dispose();
     }
 
     private static FrameworkSystemStatus MapStatus(FrameworkStatusReply reply)

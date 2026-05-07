@@ -9,10 +9,72 @@ service FrameworkStatusService {
   rpc WatchStatus (WatchStatusRequest) returns (stream FrameworkStatusReply);
 }
 
+service FrameworkTelemetryService {
+  rpc WatchTelemetryChannels (WatchTelemetryChannelsRequest) returns (stream TelemetryChannelChangeReply);
+  rpc WatchCurrentTelemetryValues (WatchCurrentTelemetryValuesRequest) returns (stream CurrentTelemetryValueChangeReply);
+  rpc WatchTelemetrySeries (WatchTelemetrySeriesRequest) returns (stream TelemetrySeriesPointChangeReply);
+}
+
 message GetStatusRequest {
 }
 
 message WatchStatusRequest {
+}
+
+message WatchTelemetryChannelsRequest {
+}
+
+message WatchCurrentTelemetryValuesRequest {
+}
+
+message WatchTelemetrySeriesRequest {
+  string area = 1;
+  string entity_kind = 2;
+  int32 index = 3;
+  string metric = 4;
+  int32 history_window_seconds = 5;
+}
+
+enum TelemetryChangeKind {
+  UNSPECIFIED = 0;
+  UPSERT = 1;
+  REMOVE = 2;
+}
+
+message TelemetryChannelIdReply {
+  string area = 1;
+  string entity_kind = 2;
+  int32 index = 3;
+  string metric = 4;
+}
+
+message TelemetryChannelChangeReply {
+  TelemetryChangeKind change_kind = 1;
+  TelemetryChannelIdReply channel_id = 2;
+  string display_name = 3;
+  string unit_symbol = 4;
+  int64 first_observed_at_unix_time_milliseconds = 5;
+  int64 last_observed_at_unix_time_milliseconds = 6;
+  bool is_available = 7;
+}
+
+message CurrentTelemetryValueChangeReply {
+  TelemetryChangeKind change_kind = 1;
+  TelemetryChannelIdReply channel_id = 2;
+  string display_name = 3;
+  string unit_symbol = 4;
+  int64 observed_at_unix_time_milliseconds = 5;
+  bool has_numeric_value = 6;
+  double numeric_value = 7;
+  bool is_available = 8;
+}
+
+message TelemetrySeriesPointChangeReply {
+  TelemetryChangeKind change_kind = 1;
+  int64 sample_id = 2;
+  TelemetryChannelIdReply channel_id = 3;
+  int64 observed_at_unix_time_milliseconds = 4;
+  double numeric_value = 5;
 }
 
 message FrameworkStatusReply {
