@@ -44,13 +44,4 @@ public sealed partial class SubZeroHeaderControl : UserControl, INotifyPropertyC
         this.InitializeComponent();
         ViewModel = new SubZeroHeaderModel();
     }
-
-    private void CardShadow_Loaded(object sender, RoutedEventArgs e)
-    {
-        cardShadow.Receivers.Add(cardGrid);
-    }
-    private void BrandShadow_Loaded(object sender, RoutedEventArgs e)
-    {
-        brandShadow.Receivers.Add(brandGrid);
-    }
 }

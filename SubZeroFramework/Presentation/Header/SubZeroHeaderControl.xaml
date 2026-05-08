@@ -2,6 +2,7 @@
     x:Class="SubZeroFramework.Presentation.Header.SubZeroHeaderControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:SubZeroFramework.Presentation.Header"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -26,40 +27,18 @@
                 <ColumnDefinition />
             </Grid.ColumnDefinitions>
 
-            <Grid
-                x:Name="brandGrid"
-                Grid.Column="0"
-                Margin="5"
-                Background="{StaticResource BrandBackgroundBrush}"
-                CornerRadius="8">
+            <controls:ElevatedCard Grid.Column="0" Background="{StaticResource BrandBackgroundBrush}">
                 <Grid Margin="10">
                     <Image
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         Source="ms-appx:///Assets/Svg/main_logo.png"
-                        Stretch="UniformToFill" />
+                        Stretch="Uniform" />
                 </Grid>
-            </Grid>
+            </controls:ElevatedCard>
 
-            <Border
-                Grid.Column="0"
-                Margin="5"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                CornerRadius="{ThemeResource OverlayCornerRadius}"
-                Loaded="{x:Bind BrandShadow_Loaded}"
-                Translation="0,0,30">
-                <Border.Shadow>
-                    <ThemeShadow x:Name="brandShadow" />
-                </Border.Shadow>
-            </Border>
-
-            <Grid
-                x:Name="cardGrid"
-                Grid.Column="1"
-                Margin="5"
-                Background="{StaticResource CardBackgroundBrush}"
-                CornerRadius="8">
-                <StackPanel Margin="10,3">
+            <controls:ElevatedCard Grid.Column="1" Background="{StaticResource CardBackgroundBrush}">
+                <StackPanel>
                     <TextBlock
                         Foreground="White"
                         Style="{ThemeResource SubtitleTextBlockStyle}"
@@ -72,19 +51,7 @@
                     <uno:MaterialIconText Kind="Memory" Text="{x:Bind ViewModel.RAMAmount, Mode=OneWay}" />
                     <uno:MaterialIconText Kind="Connection" Text="{x:Bind ViewModel.ECDriver, Mode=OneWay}" />
                 </StackPanel>
-            </Grid>
-
-            <Border
-                Grid.Column="1"
-                Margin="5"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                CornerRadius="{ThemeResource OverlayCornerRadius}"
-                Loaded="{x:Bind CardShadow_Loaded}"
-                Translation="0,0,30">
-                <Border.Shadow>
-                    <ThemeShadow x:Name="cardShadow" />
-                </Border.Shadow>
-            </Border>
+            </controls:ElevatedCard>
         </Grid>
         <Grid
             Grid.Row="1"

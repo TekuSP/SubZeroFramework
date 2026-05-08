@@ -6,6 +6,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 using DynamicData;
 
+using LiveChartsCore;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
+using SkiaSharp;
 using SubZeroFramework.Models;
 using SubZeroFramework.Services;
 
@@ -52,8 +56,41 @@ public partial class DashboardModel : ObservableObject, IDisposable
         _subscriptions.Add(_fanTelemetryClient
             .WatchFans()
             .ObserveOn(_synchronizationContext)
-            .ToCollection()
-            .Subscribe(collection => Fans = [.. collection]));
+            .Subscribe(set => 
+            {
+                var newFans = Fans.ToBuilder();
+                bool changed = false;
+                foreach (var change in set)
+                {
+                    if (change.Reason == ChangeReason.Add)
+                    {
+                        newFans.Add(new FanCardModel() { Snapshot = change.Current });
+                        changed = true;
+                    }
+                    else if (change.Reason == ChangeReason.Update || change.Reason == ChangeReason.Refresh)
+                    {
+                        var fan = newFans.FirstOrDefault(f => f.Snapshot.FanIndex == change.Current.FanIndex);
+                        if (fan != null)
+                        {
+                            fan.Snapshot = change.Current;
+                        }
+                    }
+                    else if (change.Reason == ChangeReason.Remove)
+                    {
+                        var fan = newFans.FirstOrDefault(f => f.Snapshot.FanIndex == change.Current.FanIndex);
+                        if (fan != null)
+                        {
+                            newFans.Remove(fan);
+                            changed = true;
+                        }
+                    }
+                }
+                
+                if (changed)
+                {
+                    Fans = newFans.ToImmutable();
+                }
+            }));
 
         // Sync Current Temperatures
         _subscriptions.Add(_temperatureTelemetryClient
@@ -123,16 +160,13 @@ public partial class DashboardModel : ObservableObject, IDisposable
     public partial TimeSpan SelectedHistoryRange { get; set; } = TimeSpan.FromMinutes(5);
 
     [ObservableProperty]
-    public partial ImmutableArray<FanTelemetrySnapshot> Fans { get; set; } = [];
+    public partial ImmutableArray<FanCardModel> Fans { get; set; } = [];
 
     [ObservableProperty]
     public partial ImmutableArray<TemperatureTelemetrySnapshot> TemperatureTelemetries { get; set; } = [];
 
     [ObservableProperty]
     public partial ImmutableArray<BatteryTelemetrySnapshot> BatteryTelemetries { get; set; } = [];
-
-    [ObservableProperty]
-    public partial ImmutableArray<FanTelemetryHistorySeries> FanHistory { get; set; } = [];
 
     [ObservableProperty]
     public partial ImmutableArray<TemperatureTelemetryHistorySeries> TemperatureHistory { get; set; } = [];
@@ -143,7 +177,6 @@ public partial class DashboardModel : ObservableObject, IDisposable
     partial void OnSelectedHistoryRangeChanged(TimeSpan value)
     {
         // Fan
-        FanHistory = [];
         var activeFans = _fanHistorySubscriptions.Keys.ToList();
         foreach (var index in activeFans)
         {
@@ -177,16 +210,36 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .ObserveOn(_synchronizationContext)
             .Subscribe(pts =>
             {
-                var existing = FanHistory.FirstOrDefault(s => s.FanIndex == index);
-                var newData = new FanTelemetryHistorySeries { FanIndex = index, Points = [.. pts] };
-                FanHistory = existing != null ? FanHistory.Replace(existing, newData) : FanHistory.Add(newData);
+                var existingFan = Fans.FirstOrDefault(f => f.Snapshot.FanIndex == index);
+                if (existingFan != null)
+                {
+                    if (existingFan.SparklineSeries.Count == 0)
+                    {
+                        //existingFan.SparklineSeries.Add(new LineSeries<double>
+                        //{
+                        //    Values = pts.Select(p => p.SpeedRpm).ToArray(),
+                        //    LineSmoothness = 1,
+                        //    GeometrySize = 0,
+                        //    GeometryStroke = null,
+                        //    Fill = new SolidColorPaint(SKColors.CornflowerBlue.WithAlpha(50)),
+                        //    Stroke = new SolidColorPaint(SKColors.CornflowerBlue) { StrokeThickness = 2 }
+                        //});
+                    }
+                    else
+                    {
+                        //((LineSeries<double>)existingFan.SparklineSeries[0]).Values = pts.Select(p => p.SpeedRpm).ToArray();
+                    }
+                }
             });
 
     private void RemoveFanHistory(int index)
     {
         if (_fanHistorySubscriptions.Remove(index, out IDisposable? sub)) sub.Dispose();
-        var existing = FanHistory.FirstOrDefault(s => s.FanIndex == index);
-        if (existing != null) FanHistory = FanHistory.Remove(existing);
+        var existingFan = Fans.FirstOrDefault(f => f.Snapshot.FanIndex == index);
+        if (existingFan != null)
+        {
+            existingFan.SparklineSeries.Clear();
+        }
     }
 
     private IDisposable SubscribeTemperatureHistory(int index) =>

@@ -5,6 +5,9 @@ using Hardware.Info;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 
+using LiveChartsCore;
+using LiveChartsCore.SkiaSharpView;
+
 using SubZeroFramework.Presentation.MenuItems.Dashboard;
 using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
@@ -36,6 +39,13 @@ public partial class App : Application
     [SuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Uno.Extensions APIs are used in a way that is safe for trimming in this template context.")]
     protected async override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        LiveChartsCore.LiveCharts.Configure(config => 
+            config
+                .AddSkiaSharp()
+                .AddDefaultMappers()
+                .AddDarkTheme()
+                .AddMyCustomTheme());
+
         var builder = this.CreateBuilder(args)
             // Add navigation support for toolkit controls such as TabBar and NavigationView
             .UseToolkitNavigation()

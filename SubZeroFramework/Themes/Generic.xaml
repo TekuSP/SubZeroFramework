@@ -67,4 +67,39 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <Style TargetType="controls:ElevatedCard">
+        <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Elevation" Value="30" />
+        <Setter Property="Padding" Value="5" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="controls:ElevatedCard">
+                    <!--  We split the shadow layer from the content layer to avoid clipping issues  -->
+                    <Grid Margin="{TemplateBinding Margin}" Padding="{TemplateBinding Padding}">
+                        <!--  Shadow Layer (behind content)  -->
+                        <Border
+                            x:Name="ShadowBorder"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="{TemplateBinding CornerRadius}">
+                            <Border.Shadow>
+                                <ThemeShadow />
+                            </Border.Shadow>
+                        </Border>
+                        <!--  Content Layer (receives no shadow from itself)  -->
+                        <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}">
+                            <ContentPresenter
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                Content="{TemplateBinding Content}"
+                                ContentTemplate="{TemplateBinding ContentTemplate}"
+                                ContentTransitions="{TemplateBinding ContentTransitions}" />
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>

@@ -2,8 +2,11 @@
     x:Class="SubZeroFramework.Presentation.MenuItems.Dashboard.DashboardPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:SubZeroFramework.Presentation.MenuItems.Dashboard"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
+    xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:uen="using:Uno.Extensions.Navigation.UI"
     xmlns:utu="using:Uno.Toolkit.UI"
@@ -12,10 +15,156 @@
     mc:Ignorable="d">
 
     <Grid utu:SafeArea.Insets="VisibleBounds">
-        <TextBlock
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            FontSize="24"
-            Text="Dashboard Page" />
+        <StackPanel>
+            <StackPanel>
+                <TextBlock
+                    Margin="15,0"
+                    Foreground="White"
+                    Style="{ThemeResource TitleTextBlockStyle}"
+                    Text="Active Cooling Section" />
+                <GridView
+                    Margin="10,0"
+                    AllowDrop="True"
+                    CanDragItems="True"
+                    CanReorderItems="True"
+                    ItemsSource="{x:Bind ViewModel.Fans, Mode=OneWay}"
+                    SelectionMode="None">
+                    <GridView.ItemTemplate>
+                        <DataTemplate x:DataType="local:FanCardModel">
+                            <controls:ElevatedCard
+                                Width="250"
+                                Height="250"
+                                Background="{StaticResource CardBackgroundBrush}">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <!--  Top Left Title  -->
+                                    <TextBlock
+                                        Grid.Row="0"
+                                        Margin="15,15,15,0"
+                                        FontSize="20"
+                                        FontWeight="SemiBold"
+                                        Foreground="White"
+                                        Text="{x:Bind Snapshot.DisplayName, Mode=OneWay}" />
+
+                                    <!--  Center Gauge  -->
+                                    <Grid Grid.Row="1" Margin="0,-10,0,0">
+                                        <lvc:PieChart
+                                            Background="Transparent"
+                                            InitialRotation="-225"
+                                            MaxAngle="240"
+                                            MaxValue="8000"
+                                            MinValue="0">
+                                            <lvc:PieChart.Series>
+                                                <lvc:SeriesCollection>
+                                                    <!--
+                                                        The main gauge series.
+                                                    -->
+                                                    <lvc:XamlGaugeSeries
+                                                        DataLabelsPosition="ChartCenter"
+                                                        Fill="{lvc:SolidColorPaint Color='#FFD7D8FF',
+                                                                                   StrokeWidth='10'}"
+                                                        GaugeValue="{x:Bind Snapshot.SpeedRpm, Mode=OneWay}"
+                                                        InnerRadius="300"
+                                                        MaxRadialColumnWidth="10" />
+                                                    <!--  The background series is used to style the gauge background.  -->
+                                                    <lvc:XamlGaugeBackgroundSeries
+                                                        Fill="{lvc:SolidColorPaint Color='#FF5D5E73'}"
+                                                        InnerRadius="300"
+                                                        MaxRadialColumnWidth="10" />
+                                                </lvc:SeriesCollection>
+                                            </lvc:PieChart.Series>
+                                        </lvc:PieChart>
+
+                                        <StackPanel
+                                            Margin="0,15,0,0"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                                                <TextBlock
+                                                    FontSize="36"
+                                                    FontWeight="Bold"
+                                                    Foreground="White"
+                                                    Text="{x:Bind Snapshot.SpeedRpm, Mode=OneWay}" />
+                                                <TextBlock
+                                                    Margin="4,0,0,6"
+                                                    VerticalAlignment="Bottom"
+                                                    Foreground="LightGray"
+                                                    Text="RPM" />
+                                            </StackPanel>
+
+                                            <!--  Target & Driving Temp  -->
+                                            <StackPanel
+                                                Margin="0,-4,0,0"
+                                                HorizontalAlignment="Center"
+                                                Orientation="Horizontal"
+                                                Spacing="6">
+                                                <material:MaterialIcon
+                                                    Width="14"
+                                                    Height="14"
+                                                    Foreground="Gray"
+                                                    Kind="Target" />
+                                                <TextBlock
+                                                    FontSize="14"
+                                                    Foreground="LightGray"
+                                                    Text="Target: Auto" />
+                                            </StackPanel>
+                                            <StackPanel
+                                                Margin="0,2,0,0"
+                                                HorizontalAlignment="Center"
+                                                Orientation="Horizontal"
+                                                Spacing="6">
+                                                <material:MaterialIcon
+                                                    Width="14"
+                                                    Height="14"
+                                                    Foreground="Gray"
+                                                    Kind="Thermometer" />
+                                                <TextBlock
+                                                    FontSize="14"
+                                                    Foreground="LightGray"
+                                                    Text="Driving Temp: --°C" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!--  Status & Sparkline at bottom  -->
+                                    <Grid
+                                        Grid.Row="2"
+                                        Height="50"
+                                        Margin="0,0,0,5">
+                                        <StackPanel
+                                            Margin="15,0,0,10"
+                                            VerticalAlignment="Bottom"
+                                            Orientation="Horizontal"
+                                            Spacing="6">
+                                            <material:MaterialIcon
+                                                Width="14"
+                                                Height="14"
+                                                Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                                                Kind="Circle" />
+                                            <TextBlock
+                                                FontSize="14"
+                                                Foreground="Gray"
+                                                Text="Status: OK" />
+                                        </StackPanel>
+
+                                        <!--  Sparkline background stretch  -->
+                                        <lvc:CartesianChart
+                                            Margin="-10,0,-10,-10"
+                                            Background="Transparent"
+                                            Series="{x:Bind SparklineSeries, Mode=OneWay}"
+                                            TooltipPosition="Hidden" />
+                                    </Grid>
+                                </Grid>
+                            </controls:ElevatedCard>
+                        </DataTemplate>
+                    </GridView.ItemTemplate>
+                </GridView>
+            </StackPanel>
+        </StackPanel>
     </Grid>
 </Page>
