@@ -15,12 +15,12 @@
 - ✅ Use gRPC over Unix domain sockets as the initial IPC transport baseline for Windows 10/11 and Linux.
 - ✅ Add a strongly typed contract assembly for service requests, responses, snapshots, and command acknowledgements in `SubZeroFramework.GrpcContracts`.
 - ✅ Implement a request/response channel for status reads and fan commands.
-- 🟡 Implement a streaming/subscription channel for telemetry snapshots and state changes. Service status streaming and telemetry channel/current-value/series streaming are done; telemetry UI consumption and snapshot-specific surfaces still need completion.
-- 🟡 Integrate Rx-friendly adapters over gRPC streams with explicit buffering, throttling, and backpressure strategy for UI subscriptions. Shared status stream reuse, telemetry sharing, and non-blocking bounded overload handling are in place; snapshot throttling and broader coverage still need work.
+- 🟡 Implement a streaming/subscription channel for telemetry snapshots and state changes. Service status streaming and telemetry channel/current-value/series streaming are done; the remaining work is end-to-end telemetry UI consumption and any additional snapshot-specific IPC surfaces you still want.
+- 🟡 Integrate Rx-friendly adapters over gRPC streams with explicit buffering, throttling, and backpressure strategy for UI subscriptions. Shared status stream reuse, telemetry sharing, non-dropping batched delivery, and bounded overload handling are done; the remaining work is any explicit throttling policy and broader integration coverage.
 - ✅ Add reconnect behavior when the service restarts for status and telemetry streams.
-- 🟡 Add request cancellation and timeouts. Unary status reads use explicit timeout behavior; long-lived streams use cancellation but intentionally do not use the unary timeout.
-- 🟡 Add local-only endpoint restrictions. Unix domain socket-only local IPC and endpoint path validation are in place, but stronger peer validation is still pending.
-- 🟡 Add server-side caller validation and client-side server validation for the Unix domain socket transport. Expected socket path validation, symlink/reparse protection, and socket-path hardening are in place; peer identity/permission validation still needs work.
+- ✅ Add request cancellation and timeouts. Unary status and fan-command calls use explicit timeout behavior; long-lived streams use cancellation and intentionally do not use unary-style timeouts.
+- ✅ Add local-only endpoint restrictions. Unix domain socket-only local IPC, expected path validation, symlink/reparse protection, Linux permission checks, and the safer Windows machine-scoped socket location are in place.
+- 🟡 Add server-side caller validation and client-side server validation for the Unix domain socket transport. Endpoint/path validation, socket hardening, and fail-closed fan-command authorization gating are in place; true peer identity / caller identity validation still needs work.
 
 ## Windows service operations
 - ⏳ Add an installation script for `sc.exe create` and service recovery configuration.
@@ -54,8 +54,8 @@
 
 ## Testing and validation
 - ✅ Add tests for Linux root detection behavior.
-- ⏳ Add tests for service startup configuration and option binding.
-- ⏳ Add integration tests for IPC contracts. Status reconnect coverage, telemetry stream contract coverage, and IPC validation failure coverage are still needed.
+- 🟡 Add tests for service startup configuration and option binding. Fan-command authorization/service-option behavior is now covered through `FrameworkFanControlAuthorizationServiceTests`, but broader startup/config binding coverage is still pending.
+- 🟡 Add integration tests for IPC contracts. IPC validation failure coverage now exists through `FrameworkGrpcSocketSecurityTests`, but status reconnect coverage and telemetry stream contract coverage are still needed.
 - ⏳ Add a manual deployment checklist for Windows and Linux.
 
 ## Near-term next work
@@ -65,7 +65,7 @@
 - ⏳ Wire one telemetry surface end-to-end from `IFrameworkTelemetryClient` using the existing 1-hour DynamicData-backed history model.
 - ✅ Decide whether header/service-health UI needs a heartbeat or last-updated indicator separate from distinct status transitions.
 - ✅ Start the command contract for fan-control writes with explicit acknowledgements and validation boundaries.
-- ⏳ Add integration tests for status reconnect behavior and telemetry stream startup semantics.
+- 🟡 Add integration tests for status reconnect behavior and telemetry stream startup semantics. Current regression coverage now includes endpoint validation failures and fan-command authorization gating, but reconnect and long-lived stream integration tests are still pending.
 
 ## Next execution breakdown
 
@@ -103,7 +103,7 @@
 - ⏳ Add tests for status reconnect behavior after service restart.
 - ⏳ Add tests for long-lived stream startup and cancellation behavior.
 - ⏳ Add tests for telemetry stream contract parsing and history-window validation.
-- ⏳ Add tests for IPC validation failures so unauthorized or invalid endpoints are rejected cleanly.
+- ✅ Add tests for IPC validation failures so unauthorized or invalid endpoints are rejected cleanly.
 
 ## Packaging and deployment
 - ⏳ Decide publish layout for the worker service on Windows and Linux.

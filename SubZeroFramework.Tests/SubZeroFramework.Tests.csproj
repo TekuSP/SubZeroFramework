@@ -11,10 +11,12 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="NUnit" />
     <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SubZeroFramework.Core\SubZeroFramework.Core.csproj" />
+    <ProjectReference Include="..\SubZeroFramework.Service\SubZeroFramework.Service.csproj" />
   </ItemGroup>
 
 </Project>
