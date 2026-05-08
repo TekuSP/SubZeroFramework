@@ -1,3 +1,6 @@
+using System.Security.AccessControl;
+using System.Security.Principal;
+
 namespace SubZeroFramework.Services;
 
 /// <summary>
@@ -77,7 +80,28 @@ public static class FrameworkGrpcSocketSecurity
 
         try
         {
-            var fileMode = File.GetUnixFileMode(fullPath);
+            var directoryMode = GetUnixFileModeLinux(actualDirectoryPath);
+            if ((directoryMode & (UnixFileMode.GroupWrite | UnixFileMode.OtherWrite)) != 0)
+            {
+                return new FrameworkGrpcEndpointValidationResult
+                {
+                    IsValid = false,
+                    FullPath = fullPath,
+                    Message = "The gRPC endpoint directory is writable by group or others.",
+                };
+            }
+
+            if ((directoryMode & UnixFileMode.UserExecute) == 0)
+            {
+                return new FrameworkGrpcEndpointValidationResult
+                {
+                    IsValid = false,
+                    FullPath = fullPath,
+                    Message = "The gRPC endpoint directory is not accessible to its owner.",
+                };
+            }
+
+            var fileMode = GetUnixFileModeLinux(fullPath);
             if ((fileMode & (UnixFileMode.OtherWrite | UnixFileMode.GroupWrite)) != 0)
             {
                 return new FrameworkGrpcEndpointValidationResult
@@ -85,6 +109,16 @@ public static class FrameworkGrpcSocketSecurity
                     IsValid = false,
                     FullPath = fullPath,
                     Message = "The gRPC endpoint is writable by group or others.",
+                };
+            }
+
+            if ((fileMode & (UnixFileMode.UserRead | UnixFileMode.UserWrite)) != (UnixFileMode.UserRead | UnixFileMode.UserWrite))
+            {
+                return new FrameworkGrpcEndpointValidationResult
+                {
+                    IsValid = false,
+                    FullPath = fullPath,
+                    Message = "The gRPC endpoint owner does not have read/write access.",
                 };
             }
         }
@@ -140,7 +174,7 @@ public static class FrameworkGrpcSocketSecurity
 
         if (OperatingSystem.IsWindows())
         {
-            TryHardenWindowsDirectoryAttributes(directoryPath);
+            TryHardenWindowsDirectory(directoryPath);
         }
 
         if (File.Exists(fullSocketPath))
@@ -172,16 +206,18 @@ public static class FrameworkGrpcSocketSecurity
         }
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
     private static void TryHardenUnixDirectoryPermissions(string directoryPath)
     {
         try
         {
-            var currentMode = File.GetUnixFileMode(directoryPath);
+            var currentMode = GetUnixFileModeLinux(directoryPath);
             var hardenedMode = currentMode & ~(UnixFileMode.GroupWrite | UnixFileMode.OtherWrite);
+            hardenedMode |= UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
 
             if (hardenedMode != currentMode)
             {
-                File.SetUnixFileMode(directoryPath, hardenedMode);
+                SetUnixFileModeLinux(directoryPath, hardenedMode);
             }
         }
         catch (UnauthorizedAccessException)
@@ -194,6 +230,14 @@ public static class FrameworkGrpcSocketSecurity
         {
         }
     }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    private static UnixFileMode GetUnixFileModeLinux(string path)
+        => File.GetUnixFileMode(path);
+
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    private static void SetUnixFileModeLinux(string path, UnixFileMode mode)
+        => File.SetUnixFileMode(path, mode);
 
     private static string? ValidateDirectoryPath(string directoryPath)
     {
@@ -217,7 +261,8 @@ public static class FrameworkGrpcSocketSecurity
         return null;
     }
 
-    private static void TryHardenWindowsDirectoryAttributes(string directoryPath)
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static void TryHardenWindowsDirectory(string directoryPath)
     {
         try
         {
@@ -228,11 +273,50 @@ public static class FrameworkGrpcSocketSecurity
             {
                 directoryInfo.Attributes = sanitizedAttributes;
             }
+
+            TryHardenWindowsDirectoryAccessControl(directoryPath);
         }
         catch (UnauthorizedAccessException)
         {
         }
         catch (IOException)
+        {
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static void TryHardenWindowsDirectoryAccessControl(string directoryPath)
+    {
+        try
+        {
+            var directoryInfo = new DirectoryInfo(directoryPath);
+            var directorySecurity = directoryInfo.GetAccessControl();
+            var inheritanceFlags = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+            const PropagationFlags propagationFlags = PropagationFlags.None;
+
+            directorySecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            directorySecurity.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                FileSystemRights.FullControl,
+                inheritanceFlags,
+                propagationFlags,
+                AccessControlType.Allow));
+            directorySecurity.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                FileSystemRights.FullControl,
+                inheritanceFlags,
+                propagationFlags,
+                AccessControlType.Allow));
+
+            directoryInfo.SetAccessControl(directorySecurity);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (NotSupportedException)
+        {
+        }
+        catch (SystemException)
         {
         }
     }

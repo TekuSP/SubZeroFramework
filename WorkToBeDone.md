@@ -70,7 +70,7 @@
 ## Next execution breakdown
 
 ### 1. IPC hardening
-- ⏳ Validate Unix socket file ownership and permissions on platforms that expose them.
+- ✅ Validate Unix socket file ownership and permissions on platforms that expose them.
 - ✅ Reject unexpected socket targets such as symlinks or mismatched resolved paths.
 - ✅ Decide and document what caller validation is possible on Windows versus Linux in `SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md`.
 - ✅ Add server-side checks before fan-command RPCs are introduced. Command validation and fail-closed service-side authorization gating now exist; portable caller identity validation still remains a separate hardening item.
