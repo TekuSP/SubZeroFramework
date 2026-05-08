@@ -45,6 +45,12 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string RAMAmount { get; set; } = "RAM: ";
 
+    [ObservableProperty]
+    public partial string StatusHeartbeat { get; set; }
+
+    [ObservableProperty]
+    public partial string EndpointValidationMessage { get; set; }
+
     private IServiceProvider? _serviceProvider = null;
     private IFrameworkStatusClient? _frameworkStatusClient = null;
     private IHardwareInfo? _hardwareInfo = null;
@@ -62,8 +68,15 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
         _hardwareInfo = serviceProvider.GetRequiredService<IHardwareInfo>();
         _dispatcherQueue = serviceProvider.GetRequiredService<DispatcherQueue>();
         _synchronizationContext = serviceProvider.GetRequiredService<SynchronizationContext>();
+        EndpointValidationMessage = _frameworkStatusClient.EndpointValidation.Message;
 
         _ = Task.Run(GatherNewInformation);
+    }
+
+    public SubZeroHeaderModel()
+    {
+        StatusHeartbeat = "Telemetry: waiting";
+        EndpointValidationMessage = string.Empty;
     }
 
     public async Task GatherNewInformation()
@@ -95,6 +108,10 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
 
     private void FrameworkSystemDataUpdated(FrameworkSystemStatus status)
     {
+        StatusHeartbeat = status.LastTelemetryObservedAt == DateTimeOffset.MinValue
+            ? "Telemetry: no samples yet"
+            : $"Telemetry: {status.LastTelemetryObservedAt.LocalDateTime:T}";
+
         if (!status.IsGrpcActive)
         {
             IsInError = true;

@@ -6,7 +6,9 @@ using System.Reactive.Concurrency;
 using FrameworkDotnet;
 using FrameworkDotnet.Enums;
 using FrameworkDotnet.Interfaces;
+using FrameworkDotnet.Responses;
 using FrameworkDotnet.Snapshots;
+using UnitsNet;
 
 namespace SubZeroFramework.Services;
 
@@ -45,6 +47,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private CancellationTokenSource? _pollingCancellation;
     private Task? _pollingTask;
     private long _nextTelemetryPointId;
+    private DateTimeOffset _lastTelemetryObservedAt;
     private bool _disposed;
 
     public FrameworkDataProvider(
@@ -294,6 +297,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         var publishedStatus = connectedStatus with
         {
             IsConnectionOpen = successfulReads > 0,
+            LastTelemetryObservedAt = successfulReads > 0 ? observedAt : connectedStatus.LastTelemetryObservedAt,
             LastError = snapshotError ?? connectedStatus.LastError,
         };
 
@@ -330,6 +334,75 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         _telemetryPoints.Dispose();
         _connection = null;
         _frameworkSystem = null!;
+    }
+
+    public Task<FrameworkFanRpmCommandResult> SetFanRpmAsync(int fanIndex, int targetSpeedRpm, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (fanIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(fanIndex), "Fan index cannot be negative.");
+        }
+
+        if (targetSpeedRpm <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(targetSpeedRpm), "Fan RPM target must be greater than zero.");
+        }
+
+        var connection = EnsureWritableConnection();
+        FrameworkSetFanRpmResponse response = connection.SetFanRpm(fanIndex, RotationalSpeed.FromRevolutionsPerMinute(targetSpeedRpm));
+
+        return Task.FromResult(new FrameworkFanRpmCommandResult
+        {
+            FanIndex = response.FanIndex,
+            AppliedSpeedRpm = checked((int)Math.Round(response.AppliedSpeed.RevolutionsPerMinute, MidpointRounding.AwayFromZero)),
+        });
+    }
+
+    public Task<FrameworkFanDutyCommandResult> SetFanDutyAsync(int fanIndex, double dutyPercent, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (fanIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(fanIndex), "Fan index cannot be negative.");
+        }
+
+        if (double.IsNaN(dutyPercent) || double.IsInfinity(dutyPercent) || dutyPercent < 0 || dutyPercent > 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(dutyPercent), "Fan duty percent must be between 0 and 100.");
+        }
+
+        var connection = EnsureWritableConnection();
+        FrameworkSetFanDutyResponse response = connection.SetFanDuty(fanIndex, Ratio.FromPercent(dutyPercent));
+
+        return Task.FromResult(new FrameworkFanDutyCommandResult
+        {
+            FanIndex = response.FanIndex,
+            AppliedDutyPercent = response.AppliedDutyCycle.Percent,
+        });
+    }
+
+    public Task<FrameworkRestoreAutoFanControlCommandResult> RestoreAutoFanControlAsync(int fanIndex, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (fanIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(fanIndex), "Fan index cannot be negative.");
+        }
+
+        var connection = EnsureWritableConnection();
+        FrameworkRestoreAutoFanControlResponse response = connection.RestoreAutoFanControl(fanIndex);
+
+        return Task.FromResult(new FrameworkRestoreAutoFanControlCommandResult
+        {
+            FanIndex = response.FanIndex,
+        });
     }
 
     private FrameworkSystemStatus ReadSystemStatus()
@@ -375,6 +448,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             IsEcPollingEnabled = isLibraryAvailable && isFrameworkDevice == true && !requiresElevation,
             IsConnectionOpen = false,
             IsGrpcActive = false,
+            LastTelemetryObservedAt = _lastTelemetryObservedAt,
             RequiresElevation = requiresElevation,
             LastError = requiresElevation
                 ? "Framework EC access on Linux requires running the service as root."
@@ -402,6 +476,18 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 return null;
             }
         }
+    }
+
+    private IFrameworkEcConnection EnsureWritableConnection()
+    {
+        var status = ReadSystemStatus();
+        if (!status.IsEcPollingEnabled)
+        {
+            throw new InvalidOperationException(status.LastError ?? "Framework fan control is not available in the current service state.");
+        }
+
+        return EnsureConnection()
+            ?? throw new InvalidOperationException("Unable to open the default EC connection.");
     }
 
     private void DisposeConnection()
@@ -642,6 +728,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         DateTimeOffset observedAt,
         double numericValue)
     {
+        _lastTelemetryObservedAt = observedAt;
         UpsertChannel(channelId, displayName, unitSymbol, observedAt, isAvailable: true);
         _currentTelemetryValues.AddOrUpdate(new CurrentTelemetryValue
         {

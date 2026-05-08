@@ -26,10 +26,13 @@
     <PackageVersion Include="Hardware.Info.Aot" Version="101.1.1.1" />
     <PackageVersion Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" Version="2.0.2" />
     <PackageVersion Include="Material.Icons" Version="3.0.2" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
+    <PackageVersion Include="NUnit" Version="4.4.0" />
+    <PackageVersion Include="NUnit3TestAdapter" Version="5.2.0" />
     <PackageVersion Include="System.Reactive" Version="6.1.0" />
   </ItemGroup>
 </Project>

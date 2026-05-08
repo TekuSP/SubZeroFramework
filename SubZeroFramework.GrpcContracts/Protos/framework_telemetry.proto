@@ -15,6 +15,12 @@ service FrameworkTelemetryService {
   rpc WatchTelemetrySeries (WatchTelemetrySeriesRequest) returns (stream TelemetrySeriesPointChangeReply);
 }
 
+service FrameworkFanControlService {
+  rpc SetFanRpm (SetFanRpmRequest) returns (SetFanRpmReply);
+  rpc SetFanDuty (SetFanDutyRequest) returns (SetFanDutyReply);
+  rpc RestoreAutoFanControl (RestoreAutoFanControlRequest) returns (RestoreAutoFanControlReply);
+}
+
 message GetStatusRequest {
 }
 
@@ -33,6 +39,34 @@ message WatchTelemetrySeriesRequest {
   int32 index = 3;
   string metric = 4;
   int32 history_window_seconds = 5;
+}
+
+message SetFanRpmRequest {
+  int32 fan_index = 1;
+  int32 target_speed_rpm = 2;
+}
+
+message SetFanRpmReply {
+  int32 fan_index = 1;
+  int32 applied_speed_rpm = 2;
+}
+
+message SetFanDutyRequest {
+  int32 fan_index = 1;
+  double duty_percent = 2;
+}
+
+message SetFanDutyReply {
+  int32 fan_index = 1;
+  double applied_duty_percent = 2;
+}
+
+message RestoreAutoFanControlRequest {
+  int32 fan_index = 1;
+}
+
+message RestoreAutoFanControlReply {
+  int32 fan_index = 1;
 }
 
 enum TelemetryChangeKind {
@@ -93,6 +127,7 @@ message FrameworkStatusReply {
   bool is_ec_polling_enabled = 13;
   bool is_connection_open = 14;
   bool is_grpc_active = 15;
-  bool requires_elevation = 16;
-  string last_error = 17;
+  int64 last_telemetry_observed_at_unix_time_milliseconds = 16;
+  bool requires_elevation = 17;
+  string last_error = 18;
 }

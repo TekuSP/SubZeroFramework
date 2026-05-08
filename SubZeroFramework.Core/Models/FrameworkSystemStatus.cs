@@ -32,6 +32,8 @@ public sealed record FrameworkSystemStatus
 
     public bool IsGrpcActive { get; init; }
 
+    public DateTimeOffset LastTelemetryObservedAt { get; init; }
+
     public bool RequiresElevation { get; init; }
 
     public string? LastError { get; init; }

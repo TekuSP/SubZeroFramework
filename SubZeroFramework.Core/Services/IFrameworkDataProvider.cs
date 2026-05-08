@@ -55,4 +55,10 @@ public interface IFrameworkDataProvider
     bool StopPolling();
 
     Task<FrameworkSystemStatus> RefreshAsync(CancellationToken cancellationToken = default);
+
+    Task<FrameworkFanRpmCommandResult> SetFanRpmAsync(int fanIndex, int targetSpeedRpm, CancellationToken cancellationToken = default);
+
+    Task<FrameworkFanDutyCommandResult> SetFanDutyAsync(int fanIndex, double dutyPercent, CancellationToken cancellationToken = default);
+
+    Task<FrameworkRestoreAutoFanControlCommandResult> RestoreAutoFanControlAsync(int fanIndex, CancellationToken cancellationToken = default);
 }

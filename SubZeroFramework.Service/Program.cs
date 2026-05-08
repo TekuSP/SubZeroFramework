@@ -46,6 +46,7 @@ public static class Program
         var app = builder.Build();
         app.MapGrpcService<FrameworkStatusGrpcService>();
         app.MapGrpcService<FrameworkTelemetryGrpcService>();
+        app.MapGrpcService<FrameworkFanControlGrpcService>();
         await app.RunAsync().ConfigureAwait(false);
     }
 }

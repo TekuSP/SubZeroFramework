@@ -85,6 +85,7 @@ public partial class App : Application
                     services.AddSingleton<FrameworkGrpcChannelFactory>();
                     services.AddSingleton<IFrameworkStatusClient, GrpcFrameworkStatusClient>();
                     services.AddSingleton<IFrameworkTelemetryClient, GrpcFrameworkTelemetryClient>();
+                    services.AddSingleton<IFrameworkFanControlClient, GrpcFrameworkFanControlClient>();
 
                     services.AddSingleton<IHardwareInfo>(new HardwareInfo());
                     services.AddSingleton<DispatcherQueue>(DispatcherQueue.GetForCurrentThread());

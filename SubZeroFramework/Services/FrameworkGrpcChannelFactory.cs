@@ -8,11 +8,17 @@ namespace SubZeroFramework.Services;
 public sealed class FrameworkGrpcChannelFactory : IDisposable
 {
     private readonly GrpcChannel _channel;
+    private readonly FrameworkGrpcEndpointValidationResult _endpointValidation;
 
     public FrameworkGrpcChannelFactory()
     {
         var socketPath = FrameworkGrpcSocketPath.GetPath();
-        FrameworkGrpcSocketSecurity.ValidateExpectedClientSocketPath(socketPath);
+        _endpointValidation = FrameworkGrpcSocketSecurity.ValidateEndpoint(socketPath);
+        if (!_endpointValidation.IsValid)
+        {
+            throw new InvalidOperationException(_endpointValidation.Message);
+        }
+
         var connectionFactory = new UnixDomainSocketsConnectionFactory(new UnixDomainSocketEndPoint(socketPath));
         var socketsHttpHandler = new SocketsHttpHandler
         {
@@ -30,6 +36,8 @@ public sealed class FrameworkGrpcChannelFactory : IDisposable
     }
 
     public GrpcChannel Channel => _channel;
+
+    public FrameworkGrpcEndpointValidationResult EndpointValidation => _endpointValidation;
 
     public CancellationTokenSource CreateTimeoutCancellationSource(CancellationToken cancellationToken)
     {

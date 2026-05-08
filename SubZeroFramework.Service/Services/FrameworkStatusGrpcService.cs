@@ -42,6 +42,7 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
                     status.EcBuildInfo,
                     status.IsEcPollingEnabled,
                     status.IsConnectionOpen,
+                    status.LastTelemetryObservedAt,
                     status.RequiresElevation,
                     status.LastError,
                 });
@@ -79,6 +80,7 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
             IsEcPollingEnabled = status.IsEcPollingEnabled,
             IsConnectionOpen = status.IsConnectionOpen,
             IsGrpcActive = status.IsGrpcActive,
+            LastTelemetryObservedAtUnixTimeMilliseconds = status.LastTelemetryObservedAt.ToUnixTimeMilliseconds(),
             RequiresElevation = status.RequiresElevation,
             LastError = status.LastError ?? string.Empty,
         };

@@ -30,6 +30,7 @@
   <Project Path="SubZeroFramework.Core/SubZeroFramework.Core.csproj" />
   <Project Path="SubZeroFramework.GrpcContracts/SubZeroFramework.GrpcContracts.csproj" />
   <Project Path="SubZeroFramework.Service/SubZeroFramework.Service.csproj" />
+  <Project Path="SubZeroFramework.Tests/SubZeroFramework.Tests.csproj" />
   <Project Path="SubZeroFramework/SubZeroFramework.csproj">
     <Platform Solution="*|ARM64" Project="ARM64" />
     <Platform Solution="*|x64" Project="x64" />

@@ -14,10 +14,9 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
     private readonly FrameworkGrpcChannelFactory _channelFactory;
     private readonly FrameworkTelemetryService.FrameworkTelemetryServiceClient _client;
-    private readonly SourceCache<TelemetryChannel, TelemetryChannelId> _channels = new(channel => channel.Id);
-    private readonly SourceCache<CurrentTelemetryValue, TelemetryChannelId> _currentValues = new(value => value.ChannelId);
-    private readonly IDisposable _channelsSubscription;
-    private readonly IDisposable _currentValuesSubscription;
+    private readonly IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> _sharedChannels;
+    private readonly IObservable<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>> _sharedCurrentValues;
+    private readonly RefCountedObservableCache<TelemetrySeriesStreamKey, IChangeSet<TelemetryPoint, long>> _seriesStreams = new();
     private bool _disposed;
 
     public GrpcFrameworkTelemetryClient(FrameworkGrpcChannelFactory channelFactory)
@@ -26,8 +25,8 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
         _channelFactory = channelFactory;
         _client = new FrameworkTelemetryService.FrameworkTelemetryServiceClient(_channelFactory.Channel);
-        _channelsSubscription = StartChannelsSubscription();
-        _currentValuesSubscription = StartCurrentValuesSubscription();
+        _sharedChannels = _channelFactory.ShareLatest(CreateChannelsStream());
+        _sharedCurrentValues = _channelFactory.ShareLatest(CreateCurrentValuesStream());
     }
 
     /// <summary>
@@ -36,7 +35,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
     public IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> WatchTelemetryChannels()
     {
         ThrowIfDisposed();
-        return _channels.Connect();
+        return _sharedChannels;
     }
 
     /// <summary>
@@ -45,7 +44,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
     public IObservable<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>> WatchCurrentTelemetryValues()
     {
         ThrowIfDisposed();
-        return _currentValues.Connect();
+        return _sharedCurrentValues;
     }
 
     /// <summary>
@@ -62,6 +61,143 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             throw new ArgumentOutOfRangeException(nameof(historyWindow), $"History window must be between {TimeSpan.Zero} and {MaximumHistoryWindow}.");
         }
 
+        return _seriesStreams.GetOrAdd(new TelemetrySeriesStreamKey(channelId, historyWindow), () => CreateSeriesStream(channelId, historyWindow));
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+    }
+
+    private IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> CreateChannelsStream()
+    {
+        return Observable.Create<IChangeSet<TelemetryChannel, TelemetryChannelId>>(observer =>
+        {
+            var channels = new SourceCache<TelemetryChannel, TelemetryChannelId>(channel => channel.Id);
+            var cancellationSource = new CancellationTokenSource();
+
+            _ = Task.Run(async () =>
+            {
+                while (!cancellationSource.IsCancellationRequested)
+                {
+                    AsyncServerStreamingCall<TelemetryChannelChangeReply>? call = null;
+
+                    try
+                    {
+                        call = _client.WatchTelemetryChannels(new WatchTelemetryChannelsRequest(), cancellationToken: cancellationSource.Token);
+
+                        using var connection = channels.Connect().Subscribe(observer);
+
+                        while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
+                        {
+                            ApplyTelemetryChannelChange(channels, call.ResponseStream.Current);
+                        }
+                    }
+                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (RpcException) when (!cancellationSource.IsCancellationRequested)
+                    {
+                    }
+                    catch (Exception) when (!cancellationSource.IsCancellationRequested)
+                    {
+                    }
+                    finally
+                    {
+                        call?.Dispose();
+                    }
+
+                    try
+                    {
+                        await Task.Delay(ReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                }
+
+                channels.Dispose();
+                observer.OnCompleted();
+            }, cancellationSource.Token);
+
+            return () =>
+            {
+                cancellationSource.Cancel();
+                cancellationSource.Dispose();
+            };
+        });
+    }
+
+    private IObservable<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>> CreateCurrentValuesStream()
+    {
+        return Observable.Create<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>>(observer =>
+        {
+            var currentValues = new SourceCache<CurrentTelemetryValue, TelemetryChannelId>(value => value.ChannelId);
+            var cancellationSource = new CancellationTokenSource();
+
+            _ = Task.Run(async () =>
+            {
+                while (!cancellationSource.IsCancellationRequested)
+                {
+                    AsyncServerStreamingCall<CurrentTelemetryValueChangeReply>? call = null;
+
+                    try
+                    {
+                        call = _client.WatchCurrentTelemetryValues(new WatchCurrentTelemetryValuesRequest(), cancellationToken: cancellationSource.Token);
+
+                        using var connection = currentValues.Connect().Subscribe(observer);
+
+                        while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
+                        {
+                            ApplyCurrentTelemetryValueChange(currentValues, call.ResponseStream.Current);
+                        }
+                    }
+                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (RpcException) when (!cancellationSource.IsCancellationRequested)
+                    {
+                    }
+                    catch (Exception) when (!cancellationSource.IsCancellationRequested)
+                    {
+                    }
+                    finally
+                    {
+                        call?.Dispose();
+                    }
+
+                    try
+                    {
+                        await Task.Delay(ReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                }
+
+                currentValues.Dispose();
+                observer.OnCompleted();
+            }, cancellationSource.Token);
+
+            return () =>
+            {
+                cancellationSource.Cancel();
+                cancellationSource.Dispose();
+            };
+        });
+    }
+
+    private IObservable<IChangeSet<TelemetryPoint, long>> CreateSeriesStream(TelemetryChannelId channelId, TimeSpan historyWindow)
+    {
         return Observable.Create<IChangeSet<TelemetryPoint, long>>(observer =>
         {
             var points = new SourceCache<TelemetryPoint, long>(point => point.SampleId);
@@ -128,135 +264,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
         });
     }
 
-    public void Dispose()
-    {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _disposed = true;
-        _channelsSubscription.Dispose();
-        _currentValuesSubscription.Dispose();
-        _channels.Dispose();
-        _currentValues.Dispose();
-    }
-
-    private IDisposable StartChannelsSubscription()
-    {
-        return Observable.Create<TelemetryChannelChangeReply>(observer =>
-        {
-            var cancellationSource = new CancellationTokenSource();
-
-            _ = Task.Run(async () =>
-            {
-                while (!cancellationSource.IsCancellationRequested)
-                {
-                    AsyncServerStreamingCall<TelemetryChannelChangeReply>? call = null;
-
-                    try
-                    {
-                        call = _client.WatchTelemetryChannels(new WatchTelemetryChannelsRequest(), cancellationToken: cancellationSource.Token);
-
-                        while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
-                        {
-                            observer.OnNext(call.ResponseStream.Current);
-                        }
-                    }
-                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
-                    {
-                        break;
-                    }
-                    catch (RpcException) when (!cancellationSource.IsCancellationRequested)
-                    {
-                    }
-                    catch (Exception) when (!cancellationSource.IsCancellationRequested)
-                    {
-                    }
-                    finally
-                    {
-                        call?.Dispose();
-                    }
-
-                    try
-                    {
-                        await Task.Delay(ReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
-                    {
-                        break;
-                    }
-                }
-
-                observer.OnCompleted();
-            }, cancellationSource.Token);
-
-            return () =>
-            {
-                cancellationSource.Cancel();
-                cancellationSource.Dispose();
-            };
-        }).Subscribe(ApplyTelemetryChannelChange);
-    }
-
-    private IDisposable StartCurrentValuesSubscription()
-    {
-        return Observable.Create<CurrentTelemetryValueChangeReply>(observer =>
-        {
-            var cancellationSource = new CancellationTokenSource();
-
-            _ = Task.Run(async () =>
-            {
-                while (!cancellationSource.IsCancellationRequested)
-                {
-                    AsyncServerStreamingCall<CurrentTelemetryValueChangeReply>? call = null;
-
-                    try
-                    {
-                        call = _client.WatchCurrentTelemetryValues(new WatchCurrentTelemetryValuesRequest(), cancellationToken: cancellationSource.Token);
-
-                        while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
-                        {
-                            observer.OnNext(call.ResponseStream.Current);
-                        }
-                    }
-                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
-                    {
-                        break;
-                    }
-                    catch (RpcException) when (!cancellationSource.IsCancellationRequested)
-                    {
-                    }
-                    catch (Exception) when (!cancellationSource.IsCancellationRequested)
-                    {
-                    }
-                    finally
-                    {
-                        call?.Dispose();
-                    }
-
-                    try
-                    {
-                        await Task.Delay(ReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
-                    {
-                        break;
-                    }
-                }
-
-                observer.OnCompleted();
-            }, cancellationSource.Token);
-
-            return () =>
-            {
-                cancellationSource.Cancel();
-                cancellationSource.Dispose();
-            };
-        }).Subscribe(ApplyCurrentTelemetryValueChange);
-    }
-
-    private void ApplyTelemetryChannelChange(TelemetryChannelChangeReply reply)
+    private static void ApplyTelemetryChannelChange(SourceCache<TelemetryChannel, TelemetryChannelId> channels, TelemetryChannelChangeReply reply)
     {
         var channel = new TelemetryChannel
         {
@@ -270,14 +278,14 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
         if (reply.ChangeKind == TelemetryChangeKind.Remove)
         {
-            _channels.Remove(channel.Id);
+            channels.Remove(channel.Id);
             return;
         }
 
-        _channels.AddOrUpdate(channel);
+        channels.AddOrUpdate(channel);
     }
 
-    private void ApplyCurrentTelemetryValueChange(CurrentTelemetryValueChangeReply reply)
+    private static void ApplyCurrentTelemetryValueChange(SourceCache<CurrentTelemetryValue, TelemetryChannelId> currentValues, CurrentTelemetryValueChangeReply reply)
     {
         var value = new CurrentTelemetryValue
         {
@@ -291,11 +299,11 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
         if (reply.ChangeKind == TelemetryChangeKind.Remove)
         {
-            _currentValues.Remove(value.ChannelId);
+            currentValues.Remove(value.ChannelId);
             return;
         }
 
-        _currentValues.AddOrUpdate(value);
+        currentValues.AddOrUpdate(value);
     }
 
     private static void ApplyTelemetryPointChange(SourceCache<TelemetryPoint, long> points, TelemetrySeriesPointChangeReply reply)

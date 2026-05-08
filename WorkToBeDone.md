@@ -62,6 +62,44 @@
 - Start the command contract for fan-control writes with explicit acknowledgements and validation boundaries.
 - Add integration tests for status reconnect behavior and telemetry stream startup semantics.
 
+## Next execution breakdown
+
+### 1. IPC hardening
+- Validate Unix socket file ownership and permissions on platforms that expose them.
+- Reject unexpected socket targets such as symlinks or mismatched resolved paths.
+- Decide and document what caller validation is possible on Windows versus Linux.
+- Add server-side checks before fan-command RPCs are introduced.
+
+### 2. Telemetry client sharing
+- Share channel and current-value streams similarly to the shared status stream.
+- Avoid one independent gRPC stream per consuming view-model where possible.
+- Decide whether telemetry series streams should be shared by `(channelId, historyWindow)` key.
+- Add disposal rules so shared streams stop cleanly when no subscribers remain.
+
+### 3. First end-to-end telemetry surface
+- Pick the first telemetry page to wire, preferably thermal telemetry.
+- Bind current values from `IFrameworkTelemetryClient`.
+- Bind one chart series using the existing 1-hour DynamicData-backed history model.
+- Keep the page behind IPC only; do not reintroduce direct `IFrameworkDataProvider` usage in the UI.
+
+### 4. Header heartbeat decision
+- Decide whether the header should react only to distinct state transitions.
+- Decide whether the header also needs a last-updated timestamp or heartbeat indicator.
+- If heartbeat is needed, keep it separate from error/status semantics such as `IsGrpcActive`.
+- Document which UI surfaces consume state transitions versus live telemetry cadence.
+
+### 5. Fan-command RPC boundary
+- Define command request and acknowledgement contracts in `SubZeroFramework.GrpcContracts`.
+- Separate read-only telemetry/status APIs from mutating fan-control APIs.
+- Validate commands on the server before any EC write path is exposed.
+- Define authorization and safety checks before enabling command UI.
+
+### 6. Integration and regression coverage
+- Add tests for status reconnect behavior after service restart.
+- Add tests for long-lived stream startup and cancellation behavior.
+- Add tests for telemetry stream contract parsing and history-window validation.
+- Add tests for IPC validation failures so unauthorized or invalid endpoints are rejected cleanly.
+
 ## Packaging and deployment
 - Decide publish layout for the worker service on Windows and Linux.
 - Add publish profiles or scripts for the service binaries.

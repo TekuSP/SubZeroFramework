@@ -15,6 +15,7 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
     private readonly FrameworkGrpcChannelFactory _channelFactory;
     private readonly FrameworkStatusService.FrameworkStatusServiceClient _client;
     private readonly IObservable<FrameworkSystemStatus> _sharedStatusStream;
+    private DateTimeOffset? _lastObservedAt;
 
     public GrpcFrameworkStatusClient(FrameworkGrpcChannelFactory channelFactory)
     {
@@ -29,11 +30,17 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
     {
         using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
         var reply = await _client.GetStatusAsync(new GetStatusRequest(), cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
-        return MapStatus(reply);
+        var status = MapStatus(reply);
+        _lastObservedAt = status.ObservedAt;
+        return status;
     }
 
     public IObservable<FrameworkSystemStatus> WatchStatus()
         => _sharedStatusStream;
+
+    public DateTimeOffset? LastObservedAt => _lastObservedAt;
+
+    public FrameworkGrpcEndpointValidationResult EndpointValidation => _channelFactory.EndpointValidation;
 
     public void Dispose()
     {
@@ -57,12 +64,16 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
 
                         while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
                         {
-                            observer.OnNext(MapStatus(call.ResponseStream.Current));
+                            var status = MapStatus(call.ResponseStream.Current);
+                            _lastObservedAt = status.ObservedAt;
+                            observer.OnNext(status);
                         }
 
                         if (!cancellationSource.IsCancellationRequested)
                         {
-                            observer.OnNext(CreateUnavailableStatus("The background service status stream ended unexpectedly."));
+                            var unavailableStatus = CreateUnavailableStatus("The background service status stream ended unexpectedly.");
+                            _lastObservedAt = unavailableStatus.ObservedAt;
+                            observer.OnNext(unavailableStatus);
                         }
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
@@ -71,11 +82,15 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
                     }
                     catch (RpcException exception) when (!cancellationSource.IsCancellationRequested)
                     {
-                        observer.OnNext(CreateUnavailableStatus($"Unable to connect to SubZeroFramework.Service. {exception.Status.Detail}"));
+                        var unavailableStatus = CreateUnavailableStatus($"Unable to connect to SubZeroFramework.Service. {exception.Status.Detail}");
+                        _lastObservedAt = unavailableStatus.ObservedAt;
+                        observer.OnNext(unavailableStatus);
                     }
                     catch (Exception exception) when (!cancellationSource.IsCancellationRequested)
                     {
-                        observer.OnNext(CreateUnavailableStatus($"Unable to connect to SubZeroFramework.Service. {exception.Message}"));
+                        var unavailableStatus = CreateUnavailableStatus($"Unable to connect to SubZeroFramework.Service. {exception.Message}");
+                        _lastObservedAt = unavailableStatus.ObservedAt;
+                        observer.OnNext(unavailableStatus);
                     }
                     finally
                     {
@@ -126,6 +141,9 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
             IsEcPollingEnabled = reply.IsEcPollingEnabled,
             IsConnectionOpen = reply.IsConnectionOpen,
             IsGrpcActive = true,
+            LastTelemetryObservedAt = reply.LastTelemetryObservedAtUnixTimeMilliseconds <= 0
+                ? DateTimeOffset.MinValue
+                : DateTimeOffset.FromUnixTimeMilliseconds(reply.LastTelemetryObservedAtUnixTimeMilliseconds),
             RequiresElevation = reply.RequiresElevation,
             LastError = string.IsNullOrEmpty(reply.LastError) ? null : reply.LastError,
         };
@@ -148,6 +166,7 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
             IsEcPollingEnabled = false,
             IsConnectionOpen = false,
             IsGrpcActive = false,
+            LastTelemetryObservedAt = DateTimeOffset.MinValue,
             RequiresElevation = false,
             LastError = message,
         };
