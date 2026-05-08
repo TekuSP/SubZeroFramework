@@ -6,10 +6,11 @@ namespace SubZeroFramework.Service.Services;
 
 internal static class GrpcChangeSetWriter
 {
-    public static async Task WriteAsync<TObject, TKey, TReply>(
+    public static async Task WriteAsync<TObject, TKey, TReply, TBatchReply>(
         IObservable<IChangeSet<TObject, TKey>> source,
-        IServerStreamWriter<TReply> responseStream,
-        Func<Change<TObject, TKey>, TReply?> mapChange,
+        IServerStreamWriter<TBatchReply> responseStream,
+        Func<Change<TObject, TKey>, TReply> mapChange,
+        Func<IReadOnlyList<TReply>, TBatchReply> mapBatch,
         CancellationToken cancellationToken)
         where TObject : notnull
         where TKey : notnull
@@ -17,24 +18,34 @@ internal static class GrpcChangeSetWriter
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(responseStream);
         ArgumentNullException.ThrowIfNull(mapChange);
+        ArgumentNullException.ThrowIfNull(mapBatch);
 
-        var reader = ObservableChannelBridge.CreateBoundedReader(source, cancellationToken);
-
-        while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+        try
         {
-            while (reader.TryRead(out var changeSet))
+            var reader = ObservableChannelBridge.CreateBoundedReader(source, cancellationToken);
+
+            while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                foreach (var change in changeSet)
+                while (reader.TryRead(out var changeSet))
                 {
-                    var reply = mapChange(change);
-                    if (reply is null)
+                    if (changeSet.Count == 0)
                     {
                         continue;
                     }
 
-                    await responseStream.WriteAsync(reply, cancellationToken).ConfigureAwait(false);
+                    var replies = new List<TReply>(changeSet.Count);
+                    foreach (var change in changeSet)
+                    {
+                        replies.Add(mapChange(change));
+                    }
+
+                    await responseStream.WriteAsync(mapBatch(replies), cancellationToken).ConfigureAwait(false);
                 }
             }
+        }
+        catch (ReactiveBackpressureExceededException exception)
+        {
+            throw new RpcException(new Status(StatusCode.ResourceExhausted, exception.Message));
         }
     }
 }

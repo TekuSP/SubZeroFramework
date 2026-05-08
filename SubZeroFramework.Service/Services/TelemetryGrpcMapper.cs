@@ -18,10 +18,10 @@ internal static class TelemetryGrpcMapper
     {
         return new TelemetryChannelIdReply
         {
-            Area = channelId.Area.ToString(),
-            EntityKind = channelId.EntityKind.ToString(),
+            Area = MapTelemetryArea(channelId.Area),
+            EntityKind = MapTelemetryEntityKind(channelId.EntityKind),
             Index = channelId.Index,
-            Metric = channelId.Metric.ToString(),
+            Metric = MapTelemetryMetric(channelId.Metric),
         };
     }
 
@@ -66,11 +66,32 @@ internal static class TelemetryGrpcMapper
         };
     }
 
+    public static TelemetryChannelChangeBatchReply MapChannelBatch(IReadOnlyList<TelemetryChannelChangeReply> replies)
+    {
+        var batch = new TelemetryChannelChangeBatchReply();
+        batch.Changes.AddRange(replies);
+        return batch;
+    }
+
+    public static CurrentTelemetryValueChangeBatchReply MapCurrentValueBatch(IReadOnlyList<CurrentTelemetryValueChangeReply> replies)
+    {
+        var batch = new CurrentTelemetryValueChangeBatchReply();
+        batch.Changes.AddRange(replies);
+        return batch;
+    }
+
+    public static TelemetrySeriesPointChangeBatchReply MapTelemetryPointBatch(IReadOnlyList<TelemetrySeriesPointChangeReply> replies)
+    {
+        var batch = new TelemetrySeriesPointChangeBatchReply();
+        batch.Changes.AddRange(replies);
+        return batch;
+    }
+
     public static bool TryParseChannelId(TelemetryChannelIdReply reply, out TelemetryChannelId channelId)
     {
-        if (!Enum.TryParse<TelemetryArea>(reply.Area, out var area)
-            || !Enum.TryParse<TelemetryEntityKind>(reply.EntityKind, out var entityKind)
-            || !Enum.TryParse<TelemetryMetric>(reply.Metric, out var metric))
+        if (!TryParseTelemetryArea(reply.Area, out var area)
+            || !TryParseTelemetryEntityKind(reply.EntityKind, out var entityKind)
+            || !TryParseTelemetryMetric(reply.Metric, out var metric))
         {
             channelId = default;
             return false;
@@ -78,5 +99,79 @@ internal static class TelemetryGrpcMapper
 
         channelId = new TelemetryChannelId(area, entityKind, reply.Index, metric);
         return true;
+    }
+
+    public static bool TryParseTelemetryArea(TelemetryAreaValue value, out TelemetryArea area)
+    {
+        area = value switch
+        {
+            TelemetryAreaValue.Thermal => TelemetryArea.Thermal,
+            TelemetryAreaValue.Power => TelemetryArea.Power,
+            _ => default,
+        };
+
+        return value is not TelemetryAreaValue.Unspecified;
+    }
+
+    public static bool TryParseTelemetryEntityKind(TelemetryEntityKindValue value, out TelemetryEntityKind entityKind)
+    {
+        entityKind = value switch
+        {
+            TelemetryEntityKindValue.TemperatureSensor => TelemetryEntityKind.TemperatureSensor,
+            TelemetryEntityKindValue.Fan => TelemetryEntityKind.Fan,
+            TelemetryEntityKindValue.Battery => TelemetryEntityKind.Battery,
+            _ => default,
+        };
+
+        return value is not TelemetryEntityKindValue.Unspecified;
+    }
+
+    public static bool TryParseTelemetryMetric(TelemetryMetricValue value, out TelemetryMetric metric)
+    {
+        metric = value switch
+        {
+            TelemetryMetricValue.TemperatureCelsius => TelemetryMetric.TemperatureCelsius,
+            TelemetryMetricValue.FanSpeedRpm => TelemetryMetric.FanSpeedRpm,
+            TelemetryMetricValue.BatteryChargePercent => TelemetryMetric.BatteryChargePercent,
+            TelemetryMetricValue.BatteryPresentRateAmperes => TelemetryMetric.BatteryPresentRateAmperes,
+            TelemetryMetricValue.BatteryPresentVoltageVolts => TelemetryMetric.BatteryPresentVoltageVolts,
+            _ => default,
+        };
+
+        return value is not TelemetryMetricValue.Unspecified;
+    }
+
+    private static TelemetryAreaValue MapTelemetryArea(TelemetryArea area)
+    {
+        return area switch
+        {
+            TelemetryArea.Thermal => TelemetryAreaValue.Thermal,
+            TelemetryArea.Power => TelemetryAreaValue.Power,
+            _ => TelemetryAreaValue.Unspecified,
+        };
+    }
+
+    private static TelemetryEntityKindValue MapTelemetryEntityKind(TelemetryEntityKind entityKind)
+    {
+        return entityKind switch
+        {
+            TelemetryEntityKind.TemperatureSensor => TelemetryEntityKindValue.TemperatureSensor,
+            TelemetryEntityKind.Fan => TelemetryEntityKindValue.Fan,
+            TelemetryEntityKind.Battery => TelemetryEntityKindValue.Battery,
+            _ => TelemetryEntityKindValue.Unspecified,
+        };
+    }
+
+    private static TelemetryMetricValue MapTelemetryMetric(TelemetryMetric metric)
+    {
+        return metric switch
+        {
+            TelemetryMetric.TemperatureCelsius => TelemetryMetricValue.TemperatureCelsius,
+            TelemetryMetric.FanSpeedRpm => TelemetryMetricValue.FanSpeedRpm,
+            TelemetryMetric.BatteryChargePercent => TelemetryMetricValue.BatteryChargePercent,
+            TelemetryMetric.BatteryPresentRateAmperes => TelemetryMetricValue.BatteryPresentRateAmperes,
+            TelemetryMetric.BatteryPresentVoltageVolts => TelemetryMetricValue.BatteryPresentVoltageVolts,
+            _ => TelemetryMetricValue.Unspecified,
+        };
     }
 }

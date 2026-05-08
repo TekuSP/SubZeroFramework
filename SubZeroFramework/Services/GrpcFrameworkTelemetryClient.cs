@@ -85,7 +85,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             {
                 while (!cancellationSource.IsCancellationRequested)
                 {
-                    AsyncServerStreamingCall<TelemetryChannelChangeReply>? call = null;
+                    AsyncServerStreamingCall<TelemetryChannelChangeBatchReply>? call = null;
 
                     try
                     {
@@ -95,7 +95,10 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
                         while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
                         {
-                            ApplyTelemetryChannelChange(channels, call.ResponseStream.Current);
+                            foreach (var change in call.ResponseStream.Current.Changes)
+                            {
+                                ApplyTelemetryChannelChange(channels, change);
+                            }
                         }
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
@@ -146,7 +149,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             {
                 while (!cancellationSource.IsCancellationRequested)
                 {
-                    AsyncServerStreamingCall<CurrentTelemetryValueChangeReply>? call = null;
+                    AsyncServerStreamingCall<CurrentTelemetryValueChangeBatchReply>? call = null;
 
                     try
                     {
@@ -156,7 +159,10 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
                         while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
                         {
-                            ApplyCurrentTelemetryValueChange(currentValues, call.ResponseStream.Current);
+                            foreach (var change in call.ResponseStream.Current.Changes)
+                            {
+                                ApplyCurrentTelemetryValueChange(currentValues, change);
+                            }
                         }
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
@@ -207,16 +213,16 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             {
                 while (!cancellationSource.IsCancellationRequested)
                 {
-                    AsyncServerStreamingCall<TelemetrySeriesPointChangeReply>? call = null;
+                    AsyncServerStreamingCall<TelemetrySeriesPointChangeBatchReply>? call = null;
 
                     try
                     {
                         call = _client.WatchTelemetrySeries(new WatchTelemetrySeriesRequest
                         {
-                            Area = channelId.Area.ToString(),
-                            EntityKind = channelId.EntityKind.ToString(),
+                            Area = MapTelemetryArea(channelId.Area),
+                            EntityKind = MapTelemetryEntityKind(channelId.EntityKind),
                             Index = channelId.Index,
-                            Metric = channelId.Metric.ToString(),
+                            Metric = MapTelemetryMetric(channelId.Metric),
                             HistoryWindowSeconds = checked((int)Math.Ceiling(historyWindow.TotalSeconds)),
                         }, cancellationToken: cancellationSource.Token);
 
@@ -224,7 +230,10 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
                         while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
                         {
-                            ApplyTelemetryPointChange(points, call.ResponseStream.Current);
+                            foreach (var change in call.ResponseStream.Current.Changes)
+                            {
+                                ApplyTelemetryPointChange(points, change);
+                            }
                         }
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
@@ -323,14 +332,88 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
     private static TelemetryChannelId MapChannelId(TelemetryChannelIdReply reply)
     {
-        if (!Enum.TryParse<TelemetryArea>(reply.Area, out var area)
-            || !Enum.TryParse<TelemetryEntityKind>(reply.EntityKind, out var entityKind)
-            || !Enum.TryParse<TelemetryMetric>(reply.Metric, out var metric))
+        if (!TryParseTelemetryArea(reply.Area, out var area)
+            || !TryParseTelemetryEntityKind(reply.EntityKind, out var entityKind)
+            || !TryParseTelemetryMetric(reply.Metric, out var metric))
         {
             throw new InvalidOperationException("The service returned an invalid telemetry channel identifier.");
         }
 
         return new TelemetryChannelId(area, entityKind, reply.Index, metric);
+    }
+
+    private static TelemetryAreaValue MapTelemetryArea(TelemetryArea area)
+    {
+        return area switch
+        {
+            TelemetryArea.Thermal => TelemetryAreaValue.Thermal,
+            TelemetryArea.Power => TelemetryAreaValue.Power,
+            _ => TelemetryAreaValue.Unspecified,
+        };
+    }
+
+    private static TelemetryEntityKindValue MapTelemetryEntityKind(TelemetryEntityKind entityKind)
+    {
+        return entityKind switch
+        {
+            TelemetryEntityKind.TemperatureSensor => TelemetryEntityKindValue.TemperatureSensor,
+            TelemetryEntityKind.Fan => TelemetryEntityKindValue.Fan,
+            TelemetryEntityKind.Battery => TelemetryEntityKindValue.Battery,
+            _ => TelemetryEntityKindValue.Unspecified,
+        };
+    }
+
+    private static TelemetryMetricValue MapTelemetryMetric(TelemetryMetric metric)
+    {
+        return metric switch
+        {
+            TelemetryMetric.TemperatureCelsius => TelemetryMetricValue.TemperatureCelsius,
+            TelemetryMetric.FanSpeedRpm => TelemetryMetricValue.FanSpeedRpm,
+            TelemetryMetric.BatteryChargePercent => TelemetryMetricValue.BatteryChargePercent,
+            TelemetryMetric.BatteryPresentRateAmperes => TelemetryMetricValue.BatteryPresentRateAmperes,
+            TelemetryMetric.BatteryPresentVoltageVolts => TelemetryMetricValue.BatteryPresentVoltageVolts,
+            _ => TelemetryMetricValue.Unspecified,
+        };
+    }
+
+    private static bool TryParseTelemetryArea(TelemetryAreaValue value, out TelemetryArea area)
+    {
+        area = value switch
+        {
+            TelemetryAreaValue.Thermal => TelemetryArea.Thermal,
+            TelemetryAreaValue.Power => TelemetryArea.Power,
+            _ => default,
+        };
+
+        return value is not TelemetryAreaValue.Unspecified;
+    }
+
+    private static bool TryParseTelemetryEntityKind(TelemetryEntityKindValue value, out TelemetryEntityKind entityKind)
+    {
+        entityKind = value switch
+        {
+            TelemetryEntityKindValue.TemperatureSensor => TelemetryEntityKind.TemperatureSensor,
+            TelemetryEntityKindValue.Fan => TelemetryEntityKind.Fan,
+            TelemetryEntityKindValue.Battery => TelemetryEntityKind.Battery,
+            _ => default,
+        };
+
+        return value is not TelemetryEntityKindValue.Unspecified;
+    }
+
+    private static bool TryParseTelemetryMetric(TelemetryMetricValue value, out TelemetryMetric metric)
+    {
+        metric = value switch
+        {
+            TelemetryMetricValue.TemperatureCelsius => TelemetryMetric.TemperatureCelsius,
+            TelemetryMetricValue.FanSpeedRpm => TelemetryMetric.FanSpeedRpm,
+            TelemetryMetricValue.BatteryChargePercent => TelemetryMetric.BatteryChargePercent,
+            TelemetryMetricValue.BatteryPresentRateAmperes => TelemetryMetric.BatteryPresentRateAmperes,
+            TelemetryMetricValue.BatteryPresentVoltageVolts => TelemetryMetric.BatteryPresentVoltageVolts,
+            _ => default,
+        };
+
+        return value is not TelemetryMetricValue.Unspecified;
     }
 
     private void ThrowIfDisposed()

@@ -10,9 +10,9 @@ service FrameworkStatusService {
 }
 
 service FrameworkTelemetryService {
-  rpc WatchTelemetryChannels (WatchTelemetryChannelsRequest) returns (stream TelemetryChannelChangeReply);
-  rpc WatchCurrentTelemetryValues (WatchCurrentTelemetryValuesRequest) returns (stream CurrentTelemetryValueChangeReply);
-  rpc WatchTelemetrySeries (WatchTelemetrySeriesRequest) returns (stream TelemetrySeriesPointChangeReply);
+  rpc WatchTelemetryChannels (WatchTelemetryChannelsRequest) returns (stream TelemetryChannelChangeBatchReply);
+  rpc WatchCurrentTelemetryValues (WatchCurrentTelemetryValuesRequest) returns (stream CurrentTelemetryValueChangeBatchReply);
+  rpc WatchTelemetrySeries (WatchTelemetrySeriesRequest) returns (stream TelemetrySeriesPointChangeBatchReply);
 }
 
 service FrameworkFanControlService {
@@ -34,10 +34,10 @@ message WatchCurrentTelemetryValuesRequest {
 }
 
 message WatchTelemetrySeriesRequest {
-  string area = 1;
-  string entity_kind = 2;
+  TelemetryAreaValue area = 1;
+  TelemetryEntityKindValue entity_kind = 2;
   int32 index = 3;
-  string metric = 4;
+  TelemetryMetricValue metric = 4;
   int32 history_window_seconds = 5;
 }
 
@@ -75,11 +75,33 @@ enum TelemetryChangeKind {
   REMOVE = 2;
 }
 
+enum TelemetryAreaValue {
+  TELEMETRY_AREA_VALUE_UNSPECIFIED = 0;
+  TELEMETRY_AREA_VALUE_THERMAL = 1;
+  TELEMETRY_AREA_VALUE_POWER = 2;
+}
+
+enum TelemetryEntityKindValue {
+  TELEMETRY_ENTITY_KIND_VALUE_UNSPECIFIED = 0;
+  TELEMETRY_ENTITY_KIND_VALUE_TEMPERATURE_SENSOR = 1;
+  TELEMETRY_ENTITY_KIND_VALUE_FAN = 2;
+  TELEMETRY_ENTITY_KIND_VALUE_BATTERY = 3;
+}
+
+enum TelemetryMetricValue {
+  TELEMETRY_METRIC_VALUE_UNSPECIFIED = 0;
+  TELEMETRY_METRIC_VALUE_TEMPERATURE_CELSIUS = 1;
+  TELEMETRY_METRIC_VALUE_FAN_SPEED_RPM = 2;
+  TELEMETRY_METRIC_VALUE_BATTERY_CHARGE_PERCENT = 3;
+  TELEMETRY_METRIC_VALUE_BATTERY_PRESENT_RATE_AMPERES = 4;
+  TELEMETRY_METRIC_VALUE_BATTERY_PRESENT_VOLTAGE_VOLTS = 5;
+}
+
 message TelemetryChannelIdReply {
-  string area = 1;
-  string entity_kind = 2;
+  TelemetryAreaValue area = 1;
+  TelemetryEntityKindValue entity_kind = 2;
   int32 index = 3;
-  string metric = 4;
+  TelemetryMetricValue metric = 4;
 }
 
 message TelemetryChannelChangeReply {
@@ -90,6 +112,10 @@ message TelemetryChannelChangeReply {
   int64 first_observed_at_unix_time_milliseconds = 5;
   int64 last_observed_at_unix_time_milliseconds = 6;
   bool is_available = 7;
+}
+
+message TelemetryChannelChangeBatchReply {
+  repeated TelemetryChannelChangeReply changes = 1;
 }
 
 message CurrentTelemetryValueChangeReply {
@@ -103,12 +129,20 @@ message CurrentTelemetryValueChangeReply {
   bool is_available = 8;
 }
 
+message CurrentTelemetryValueChangeBatchReply {
+  repeated CurrentTelemetryValueChangeReply changes = 1;
+}
+
 message TelemetrySeriesPointChangeReply {
   TelemetryChangeKind change_kind = 1;
   int64 sample_id = 2;
   TelemetryChannelIdReply channel_id = 3;
   int64 observed_at_unix_time_milliseconds = 4;
   double numeric_value = 5;
+}
+
+message TelemetrySeriesPointChangeBatchReply {
+  repeated TelemetrySeriesPointChangeReply changes = 1;
 }
 
 message FrameworkStatusReply {

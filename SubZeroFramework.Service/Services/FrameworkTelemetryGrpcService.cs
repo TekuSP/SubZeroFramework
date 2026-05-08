@@ -19,33 +19,31 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
         _frameworkDataProvider = frameworkDataProvider;
     }
 
-    public override Task WatchTelemetryChannels(WatchTelemetryChannelsRequest request, IServerStreamWriter<TelemetryChannelChangeReply> responseStream, ServerCallContext context)
+    public override Task WatchTelemetryChannels(WatchTelemetryChannelsRequest request, IServerStreamWriter<TelemetryChannelChangeBatchReply> responseStream, ServerCallContext context)
     {
         return GrpcChangeSetWriter.WriteAsync(
             _frameworkDataProvider.ConnectTelemetryChannels(),
             responseStream,
-            change => change.Reason == ChangeReason.Remove
-                ? null
-                : TelemetryGrpcMapper.MapChannelChange(change),
+            TelemetryGrpcMapper.MapChannelChange,
+            TelemetryGrpcMapper.MapChannelBatch,
             context.CancellationToken);
     }
 
-    public override Task WatchCurrentTelemetryValues(WatchCurrentTelemetryValuesRequest request, IServerStreamWriter<CurrentTelemetryValueChangeReply> responseStream, ServerCallContext context)
+    public override Task WatchCurrentTelemetryValues(WatchCurrentTelemetryValuesRequest request, IServerStreamWriter<CurrentTelemetryValueChangeBatchReply> responseStream, ServerCallContext context)
     {
         return GrpcChangeSetWriter.WriteAsync(
             _frameworkDataProvider.ConnectCurrentTelemetryValues(),
             responseStream,
-            change => change.Reason == ChangeReason.Remove
-                ? null
-                : TelemetryGrpcMapper.MapCurrentValueChange(change),
+            TelemetryGrpcMapper.MapCurrentValueChange,
+            TelemetryGrpcMapper.MapCurrentValueBatch,
             context.CancellationToken);
     }
 
-    public override Task WatchTelemetrySeries(WatchTelemetrySeriesRequest request, IServerStreamWriter<TelemetrySeriesPointChangeReply> responseStream, ServerCallContext context)
+    public override Task WatchTelemetrySeries(WatchTelemetrySeriesRequest request, IServerStreamWriter<TelemetrySeriesPointChangeBatchReply> responseStream, ServerCallContext context)
     {
-        if (!Enum.TryParse<TelemetryArea>(request.Area, out var area)
-            || !Enum.TryParse<TelemetryEntityKind>(request.EntityKind, out var entityKind)
-            || !Enum.TryParse<TelemetryMetric>(request.Metric, out var metric))
+        if (!TelemetryGrpcMapper.TryParseTelemetryArea(request.Area, out var area)
+            || !TelemetryGrpcMapper.TryParseTelemetryEntityKind(request.EntityKind, out var entityKind)
+            || !TelemetryGrpcMapper.TryParseTelemetryMetric(request.Metric, out var metric))
         {
             throw new RpcException(new Status(StatusCode.InvalidArgument, "The requested telemetry channel is invalid."));
         }
@@ -61,6 +59,7 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
             _frameworkDataProvider.ConnectTelemetrySeries(channelId, requestedHistoryWindow),
             responseStream,
             TelemetryGrpcMapper.MapTelemetryPointChange,
+            TelemetryGrpcMapper.MapTelemetryPointBatch,
             context.CancellationToken);
     }
 }

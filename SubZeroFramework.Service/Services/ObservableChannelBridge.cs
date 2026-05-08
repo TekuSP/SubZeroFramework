@@ -1,36 +1,57 @@
 using System.Threading.Channels;
 
+using System.Reactive.Disposables;
+
 namespace SubZeroFramework.Service.Services;
 
 internal static class ObservableChannelBridge
 {
     public static ChannelReader<T> CreateBoundedReader<T>(IObservable<T> source, CancellationToken cancellationToken)
     {
-        var channel = Channel.CreateBounded<T>(new BoundedChannelOptions(1)
+        ArgumentNullException.ThrowIfNull(source);
+
+        var channel = Channel.CreateBounded<T>(new BoundedChannelOptions(32)
         {
-            FullMode = BoundedChannelFullMode.DropOldest,
+            FullMode = BoundedChannelFullMode.Wait,
             SingleReader = true,
-            SingleWriter = false,
+            SingleWriter = true,
+            AllowSynchronousContinuations = false,
         });
 
-        var subscription = source.Subscribe(
+        var subscription = new SingleAssignmentDisposable();
+        var completionState = 0;
+
+        void Complete(Exception? exception = null)
+        {
+            if (Interlocked.Exchange(ref completionState, 1) != 0)
+            {
+                return;
+            }
+
+            subscription.Dispose();
+            channel.Writer.TryComplete(exception);
+        }
+
+        subscription.Disposable = source.Subscribe(
             value =>
             {
-                channel.Writer.TryWrite(value);
+                if (!channel.Writer.TryWrite(value))
+                {
+                    Complete(new ReactiveBackpressureExceededException("The telemetry stream consumer fell behind the producer buffer."));
+                }
             },
             exception =>
             {
-                channel.Writer.TryComplete(exception);
+                Complete(exception);
             },
             () =>
             {
-                channel.Writer.TryComplete();
+                Complete();
             });
 
         cancellationToken.Register(() =>
         {
-            subscription.Dispose();
-            channel.Writer.TryComplete();
+            Complete();
         });
 
         return channel.Reader;
