@@ -57,10 +57,13 @@ public sealed class FrameworkTelemetryWorker : BackgroundService
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Stopping Framework telemetry service.");
-        _frameworkDataProvider.StopPolling();
-        if (_frameworkDataProvider is IDisposable disposable)
+
+        try
         {
-            disposable.Dispose();
+            _frameworkDataProvider.StopPolling();
+        }
+        catch (ObjectDisposedException)
+        {
         }
 
         await base.StopAsync(cancellationToken).ConfigureAwait(false);

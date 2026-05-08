@@ -323,7 +323,6 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             return;
         }
 
-        _disposed = true;
         StopPollingIfRunning();
         RestoreAutomaticFanControl();
         DisposeConnection();
@@ -344,6 +343,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         _telemetryPoints.Dispose();
         _connection = null;
         _frameworkSystem = null!;
+        _disposed = true;
     }
 
     public Task<FrameworkFanRpmCommandResult> SetFanRpmAsync(int fanIndex, int targetSpeedRpm, CancellationToken cancellationToken = default)

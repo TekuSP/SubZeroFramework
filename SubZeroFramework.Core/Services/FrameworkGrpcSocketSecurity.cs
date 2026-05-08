@@ -293,8 +293,9 @@ public static class FrameworkGrpcSocketSecurity
             var directorySecurity = directoryInfo.GetAccessControl();
             var inheritanceFlags = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
             const PropagationFlags propagationFlags = PropagationFlags.None;
+            var currentUserSid = WindowsIdentity.GetCurrent().User;
 
-            directorySecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            directorySecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: true);
             directorySecurity.AddAccessRule(new FileSystemAccessRule(
                 new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
                 FileSystemRights.FullControl,
@@ -307,6 +308,16 @@ public static class FrameworkGrpcSocketSecurity
                 inheritanceFlags,
                 propagationFlags,
                 AccessControlType.Allow));
+
+            if (currentUserSid is not null)
+            {
+                directorySecurity.AddAccessRule(new FileSystemAccessRule(
+                    currentUserSid,
+                    FileSystemRights.FullControl,
+                    inheritanceFlags,
+                    propagationFlags,
+                    AccessControlType.Allow));
+            }
 
             directoryInfo.SetAccessControl(directorySecurity);
         }
