@@ -27,10 +27,26 @@
     <File Path="Design Ideas/fan_control_prototype_design.png" />
     <File Path="Design Ideas/fan_control_unknown_framework.png" />
   </Folder>
-  <Project Path="SubZeroFramework.Core/SubZeroFramework.Core.csproj" />
-  <Project Path="SubZeroFramework.GrpcContracts/SubZeroFramework.GrpcContracts.csproj" />
-  <Project Path="SubZeroFramework.Service/SubZeroFramework.Service.csproj" />
-  <Project Path="SubZeroFramework.Tests/SubZeroFramework.Tests.csproj" />
+  <Project Path="SubZeroFramework.Core/SubZeroFramework.Core.csproj">
+    <Platform Solution="*|ARM64" Project="ARM64" />
+    <Platform Solution="*|x64" Project="x64" />
+    <Build Solution="Release|*" Project="false" />
+  </Project>
+  <Project Path="SubZeroFramework.GrpcContracts/SubZeroFramework.GrpcContracts.csproj">
+    <Platform Solution="*|ARM64" Project="ARM64" />
+    <Platform Solution="*|x64" Project="x64" />
+    <Build Solution="Release|*" Project="false" />
+  </Project>
+  <Project Path="SubZeroFramework.Service/SubZeroFramework.Service.csproj">
+    <Platform Solution="*|ARM64" Project="ARM64" />
+    <Platform Solution="*|x64" Project="x64" />
+    <Build Solution="Release|*" Project="false" />
+  </Project>
+  <Project Path="SubZeroFramework.Tests/SubZeroFramework.Tests.csproj">
+    <Platform Solution="*|ARM64" Project="ARM64" />
+    <Platform Solution="*|x64" Project="x64" />
+    <Build Solution="Release|*" Project="false" />
+  </Project>
   <Project Path="SubZeroFramework/SubZeroFramework.csproj">
     <Platform Solution="*|ARM64" Project="ARM64" />
     <Platform Solution="*|x64" Project="x64" />
