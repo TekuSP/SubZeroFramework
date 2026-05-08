@@ -48,6 +48,9 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private Task? _pollingTask;
     private long _nextTelemetryPointId;
     private DateTimeOffset _lastTelemetryObservedAt;
+    private bool _isFanControlEnabled;
+    private bool _hasCallerIdentityValidation;
+    private string? _fanControlAuthorizationMessage;
     private bool _disposed;
 
     public FrameworkDataProvider(
@@ -97,6 +100,13 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     public IObservable<FrameworkPowerSnapshot> PowerSnapshots { get; }
 
     public IObservable<FrameworkThermalSnapshot> ThermalSnapshots { get; }
+
+    public void SetFanControlAuthorization(bool isFanControlEnabled, bool hasCallerIdentityValidation, string? authorizationMessage)
+    {
+        _isFanControlEnabled = isFanControlEnabled;
+        _hasCallerIdentityValidation = hasCallerIdentityValidation;
+        _fanControlAuthorizationMessage = string.IsNullOrWhiteSpace(authorizationMessage) ? null : authorizationMessage;
+    }
 
     public IObservable<IChangeSet<HistoricalRecord<FrameworkSystemStatus>, long>> ConnectSystemStatusHistory(TimeSpan historyWindow)
         => _systemStatus.ConnectHistory(ValidateHistoryWindow(historyWindow));
@@ -450,6 +460,9 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             IsGrpcActive = false,
             LastTelemetryObservedAt = _lastTelemetryObservedAt,
             RequiresElevation = requiresElevation,
+            IsFanControlEnabled = _isFanControlEnabled,
+            HasCallerIdentityValidation = _hasCallerIdentityValidation,
+            FanControlAuthorizationMessage = _fanControlAuthorizationMessage,
             LastError = requiresElevation
                 ? "Framework EC access on Linux requires running the service as root."
                 : lastError,

@@ -68,6 +68,20 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
             return;
         }
 
+        if (!status.IsFanControlEnabled)
+        {
+            StatusTitle = "Fan control disabled";
+            StatusMessage = status.FanControlAuthorizationMessage ?? "Fan-control RPCs are currently disabled by the background service.";
+            return;
+        }
+
+        if (!status.HasCallerIdentityValidation)
+        {
+            StatusTitle = "Fan control validation limited";
+            StatusMessage = status.FanControlAuthorizationMessage ?? "The service cannot currently validate caller identity for fan-control RPCs on this IPC transport.";
+            return;
+        }
+
         StatusTitle = "Background service healthy";
         StatusMessage = "Status streaming is connected and the service reports healthy Framework telemetry access.";
     }

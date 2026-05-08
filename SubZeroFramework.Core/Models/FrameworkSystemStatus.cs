@@ -37,4 +37,10 @@ public sealed record FrameworkSystemStatus
     public bool RequiresElevation { get; init; }
 
     public string? LastError { get; init; }
+
+    public bool IsFanControlEnabled { get; init; }
+
+    public bool HasCallerIdentityValidation { get; init; }
+
+    public string? FanControlAuthorizationMessage { get; init; }
 }

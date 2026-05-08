@@ -54,6 +54,8 @@ public interface IFrameworkDataProvider
 
     bool StopPolling();
 
+    void SetFanControlAuthorization(bool isFanControlEnabled, bool hasCallerIdentityValidation, string? authorizationMessage);
+
     Task<FrameworkSystemStatus> RefreshAsync(CancellationToken cancellationToken = default);
 
     Task<FrameworkFanRpmCommandResult> SetFanRpmAsync(int fanIndex, int targetSpeedRpm, CancellationToken cancellationToken = default);

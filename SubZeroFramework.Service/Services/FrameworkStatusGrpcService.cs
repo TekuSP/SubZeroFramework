@@ -10,15 +10,18 @@ namespace SubZeroFramework.Service.Services;
 
 public sealed class FrameworkStatusGrpcService : FrameworkStatusService.FrameworkStatusServiceBase
 {
+    private readonly FrameworkFanControlAuthorizationService _authorizationService;
     private readonly IFrameworkDataProvider _frameworkDataProvider;
 
-    public FrameworkStatusGrpcService(IFrameworkDataProvider frameworkDataProvider)
+    public FrameworkStatusGrpcService(IFrameworkDataProvider frameworkDataProvider, FrameworkFanControlAuthorizationService authorizationService)
     {
         _frameworkDataProvider = frameworkDataProvider;
+        _authorizationService = authorizationService;
     }
 
     public override async Task<FrameworkStatusReply> GetStatus(GetStatusRequest request, ServerCallContext context)
     {
+        ApplyFanControlAuthorization();
         var status = await _frameworkDataProvider.RefreshAsync(context.CancellationToken).ConfigureAwait(false);
         return MapStatus(status);
     }
@@ -27,6 +30,7 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
     {
         try
         {
+            ApplyFanControlAuthorization();
             var initialStatus = await _frameworkDataProvider.RefreshAsync(context.CancellationToken).ConfigureAwait(false);
             await responseStream.WriteAsync(MapStatus(initialStatus), context.CancellationToken).ConfigureAwait(false);
 
@@ -83,9 +87,20 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
             LastTelemetryObservedAtUnixTimeMilliseconds = status.LastTelemetryObservedAt.ToUnixTimeMilliseconds(),
             RequiresElevation = status.RequiresElevation,
             LastError = status.LastError ?? string.Empty,
+            IsFanControlEnabled = status.IsFanControlEnabled,
+            HasCallerIdentityValidation = status.HasCallerIdentityValidation,
+            FanControlAuthorizationMessage = status.FanControlAuthorizationMessage ?? string.Empty,
         };
 
         reply.SupportedDrivers.AddRange(status.SupportedDrivers.Select(driver => driver.ToString()));
         return reply;
+    }
+
+    private void ApplyFanControlAuthorization()
+    {
+        _frameworkDataProvider.SetFanControlAuthorization(
+            _authorizationService.IsFanControlEnabled,
+            _authorizationService.HasCallerIdentityValidation,
+            _authorizationService.GetAuthorizationMessage());
     }
 }

@@ -72,8 +72,8 @@
 ### 1. IPC hardening
 - ⏳ Validate Unix socket file ownership and permissions on platforms that expose them.
 - ✅ Reject unexpected socket targets such as symlinks or mismatched resolved paths.
-- ⏳ Decide and document what caller validation is possible on Windows versus Linux.
-- 🟡 Add server-side checks before fan-command RPCs are introduced. Command validation exists, but caller identity validation still needs work.
+- ✅ Decide and document what caller validation is possible on Windows versus Linux in `SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md`.
+- ✅ Add server-side checks before fan-command RPCs are introduced. Command validation and fail-closed service-side authorization gating now exist; portable caller identity validation still remains a separate hardening item.
 
 ### 2. Telemetry client sharing
 - ✅ Share channel and current-value streams similarly to the shared status stream.
@@ -91,13 +91,13 @@
 - ✅ Decide whether the header should react only to distinct state transitions.
 - ✅ Decide whether the header also needs a last-updated timestamp or heartbeat indicator.
 - ✅ If heartbeat is needed, keep it separate from error/status semantics such as `IsGrpcActive`.
-- 🟡 Document which UI surfaces consume state transitions versus live telemetry cadence. The header behavior is decided, but broader UI documentation can still improve.
+- ✅ Document which UI surfaces consume state transitions versus live telemetry cadence in `SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md`.
 
 ### 5. Fan-command RPC boundary
 - ✅ Define command request and acknowledgement contracts in `SubZeroFramework.GrpcContracts`.
 - ✅ Separate read-only telemetry/status APIs from mutating fan-control APIs.
 - ✅ Validate commands on the server before any EC write path is exposed.
-- ⏳ Define authorization and safety checks before enabling command UI.
+- ✅ Define authorization and safety checks before enabling command UI. Status now surfaces `IsFanControlEnabled`, `HasCallerIdentityValidation`, and `FanControlAuthorizationMessage`, and fan-control RPCs are denied by default unless explicitly enabled by service configuration.
 
 ### 6. Integration and regression coverage
 - ⏳ Add tests for status reconnect behavior after service restart.

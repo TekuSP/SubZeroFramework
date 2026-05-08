@@ -146,6 +146,9 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
                 : DateTimeOffset.FromUnixTimeMilliseconds(reply.LastTelemetryObservedAtUnixTimeMilliseconds),
             RequiresElevation = reply.RequiresElevation,
             LastError = string.IsNullOrEmpty(reply.LastError) ? null : reply.LastError,
+            IsFanControlEnabled = reply.IsFanControlEnabled,
+            HasCallerIdentityValidation = reply.HasCallerIdentityValidation,
+            FanControlAuthorizationMessage = string.IsNullOrEmpty(reply.FanControlAuthorizationMessage) ? null : reply.FanControlAuthorizationMessage,
         };
     }
 
@@ -169,6 +172,9 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
             LastTelemetryObservedAt = DateTimeOffset.MinValue,
             RequiresElevation = false,
             LastError = message,
+            IsFanControlEnabled = false,
+            HasCallerIdentityValidation = false,
+            FanControlAuthorizationMessage = null,
         };
     }
 }

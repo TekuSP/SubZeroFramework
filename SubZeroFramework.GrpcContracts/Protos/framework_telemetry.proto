@@ -164,4 +164,7 @@ message FrameworkStatusReply {
   int64 last_telemetry_observed_at_unix_time_milliseconds = 16;
   bool requires_elevation = 17;
   string last_error = 18;
+  bool is_fan_control_enabled = 19;
+  bool has_caller_identity_validation = 20;
+  string fan_control_authorization_message = 21;
 }

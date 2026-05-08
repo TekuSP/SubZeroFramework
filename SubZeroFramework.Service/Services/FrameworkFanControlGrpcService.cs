@@ -7,17 +7,20 @@ namespace SubZeroFramework.Service.Services;
 
 public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.FrameworkFanControlServiceBase
 {
+    private readonly FrameworkFanControlAuthorizationService _authorizationService;
     private readonly IFrameworkDataProvider _frameworkDataProvider;
 
-    public FrameworkFanControlGrpcService(IFrameworkDataProvider frameworkDataProvider)
+    public FrameworkFanControlGrpcService(IFrameworkDataProvider frameworkDataProvider, FrameworkFanControlAuthorizationService authorizationService)
     {
         _frameworkDataProvider = frameworkDataProvider;
+        _authorizationService = authorizationService;
     }
 
     public override async Task<SetFanRpmReply> SetFanRpm(SetFanRpmRequest request, ServerCallContext context)
     {
         try
         {
+            _authorizationService.EnsureCommandAccess();
             var result = await _frameworkDataProvider.SetFanRpmAsync(request.FanIndex, request.TargetSpeedRpm, context.CancellationToken).ConfigureAwait(false);
             return new SetFanRpmReply
             {
@@ -39,6 +42,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
     {
         try
         {
+            _authorizationService.EnsureCommandAccess();
             var result = await _frameworkDataProvider.SetFanDutyAsync(request.FanIndex, request.DutyPercent, context.CancellationToken).ConfigureAwait(false);
             return new SetFanDutyReply
             {
@@ -60,6 +64,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
     {
         try
         {
+            _authorizationService.EnsureCommandAccess();
             var result = await _frameworkDataProvider.RestoreAutoFanControlAsync(request.FanIndex, context.CancellationToken).ConfigureAwait(false);
             return new RestoreAutoFanControlReply
             {
