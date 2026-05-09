@@ -1,8 +1,6 @@
-using System.Net.Sockets;
 using System.Reactive.Linq;
 
 using Grpc.Core;
-using Grpc.Net.Client;
 
 using SubZeroFramework.GrpcContracts;
 

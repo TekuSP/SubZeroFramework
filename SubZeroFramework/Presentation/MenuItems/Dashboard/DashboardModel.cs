@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 
@@ -6,14 +5,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 using DynamicData;
 
-using LiveChartsCore;
 using LiveChartsCore.Defaults;
-using LiveChartsCore.SkiaSharpView;
-using LiveChartsCore.SkiaSharpView.Painting;
 
-using SkiaSharp;
-
-using SubZeroFramework.Models;
 using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Presentation.MenuItems.Dashboard;

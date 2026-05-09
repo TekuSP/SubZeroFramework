@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace SubZeroFramework.Models;
 
 public sealed record TemperatureTelemetryHistorySeries

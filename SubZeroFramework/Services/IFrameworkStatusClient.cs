@@ -1,5 +1,3 @@
-using SubZeroFramework.Models;
-
 namespace SubZeroFramework.Services;
 
 public interface IFrameworkStatusClient

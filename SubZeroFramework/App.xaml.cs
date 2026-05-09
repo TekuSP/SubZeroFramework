@@ -5,7 +5,6 @@ using Hardware.Info;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 
-using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
 
 using SubZeroFramework.Presentation.MenuItems.Dashboard;

@@ -1,4 +1,3 @@
-using System.Collections.Immutable;
 using System.Reactive.Linq;
 
 using DynamicData;
@@ -6,7 +5,6 @@ using DynamicData;
 using Grpc.Core;
 
 using SubZeroFramework.GrpcContracts;
-using SubZeroFramework.Models;
 
 namespace SubZeroFramework.Services;
 

@@ -1,7 +1,5 @@
 using DynamicData;
 
-using SubZeroFramework.Models;
-
 namespace SubZeroFramework.Services;
 
 public interface IFanControlStateClient

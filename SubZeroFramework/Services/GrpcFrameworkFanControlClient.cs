@@ -1,5 +1,3 @@
-using Grpc.Core;
-
 using SubZeroFramework.GrpcContracts;
 
 namespace SubZeroFramework.Services;

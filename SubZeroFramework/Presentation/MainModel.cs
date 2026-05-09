@@ -6,7 +6,6 @@ using Hardware.Info;
 
 using Microsoft.UI.Dispatching;
 
-using SubZeroFramework.Presentation.MenuItems.WarningsIssues;
 using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Presentation;

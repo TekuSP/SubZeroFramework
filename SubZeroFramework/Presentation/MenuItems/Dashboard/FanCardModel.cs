@@ -1,14 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using System.Collections.Immutable;
 
 using FrameworkDotnet.Enums;
+
 using LiveChartsCore.Defaults;
 
 using Microsoft.UI;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
-
-using SubZeroFramework.Models;
 
 namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 
