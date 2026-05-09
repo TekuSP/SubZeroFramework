@@ -289,7 +289,12 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
         if (reply.ChangeKind == TelemetryChangeKind.Remove)
         {
-            channels.Remove(channel.Id);
+            var existingChannel = channels.Lookup(channel.Id);
+            if (existingChannel.HasValue)
+            {
+                channels.AddOrUpdate(existingChannel.Value with { IsAvailable = false });
+            }
+
             return;
         }
 
@@ -311,7 +316,12 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
         if (reply.ChangeKind == TelemetryChangeKind.Remove)
         {
-            currentValues.Remove(value.ChannelId);
+            var existingValue = currentValues.Lookup(value.ChannelId);
+            if (existingValue.HasValue)
+            {
+                currentValues.AddOrUpdate(existingValue.Value with { IsAvailable = false });
+            }
+
             return;
         }
 

@@ -110,7 +110,12 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
     {
         if (reply.ChangeKind == TelemetryChangeKind.Remove)
         {
-            controlStates.Remove(reply.FanIndex);
+            var existingState = controlStates.Lookup(reply.FanIndex);
+            if (existingState.HasValue)
+            {
+                controlStates.AddOrUpdate(existingState.Value with { IsAvailable = false });
+            }
+
             return;
         }
 

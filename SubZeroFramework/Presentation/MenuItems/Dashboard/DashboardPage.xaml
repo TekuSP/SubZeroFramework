@@ -18,26 +18,12 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Padding="0,0,0,24" Spacing="18">
                 <StackPanel>
-                    <Grid Margin="15,0,15,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock
-                            FontSize="28"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="Active Cooling Section" />
-                        <CheckBox
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            Foreground="{StaticResource TextPrimaryBrush}"
-                            IsChecked="{x:Bind ViewModel.ShowInactiveFans, Mode=TwoWay}">
-                            <CheckBox.Content>
-                                <TextBlock Text="Show inactive fans" />
-                            </CheckBox.Content>
-                        </CheckBox>
-                    </Grid>
+                    <TextBlock
+                        Margin="15,0"
+                        FontSize="28"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Active Cooling Section" />
                     <GridView
                         Margin="10,0"
                         AllowDrop="True"
@@ -179,6 +165,7 @@
                                                         CustomSeparators="{x:Bind Separators, Mode=OneWay}"
                                                         DateFormatter="{x:Bind LabelsFormatter}"
                                                         Interval="0:0:1"
+                                                        LabelsPaint="{lvc:SolidColorPaint Color='D85D5E73'}"
                                                         SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
                                                         TextSize="8" />
                                                 </lvc:AxesCollection>
@@ -187,7 +174,7 @@
                                                 <lvc:AxesCollection>
                                                     <lvc:XamlAxis
                                                         Padding="{lvc:Padding Value='0,0'}"
-                                                        LabelsPaint="{x:Null}"
+                                                        LabelsPaint="{lvc:SolidColorPaint Color='FFD7D8FF'}"
                                                         MaxLimit="8000"
                                                         MinLimit="0"
                                                         SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
@@ -225,32 +212,12 @@
                 </StackPanel>
 
                 <StackPanel>
-                    <Grid Margin="15,0,15,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock
-                            FontSize="28"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="Thermal Snapshot Section" />
-                        <StackPanel
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            Spacing="4">
-                            <CheckBox Foreground="{StaticResource TextPrimaryBrush}" IsChecked="{x:Bind ViewModel.ShowNotPoweredThermalSensors, Mode=TwoWay}">
-                                <CheckBox.Content>
-                                    <TextBlock Text="Show not powered" />
-                                </CheckBox.Content>
-                            </CheckBox>
-                            <CheckBox Foreground="{StaticResource TextPrimaryBrush}" IsChecked="{x:Bind ViewModel.ShowInactiveThermalSensors, Mode=TwoWay}">
-                                <CheckBox.Content>
-                                    <TextBlock Text="Show inactive sensors" />
-                                </CheckBox.Content>
-                            </CheckBox>
-                        </StackPanel>
-                    </Grid>
+                    <TextBlock
+                        Margin="15,0"
+                        FontSize="28"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Thermal Snapshot Section" />
                     <GridView
                         Margin="10,0"
                         ItemsSource="{x:Bind ViewModel.VisibleThermalSensors, Mode=OneWay}"
@@ -374,7 +341,7 @@
                                                         CustomSeparators="{x:Bind Separators, Mode=OneWay}"
                                                         DateFormatter="{x:Bind LabelsFormatter}"
                                                         Interval="0:5:0"
-                                                        LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                        LabelsPaint="{lvc:SolidColorPaint Color='#D85D5E73'}"
                                                         SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
                                                         ShowSeparatorLines="True"
                                                         TextSize="8" />
@@ -384,7 +351,7 @@
                                                 <lvc:AxesCollection>
                                                     <lvc:XamlAxis
                                                         Padding="{lvc:Padding Value='0,0'}"
-                                                        LabelsPaint="{x:Null}"
+                                                        LabelsPaint="{lvc:SolidColorPaint Color='FFD7D8FF'}"
                                                         MaxLimit="100"
                                                         MinLimit="0"
                                                         SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
@@ -429,7 +396,7 @@
                         Foreground="{StaticResource TextPrimaryBrush}"
                         Text="Thermal History Section" />
                     <controls:ElevatedCard
-                        Margin="10,0"
+                        Margin="5,0"
                         HorizontalContentAlignment="Stretch"
                         VerticalContentAlignment="Stretch"
                         Background="{StaticResource CardBackgroundBrush}">

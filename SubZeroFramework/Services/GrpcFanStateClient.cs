@@ -112,7 +112,12 @@ public sealed class GrpcFanStateClient : IFanStateClient, IDisposable
     {
         if (reply.ChangeKind == TelemetryChangeKind.Remove)
         {
-            fanStates.Remove(reply.FanIndex);
+            var existingState = fanStates.Lookup(reply.FanIndex);
+            if (existingState.HasValue)
+            {
+                fanStates.AddOrUpdate(existingState.Value with { IsAvailable = false });
+            }
+
             return;
         }
 

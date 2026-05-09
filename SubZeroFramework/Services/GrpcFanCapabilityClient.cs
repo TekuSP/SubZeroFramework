@@ -113,7 +113,12 @@ public sealed class GrpcFanCapabilityClient : IFanCapabilityClient, IDisposable
     {
         if (reply.ChangeKind == TelemetryChangeKind.Remove)
         {
-            fanCapabilities.Remove(reply.FanIndex);
+            var existingCapability = fanCapabilities.Lookup(reply.FanIndex);
+            if (existingCapability.HasValue)
+            {
+                fanCapabilities.AddOrUpdate(existingCapability.Value with { IsAvailable = false });
+            }
+
             return;
         }
 

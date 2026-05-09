@@ -34,7 +34,6 @@ public partial class ThermalSensorModel : ObservableObject
 	[NotifyPropertyChangedFor(nameof(TemperatureValueDisplay))]
 	[NotifyPropertyChangedFor(nameof(TemperatureValueWithUnit))]
 	[NotifyPropertyChangedFor(nameof(SelectionDisplay))]
-	[NotifyPropertyChangedFor(nameof(ShouldShowByDefault))]
 	[NotifyPropertyChangedFor(nameof(HistoryStrokeHex))]
 	public partial TemperatureTelemetrySnapshot Snapshot { get; set; } = default!;
 
@@ -79,11 +78,6 @@ public partial class ThermalSensorModel : ObservableObject
 	public string TemperatureValueWithUnit => $"{TemperatureValueDisplay}°C";
 
 	public string SelectionDisplay => $"{DisplayName}: {TemperatureValueWithUnit}";
-
-	public bool ShouldShowByDefault => Snapshot.IsAvailable
-		&& Snapshot.TemperatureState is not FrameworkTemperatureState.NotPresent
-		&& Snapshot.TemperatureState is not FrameworkTemperatureState.NotPowered
-		&& Snapshot.TemperatureState is not FrameworkTemperatureState.NotCalibrated;
 
 	public double GaugeValue => ShouldDisplayMeasuredTemperature
 		? Math.Clamp(Snapshot.TemperatureCelsius ?? 0d, 0d, 100d)

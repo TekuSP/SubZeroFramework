@@ -582,10 +582,12 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private void PublishThermalTelemetry(FrameworkThermalSnapshot thermalSnapshot, DateTimeOffset observedAt)
     {
         var observedTemperatureChannels = new HashSet<TelemetryChannelId>();
-        var temperatureIndex = 0;
 
-        foreach (var temperatureSnapshot in thermalSnapshot.ReportedTemperatures)
+        var temperatureCount = Math.Min((int)thermalSnapshot.SensorCount, thermalSnapshot.Temperatures.Count);
+
+        for (var temperatureIndex = 0; temperatureIndex < temperatureCount; temperatureIndex++)
         {
+            var temperatureSnapshot = thermalSnapshot.Temperatures[temperatureIndex];
             var channelId = new TelemetryChannelId(
                 Area: TelemetryArea.Thermal,
                 EntityKind: TelemetryEntityKind.TemperatureSensor,
@@ -600,8 +602,6 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 observedAt: observedAt,
                 numericValue: temperatureSnapshot.Temperature.DegreesCelsius,
                 temperatureState: temperatureSnapshot.State);
-
-            temperatureIndex++;
         }
 
         SetChannelsAvailability(

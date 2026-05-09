@@ -11,7 +11,6 @@ namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 public partial class FanCardModel : ObservableObject
 {
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShouldShowByDefault))]
     [NotifyPropertyChangedFor(nameof(FanSpeedGaugeValues))]
     [NotifyPropertyChangedFor(nameof(FanSpeedRemainingGaugeValues))]
     public partial FanTelemetrySnapshot Snapshot { get; set; } = default!;
@@ -28,7 +27,6 @@ public partial class FanCardModel : ObservableObject
     public partial ImmutableArray<TemperatureTelemetrySnapshot> DrivingSensors { get; set; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShouldShowByDefault))]
     public partial FanStateSnapshot? FanState { get; set; }
 
     [ObservableProperty]
@@ -52,9 +50,6 @@ public partial class FanCardModel : ObservableObject
     public partial string DrivingTemperature { get; set; } = "--°C";
 
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
-
-    public bool ShouldShowByDefault => Snapshot.IsAvailable
-        && (FanState is null || !FanState.IsAvailable || FanState.FanState != FrameworkFanState.NotPresent);
 
     public double[] FanSpeedGaugeValues => [Math.Clamp((double)Snapshot.SpeedRpm, 0d, MaximumFanSpeedRpm)];
 
