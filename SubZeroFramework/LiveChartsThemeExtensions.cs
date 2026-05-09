@@ -23,27 +23,5 @@ public static class LiveChartsThemeExtensions
                     new(0, 120, 215)    // PrimaryGraphBrush
                 ];
             })
-            .HasRuleForPieSeries(series =>
-            {
-                if (series.Name == "BackgroundSeries")
-                {
-                    series.Fill = new SolidColorPaint(new SKColor(93, 94, 115));
-                }
-                else
-                {
-                    // Gauge ring
-                    series.Fill = new SolidColorPaint(new SKColor(215, 216, 255));
-                }
-            })
-            .HasRuleForLineSeries(series =>
-            {
-                series.GeometrySize = 0;
-                series.LineSmoothness = 1.0;
-                
-                // Set default stroke and fill for Sparklines
-                var c = new SKColor(215, 216, 255);
-                series.Stroke = new SolidColorPaint(c) { StrokeThickness = 2 };
-                series.Fill = new SolidColorPaint(new SKColor(215, 216, 255, 50));
-            })
         );
 }

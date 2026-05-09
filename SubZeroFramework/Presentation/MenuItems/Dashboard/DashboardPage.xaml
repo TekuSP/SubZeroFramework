@@ -162,7 +162,7 @@
                                                     <lvc:XamlLineSeries
                                                         Fill="{x:Null}"
                                                         GeometryFill="{x:Null}"
-                                                        GeometryStroke="{lvc:SolidColorPaint Color='#FFD7D8FF',
+                                                        Stroke="{lvc:SolidColorPaint Color='#FFD7D8FF',
                                                                                              StrokeWidth='2'}"
                                                         Values="{x:Bind FanSpeedHistory, Mode=OneWay}" />
                                                 </lvc:SeriesCollection>
