@@ -36,7 +36,6 @@ public partial class FanCardModel : ObservableObject
 
         return
         [
-            now.AddSeconds(-25).Ticks,
             now.AddSeconds(-20).Ticks,
             now.AddSeconds(-15).Ticks,
             now.AddSeconds(-10).Ticks,
@@ -51,6 +50,6 @@ public partial class FanCardModel : ObservableObject
 
         return secsAgo < 1
             ? "now"
-            : $"{secsAgo:N0}s ago";
+            : $"{secsAgo:N0}s";
     }
 }

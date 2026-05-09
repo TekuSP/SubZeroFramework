@@ -24,7 +24,7 @@ internal static class GrpcChangeSetWriter
         {
             var reader = ObservableChannelBridge.CreateBoundedReader(source, cancellationToken);
 
-            while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+                while (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
                 while (reader.TryRead(out var changeSet))
                 {

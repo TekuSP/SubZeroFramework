@@ -214,7 +214,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 var existingFan = Fans.FirstOrDefault(f => f.Snapshot.FanIndex == index);
                 if (existingFan != null)
                 {
-                    existingFan.FanSpeedHistory = pts.Select(x => new DateTimePoint(x.ObservedAt.DateTime, x.SpeedRpm)).ToArray();
+                    existingFan.FanSpeedHistory = pts.Select(x => new DateTimePoint(x.ObservedAt.LocalDateTime, x.SpeedRpm)).ToArray();
                 }
             });
 
