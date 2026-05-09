@@ -87,6 +87,11 @@
       <UnoImage Include="Assets\Svg\main_logo.svg" />
     </ItemGroup>
     <ItemGroup>
+      <Page Update="Controls\DurationPicker.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
       <Page Update="Themes\Generic.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>

@@ -7,9 +7,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using DynamicData;
 
 using LiveChartsCore;
+using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
+
 using SkiaSharp;
+
 using SubZeroFramework.Models;
 using SubZeroFramework.Services;
 
@@ -24,6 +27,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private readonly ITemperatureTelemetryClient _temperatureTelemetryClient;
     private readonly IBatteryTelemetryClient _batteryTelemetryClient;
     private readonly SynchronizationContext _synchronizationContext;
+    private readonly TimeSpan _initialTimeSpan = TimeSpan.FromSeconds(30);
 
     // Trackers for inner subscriptions
     private readonly Dictionary<int, IDisposable> _fanHistorySubscriptions = [];
@@ -56,7 +60,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
         _subscriptions.Add(_fanTelemetryClient
             .WatchFans()
             .ObserveOn(_synchronizationContext)
-            .Subscribe(set => 
+            .Subscribe(set =>
             {
                 var newFans = Fans.ToBuilder();
                 bool changed = false;
@@ -85,7 +89,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                         }
                     }
                 }
-                
+
                 if (changed)
                 {
                     Fans = newFans.ToImmutable();
@@ -110,12 +114,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
         _subscriptions.Add(_fanTelemetryClient
             .WatchFans()
             .ObserveOn(_synchronizationContext)
-            .Subscribe(set => 
+            .Subscribe(set =>
             {
                 foreach (var change in set)
                 {
                     if (change.Reason == ChangeReason.Add && !_fanHistorySubscriptions.ContainsKey(change.Key))
-                        _fanHistorySubscriptions.Add(change.Key, SubscribeFanHistory(change.Key));
+                        _fanHistorySubscriptions.Add(change.Key, SubscribeFanHistory(change.Key, _initialTimeSpan));
                     else if (change.Reason == ChangeReason.Remove)
                         RemoveFanHistory(change.Key);
                 }
@@ -125,12 +129,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
         _subscriptions.Add(_temperatureTelemetryClient
             .WatchTemperatures()
             .ObserveOn(_synchronizationContext)
-            .Subscribe(set => 
+            .Subscribe(set =>
             {
                 foreach (var change in set)
                 {
                     if (change.Reason == ChangeReason.Add && !_temperatureHistorySubscriptions.ContainsKey(change.Key))
-                        _temperatureHistorySubscriptions.Add(change.Key, SubscribeTemperatureHistory(change.Key));
+                        _temperatureHistorySubscriptions.Add(change.Key, SubscribeTemperatureHistory(change.Key, _initialTimeSpan));
                     else if (change.Reason == ChangeReason.Remove)
                         RemoveTemperatureHistory(change.Key);
                 }
@@ -140,13 +144,13 @@ public partial class DashboardModel : ObservableObject, IDisposable
         _subscriptions.Add(_batteryTelemetryClient
             .WatchBatteries()
             .ObserveOn(_synchronizationContext)
-            .Subscribe(set => 
+            .Subscribe(set =>
             {
                 foreach (var change in set)
                 {
                     var batteryKey = (change.Key, TelemetryMetric.BatteryChargePercent);
                     if (change.Reason == ChangeReason.Add && !_batteryHistorySubscriptions.ContainsKey(batteryKey))
-                        _batteryHistorySubscriptions.Add(batteryKey, SubscribeBatteryHistory(batteryKey.Item1, batteryKey.Item2));
+                        _batteryHistorySubscriptions.Add(batteryKey, SubscribeBatteryHistory(batteryKey.Item1, batteryKey.Item2, _initialTimeSpan));
                     else if (change.Reason == ChangeReason.Remove)
                         RemoveBatteryHistory(batteryKey.Item1, batteryKey.Item2);
                 }
@@ -155,9 +159,6 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial FrameworkSystemStatus? LastStatus { get; set; }
-
-    [ObservableProperty]
-    public partial TimeSpan SelectedHistoryRange { get; set; } = TimeSpan.FromMinutes(5);
 
     [ObservableProperty]
     public partial ImmutableArray<FanCardModel> Fans { get; set; } = [];
@@ -174,38 +175,38 @@ public partial class DashboardModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial ImmutableArray<BatteryTelemetryHistorySeries> BatteryHistory { get; set; } = [];
 
-    partial void OnSelectedHistoryRangeChanged(TimeSpan value)
+
+    public void SelectHistoryRangeChangeFan(int fanIndex, TimeSpan value)
     {
-        // Fan
-        var activeFans = _fanHistorySubscriptions.Keys.ToList();
-        foreach (var index in activeFans)
+        if (_fanHistorySubscriptions.TryGetValue(fanIndex, out IDisposable? disp))
         {
-            _fanHistorySubscriptions[index].Dispose();
-            _fanHistorySubscriptions[index] = SubscribeFanHistory(index);
+            disp?.Dispose();
+            _fanHistorySubscriptions.Remove(fanIndex);
         }
-
-        // Temperature
-        TemperatureHistory = [];
-        var activeTemps = _temperatureHistorySubscriptions.Keys.ToList();
-        foreach (var index in activeTemps)
+        _fanHistorySubscriptions.Add(fanIndex, SubscribeFanHistory(fanIndex, value));
+    }
+    public void SelectHistoryRangeChangeThermal(int sensorIndex, TimeSpan value)
+    {
+        if (_temperatureHistorySubscriptions.TryGetValue(sensorIndex, out IDisposable? disp))
         {
-            _temperatureHistorySubscriptions[index].Dispose();
-            _temperatureHistorySubscriptions[index] = SubscribeTemperatureHistory(index);
+            disp?.Dispose();
+            _temperatureHistorySubscriptions.Remove(sensorIndex);
         }
-
-        // Battery
-        BatteryHistory = [];
-        var activeBatteries = _batteryHistorySubscriptions.Keys.ToList();
-        foreach (var key in activeBatteries)
+        _temperatureHistorySubscriptions.Add(sensorIndex, SubscribeTemperatureHistory(sensorIndex, value));
+    }
+    public void SelectHistoryRangeChangePower((int index, TelemetryMetric metric) batteryIndex, TimeSpan value)
+    {
+        if (_batteryHistorySubscriptions.TryGetValue(batteryIndex, out IDisposable? disp))
         {
-            _batteryHistorySubscriptions[key].Dispose();
-            _batteryHistorySubscriptions[key] = SubscribeBatteryHistory(key.Index, key.Metric);
+            disp?.Dispose();
+            _batteryHistorySubscriptions.Remove(batteryIndex);
         }
+        _batteryHistorySubscriptions.Add(batteryIndex, SubscribeBatteryHistory(batteryIndex.index, batteryIndex.metric, value));
     }
 
-    private IDisposable SubscribeFanHistory(int index) =>
+    private IDisposable SubscribeFanHistory(int index, TimeSpan range) =>
         _fanTelemetryClient
-            .WatchFanHistory(index, SelectedHistoryRange)
+            .WatchFanHistory(index, range)
             .ToCollection()
             .ObserveOn(_synchronizationContext)
             .Subscribe(pts =>
@@ -213,22 +214,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 var existingFan = Fans.FirstOrDefault(f => f.Snapshot.FanIndex == index);
                 if (existingFan != null)
                 {
-                    if (existingFan.SparklineSeries.Count == 0)
-                    {
-                        //existingFan.SparklineSeries.Add(new LineSeries<double>
-                        //{
-                        //    Values = pts.Select(p => p.SpeedRpm).ToArray(),
-                        //    LineSmoothness = 1,
-                        //    GeometrySize = 0,
-                        //    GeometryStroke = null,
-                        //    Fill = new SolidColorPaint(SKColors.CornflowerBlue.WithAlpha(50)),
-                        //    Stroke = new SolidColorPaint(SKColors.CornflowerBlue) { StrokeThickness = 2 }
-                        //});
-                    }
-                    else
-                    {
-                        //((LineSeries<double>)existingFan.SparklineSeries[0]).Values = pts.Select(p => p.SpeedRpm).ToArray();
-                    }
+                    existingFan.FanSpeedHistory = pts.Select(x => new DateTimePoint(x.ObservedAt.DateTime, x.SpeedRpm)).ToArray();
                 }
             });
 
@@ -238,13 +224,13 @@ public partial class DashboardModel : ObservableObject, IDisposable
         var existingFan = Fans.FirstOrDefault(f => f.Snapshot.FanIndex == index);
         if (existingFan != null)
         {
-            existingFan.SparklineSeries.Clear();
+            existingFan.FanSpeedHistory = [];
         }
     }
 
-    private IDisposable SubscribeTemperatureHistory(int index) =>
+    private IDisposable SubscribeTemperatureHistory(int index, TimeSpan value) =>
         _temperatureTelemetryClient
-            .WatchTemperatureHistory(index, SelectedHistoryRange)
+            .WatchTemperatureHistory(index, value)
             .ToCollection()
             .ObserveOn(_synchronizationContext)
             .Subscribe(pts =>
@@ -261,9 +247,9 @@ public partial class DashboardModel : ObservableObject, IDisposable
         if (existing != null) TemperatureHistory = TemperatureHistory.Remove(existing);
     }
 
-    private IDisposable SubscribeBatteryHistory(int index, TelemetryMetric metric) =>
+    private IDisposable SubscribeBatteryHistory(int index, TelemetryMetric metric,TimeSpan value) =>
         _batteryTelemetryClient
-            .WatchBatteryHistory(index, metric, SelectedHistoryRange)
+            .WatchBatteryHistory(index, metric, value)
             .ToCollection()
             .ObserveOn(_synchronizationContext)
             .Subscribe(pts =>

@@ -1,0 +1,54 @@
+﻿<UserControl
+    x:Class="SubZeroFramework.Controls.DurationPicker"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="96"
+    d:DesignWidth="360"
+    mc:Ignorable="d">
+
+    <StackPanel>
+        <TextBlock
+            Foreground="{StaticResource TextSecondaryBrush}"
+            Style="{ThemeResource CaptionTextBlockStyle}"
+            Text="{x:Bind Header, Mode=OneWay}" />
+        <StackPanel
+            HorizontalAlignment="Left"
+            Orientation="Horizontal"
+            Spacing="12">
+            <StackPanel MinWidth="15" Spacing="4">
+                <NumberBox
+                    x:Name="HoursBox"
+                    Header="Hours"
+                    Minimum="0"
+                    SmallChange="1"
+                    SpinButtonPlacementMode="Hidden"
+                    ValueChanged="{x:Bind OnPartValueChanged}" />
+            </StackPanel>
+
+            <StackPanel MinWidth="15" Spacing="4">
+                <NumberBox
+                    x:Name="MinutesBox"
+                    Header="Minutes"
+                    Maximum="59"
+                    Minimum="0"
+                    SmallChange="1"
+                    SpinButtonPlacementMode="Hidden"
+                    ValueChanged="{x:Bind OnPartValueChanged}" />
+            </StackPanel>
+
+            <StackPanel MinWidth="15" Spacing="4">
+                <NumberBox
+                    x:Name="SecondsBox"
+                    Header="Seconds"
+                    Maximum="59"
+                    Minimum="0"
+                    SmallChange="1"
+                    SpinButtonPlacementMode="Hidden"
+                    ValueChanged="{x:Bind OnPartValueChanged}" />
+            </StackPanel>
+        </StackPanel>
+
+    </StackPanel>
+</UserControl>

@@ -32,7 +32,7 @@
                     <GridView.ItemTemplate>
                         <DataTemplate x:DataType="local:FanCardModel">
                             <controls:ElevatedCard
-                                Width="350"
+                                Width="300"
                                 Height="250"
                                 HorizontalContentAlignment="Stretch"
                                 VerticalContentAlignment="Stretch"
@@ -57,6 +57,7 @@
                                     <Grid Grid.Row="1" Margin="-100,0,0,0">
                                         <lvc:PieChart
                                             Background="Transparent"
+                                            CornerRadius="0"
                                             InitialRotation="-225"
                                             LegendPosition="Hidden"
                                             MaxAngle="200"
@@ -69,17 +70,21 @@
                                                         The main gauge series.
                                                     -->
                                                     <lvc:XamlGaugeSeries
+                                                        CornerRadius="0"
                                                         DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                         DataLabelsPosition="ChartCenter"
                                                         Fill="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
                                                         GaugeValue="{x:Bind Snapshot.SpeedRpm, Mode=OneWay}"
-                                                        InnerRadius="65"
+                                                        InnerRadius="60"
+                                                        InvertedCornerRadius="True"
                                                         ShowDataLabels="False" />
                                                     <!--  The background series is used to style the gauge background.  -->
                                                     <lvc:XamlGaugeBackgroundSeries
+                                                        CornerRadius="0"
                                                         DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                         Fill="{lvc:SolidColorPaint Color='#FF5D5E73'}"
-                                                        InnerRadius="65"
+                                                        InnerRadius="60"
+                                                        InvertedCornerRadius="True"
                                                         ShowDataLabels="False" />
                                                 </lvc:SeriesCollection>
                                             </lvc:PieChart.Series>
@@ -88,6 +93,7 @@
 
                                     <StackPanel
                                         Grid.Row="1"
+                                        Margin="-55,0,0,0"
                                         HorizontalAlignment="Center"
                                         VerticalAlignment="Center"
                                         Orientation="Horizontal">
@@ -103,11 +109,75 @@
                                             Text="RPM" />
                                     </StackPanel>
 
+                                    <StackPanel
+                                        Grid.Row="1"
+                                        Margin="0,0,15,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Bottom">
+
+                                        <!--  Target & Driving Temp  -->
+                                        <StackPanel
+                                            Margin="0,0,0,0"
+                                            HorizontalAlignment="Right"
+                                            Orientation="Horizontal"
+                                            Spacing="6">
+                                            <material:MaterialIcon
+                                                Width="14"
+                                                Height="14"
+                                                Foreground="Gray"
+                                                Kind="Target" />
+                                            <TextBlock
+                                                FontSize="14"
+                                                Foreground="LightGray"
+                                                Text="Target: Auto" />
+                                        </StackPanel>
+                                        <StackPanel
+                                            Margin="0,2,0,0"
+                                            HorizontalAlignment="Center"
+                                            Orientation="Horizontal"
+                                            Spacing="6">
+                                            <material:MaterialIcon
+                                                Width="14"
+                                                Height="14"
+                                                Foreground="Gray"
+                                                Kind="Thermometer" />
+                                            <TextBlock
+                                                FontSize="14"
+                                                Foreground="LightGray"
+                                                Text="Driving Temp: --°C" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+
                                     <!--  Status & Sparkline at bottom  -->
                                     <Grid
                                         Grid.Row="2"
                                         Height="50"
                                         Margin="0,0,0,5">
+
+                                        <!--  Sparkline background stretch  -->
+                                        <lvc:CartesianChart Margin="-10,0,-10,-10" Background="Transparent">
+                                            <lvc:CartesianChart.Series>
+                                                <lvc:SeriesCollection>
+                                                    <lvc:XamlLineSeries
+                                                        Fill="{x:Null}"
+                                                        GeometryFill="{x:Null}"
+                                                        GeometryStroke="{lvc:SolidColorPaint Color='#FFD7D8FF',
+                                                                                             StrokeWidth='2'}"
+                                                        Values="{x:Bind FanSpeedHistory, Mode=OneWay}" />
+                                                </lvc:SeriesCollection>
+                                            </lvc:CartesianChart.Series>
+                                            <lvc:CartesianChart.XAxes>
+                                                <lvc:AxesCollection>
+                                                    <lvc:XamlDateTimeAxis
+                                                        AnimationsSpeed="0"
+                                                        CustomSeparators="{x:Bind Separators, Mode=OneWay}"
+                                                        DateFormatter="{x:Bind LabelsFormatter}"
+                                                        Interval="0:0:1"
+                                                        SeparatorsPaint="{lvc:SolidColorPaint Color='FFD7D8FF'}" />
+                                                </lvc:AxesCollection>
+                                            </lvc:CartesianChart.XAxes>
+                                        </lvc:CartesianChart>
                                         <StackPanel
                                             Margin="15,0,0,10"
                                             VerticalAlignment="Bottom"
@@ -123,51 +193,6 @@
                                                 Foreground="Gray"
                                                 Text="Status: OK" />
                                         </StackPanel>
-
-                                        <StackPanel
-                                            Margin="0,0,15,0"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Stretch">
-
-                                            <!--  Target & Driving Temp  -->
-                                            <StackPanel
-                                                Margin="0,0,0,0"
-                                                HorizontalAlignment="Right"
-                                                Orientation="Horizontal"
-                                                Spacing="6">
-                                                <material:MaterialIcon
-                                                    Width="14"
-                                                    Height="14"
-                                                    Foreground="Gray"
-                                                    Kind="Target" />
-                                                <TextBlock
-                                                    FontSize="14"
-                                                    Foreground="LightGray"
-                                                    Text="Target: Auto" />
-                                            </StackPanel>
-                                            <StackPanel
-                                                Margin="0,2,0,0"
-                                                HorizontalAlignment="Center"
-                                                Orientation="Horizontal"
-                                                Spacing="6">
-                                                <material:MaterialIcon
-                                                    Width="14"
-                                                    Height="14"
-                                                    Foreground="Gray"
-                                                    Kind="Thermometer" />
-                                                <TextBlock
-                                                    FontSize="14"
-                                                    Foreground="LightGray"
-                                                    Text="Driving Temp: --°C" />
-                                            </StackPanel>
-                                        </StackPanel>
-
-                                        <!--  Sparkline background stretch  -->
-                                        <lvc:CartesianChart
-                                            Margin="-10,0,-10,-10"
-                                            Background="Transparent"
-                                            Series="{x:Bind SparklineSeries, Mode=OneWay}"
-                                            TooltipPosition="Hidden" />
                                     </Grid>
                                 </Grid>
                             </controls:ElevatedCard>
