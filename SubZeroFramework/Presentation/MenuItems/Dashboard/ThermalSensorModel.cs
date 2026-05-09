@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+
 using FrameworkDotnet.Enums;
 
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -21,6 +23,11 @@ public partial class ThermalSensorModel : ObservableObject
 		"#FFE8B86C",
 		"#FFFF8A80",
 	];
+	private readonly ObservableValue _coolGaugeObservable = new(0d);
+	private readonly ObservableValue _normalGaugeObservable = new(0d);
+	private readonly ObservableValue _warmGaugeObservable = new(0d);
+	private readonly ObservableValue _hotGaugeObservable = new(0d);
+	private readonly ObservableValue _remainingGaugeObservable = new(100d);
 
 	[ObservableProperty]
 	[NotifyPropertyChangedFor(nameof(DisplayName))]
@@ -28,25 +35,12 @@ public partial class ThermalSensorModel : ObservableObject
 	[NotifyPropertyChangedFor(nameof(TemperatureValueWithUnit))]
 	[NotifyPropertyChangedFor(nameof(SelectionDisplay))]
 	[NotifyPropertyChangedFor(nameof(ShouldShowByDefault))]
-	[NotifyPropertyChangedFor(nameof(GaugeValue))]
-	[NotifyPropertyChangedFor(nameof(CoolGaugeValue))]
-	[NotifyPropertyChangedFor(nameof(CoolGaugeValues))]
-	[NotifyPropertyChangedFor(nameof(NormalGaugeValue))]
-	[NotifyPropertyChangedFor(nameof(NormalGaugeValues))]
-	[NotifyPropertyChangedFor(nameof(WarmGaugeValue))]
-	[NotifyPropertyChangedFor(nameof(WarmGaugeValues))]
-	[NotifyPropertyChangedFor(nameof(HotGaugeValue))]
-	[NotifyPropertyChangedFor(nameof(HotGaugeValues))]
-	[NotifyPropertyChangedFor(nameof(RemainingGaugeValue))]
-	[NotifyPropertyChangedFor(nameof(RemainingGaugeValues))]
 	[NotifyPropertyChangedFor(nameof(HistoryStrokeHex))]
 	public partial TemperatureTelemetrySnapshot Snapshot { get; set; } = default!;
 
-	[ObservableProperty]
-	public partial DateTimePoint[] TemperatureHistory { get; set; } = [];
+	public ObservableCollection<DateTimePoint> TemperatureHistory { get; } = [];
 
-	[ObservableProperty]
-	public partial DateTimePoint[] OverviewTemperatureHistory { get; set; } = [];
+	public ObservableCollection<DateTimePoint> OverviewTemperatureHistory { get; } = [];
 
 	[ObservableProperty]
 	public partial double[] Separators { get; set; } = [];
@@ -62,6 +56,15 @@ public partial class ThermalSensorModel : ObservableObject
 
 	[ObservableProperty]
 	public partial Brush TemperatureBrush { get; set; } = GetBrush("TextPrimaryBrush", ColorHelper.FromArgb(255, 215, 216, 255));
+
+	public ThermalSensorModel()
+	{
+		CoolGaugeValues = [_coolGaugeObservable];
+		NormalGaugeValues = [_normalGaugeObservable];
+		WarmGaugeValues = [_warmGaugeObservable];
+		HotGaugeValues = [_hotGaugeObservable];
+		RemainingGaugeValues = [_remainingGaugeObservable];
+	}
 
 	public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
 
@@ -88,34 +91,30 @@ public partial class ThermalSensorModel : ObservableObject
 
 	public double CoolGaugeValue => GetGaugeSegmentValue(0d, 45d);
 
-	public double[] CoolGaugeValues => [CoolGaugeValue];
+	public ObservableValue[] CoolGaugeValues { get; }
 
 	public double NormalGaugeValue => GetGaugeSegmentValue(45d, 70d);
 
-	public double[] NormalGaugeValues => [NormalGaugeValue];
+	public ObservableValue[] NormalGaugeValues { get; }
 
 	public double WarmGaugeValue => GetGaugeSegmentValue(70d, 85d);
 
-	public double[] WarmGaugeValues => [WarmGaugeValue];
+	public ObservableValue[] WarmGaugeValues { get; }
 
 	public double HotGaugeValue => GetGaugeSegmentValue(85d, 100d);
 
-	public double[] HotGaugeValues => [HotGaugeValue];
+	public ObservableValue[] HotGaugeValues { get; }
 
 	public double RemainingGaugeValue => Math.Max(0d, 100d - GaugeValue);
 
-	public double[] RemainingGaugeValues => [RemainingGaugeValue];
+	public ObservableValue[] RemainingGaugeValues { get; }
 
 	public string HistoryStrokeHex => HistoryStrokePalette[Math.Abs(Snapshot.SensorIndex) % HistoryStrokePalette.Length];
 
 	partial void OnSnapshotChanged(TemperatureTelemetrySnapshot value)
 	{
+		UpdateGaugeValues();
 		UpdatePresentation();
-	}
-
-	partial void OnTemperatureHistoryChanged(DateTimePoint[] value)
-	{
-		Separators = GetSeparators(value.LastOrDefault());
 	}
 
 	private void UpdatePresentation()
@@ -139,8 +138,8 @@ public partial class ThermalSensorModel : ObservableObject
 				return;
 			case FrameworkTemperatureState.NotPowered:
 				StatusText = "Status: Not Powered";
-				StatusBrush = GetBrush("StatusWarningBrush", ColorHelper.FromArgb(255, 197, 153, 78));
-				TemperatureBrush = GetBrush("TextSecondaryBrush", ColorHelper.FromArgb(255, 160, 163, 186));
+					StatusBrush = GetBrush("BrandDisabledBrush", ColorHelper.FromArgb(255, 74, 76, 89));
+					TemperatureBrush = GetBrush("BrandDisabledBrush", ColorHelper.FromArgb(255, 74, 76, 89));
 				return;
 			case FrameworkTemperatureState.NotCalibrated:
 				StatusText = "Status: Not Calibrated";
@@ -186,6 +185,29 @@ public partial class ThermalSensorModel : ObservableObject
 		TemperatureBrush = GetBrush("StatusErrorBrush", ColorHelper.FromArgb(255, 68, 39, 38));
 	}
 
+	private void UpdateGaugeValues()
+	{
+		_coolGaugeObservable.Value = CoolGaugeValue;
+		_normalGaugeObservable.Value = NormalGaugeValue;
+		_warmGaugeObservable.Value = WarmGaugeValue;
+		_hotGaugeObservable.Value = HotGaugeValue;
+		_remainingGaugeObservable.Value = RemainingGaugeValue;
+	}
+
+	public void ClearTemperatureHistory()
+	{
+		SynchronizePoints(OverviewTemperatureHistory, []);
+		SynchronizePoints(TemperatureHistory, []);
+		Separators = [];
+	}
+
+	public void UpdateTemperatureHistory(IReadOnlyList<DateTimePoint> overviewHistory, IReadOnlyList<DateTimePoint> cardHistory)
+	{
+		SynchronizePoints(OverviewTemperatureHistory, overviewHistory);
+		SynchronizePoints(TemperatureHistory, cardHistory);
+		Separators = GetSeparators();
+	}
+
 	private bool ShouldDisplayMeasuredTemperature => Snapshot.IsAvailable
 		&& Snapshot.TemperatureCelsius is not null
 		&& (Snapshot.TemperatureState is null || Snapshot.TemperatureState == FrameworkTemperatureState.Ok);
@@ -209,30 +231,78 @@ public partial class ThermalSensorModel : ObservableObject
 		return Math.Min(value, endExclusive) - startInclusive;
 	}
 
-	private static double[] GetSeparators(DateTimePoint? lastPoint)
+	private static void SynchronizePoints(ObservableCollection<DateTimePoint> target, IReadOnlyList<DateTimePoint> source)
 	{
-		if (lastPoint is null)
+		var commonCount = Math.Min(target.Count, source.Count);
+
+		for (var index = 0; index < commonCount; index++)
 		{
-			return [];
+			var current = target[index];
+			var next = source[index];
+
+			if (current.DateTime != next.DateTime || current.Value != next.Value)
+			{
+				target[index] = next;
+			}
 		}
 
-		var end = lastPoint.DateTime;
+		for (var index = target.Count - 1; index >= source.Count; index--)
+		{
+			target.RemoveAt(index);
+		}
+
+		for (var index = commonCount; index < source.Count; index++)
+		{
+			target.Add(source[index]);
+		}
+	}
+
+	private static double[] GetSeparators()
+	{
+		var now = DateTime.Now;
 
 		return
 		[
-			end.AddMinutes(-15).Ticks,
-			end.AddMinutes(-10).Ticks,
-			end.AddMinutes(-5).Ticks,
-			end.Ticks,
-		];
+            now.AddSeconds(-30).Ticks,
+            now.AddSeconds(-25).Ticks,
+            now.AddSeconds(-20).Ticks,
+            now.AddSeconds(-15).Ticks,
+            now.AddSeconds(-10).Ticks,
+            now.AddSeconds(-5).Ticks,
+            now.Ticks
+        ];
 	}
 
 	public static string Formatter(DateTime date)
 	{
-		var minutesAgo = (DateTime.Now - date).TotalMinutes;
+		var elapsed = DateTime.Now - date;
 
-		return minutesAgo < 1d
-			? "now"
-			: $"{minutesAgo:N0}m";
+		if (elapsed.TotalSeconds < 1d)
+		{
+			return "now";
+		}
+
+		if (elapsed.TotalMinutes < 1d)
+		{
+			return $"{elapsed.TotalSeconds:N0}s";
+		}
+
+		if (elapsed.TotalHours < 1d)
+		{
+			return $"{elapsed.TotalMinutes:N0}m";
+		}
+
+		var hours = (int)Math.Floor(elapsed.TotalHours);
+		var minutes = (int)Math.Round(elapsed.TotalMinutes - (hours * 60d), MidpointRounding.AwayFromZero);
+
+		if (minutes == 60)
+		{
+			hours++;
+			minutes = 0;
+		}
+
+		return minutes == 0
+			? $"{hours}h"
+			: $"{hours}h {minutes}m";
 	}
 }

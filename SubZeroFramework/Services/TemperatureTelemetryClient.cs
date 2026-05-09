@@ -1,3 +1,5 @@
+using FrameworkDotnet.Enums;
+
 using DynamicData;
 
 using System.Reactive.Linq;
@@ -86,6 +88,8 @@ public sealed class TemperatureTelemetryClient : ITemperatureTelemetryClient
 
     private static TemperatureTelemetrySnapshot MapSnapshot(CurrentTelemetryValue value)
     {
+        var normalizedTemperatureState = NormalizeTemperatureState(value.TemperatureState, value.NumericValue, value.IsAvailable);
+
         return new TemperatureTelemetrySnapshot
         {
             SensorIndex = value.ChannelId.Index,
@@ -93,8 +97,20 @@ public sealed class TemperatureTelemetryClient : ITemperatureTelemetryClient
             UnitSymbol = value.UnitSymbol,
             ObservedAt = value.ObservedAt,
             TemperatureCelsius = value.NumericValue,
-            TemperatureState = value.TemperatureState,
+            TemperatureState = normalizedTemperatureState,
             IsAvailable = value.IsAvailable
         };
+    }
+
+    private static FrameworkTemperatureState? NormalizeTemperatureState(FrameworkTemperatureState? temperatureState, double? temperatureCelsius, bool isAvailable)
+    {
+        if (!isAvailable)
+        {
+            return temperatureState;
+        }
+
+        return temperatureCelsius == 0d && (temperatureState is null or FrameworkTemperatureState.Ok)
+            ? FrameworkTemperatureState.NotPowered
+            : temperatureState;
     }
 }

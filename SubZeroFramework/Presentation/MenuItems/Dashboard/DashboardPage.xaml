@@ -18,18 +18,32 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Padding="0,0,0,24" Spacing="18">
                 <StackPanel>
-                    <TextBlock
-                        Margin="15,0"
-                        FontSize="28"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="Active Cooling Section" />
+                    <Grid Margin="15,0,15,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            FontSize="28"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="Active Cooling Section" />
+                        <CheckBox
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            IsChecked="{x:Bind ViewModel.ShowInactiveFans, Mode=TwoWay}">
+                            <CheckBox.Content>
+                                <TextBlock Text="Show inactive fans" />
+                            </CheckBox.Content>
+                        </CheckBox>
+                    </Grid>
                     <GridView
                         Margin="10,0"
                         AllowDrop="True"
                         CanDragItems="True"
                         CanReorderItems="True"
-                        ItemsSource="{x:Bind ViewModel.Fans, Mode=OneWay}"
+                        ItemsSource="{x:Bind ViewModel.VisibleFans, Mode=OneWay}"
                         SelectionMode="None">
                         <GridView.ItemTemplate>
                             <DataTemplate x:DataType="local:FanCardModel">
@@ -221,15 +235,21 @@
                             FontWeight="SemiBold"
                             Foreground="{StaticResource TextPrimaryBrush}"
                             Text="Thermal Snapshot Section" />
-                        <CheckBox
+                        <StackPanel
                             Grid.Column="1"
                             VerticalAlignment="Center"
-                            Foreground="{StaticResource TextPrimaryBrush}"
-                            IsChecked="{x:Bind ViewModel.ShowInactiveThermalSensors, Mode=TwoWay}">
-                            <CheckBox.Content>
-                                <TextBlock Text="Show inactive sensors" />
-                            </CheckBox.Content>
-                        </CheckBox>
+                            Spacing="4">
+                            <CheckBox Foreground="{StaticResource TextPrimaryBrush}" IsChecked="{x:Bind ViewModel.ShowNotPoweredThermalSensors, Mode=TwoWay}">
+                                <CheckBox.Content>
+                                    <TextBlock Text="Show not powered" />
+                                </CheckBox.Content>
+                            </CheckBox>
+                            <CheckBox Foreground="{StaticResource TextPrimaryBrush}" IsChecked="{x:Bind ViewModel.ShowInactiveThermalSensors, Mode=TwoWay}">
+                                <CheckBox.Content>
+                                    <TextBlock Text="Show inactive sensors" />
+                                </CheckBox.Content>
+                            </CheckBox>
+                        </StackPanel>
                     </Grid>
                     <GridView
                         Margin="10,0"
@@ -260,6 +280,7 @@
 
                                         <Grid Grid.Row="1" Margin="-100,0,0,0">
                                             <lvc:PieChart
+                                                AnimationsSpeed="0"
                                                 Background="Transparent"
                                                 CornerRadius="0"
                                                 InitialRotation="-225"
@@ -271,26 +292,31 @@
                                                 <lvc:PieChart.Series>
                                                     <lvc:SeriesCollection>
                                                         <lvc:XamlPieSeries
+                                                            AnimationsSpeed="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                             Fill="{lvc:SolidColorPaint Color='#FF8AB7E8'}"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind CoolGaugeValues, Mode=OneWay}" />
                                                         <lvc:XamlPieSeries
+                                                            AnimationsSpeed="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                             Fill="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind NormalGaugeValues, Mode=OneWay}" />
                                                         <lvc:XamlPieSeries
+                                                            AnimationsSpeed="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                             Fill="{lvc:SolidColorPaint Color='#FFC5994E'}"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind WarmGaugeValues, Mode=OneWay}" />
                                                         <lvc:XamlPieSeries
+                                                            AnimationsSpeed="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                             Fill="{lvc:SolidColorPaint Color='#FF8A5C5B'}"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind HotGaugeValues, Mode=OneWay}" />
                                                         <lvc:XamlPieSeries
+                                                            AnimationsSpeed="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                             Fill="{lvc:SolidColorPaint Color='#FF5D5E73'}"
                                                             MaxRadialColumnWidth="15"
@@ -332,6 +358,7 @@
                                             <lvc:CartesianChart.Series>
                                                 <lvc:SeriesCollection>
                                                     <lvc:XamlLineSeries
+                                                        AnimationsSpeed="0"
                                                         Fill="{x:Null}"
                                                         GeometryFill="{x:Null}"
                                                         GeometryStroke="{x:Null}"
@@ -347,7 +374,9 @@
                                                         CustomSeparators="{x:Bind Separators, Mode=OneWay}"
                                                         DateFormatter="{x:Bind LabelsFormatter}"
                                                         Interval="0:5:0"
+                                                        LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
                                                         SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                        ShowSeparatorLines="True"
                                                         TextSize="8" />
                                                 </lvc:AxesCollection>
                                             </lvc:CartesianChart.XAxes>
@@ -404,7 +433,7 @@
                         HorizontalContentAlignment="Stretch"
                         VerticalContentAlignment="Stretch"
                         Background="{StaticResource CardBackgroundBrush}">
-                        <Grid Margin="18">
+                        <Grid Margin="15">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -448,38 +477,51 @@
 
                             <Border
                                 Grid.Row="2"
-                                Padding="12"
+                                Padding="6"
                                 Background="#221A1E32"
                                 CornerRadius="18">
-                                <lvc:CartesianChart
-                                    x:Name="ThermalHistoryChart"
-                                    Height="340"
-                                    AutoUpdateEnabled="True"
-                                    Background="Transparent"
-                                    LegendPosition="Hidden"
-                                    TooltipPosition="Top">
-                                    <lvc:CartesianChart.XAxes>
-                                        <lvc:AxesCollection>
-                                            <lvc:XamlDateTimeAxis
-                                                AnimationsSpeed="0"
-                                                DateFormatter="{x:Bind ViewModel.ThermalHistoryDateFormatter, Mode=OneWay}"
-                                                Interval="0:10:0"
-                                                SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
-                                                TextSize="12" />
-                                        </lvc:AxesCollection>
-                                    </lvc:CartesianChart.XAxes>
-                                    <lvc:CartesianChart.YAxes>
-                                        <lvc:AxesCollection>
-                                            <lvc:XamlAxis
-                                                Labeler="{x:Bind ThermalLabelFormatter}"
-                                                LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
-                                                MaxLimit="100"
-                                                MinLimit="0"
-                                                SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
-                                                TextSize="12" />
-                                        </lvc:AxesCollection>
-                                    </lvc:CartesianChart.YAxes>
-                                </lvc:CartesianChart>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="*" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <lvc:CartesianChart
+                                        x:Name="ThermalHistoryChart"
+                                        Height="324"
+                                        AutoUpdateEnabled="True"
+                                        Background="Transparent"
+                                        LegendPosition="Hidden"
+                                        TooltipPosition="Top">
+                                        <lvc:CartesianChart.XAxes>
+                                            <lvc:AxesCollection>
+                                                <lvc:XamlDateTimeAxis
+                                                    Name="Time"
+                                                    AnimationsSpeed="0"
+                                                    CustomSeparators="{x:Bind ThermalHistorySeparators, Mode=OneWay}"
+                                                    DateFormatter="{x:Bind ThermalHistoryDateFormatter, Mode=OneWay}"
+                                                    Interval="0:10:0"
+                                                    LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                    MaxLimit="{x:Bind ThermalHistoryMaxLimit, Mode=OneWay}"
+                                                    MinLimit="{x:Bind ThermalHistoryMinLimit, Mode=OneWay}"
+                                                    SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                    ShowSeparatorLines="True"
+                                                    TextSize="12" />
+                                            </lvc:AxesCollection>
+                                        </lvc:CartesianChart.XAxes>
+                                        <lvc:CartesianChart.YAxes>
+                                            <lvc:AxesCollection>
+                                                <lvc:XamlAxis
+                                                    Labeler="{x:Bind ThermalLabelFormatter}"
+                                                    LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                    MaxLimit="100"
+                                                    MinLimit="0"
+                                                    SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                    TextSize="12" />
+                                            </lvc:AxesCollection>
+                                        </lvc:CartesianChart.YAxes>
+                                    </lvc:CartesianChart>
+                                </Grid>
                             </Border>
                         </Grid>
                     </controls:ElevatedCard>

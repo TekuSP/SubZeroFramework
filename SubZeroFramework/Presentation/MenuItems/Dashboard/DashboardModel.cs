@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Reactive.Disposables;
 using System.Reactive.Linq;
 
@@ -19,6 +20,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private readonly Dictionary<int, FanCapabilityState> _fanCapabilities = [];
     private readonly Dictionary<int, FanControlStateSnapshot> _fanControlStates = [];
     private readonly Dictionary<int, FanStateSnapshot> _fanStates = [];
+    private bool _showInactiveFans;
     private readonly IFrameworkStatusClient _frameworkStatusClient;
     private readonly IFrameworkTelemetryClient _frameworkTelemetryClient;
     private readonly IFanCapabilityClient _fanCapabilityClient;
@@ -27,10 +29,11 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private readonly IFanTelemetryClient _fanTelemetryClient;
     private readonly ITemperatureTelemetryClient _temperatureTelemetryClient;
     private readonly IBatteryTelemetryClient _batteryTelemetryClient;
+    private readonly ObservableCollection<ThermalSensorModel> _visibleThermalSensors = [];
     private readonly SynchronizationContext _synchronizationContext;
     private readonly TimeSpan _initialTimeSpan = TimeSpan.FromSeconds(30);
     private readonly TimeSpan _temperatureHistoryWindow = TimeSpan.FromHours(1);
-    private readonly TimeSpan _thermalCardHistoryWindow = TimeSpan.FromMinutes(15);
+    private readonly TimeSpan _thermalCardHistoryWindow = TimeSpan.FromSeconds(30);
 
     // Trackers for inner subscriptions
     private readonly Dictionary<int, IDisposable> _fanHistorySubscriptions = [];
@@ -59,6 +62,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
         _temperatureTelemetryClient = temperatureTelemetryClient;
         _batteryTelemetryClient = batteryTelemetryClient;
         _synchronizationContext = synchronizationContext;
+        VisibleThermalSensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_visibleThermalSensors);
 
         _subscriptions.Add(_frameworkStatusClient
             .WatchStatus()
@@ -128,9 +132,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
             {
+                var visibleFansChanged = false;
+
                 foreach (var change in set)
                 {
                     var fan = Fans.FirstOrDefault(existingFan => existingFan.Snapshot.FanIndex == change.Key);
+                    var wasVisible = fan is not null && IsFanVisible(fan, ShowInactiveFans);
 
                     if (change.Reason == ChangeReason.Remove)
                     {
@@ -138,6 +145,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                         if (fan != null)
                         {
                             fan.FanState = null;
+                            visibleFansChanged |= wasVisible != IsFanVisible(fan, ShowInactiveFans);
                         }
 
                         continue;
@@ -147,7 +155,13 @@ public partial class DashboardModel : ObservableObject, IDisposable
                     if (fan != null)
                     {
                         fan.FanState = change.Current;
+                        visibleFansChanged |= wasVisible != IsFanVisible(fan, ShowInactiveFans);
                     }
+                }
+
+                if (visibleFansChanged)
+                {
+                    OnPropertyChanged(nameof(VisibleFans));
                 }
             }));
 
@@ -159,6 +173,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
             {
                 var newFans = Fans.ToBuilder();
                 bool changed = false;
+                var visibleFansChanged = false;
                 foreach (var change in set)
                 {
                     if (change.Reason == ChangeReason.Add)
@@ -173,13 +188,16 @@ public partial class DashboardModel : ObservableObject, IDisposable
                         };
                         newFans.Add(fan);
                         changed = true;
+                        visibleFansChanged |= IsFanVisible(fan, ShowInactiveFans);
                     }
                     else if (change.Reason == ChangeReason.Update || change.Reason == ChangeReason.Refresh)
                     {
                         var fan = newFans.FirstOrDefault(f => f.Snapshot.FanIndex == change.Current.FanIndex);
                         if (fan != null)
                         {
+                            var wasVisible = IsFanVisible(fan, ShowInactiveFans);
                             fan.Snapshot = change.Current;
+                            visibleFansChanged |= wasVisible != IsFanVisible(fan, ShowInactiveFans);
                         }
                     }
                     else if (change.Reason == ChangeReason.Remove)
@@ -187,6 +205,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                         var fan = newFans.FirstOrDefault(f => f.Snapshot.FanIndex == change.Current.FanIndex);
                         if (fan != null)
                         {
+                            visibleFansChanged |= IsFanVisible(fan, ShowInactiveFans);
                             newFans.Remove(fan);
                             changed = true;
                         }
@@ -196,6 +215,11 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 if (changed)
                 {
                     Fans = newFans.ToImmutable();
+                }
+
+                if (visibleFansChanged)
+                {
+                    OnPropertyChanged(nameof(VisibleFans));
                 }
             }));
 
@@ -228,7 +252,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
                         newSensors.Add(thermalSensor);
                         changed = true;
-                        visibleSensorsChanged |= IsThermalSensorVisible(thermalSensor, ShowInactiveThermalSensors);
+                        visibleSensorsChanged |= IsThermalSensorVisible(thermalSensor, ShowNotPoweredThermalSensors, ShowInactiveThermalSensors);
                         continue;
                     }
 
@@ -240,15 +264,15 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
                     if (change.Reason == ChangeReason.Remove)
                     {
-                        visibleSensorsChanged |= IsThermalSensorVisible(existingSensor, ShowInactiveThermalSensors);
+                        visibleSensorsChanged |= IsThermalSensorVisible(existingSensor, ShowNotPoweredThermalSensors, ShowInactiveThermalSensors);
                         newSensors.Remove(existingSensor);
                         changed = true;
                         continue;
                     }
 
-                    var wasVisible = IsThermalSensorVisible(existingSensor, ShowInactiveThermalSensors);
+                    var wasVisible = IsThermalSensorVisible(existingSensor, ShowNotPoweredThermalSensors, ShowInactiveThermalSensors);
                     existingSensor.Snapshot = change.Current;
-                    visibleSensorsChanged |= wasVisible != IsThermalSensorVisible(existingSensor, ShowInactiveThermalSensors);
+                    visibleSensorsChanged |= wasVisible != IsThermalSensorVisible(existingSensor, ShowNotPoweredThermalSensors, ShowInactiveThermalSensors);
                 }
 
                 if (changed)
@@ -256,9 +280,9 @@ public partial class DashboardModel : ObservableObject, IDisposable
                     ThermalSensors = [.. newSensors.OrderBy(sensor => sensor.Snapshot.SensorIndex)];
                 }
 
-                if (visibleSensorsChanged)
+                if (changed || visibleSensorsChanged)
                 {
-                    OnPropertyChanged(nameof(VisibleThermalSensors));
+                    SynchronizeVisibleThermalSensors();
                 }
             }));
 
@@ -336,11 +360,30 @@ public partial class DashboardModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial ImmutableArray<FanCardModel> Fans { get; set; } = [];
 
+    public bool ShowInactiveFans
+    {
+        get => _showInactiveFans;
+        set
+        {
+            if (_showInactiveFans == value)
+            {
+                return;
+            }
+
+            _showInactiveFans = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(VisibleFans));
+        }
+    }
+
     [ObservableProperty]
     public partial ImmutableArray<TemperatureTelemetrySnapshot> TemperatureTelemetries { get; set; } = [];
 
     [ObservableProperty]
     public partial ImmutableArray<ThermalSensorModel> ThermalSensors { get; set; } = [];
+
+    [ObservableProperty]
+    public partial bool ShowNotPoweredThermalSensors { get; set; } = true;
 
     [ObservableProperty]
     public partial bool ShowInactiveThermalSensors { get; set; }
@@ -356,18 +399,61 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
     public Func<DateTime, string> ThermalHistoryDateFormatter { get; } = static date => date.ToLocalTime().ToString("HH:mm");
 
-    public ImmutableArray<ThermalSensorModel> VisibleThermalSensors => ShowInactiveThermalSensors
-        ? ThermalSensors
-        : [.. ThermalSensors.Where(sensor => sensor.ShouldShowByDefault)];
+    public ImmutableArray<FanCardModel> VisibleFans => ShowInactiveFans
+        ? Fans
+        : [.. Fans.Where(fan => fan.ShouldShowByDefault)];
+
+    public ReadOnlyObservableCollection<ThermalSensorModel> VisibleThermalSensors { get; }
+
+    partial void OnShowNotPoweredThermalSensorsChanged(bool value)
+    {
+        SynchronizeVisibleThermalSensors();
+    }
 
     partial void OnShowInactiveThermalSensorsChanged(bool value)
     {
-        OnPropertyChanged(nameof(VisibleThermalSensors));
+        SynchronizeVisibleThermalSensors();
     }
 
     private void UpdateDrivingSensors(FanCardModel fan)
     {
         fan.DrivingSensors = GetDrivingSensors(fan.ControlState);
+    }
+
+    private void SynchronizeVisibleThermalSensors()
+    {
+        var visibleSensors = ThermalSensors
+            .Where(sensor => IsThermalSensorVisible(sensor, ShowNotPoweredThermalSensors, ShowInactiveThermalSensors))
+            .ToArray();
+
+        SynchronizeSensors(_visibleThermalSensors, visibleSensors);
+    }
+
+    private static void SynchronizeSensors(ObservableCollection<ThermalSensorModel> target, IReadOnlyList<ThermalSensorModel> source)
+    {
+        for (var index = 0; index < source.Count; index++)
+        {
+            var expectedSensor = source[index];
+
+            if (index < target.Count && ReferenceEquals(target[index], expectedSensor))
+            {
+                continue;
+            }
+
+            var existingIndex = target.IndexOf(expectedSensor);
+            if (existingIndex >= 0)
+            {
+                target.Move(existingIndex, index);
+                continue;
+            }
+
+            target.Insert(index, expectedSensor);
+        }
+
+        while (target.Count > source.Count)
+        {
+            target.RemoveAt(target.Count - 1);
+        }
     }
 
     private ImmutableArray<TemperatureTelemetrySnapshot> GetDrivingSensors(FanControlStateSnapshot? controlState)
@@ -477,8 +563,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
         var thermalSensor = ThermalSensors.FirstOrDefault(sensor => sensor.Snapshot.SensorIndex == index);
         if (thermalSensor is not null)
         {
-            thermalSensor.TemperatureHistory = [];
-            thermalSensor.OverviewTemperatureHistory = [];
+            thermalSensor.ClearTemperatureHistory();
         }
     }
 
@@ -486,21 +571,22 @@ public partial class DashboardModel : ObservableObject, IDisposable
     {
         if (points.IsDefaultOrEmpty)
         {
-            sensor.TemperatureHistory = [];
-            sensor.OverviewTemperatureHistory = [];
+            sensor.ClearTemperatureHistory();
             return;
         }
 
         var overviewHistory = points
-            .Select(point => new DateTimePoint(point.ObservedAt.LocalDateTime, point.NumericValue))
+            .Select(point => new DateTimePoint(
+                point.ObservedAt.LocalDateTime,
+                point.NumericValue == 0d ? null : point.NumericValue))
             .ToArray();
-
-        sensor.OverviewTemperatureHistory = overviewHistory;
 
         var cardStart = points[^1].ObservedAt.LocalDateTime - _thermalCardHistoryWindow;
-        sensor.TemperatureHistory = overviewHistory
+        var cardHistory = overviewHistory
             .Where(point => point.DateTime >= cardStart)
             .ToArray();
+
+        sensor.UpdateTemperatureHistory(overviewHistory, cardHistory);
     }
 
     private static bool ShouldShowThermalSensorByDefault(TemperatureTelemetrySnapshot snapshot)
@@ -511,9 +597,24 @@ public partial class DashboardModel : ObservableObject, IDisposable
             && snapshot.TemperatureState is not FrameworkTemperatureState.NotCalibrated;
     }
 
-    private static bool IsThermalSensorVisible(ThermalSensorModel sensor, bool showInactiveThermalSensors)
+    private static bool IsThermalSensorVisible(ThermalSensorModel sensor, bool showNotPoweredThermalSensors, bool showInactiveThermalSensors)
     {
-        return showInactiveThermalSensors || sensor.ShouldShowByDefault;
+        if (!sensor.Snapshot.IsAvailable)
+        {
+            return showInactiveThermalSensors;
+        }
+
+        return sensor.Snapshot.TemperatureState switch
+        {
+            FrameworkTemperatureState.NotPowered => showNotPoweredThermalSensors,
+            FrameworkTemperatureState.NotPresent or FrameworkTemperatureState.NotCalibrated => showInactiveThermalSensors,
+            _ => true,
+        };
+    }
+
+    private static bool IsFanVisible(FanCardModel fan, bool showInactiveFans)
+    {
+        return showInactiveFans || fan.ShouldShowByDefault;
     }
 
     private IDisposable SubscribeBatteryHistory(int index, TelemetryMetric metric,TimeSpan value) =>

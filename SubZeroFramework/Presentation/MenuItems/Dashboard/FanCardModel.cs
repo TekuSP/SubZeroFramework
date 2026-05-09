@@ -11,6 +11,7 @@ namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 public partial class FanCardModel : ObservableObject
 {
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShouldShowByDefault))]
     [NotifyPropertyChangedFor(nameof(FanSpeedGaugeValues))]
     [NotifyPropertyChangedFor(nameof(FanSpeedRemainingGaugeValues))]
     public partial FanTelemetrySnapshot Snapshot { get; set; } = default!;
@@ -27,6 +28,7 @@ public partial class FanCardModel : ObservableObject
     public partial ImmutableArray<TemperatureTelemetrySnapshot> DrivingSensors { get; set; } = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShouldShowByDefault))]
     public partial FanStateSnapshot? FanState { get; set; }
 
     [ObservableProperty]
@@ -51,6 +53,9 @@ public partial class FanCardModel : ObservableObject
 
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
 
+    public bool ShouldShowByDefault => Snapshot.IsAvailable
+        && (FanState is null || !FanState.IsAvailable || FanState.FanState != FrameworkFanState.NotPresent);
+
     public double[] FanSpeedGaugeValues => [Math.Clamp((double)Snapshot.SpeedRpm, 0d, MaximumFanSpeedRpm)];
 
     public double[] FanSpeedRemainingGaugeValues => [Math.Max(0d, MaximumFanSpeedRpm - Math.Clamp((double)Snapshot.SpeedRpm, 0d, MaximumFanSpeedRpm))];
@@ -61,7 +66,7 @@ public partial class FanCardModel : ObservableObject
 
     partial void OnFanSpeedHistoryChanged(DateTimePoint[] value)
     {
-        Separators = GetSeparators(value.LastOrDefault());
+        Separators = GetSeparators();
     }
 
     partial void OnCapabilityChanged(FanCapabilityState? value)
@@ -84,11 +89,8 @@ public partial class FanCardModel : ObservableObject
         UpdateFanStatePresentation();
     }
 
-    private double[] GetSeparators(DateTimePoint? lastPoint)
+    private double[] GetSeparators()
     {
-        if (lastPoint is null)
-            return [];
-
         var now = DateTime.Now;
 
         return
