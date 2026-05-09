@@ -9,11 +9,13 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
 {
     private readonly FrameworkFanControlAuthorizationService _authorizationService;
     private readonly IFrameworkDataProvider _frameworkDataProvider;
+    private readonly FrameworkFanControlStateStore _fanControlStateStore;
 
-    public FrameworkFanControlGrpcService(IFrameworkDataProvider frameworkDataProvider, FrameworkFanControlAuthorizationService authorizationService)
+    public FrameworkFanControlGrpcService(IFrameworkDataProvider frameworkDataProvider, FrameworkFanControlAuthorizationService authorizationService, FrameworkFanControlStateStore fanControlStateStore)
     {
         _frameworkDataProvider = frameworkDataProvider;
         _authorizationService = authorizationService;
+        _fanControlStateStore = fanControlStateStore;
     }
 
     public override async Task<SetFanRpmReply> SetFanRpm(SetFanRpmRequest request, ServerCallContext context)
@@ -22,6 +24,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         {
             _authorizationService.EnsureCommandAccess();
             var result = await _frameworkDataProvider.SetFanRpmAsync(request.FanIndex, request.TargetSpeedRpm, context.CancellationToken).ConfigureAwait(false);
+            _fanControlStateStore.MarkManual(request.FanIndex);
             return new SetFanRpmReply
             {
                 FanIndex = result.FanIndex,
@@ -44,6 +47,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         {
             _authorizationService.EnsureCommandAccess();
             var result = await _frameworkDataProvider.SetFanDutyAsync(request.FanIndex, request.DutyPercent, context.CancellationToken).ConfigureAwait(false);
+            _fanControlStateStore.MarkManual(request.FanIndex);
             return new SetFanDutyReply
             {
                 FanIndex = result.FanIndex,
@@ -66,6 +70,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         {
             _authorizationService.EnsureCommandAccess();
             var result = await _frameworkDataProvider.RestoreAutoFanControlAsync(request.FanIndex, context.CancellationToken).ConfigureAwait(false);
+            _fanControlStateStore.MarkAuto(request.FanIndex);
             return new RestoreAutoFanControlReply
             {
                 FanIndex = result.FanIndex,

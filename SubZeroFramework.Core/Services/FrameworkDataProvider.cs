@@ -37,6 +37,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private readonly RetainedSnapshotStream<FrameworkPowerSnapshot> _powerSnapshots = new(MaximumHistoryWindow, TelemetryScheduler);
     private readonly RetainedSnapshotStream<FrameworkThermalSnapshot> _thermalSnapshots = new(MaximumHistoryWindow, TelemetryScheduler);
     private readonly SourceCache<FanCapabilityState, int> _fanCapabilities = new(capability => capability.FanIndex);
+    private readonly SourceCache<FanStateSnapshot, int> _fanStates = new(fanState => fanState.FanIndex);
     private readonly SourceCache<TelemetryChannel, TelemetryChannelId> _telemetryChannels = new(channel => channel.Id);
     private readonly SourceCache<CurrentTelemetryValue, TelemetryChannelId> _currentTelemetryValues = new(value => value.ChannelId);
     private readonly SourceCache<TelemetryPoint, long> _telemetryPoints = new(point => point.SampleId);
@@ -125,6 +126,9 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     public IObservable<IChangeSet<FanCapabilityState, int>> ConnectFanCapabilities()
         => _fanCapabilities.Connect();
+
+    public IObservable<IChangeSet<FanStateSnapshot, int>> ConnectFanStates()
+        => _fanStates.Connect();
 
     public IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> ConnectTelemetryChannels()
         => _telemetryChannels.Connect();
@@ -338,6 +342,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         _powerSnapshots.Dispose();
         _thermalSnapshots.Dispose();
         _fanCapabilities.Dispose();
+        _fanStates.Dispose();
         _telemetryChannels.Dispose();
         _currentTelemetryValues.Dispose();
         _telemetryPoints.Dispose();
@@ -605,10 +610,21 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             observedAt: observedAt);
 
         var observedFanChannels = new HashSet<TelemetryChannelId>();
+        var observedFanIndices = new HashSet<int>();
         var fanIndex = 0;
 
         foreach (var fanSnapshot in thermalSnapshot.ReportedFans)
         {
+            observedFanIndices.Add(fanIndex);
+            _fanStates.AddOrUpdate(new FanStateSnapshot
+            {
+                FanIndex = fanIndex,
+                DisplayName = $"Fan {fanIndex}",
+                FanState = fanSnapshot.FanState,
+                ObservedAt = observedAt,
+                IsAvailable = true,
+            });
+
             var channelId = new TelemetryChannelId(
                 Area: TelemetryArea.Thermal,
                 EntityKind: TelemetryEntityKind.Fan,
@@ -624,6 +640,19 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 numericValue: fanSnapshot.Speed.RevolutionsPerMinute);
 
             fanIndex++;
+        }
+
+        var staleFanStates = _fanStates.Items
+            .Where(fanState => !observedFanIndices.Contains(fanState.FanIndex))
+            .ToArray();
+
+        foreach (var staleFanState in staleFanStates)
+        {
+            _fanStates.AddOrUpdate(staleFanState with
+            {
+                ObservedAt = observedAt,
+                IsAvailable = false,
+            });
         }
 
         SetChannelsAvailability(
@@ -842,6 +871,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         }
 
         MarkAllFanCapabilitiesUnavailable(observedAt);
+        MarkAllFanStatesUnavailable(observedAt);
     }
 
     private void MarkAllFanCapabilitiesUnavailable(DateTimeOffset observedAt)
@@ -854,6 +884,23 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             }
 
             _fanCapabilities.AddOrUpdate(fanCapability with
+            {
+                ObservedAt = observedAt,
+                IsAvailable = false,
+            });
+        }
+    }
+
+    private void MarkAllFanStatesUnavailable(DateTimeOffset observedAt)
+    {
+        foreach (var fanState in _fanStates.Items.ToArray())
+        {
+            if (!fanState.IsAvailable)
+            {
+                continue;
+            }
+
+            _fanStates.AddOrUpdate(fanState with
             {
                 ObservedAt = observedAt,
                 IsAvailable = false,

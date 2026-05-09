@@ -1,5 +1,7 @@
 using DynamicData;
 
+using FrameworkDotnet.Enums;
+
 using SubZeroFramework.GrpcContracts;
 using SubZeroFramework.Models;
 
@@ -39,6 +41,55 @@ internal static class TelemetryGrpcMapper
         };
     }
 
+    public static FanCapabilityChangeReply MapFanCapabilityChange(Change<FanCapabilityState, int> change)
+    {
+        return new FanCapabilityChangeReply
+        {
+            ChangeKind = MapChangeReason(change.Reason),
+            FanIndex = change.Key,
+            DisplayName = change.Current.DisplayName,
+            Features = (uint)change.Current.Features,
+            SupportsFanControl = change.Current.SupportsFanControl,
+            SupportsThermalReporting = change.Current.SupportsThermalReporting,
+            ObservedAtUnixTimeMilliseconds = change.Current.ObservedAt.ToUnixTimeMilliseconds(),
+            IsAvailable = change.Current.IsAvailable,
+        };
+    }
+
+    public static FanControlStateChangeReply MapFanControlStateChange(Change<FanControlStateSnapshot, int> change)
+    {
+        var reply = new FanControlStateChangeReply
+        {
+            ChangeKind = MapChangeReason(change.Reason),
+            FanIndex = change.Key,
+            DisplayName = change.Current.DisplayName,
+            ControlMode = MapFanControlMode(change.Current.Mode),
+            ObservedAtUnixTimeMilliseconds = change.Current.ObservedAt.ToUnixTimeMilliseconds(),
+            IsAvailable = change.Current.IsAvailable,
+            DrivingTemperatureAggregation = MapTemperatureAggregationMode(change.Current.DrivingTemperatureAggregation),
+        };
+        reply.DrivingSensorIndices.AddRange(change.Current.DrivingSensorIndices);
+        reply.CustomCurvePoints.AddRange(change.Current.CustomCurvePoints.Select(point => new FanCurvePointReply
+        {
+            TemperatureCelsius = point.Key,
+            FanDutyPercent = point.Value,
+        }));
+        return reply;
+    }
+
+    public static FanStateChangeReply MapFanStateChange(Change<FanStateSnapshot, int> change)
+    {
+        return new FanStateChangeReply
+        {
+            ChangeKind = MapChangeReason(change.Reason),
+            FanIndex = change.Key,
+            DisplayName = change.Current.DisplayName,
+            FanState = MapFanState(change.Current.FanState),
+            ObservedAtUnixTimeMilliseconds = change.Current.ObservedAt.ToUnixTimeMilliseconds(),
+            IsAvailable = change.Current.IsAvailable,
+        };
+    }
+
     public static CurrentTelemetryValueChangeReply MapCurrentValueChange(Change<CurrentTelemetryValue, TelemetryChannelId> change)
     {
         return new CurrentTelemetryValueChangeReply
@@ -69,6 +120,27 @@ internal static class TelemetryGrpcMapper
     public static TelemetryChannelChangeBatchReply MapChannelBatch(IReadOnlyList<TelemetryChannelChangeReply> replies)
     {
         var batch = new TelemetryChannelChangeBatchReply();
+        batch.Changes.AddRange(replies);
+        return batch;
+    }
+
+    public static FanCapabilityChangeBatchReply MapFanCapabilityBatch(IReadOnlyList<FanCapabilityChangeReply> replies)
+    {
+        var batch = new FanCapabilityChangeBatchReply();
+        batch.Changes.AddRange(replies);
+        return batch;
+    }
+
+    public static FanControlStateChangeBatchReply MapFanControlStateBatch(IReadOnlyList<FanControlStateChangeReply> replies)
+    {
+        var batch = new FanControlStateChangeBatchReply();
+        batch.Changes.AddRange(replies);
+        return batch;
+    }
+
+    public static FanStateChangeBatchReply MapFanStateBatch(IReadOnlyList<FanStateChangeReply> replies)
+    {
+        var batch = new FanStateChangeBatchReply();
         batch.Changes.AddRange(replies);
         return batch;
     }
@@ -141,6 +213,33 @@ internal static class TelemetryGrpcMapper
         return value is not TelemetryMetricValue.Unspecified;
     }
 
+    public static bool TryParseFanControlMode(FanControlModeValue value, out FanControlMode mode)
+    {
+        mode = value switch
+        {
+            FanControlModeValue.Auto => FanControlMode.Auto,
+            FanControlModeValue.Manual => FanControlMode.Manual,
+            FanControlModeValue.CustomCurve => FanControlMode.CustomCurve,
+            _ => default,
+        };
+
+        return value is not FanControlModeValue.Unspecified;
+    }
+
+    public static bool TryParseTemperatureAggregationMode(TemperatureAggregationModeValue value, out TemperatureAggregationMode mode)
+    {
+        mode = value switch
+        {
+            TemperatureAggregationModeValue.Average => TemperatureAggregationMode.Average,
+            TemperatureAggregationModeValue.Median => TemperatureAggregationMode.Median,
+            TemperatureAggregationModeValue.Maximum => TemperatureAggregationMode.Maximum,
+            TemperatureAggregationModeValue.Minimum => TemperatureAggregationMode.Minimum,
+            _ => default,
+        };
+
+        return value is not TemperatureAggregationModeValue.Unspecified;
+    }
+
     private static TelemetryAreaValue MapTelemetryArea(TelemetryArea area)
     {
         return area switch
@@ -172,6 +271,40 @@ internal static class TelemetryGrpcMapper
             TelemetryMetric.BatteryPresentRateAmperes => TelemetryMetricValue.BatteryPresentRateAmperes,
             TelemetryMetric.BatteryPresentVoltageVolts => TelemetryMetricValue.BatteryPresentVoltageVolts,
             _ => TelemetryMetricValue.Unspecified,
+        };
+    }
+
+    private static FanStateValue MapFanState(FrameworkFanState fanState)
+    {
+        return fanState switch
+        {
+            FrameworkFanState.Ok => FanStateValue.Ok,
+            FrameworkFanState.NotPresent => FanStateValue.NotPresent,
+            FrameworkFanState.Stalled => FanStateValue.Stalled,
+            _ => FanStateValue.Unspecified,
+        };
+    }
+
+    private static FanControlModeValue MapFanControlMode(FanControlMode mode)
+    {
+        return mode switch
+        {
+            FanControlMode.Auto => FanControlModeValue.Auto,
+            FanControlMode.Manual => FanControlModeValue.Manual,
+            FanControlMode.CustomCurve => FanControlModeValue.CustomCurve,
+            _ => FanControlModeValue.Unspecified,
+        };
+    }
+
+    private static TemperatureAggregationModeValue MapTemperatureAggregationMode(TemperatureAggregationMode mode)
+    {
+        return mode switch
+        {
+            TemperatureAggregationMode.Average => TemperatureAggregationModeValue.Average,
+            TemperatureAggregationMode.Median => TemperatureAggregationModeValue.Median,
+            TemperatureAggregationMode.Maximum => TemperatureAggregationModeValue.Maximum,
+            TemperatureAggregationMode.Minimum => TemperatureAggregationModeValue.Minimum,
+            _ => TemperatureAggregationModeValue.Unspecified,
         };
     }
 }

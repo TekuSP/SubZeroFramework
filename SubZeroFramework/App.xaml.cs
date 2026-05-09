@@ -95,6 +95,9 @@ public partial class App : Application
                     services.AddSingleton<FrameworkGrpcChannelFactory>();
                     services.AddSingleton<IFrameworkStatusClient, GrpcFrameworkStatusClient>();
                     services.AddSingleton<IFrameworkTelemetryClient, GrpcFrameworkTelemetryClient>();
+                    services.AddSingleton<IFanCapabilityClient, GrpcFanCapabilityClient>();
+                    services.AddSingleton<IFanControlStateClient, GrpcFanControlStateClient>();
+                    services.AddSingleton<IFanStateClient, GrpcFanStateClient>();
                     services.AddSingleton<IFanTelemetryClient, FanTelemetryClient>();
                     services.AddSingleton<ITemperatureTelemetryClient, TemperatureTelemetryClient>();
                     services.AddSingleton<IBatteryTelemetryClient, BatteryTelemetryClient>();

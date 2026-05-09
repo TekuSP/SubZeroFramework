@@ -21,8 +21,14 @@ namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 public partial class DashboardModel : ObservableObject, IDisposable
 {
     private readonly CompositeDisposable _subscriptions = [];
+    private readonly Dictionary<int, FanCapabilityState> _fanCapabilities = [];
+    private readonly Dictionary<int, FanControlStateSnapshot> _fanControlStates = [];
+    private readonly Dictionary<int, FanStateSnapshot> _fanStates = [];
     private readonly IFrameworkStatusClient _frameworkStatusClient;
     private readonly IFrameworkTelemetryClient _frameworkTelemetryClient;
+    private readonly IFanCapabilityClient _fanCapabilityClient;
+    private readonly IFanControlStateClient _fanControlStateClient;
+    private readonly IFanStateClient _fanStateClient;
     private readonly IFanTelemetryClient _fanTelemetryClient;
     private readonly ITemperatureTelemetryClient _temperatureTelemetryClient;
     private readonly IBatteryTelemetryClient _batteryTelemetryClient;
@@ -39,6 +45,9 @@ public partial class DashboardModel : ObservableObject, IDisposable
         IOptions<AppConfig> appInfo,
         IFrameworkStatusClient frameworkStatusClient,
         IFrameworkTelemetryClient frameworkTelemetryClient,
+        IFanCapabilityClient fanCapabilityClient,
+        IFanControlStateClient fanControlStateClient,
+        IFanStateClient fanStateClient,
         IFanTelemetryClient fanTelemetryClient,
         ITemperatureTelemetryClient temperatureTelemetryClient,
         IBatteryTelemetryClient batteryTelemetryClient,
@@ -46,6 +55,9 @@ public partial class DashboardModel : ObservableObject, IDisposable
     {
         _frameworkStatusClient = frameworkStatusClient;
         _frameworkTelemetryClient = frameworkTelemetryClient;
+        _fanCapabilityClient = fanCapabilityClient;
+        _fanControlStateClient = fanControlStateClient;
+        _fanStateClient = fanStateClient;
         _fanTelemetryClient = fanTelemetryClient;
         _temperatureTelemetryClient = temperatureTelemetryClient;
         _batteryTelemetryClient = batteryTelemetryClient;
@@ -55,6 +67,92 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .WatchStatus()
             .ObserveOn(_synchronizationContext)
             .Subscribe(status => LastStatus = status));
+
+        _subscriptions.Add(_fanCapabilityClient
+            .WatchFanCapabilities()
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(set =>
+            {
+                foreach (var change in set)
+                {
+                    var fan = Fans.FirstOrDefault(existingFan => existingFan.Snapshot.FanIndex == change.Key);
+
+                    if (change.Reason == ChangeReason.Remove)
+                    {
+                        _fanCapabilities.Remove(change.Key);
+                        if (fan != null)
+                        {
+                            fan.Capability = null;
+                        }
+
+                        continue;
+                    }
+
+                    _fanCapabilities[change.Key] = change.Current;
+                    if (fan != null)
+                    {
+                        fan.Capability = change.Current;
+                    }
+                }
+            }));
+
+        _subscriptions.Add(_fanControlStateClient
+            .WatchFanControlStates()
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(set =>
+            {
+                foreach (var change in set)
+                {
+                    var fan = Fans.FirstOrDefault(existingFan => existingFan.Snapshot.FanIndex == change.Key);
+
+                    if (change.Reason == ChangeReason.Remove)
+                    {
+                        _fanControlStates.Remove(change.Key);
+                        if (fan != null)
+                        {
+                            fan.ControlState = null;
+                            fan.DrivingSensors = [];
+                        }
+
+                        continue;
+                    }
+
+                    _fanControlStates[change.Key] = change.Current;
+                    if (fan != null)
+                    {
+                        fan.ControlState = change.Current;
+                        UpdateDrivingSensors(fan);
+                    }
+                }
+            }));
+
+        _subscriptions.Add(_fanStateClient
+            .WatchFanStates()
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(set =>
+            {
+                foreach (var change in set)
+                {
+                    var fan = Fans.FirstOrDefault(existingFan => existingFan.Snapshot.FanIndex == change.Key);
+
+                    if (change.Reason == ChangeReason.Remove)
+                    {
+                        _fanStates.Remove(change.Key);
+                        if (fan != null)
+                        {
+                            fan.FanState = null;
+                        }
+
+                        continue;
+                    }
+
+                    _fanStates[change.Key] = change.Current;
+                    if (fan != null)
+                    {
+                        fan.FanState = change.Current;
+                    }
+                }
+            }));
 
         // Sync Current Fans
         _subscriptions.Add(_fanTelemetryClient
@@ -68,7 +166,15 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 {
                     if (change.Reason == ChangeReason.Add)
                     {
-                        newFans.Add(new FanCardModel() { Snapshot = change.Current });
+                        var fan = new FanCardModel
+                        {
+                            Snapshot = change.Current,
+                            Capability = _fanCapabilities.GetValueOrDefault(change.Current.FanIndex),
+                            ControlState = _fanControlStates.GetValueOrDefault(change.Current.FanIndex),
+                            DrivingSensors = GetDrivingSensors(_fanControlStates.GetValueOrDefault(change.Current.FanIndex)),
+                            FanState = _fanStates.GetValueOrDefault(change.Current.FanIndex),
+                        };
+                        newFans.Add(fan);
                         changed = true;
                     }
                     else if (change.Reason == ChangeReason.Update || change.Reason == ChangeReason.Refresh)
@@ -101,7 +207,15 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .WatchTemperatures()
             .ObserveOn(_synchronizationContext)
             .ToCollection()
-            .Subscribe(collection => TemperatureTelemetries = [.. collection]));
+            .Subscribe(collection =>
+            {
+                TemperatureTelemetries = [.. collection];
+
+                foreach (var fan in Fans)
+                {
+                    UpdateDrivingSensors(fan);
+                }
+            }));
 
         // Sync Current Batteries
         _subscriptions.Add(_batteryTelemetryClient
@@ -174,6 +288,25 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial ImmutableArray<BatteryTelemetryHistorySeries> BatteryHistory { get; set; } = [];
+
+    private void UpdateDrivingSensors(FanCardModel fan)
+    {
+        fan.DrivingSensors = GetDrivingSensors(fan.ControlState);
+    }
+
+    private ImmutableArray<TemperatureTelemetrySnapshot> GetDrivingSensors(FanControlStateSnapshot? controlState)
+    {
+        if (controlState is null || controlState.DrivingSensorIndices.IsDefaultOrEmpty)
+        {
+            return [];
+        }
+
+        var temperaturesByIndex = TemperatureTelemetries.ToDictionary(snapshot => snapshot.SensorIndex);
+
+        return [.. controlState.DrivingSensorIndices
+            .Select(sensorIndex => temperaturesByIndex.TryGetValue(sensorIndex, out var snapshot) ? snapshot : null)
+            .OfType<TemperatureTelemetrySnapshot>()];
+    }
 
 
     public void SelectHistoryRangeChangeFan(int fanIndex, TimeSpan value)

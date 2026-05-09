@@ -41,6 +41,7 @@ public static class Program
         builder.Services.AddGrpc();
         builder.Services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
         builder.Services.AddSingleton<IFrameworkDataProvider, FrameworkDataProvider>();
+        builder.Services.AddSingleton<FrameworkFanControlStateStore>();
         builder.Services.AddSingleton<FrameworkFanControlAuthorizationService>();
         builder.Services.AddHostedService<FrameworkTelemetryWorker>();
 

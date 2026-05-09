@@ -13,10 +13,12 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
     private static readonly TimeSpan MaximumHistoryWindow = TimeSpan.FromHours(1);
 
     private readonly IFrameworkDataProvider _frameworkDataProvider;
+    private readonly FrameworkFanControlStateStore _fanControlStateStore;
 
-    public FrameworkTelemetryGrpcService(IFrameworkDataProvider frameworkDataProvider)
+    public FrameworkTelemetryGrpcService(IFrameworkDataProvider frameworkDataProvider, FrameworkFanControlStateStore fanControlStateStore)
     {
         _frameworkDataProvider = frameworkDataProvider;
+        _fanControlStateStore = fanControlStateStore;
     }
 
     public override Task WatchTelemetryChannels(WatchTelemetryChannelsRequest request, IServerStreamWriter<TelemetryChannelChangeBatchReply> responseStream, ServerCallContext context)
@@ -26,6 +28,36 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
             responseStream,
             TelemetryGrpcMapper.MapChannelChange,
             TelemetryGrpcMapper.MapChannelBatch,
+            context.CancellationToken);
+    }
+
+    public override Task WatchFanCapabilities(WatchFanCapabilitiesRequest request, IServerStreamWriter<FanCapabilityChangeBatchReply> responseStream, ServerCallContext context)
+    {
+        return GrpcChangeSetWriter.WriteAsync(
+            _frameworkDataProvider.ConnectFanCapabilities(),
+            responseStream,
+            TelemetryGrpcMapper.MapFanCapabilityChange,
+            TelemetryGrpcMapper.MapFanCapabilityBatch,
+            context.CancellationToken);
+    }
+
+    public override Task WatchFanControlStates(WatchFanControlStatesRequest request, IServerStreamWriter<FanControlStateChangeBatchReply> responseStream, ServerCallContext context)
+    {
+        return GrpcChangeSetWriter.WriteAsync(
+            _fanControlStateStore.Connect(),
+            responseStream,
+            TelemetryGrpcMapper.MapFanControlStateChange,
+            TelemetryGrpcMapper.MapFanControlStateBatch,
+            context.CancellationToken);
+    }
+
+    public override Task WatchFanStates(WatchFanStatesRequest request, IServerStreamWriter<FanStateChangeBatchReply> responseStream, ServerCallContext context)
+    {
+        return GrpcChangeSetWriter.WriteAsync(
+            _frameworkDataProvider.ConnectFanStates(),
+            responseStream,
+            TelemetryGrpcMapper.MapFanStateChange,
+            TelemetryGrpcMapper.MapFanStateBatch,
             context.CancellationToken);
     }
 

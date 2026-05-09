@@ -32,6 +32,8 @@ public interface IFrameworkDataProvider
 
     IObservable<IChangeSet<FanCapabilityState, int>> ConnectFanCapabilities();
 
+    IObservable<IChangeSet<FanStateSnapshot, int>> ConnectFanStates();
+
     IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> ConnectTelemetryChannels();
 
     IObservable<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>> ConnectCurrentTelemetryValues();

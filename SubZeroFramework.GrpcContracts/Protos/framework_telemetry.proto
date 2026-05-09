@@ -10,6 +10,9 @@ service FrameworkStatusService {
 }
 
 service FrameworkTelemetryService {
+  rpc WatchFanCapabilities (WatchFanCapabilitiesRequest) returns (stream FanCapabilityChangeBatchReply);
+  rpc WatchFanControlStates (WatchFanControlStatesRequest) returns (stream FanControlStateChangeBatchReply);
+  rpc WatchFanStates (WatchFanStatesRequest) returns (stream FanStateChangeBatchReply);
   rpc WatchTelemetryChannels (WatchTelemetryChannelsRequest) returns (stream TelemetryChannelChangeBatchReply);
   rpc WatchCurrentTelemetryValues (WatchCurrentTelemetryValuesRequest) returns (stream CurrentTelemetryValueChangeBatchReply);
   rpc WatchTelemetrySeries (WatchTelemetrySeriesRequest) returns (stream TelemetrySeriesPointChangeBatchReply);
@@ -28,6 +31,15 @@ message WatchStatusRequest {
 }
 
 message WatchTelemetryChannelsRequest {
+}
+
+message WatchFanCapabilitiesRequest {
+}
+
+message WatchFanControlStatesRequest {
+}
+
+message WatchFanStatesRequest {
 }
 
 message WatchCurrentTelemetryValuesRequest {
@@ -97,6 +109,28 @@ enum TelemetryMetricValue {
   TELEMETRY_METRIC_VALUE_BATTERY_PRESENT_VOLTAGE_VOLTS = 5;
 }
 
+enum FanStateValue {
+  FAN_STATE_VALUE_UNSPECIFIED = 0;
+  FAN_STATE_VALUE_OK = 1;
+  FAN_STATE_VALUE_NOT_PRESENT = 2;
+  FAN_STATE_VALUE_STALLED = 3;
+}
+
+enum FanControlModeValue {
+  FAN_CONTROL_MODE_VALUE_UNSPECIFIED = 0;
+  FAN_CONTROL_MODE_VALUE_AUTO = 1;
+  FAN_CONTROL_MODE_VALUE_MANUAL = 2;
+  FAN_CONTROL_MODE_VALUE_CUSTOM_CURVE = 3;
+}
+
+enum TemperatureAggregationModeValue {
+  TEMPERATURE_AGGREGATION_MODE_VALUE_UNSPECIFIED = 0;
+  TEMPERATURE_AGGREGATION_MODE_VALUE_AVERAGE = 1;
+  TEMPERATURE_AGGREGATION_MODE_VALUE_MEDIAN = 2;
+  TEMPERATURE_AGGREGATION_MODE_VALUE_MAXIMUM = 3;
+  TEMPERATURE_AGGREGATION_MODE_VALUE_MINIMUM = 4;
+}
+
 message TelemetryChannelIdReply {
   TelemetryAreaValue area = 1;
   TelemetryEntityKindValue entity_kind = 2;
@@ -116,6 +150,56 @@ message TelemetryChannelChangeReply {
 
 message TelemetryChannelChangeBatchReply {
   repeated TelemetryChannelChangeReply changes = 1;
+}
+
+message FanCapabilityChangeReply {
+  TelemetryChangeKind change_kind = 1;
+  int32 fan_index = 2;
+  string display_name = 3;
+  uint32 features = 4;
+  bool supports_fan_control = 5;
+  bool supports_thermal_reporting = 6;
+  int64 observed_at_unix_time_milliseconds = 7;
+  bool is_available = 8;
+}
+
+message FanCapabilityChangeBatchReply {
+  repeated FanCapabilityChangeReply changes = 1;
+}
+
+message FanCurvePointReply {
+  int32 temperature_celsius = 1;
+  double fan_duty_percent = 2;
+}
+
+message FanControlStateChangeReply {
+  TelemetryChangeKind change_kind = 1;
+  int32 fan_index = 2;
+  string display_name = 3;
+  FanControlModeValue control_mode = 4;
+  int64 observed_at_unix_time_milliseconds = 5;
+  bool is_available = 6;
+  reserved 7, 8;
+  TemperatureAggregationModeValue driving_temperature_aggregation = 9;
+  repeated int32 driving_sensor_indices = 10;
+  repeated FanCurvePointReply custom_curve_points = 11;
+}
+
+message FanControlStateChangeBatchReply {
+  repeated FanControlStateChangeReply changes = 1;
+}
+
+message FanStateChangeReply {
+  TelemetryChangeKind change_kind = 1;
+  int32 fan_index = 2;
+  string display_name = 3;
+  FanStateValue fan_state = 4;
+  int64 observed_at_unix_time_milliseconds = 5;
+  bool is_available = 6;
+}
+
+message FanStateChangeBatchReply {
+  repeated FanStateChangeReply changes = 1;
 }
 
 message CurrentTelemetryValueChangeReply {
