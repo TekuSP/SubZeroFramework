@@ -214,7 +214,11 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 var existingFan = Fans.FirstOrDefault(f => f.Snapshot.FanIndex == index);
                 if (existingFan != null)
                 {
-                    existingFan.FanSpeedHistory = pts.Select(x => new DateTimePoint(x.ObservedAt.LocalDateTime, x.SpeedRpm)).ToArray();
+                    existingFan.FanSpeedHistory = pts
+                        .OrderBy(x => x.ObservedAt)
+                        .ThenBy(x => x.SampleId)
+                        .Select(x => new DateTimePoint(x.ObservedAt.LocalDateTime, x.SpeedRpm))
+                        .ToArray();
                 }
             });
 
@@ -236,7 +240,16 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .Subscribe(pts =>
             {
                 var existing = TemperatureHistory.FirstOrDefault(s => s.SensorIndex == index);
-                var newData = new TemperatureTelemetryHistorySeries { SensorIndex = index, Points = [.. pts] };
+                var newData = new TemperatureTelemetryHistorySeries
+                {
+                    SensorIndex = index,
+                    Points =
+                    [
+                        .. pts
+                            .OrderBy(x => x.ObservedAt)
+                            .ThenBy(x => x.SampleId)
+                    ]
+                };
                 TemperatureHistory = existing != null ? TemperatureHistory.Replace(existing, newData) : TemperatureHistory.Add(newData);
             });
 
@@ -255,7 +268,17 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .Subscribe(pts =>
             {
                 var existing = BatteryHistory.FirstOrDefault(s => s.BatteryIndex == index && s.Metric == metric);
-                var newData = new BatteryTelemetryHistorySeries { BatteryIndex = index, Metric = metric, Points = [.. pts] };
+                var newData = new BatteryTelemetryHistorySeries
+                {
+                    BatteryIndex = index,
+                    Metric = metric,
+                    Points =
+                    [
+                        .. pts
+                            .OrderBy(x => x.ObservedAt)
+                            .ThenBy(x => x.SampleId)
+                    ]
+                };
                 BatteryHistory = existing != null ? BatteryHistory.Replace(existing, newData) : BatteryHistory.Add(newData);
             });
 

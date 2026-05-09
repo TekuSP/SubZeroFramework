@@ -159,7 +159,8 @@
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Bottom"
                                         AutoUpdateEnabled="True"
-                                        Background="Transparent">
+                                        Background="Transparent"
+                                        TooltipPosition="Hidden">
                                         <lvc:CartesianChart.Series>
                                             <lvc:SeriesCollection>
                                                 <lvc:XamlLineSeries

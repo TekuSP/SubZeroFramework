@@ -32,10 +32,12 @@ public partial class FanCardModel : ObservableObject
         if (lastPoint is null)
             return [];
 
-        var now = lastPoint.DateTime;
+        var now = DateTime.Now;
 
         return
         [
+            now.AddSeconds(-30).Ticks,
+            now.AddSeconds(-25).Ticks,
             now.AddSeconds(-20).Ticks,
             now.AddSeconds(-15).Ticks,
             now.AddSeconds(-10).Ticks,
