@@ -243,11 +243,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                                 && newSensors.Count(existingSensor => existingSensor.IsSelected) < 4,
                         };
 
-                        var history = TemperatureHistory.FirstOrDefault(series => series.SensorIndex == change.Current.SensorIndex);
-                        if (history is not null)
-                        {
-                            UpdateThermalSensorHistory(thermalSensor, history.Points);
-                        }
+                        RefreshThermalSensorHistory(thermalSensor);
 
                         newSensors.Add(thermalSensor);
                         changed = true;
@@ -271,6 +267,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
                     var wasVisible = IsThermalSensorVisible(existingSensor);
                     existingSensor.Snapshot = change.Current;
+                    RefreshThermalSensorHistory(existingSensor);
                     visibleSensorsChanged |= wasVisible != IsThermalSensorVisible(existingSensor);
                 }
 
@@ -513,7 +510,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 var thermalSensor = ThermalSensors.FirstOrDefault(sensor => sensor.Snapshot.SensorIndex == index);
                 if (thermalSensor is not null)
                 {
-                    UpdateThermalSensorHistory(thermalSensor, newData.Points);
+                    RefreshThermalSensorHistory(thermalSensor);
                 }
             });
 
@@ -530,26 +527,70 @@ public partial class DashboardModel : ObservableObject, IDisposable
         }
     }
 
+    private void RefreshThermalSensorHistory(ThermalSensorModel sensor)
+    {
+        var existingHistory = TemperatureHistory.FirstOrDefault(series => series.SensorIndex == sensor.Snapshot.SensorIndex);
+        UpdateThermalSensorHistory(sensor, existingHistory is null ? [] : existingHistory.Points);
+    }
+
     private void UpdateThermalSensorHistory(ThermalSensorModel sensor, ImmutableArray<TelemetryPoint> points)
     {
-        if (points.IsDefaultOrEmpty)
+        DateTimePoint[] overviewHistory = points.IsDefaultOrEmpty
+            ? []
+            :
+            [
+                .. points.Select(point => new DateTimePoint(
+                    point.ObservedAt.LocalDateTime,
+                    point.NumericValue == 0d ? null : point.NumericValue))
+            ];
+
+        if (ShouldAppendCurrentGap(sensor.Snapshot))
+        {
+            overviewHistory = AppendNullGapPoint(overviewHistory, sensor.Snapshot.ObservedAt.LocalDateTime);
+        }
+
+        if (overviewHistory.Length == 0)
         {
             sensor.ClearTemperatureHistory();
             return;
         }
 
-        var overviewHistory = points
-            .Select(point => new DateTimePoint(
-                point.ObservedAt.LocalDateTime,
-                point.NumericValue == 0d ? null : point.NumericValue))
-            .ToArray();
-
-        var cardStart = points[^1].ObservedAt.LocalDateTime - _thermalCardHistoryWindow;
+        var cardStart = overviewHistory[^1].DateTime - _thermalCardHistoryWindow;
         var cardHistory = overviewHistory
             .Where(point => point.DateTime >= cardStart)
             .ToArray();
 
         sensor.UpdateTemperatureHistory(overviewHistory, cardHistory);
+    }
+
+    private static bool ShouldAppendCurrentGap(TemperatureTelemetrySnapshot snapshot)
+    {
+        if (!snapshot.IsAvailable || snapshot.TemperatureCelsius is null)
+        {
+            return true;
+        }
+
+        return snapshot.TemperatureState is not null && snapshot.TemperatureState != FrameworkTemperatureState.Ok;
+    }
+
+    private static DateTimePoint[] AppendNullGapPoint(DateTimePoint[] history, DateTime observedAt)
+    {
+        if (history.Length == 0)
+        {
+            return [new DateTimePoint(observedAt, null)];
+        }
+
+        var lastPoint = history[^1];
+        if (lastPoint.Value is null && observedAt <= lastPoint.DateTime)
+        {
+            return history;
+        }
+
+        var gapTime = observedAt <= lastPoint.DateTime
+            ? lastPoint.DateTime.AddTicks(1)
+            : observedAt;
+
+        return [.. history, new DateTimePoint(gapTime, null)];
     }
 
     private static bool ShouldShowThermalSensorByDefault(TemperatureTelemetrySnapshot snapshot)

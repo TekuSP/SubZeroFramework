@@ -143,6 +143,12 @@ public sealed partial class DashboardPage : Page, INotifyPropertyChanged
                 if (args.PropertyName == nameof(ThermalSensorModel.IsSelected))
                 {
                     RefreshThermalHistoryChart();
+                    return;
+                }
+
+                if (args.PropertyName == nameof(ThermalSensorModel.OverviewTemperatureHistory))
+                {
+                    UpdateThermalHistoryAxis();
                 }
             };
 
@@ -169,13 +175,35 @@ public sealed partial class DashboardPage : Page, INotifyPropertyChanged
             return;
         }
 
-        var selectedSensors = ViewModel.ThermalSensors
-            .Where(sensor => ViewModel.VisibleThermalSensors.Contains(sensor) && sensor.IsSelected)
-            .ToArray();
+        var selectedSensors = GetSelectedThermalSensors();
 
         UpdateThermalHistoryAxis(selectedSensors);
 
         ThermalHistoryChart.Series = selectedSensors.Select(CreateSeries).ToArray();
+    }
+
+    private void UpdateThermalHistoryAxis()
+    {
+        if (ViewModel is null)
+        {
+            ThermalHistoryMinLimit = null;
+            ThermalHistoryMaxLimit = null;
+            ThermalHistorySeparators = [];
+            return;
+        }
+
+        UpdateThermalHistoryAxis(GetSelectedThermalSensors());
+    }
+
+    private ThermalSensorModel[] GetSelectedThermalSensors()
+    {
+        if (ViewModel is null)
+        {
+            return [];
+        }
+
+        return [.. ViewModel.ThermalSensors
+            .Where(sensor => ViewModel.VisibleThermalSensors.Contains(sensor) && sensor.IsSelected)];
     }
 
     private void UpdateThermalHistoryAxis(IEnumerable<ThermalSensorModel> selectedSensors)

@@ -193,6 +193,8 @@ public partial class ThermalSensorModel : ObservableObject
 		SynchronizePoints(OverviewTemperatureHistory, []);
 		SynchronizePoints(TemperatureHistory, []);
 		Separators = [];
+		OnPropertyChanged(nameof(OverviewTemperatureHistory));
+		OnPropertyChanged(nameof(TemperatureHistory));
 	}
 
 	public void UpdateTemperatureHistory(IReadOnlyList<DateTimePoint> overviewHistory, IReadOnlyList<DateTimePoint> cardHistory)
@@ -200,6 +202,8 @@ public partial class ThermalSensorModel : ObservableObject
 		SynchronizePoints(OverviewTemperatureHistory, overviewHistory);
 		SynchronizePoints(TemperatureHistory, cardHistory);
 		Separators = GetSeparators();
+		OnPropertyChanged(nameof(OverviewTemperatureHistory));
+		OnPropertyChanged(nameof(TemperatureHistory));
 	}
 
 	private bool ShouldDisplayMeasuredTemperature => Snapshot.IsAvailable
