@@ -93,6 +93,7 @@ public sealed class TemperatureTelemetryClient : ITemperatureTelemetryClient
             UnitSymbol = value.UnitSymbol,
             ObservedAt = value.ObservedAt,
             TemperatureCelsius = value.NumericValue,
+            TemperatureState = value.TemperatureState,
             IsAvailable = value.IsAvailable
         };
     }

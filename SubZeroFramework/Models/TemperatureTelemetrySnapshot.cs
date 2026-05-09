@@ -1,3 +1,5 @@
+using FrameworkDotnet.Enums;
+
 namespace SubZeroFramework.Models;
 
 public sealed record TemperatureTelemetrySnapshot
@@ -11,6 +13,8 @@ public sealed record TemperatureTelemetrySnapshot
     public DateTimeOffset ObservedAt { get; init; }
 
     public double? TemperatureCelsius { get; init; }
+
+    public FrameworkTemperatureState? TemperatureState { get; init; }
 
     public bool IsAvailable { get; init; }
 }

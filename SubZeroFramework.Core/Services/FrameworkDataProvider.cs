@@ -598,7 +598,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 displayName: $"Temperature Sensor {temperatureIndex}",
                 unitSymbol: "C",
                 observedAt: observedAt,
-                numericValue: temperatureSnapshot.Temperature.DegreesCelsius);
+                numericValue: temperatureSnapshot.Temperature.DegreesCelsius,
+                temperatureState: temperatureSnapshot.State);
 
             temperatureIndex++;
         }
@@ -768,7 +769,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         string displayName,
         string unitSymbol,
         DateTimeOffset observedAt,
-        double numericValue)
+        double numericValue,
+        FrameworkTemperatureState? temperatureState = null)
     {
         _lastTelemetryObservedAt = observedAt;
         UpsertChannel(channelId, displayName, unitSymbol, observedAt, isAvailable: true);
@@ -779,6 +781,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             UnitSymbol = unitSymbol,
             ObservedAt = observedAt,
             NumericValue = numericValue,
+            TemperatureState = temperatureState,
             IsAvailable = true,
         });
 
@@ -845,6 +848,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 UnitSymbol = staleChannel.UnitSymbol,
                 ObservedAt = observedAt,
                 NumericValue = null,
+                TemperatureState = null,
                 IsAvailable = false,
             });
         }
@@ -866,6 +870,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 UnitSymbol = channel.UnitSymbol,
                 ObservedAt = observedAt,
                 NumericValue = null,
+                TemperatureState = null,
                 IsAvailable = false,
             });
         }

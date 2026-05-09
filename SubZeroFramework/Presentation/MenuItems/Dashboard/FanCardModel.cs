@@ -11,7 +11,11 @@ namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 public partial class FanCardModel : ObservableObject
 {
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FanSpeedGaugeValues))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedRemainingGaugeValues))]
     public partial FanTelemetrySnapshot Snapshot { get; set; } = default!;
+
+    private const double MaximumFanSpeedRpm = 8000d;
 
     [ObservableProperty]
     public partial FanCapabilityState? Capability { get; set; }
@@ -46,6 +50,10 @@ public partial class FanCardModel : ObservableObject
     public partial string DrivingTemperature { get; set; } = "--°C";
 
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
+
+    public double[] FanSpeedGaugeValues => [Math.Clamp((double)Snapshot.SpeedRpm, 0d, MaximumFanSpeedRpm)];
+
+    public double[] FanSpeedRemainingGaugeValues => [Math.Max(0d, MaximumFanSpeedRpm - Math.Clamp((double)Snapshot.SpeedRpm, 0d, MaximumFanSpeedRpm))];
 
     public string TargetModeDisplay => $"Mode: {TargetMode}";
 
@@ -195,7 +203,9 @@ public partial class FanCardModel : ObservableObject
         };
 
         var temperatures = drivingSensors
-            .Where(sensor => sensor.IsAvailable && sensor.TemperatureCelsius is not null)
+            .Where(sensor => sensor.IsAvailable
+                && sensor.TemperatureCelsius is not null
+                && (sensor.TemperatureState is null || sensor.TemperatureState == FrameworkTemperatureState.Ok))
             .Select(sensor => sensor.TemperatureCelsius!.Value)
             .OrderBy(value => value)
             .ToArray();

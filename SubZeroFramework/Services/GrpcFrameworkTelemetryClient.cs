@@ -1,3 +1,5 @@
+using FrameworkDotnet.Enums;
+
 using DynamicData;
 using System.Reactive.Linq;
 
@@ -303,6 +305,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             UnitSymbol = string.IsNullOrEmpty(reply.UnitSymbol) ? null : reply.UnitSymbol,
             ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
             NumericValue = reply.HasNumericValue ? reply.NumericValue : null,
+            TemperatureState = ParseTemperatureState(reply.TemperatureState),
             IsAvailable = reply.IsAvailable,
         };
 
@@ -414,6 +417,19 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
         };
 
         return value is not TelemetryMetricValue.Unspecified;
+    }
+
+    private static FrameworkTemperatureState? ParseTemperatureState(TemperatureStateValue value)
+    {
+        return value switch
+        {
+            TemperatureStateValue.Ok => FrameworkTemperatureState.Ok,
+            TemperatureStateValue.NotPresent => FrameworkTemperatureState.NotPresent,
+            TemperatureStateValue.Error => FrameworkTemperatureState.Error,
+            TemperatureStateValue.NotPowered => FrameworkTemperatureState.NotPowered,
+            TemperatureStateValue.NotCalibrated => FrameworkTemperatureState.NotCalibrated,
+            _ => null,
+        };
     }
 
     private void ThrowIfDisposed()

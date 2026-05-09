@@ -116,6 +116,15 @@ enum FanStateValue {
   FAN_STATE_VALUE_STALLED = 3;
 }
 
+enum TemperatureStateValue {
+  TEMPERATURE_STATE_VALUE_UNSPECIFIED = 0;
+  TEMPERATURE_STATE_VALUE_OK = 1;
+  TEMPERATURE_STATE_VALUE_NOT_PRESENT = 2;
+  TEMPERATURE_STATE_VALUE_ERROR = 3;
+  TEMPERATURE_STATE_VALUE_NOT_POWERED = 4;
+  TEMPERATURE_STATE_VALUE_NOT_CALIBRATED = 5;
+}
+
 enum FanControlModeValue {
   FAN_CONTROL_MODE_VALUE_UNSPECIFIED = 0;
   FAN_CONTROL_MODE_VALUE_AUTO = 1;
@@ -211,6 +220,7 @@ message CurrentTelemetryValueChangeReply {
   bool has_numeric_value = 6;
   double numeric_value = 7;
   bool is_available = 8;
+  TemperatureStateValue temperature_state = 9;
 }
 
 message CurrentTelemetryValueChangeBatchReply {

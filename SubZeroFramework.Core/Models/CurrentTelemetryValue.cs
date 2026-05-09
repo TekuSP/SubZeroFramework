@@ -1,3 +1,5 @@
+using FrameworkDotnet.Enums;
+
 namespace SubZeroFramework.Models;
 
 public sealed record CurrentTelemetryValue
@@ -11,6 +13,8 @@ public sealed record CurrentTelemetryValue
     public DateTimeOffset ObservedAt { get; init; }
 
     public double? NumericValue { get; init; }
+
+    public FrameworkTemperatureState? TemperatureState { get; init; }
 
     public bool IsAvailable { get; init; }
 

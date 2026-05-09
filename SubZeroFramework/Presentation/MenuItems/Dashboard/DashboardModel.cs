@@ -5,6 +5,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 using DynamicData;
 
+using FrameworkDotnet.Enums;
+
 using LiveChartsCore.Defaults;
 
 using SubZeroFramework.Services;
@@ -27,6 +29,8 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private readonly IBatteryTelemetryClient _batteryTelemetryClient;
     private readonly SynchronizationContext _synchronizationContext;
     private readonly TimeSpan _initialTimeSpan = TimeSpan.FromSeconds(30);
+    private readonly TimeSpan _temperatureHistoryWindow = TimeSpan.FromHours(1);
+    private readonly TimeSpan _thermalCardHistoryWindow = TimeSpan.FromMinutes(15);
 
     // Trackers for inner subscriptions
     private readonly Dictionary<int, IDisposable> _fanHistorySubscriptions = [];
@@ -199,6 +203,68 @@ public partial class DashboardModel : ObservableObject, IDisposable
         _subscriptions.Add(_temperatureTelemetryClient
             .WatchTemperatures()
             .ObserveOn(_synchronizationContext)
+            .Subscribe(set =>
+            {
+                var newSensors = ThermalSensors.ToBuilder();
+                var changed = false;
+                var visibleSensorsChanged = false;
+
+                foreach (var change in set)
+                {
+                    if (change.Reason == ChangeReason.Add)
+                    {
+                        var thermalSensor = new ThermalSensorModel
+                        {
+                            Snapshot = change.Current,
+                            IsSelected = ShouldShowThermalSensorByDefault(change.Current)
+                                && newSensors.Count(existingSensor => existingSensor.IsSelected && existingSensor.ShouldShowByDefault) < 4,
+                        };
+
+                        var history = TemperatureHistory.FirstOrDefault(series => series.SensorIndex == change.Current.SensorIndex);
+                        if (history is not null)
+                        {
+                            UpdateThermalSensorHistory(thermalSensor, history.Points);
+                        }
+
+                        newSensors.Add(thermalSensor);
+                        changed = true;
+                        visibleSensorsChanged |= IsThermalSensorVisible(thermalSensor, ShowInactiveThermalSensors);
+                        continue;
+                    }
+
+                    var existingSensor = newSensors.FirstOrDefault(sensor => sensor.Snapshot.SensorIndex == change.Key);
+                    if (existingSensor is null)
+                    {
+                        continue;
+                    }
+
+                    if (change.Reason == ChangeReason.Remove)
+                    {
+                        visibleSensorsChanged |= IsThermalSensorVisible(existingSensor, ShowInactiveThermalSensors);
+                        newSensors.Remove(existingSensor);
+                        changed = true;
+                        continue;
+                    }
+
+                    var wasVisible = IsThermalSensorVisible(existingSensor, ShowInactiveThermalSensors);
+                    existingSensor.Snapshot = change.Current;
+                    visibleSensorsChanged |= wasVisible != IsThermalSensorVisible(existingSensor, ShowInactiveThermalSensors);
+                }
+
+                if (changed)
+                {
+                    ThermalSensors = [.. newSensors.OrderBy(sensor => sensor.Snapshot.SensorIndex)];
+                }
+
+                if (visibleSensorsChanged)
+                {
+                    OnPropertyChanged(nameof(VisibleThermalSensors));
+                }
+            }));
+
+        _subscriptions.Add(_temperatureTelemetryClient
+            .WatchTemperatures()
+            .ObserveOn(_synchronizationContext)
             .ToCollection()
             .Subscribe(collection =>
             {
@@ -241,7 +307,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 foreach (var change in set)
                 {
                     if (change.Reason == ChangeReason.Add && !_temperatureHistorySubscriptions.ContainsKey(change.Key))
-                        _temperatureHistorySubscriptions.Add(change.Key, SubscribeTemperatureHistory(change.Key, _initialTimeSpan));
+                        _temperatureHistorySubscriptions.Add(change.Key, SubscribeTemperatureHistory(change.Key, _temperatureHistoryWindow));
                     else if (change.Reason == ChangeReason.Remove)
                         RemoveTemperatureHistory(change.Key);
                 }
@@ -274,6 +340,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
     public partial ImmutableArray<TemperatureTelemetrySnapshot> TemperatureTelemetries { get; set; } = [];
 
     [ObservableProperty]
+    public partial ImmutableArray<ThermalSensorModel> ThermalSensors { get; set; } = [];
+
+    [ObservableProperty]
+    public partial bool ShowInactiveThermalSensors { get; set; }
+
+    [ObservableProperty]
     public partial ImmutableArray<BatteryTelemetrySnapshot> BatteryTelemetries { get; set; } = [];
 
     [ObservableProperty]
@@ -281,6 +353,17 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial ImmutableArray<BatteryTelemetryHistorySeries> BatteryHistory { get; set; } = [];
+
+    public Func<DateTime, string> ThermalHistoryDateFormatter { get; } = static date => date.ToLocalTime().ToString("HH:mm");
+
+    public ImmutableArray<ThermalSensorModel> VisibleThermalSensors => ShowInactiveThermalSensors
+        ? ThermalSensors
+        : [.. ThermalSensors.Where(sensor => sensor.ShouldShowByDefault)];
+
+    partial void OnShowInactiveThermalSensorsChanged(bool value)
+    {
+        OnPropertyChanged(nameof(VisibleThermalSensors));
+    }
 
     private void UpdateDrivingSensors(FanCardModel fan)
     {
@@ -377,6 +460,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
                     ]
                 };
                 TemperatureHistory = existing != null ? TemperatureHistory.Replace(existing, newData) : TemperatureHistory.Add(newData);
+
+                var thermalSensor = ThermalSensors.FirstOrDefault(sensor => sensor.Snapshot.SensorIndex == index);
+                if (thermalSensor is not null)
+                {
+                    UpdateThermalSensorHistory(thermalSensor, newData.Points);
+                }
             });
 
     private void RemoveTemperatureHistory(int index)
@@ -384,6 +473,47 @@ public partial class DashboardModel : ObservableObject, IDisposable
         if (_temperatureHistorySubscriptions.Remove(index, out IDisposable? sub)) sub.Dispose();
         var existing = TemperatureHistory.FirstOrDefault(s => s.SensorIndex == index);
         if (existing != null) TemperatureHistory = TemperatureHistory.Remove(existing);
+
+        var thermalSensor = ThermalSensors.FirstOrDefault(sensor => sensor.Snapshot.SensorIndex == index);
+        if (thermalSensor is not null)
+        {
+            thermalSensor.TemperatureHistory = [];
+            thermalSensor.OverviewTemperatureHistory = [];
+        }
+    }
+
+    private void UpdateThermalSensorHistory(ThermalSensorModel sensor, ImmutableArray<TelemetryPoint> points)
+    {
+        if (points.IsDefaultOrEmpty)
+        {
+            sensor.TemperatureHistory = [];
+            sensor.OverviewTemperatureHistory = [];
+            return;
+        }
+
+        var overviewHistory = points
+            .Select(point => new DateTimePoint(point.ObservedAt.LocalDateTime, point.NumericValue))
+            .ToArray();
+
+        sensor.OverviewTemperatureHistory = overviewHistory;
+
+        var cardStart = points[^1].ObservedAt.LocalDateTime - _thermalCardHistoryWindow;
+        sensor.TemperatureHistory = overviewHistory
+            .Where(point => point.DateTime >= cardStart)
+            .ToArray();
+    }
+
+    private static bool ShouldShowThermalSensorByDefault(TemperatureTelemetrySnapshot snapshot)
+    {
+        return snapshot.IsAvailable
+            && snapshot.TemperatureState is not FrameworkTemperatureState.NotPresent
+            && snapshot.TemperatureState is not FrameworkTemperatureState.NotPowered
+            && snapshot.TemperatureState is not FrameworkTemperatureState.NotCalibrated;
+    }
+
+    private static bool IsThermalSensorVisible(ThermalSensorModel sensor, bool showInactiveThermalSensors)
+    {
+        return showInactiveThermalSensors || sensor.ShouldShowByDefault;
     }
 
     private IDisposable SubscribeBatteryHistory(int index, TelemetryMetric metric,TimeSpan value) =>

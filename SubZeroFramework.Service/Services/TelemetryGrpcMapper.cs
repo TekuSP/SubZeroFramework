@@ -101,6 +101,7 @@ internal static class TelemetryGrpcMapper
             ObservedAtUnixTimeMilliseconds = change.Current.ObservedAt.ToUnixTimeMilliseconds(),
             HasNumericValue = change.Current.NumericValue is not null,
             NumericValue = change.Current.NumericValue ?? 0,
+            TemperatureState = MapTemperatureState(change.Current.TemperatureState),
             IsAvailable = change.Current.IsAvailable,
         };
     }
@@ -282,6 +283,19 @@ internal static class TelemetryGrpcMapper
             FrameworkFanState.NotPresent => FanStateValue.NotPresent,
             FrameworkFanState.Stalled => FanStateValue.Stalled,
             _ => FanStateValue.Unspecified,
+        };
+    }
+
+    private static TemperatureStateValue MapTemperatureState(FrameworkTemperatureState? temperatureState)
+    {
+        return temperatureState switch
+        {
+            FrameworkTemperatureState.Ok => TemperatureStateValue.Ok,
+            FrameworkTemperatureState.NotPresent => TemperatureStateValue.NotPresent,
+            FrameworkTemperatureState.Error => TemperatureStateValue.Error,
+            FrameworkTemperatureState.NotPowered => TemperatureStateValue.NotPowered,
+            FrameworkTemperatureState.NotCalibrated => TemperatureStateValue.NotCalibrated,
+            _ => TemperatureStateValue.Unspecified,
         };
     }
 
