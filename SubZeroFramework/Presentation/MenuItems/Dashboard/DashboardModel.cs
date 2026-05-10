@@ -389,7 +389,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
         // Manage Battery History Series
         _subscriptions.Add(_batteryTelemetryClient
-            .WatchBatteryHistory(0, TelemetryMetric.BatteryChargePercent, TimeSpan.FromHours(1))
+            .WatchBatteryHistory(0, TelemetryMetric.BatteryChargePercent, _batteryCardHistoryWindow)
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
             {
@@ -397,11 +397,15 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 {
                     if (change.Reason == ChangeReason.Add)
                     {
-                        EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryChargePercent, _initialTimeSpan);
+                        EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryChargePercent, _batteryCardHistoryWindow);
                     }
                     else if (change.Reason == ChangeReason.Remove)
                     {
                         RemoveBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryChargePercent);
+                    }
+                    else
+                    {
+                        ;
                     }
                 }
             }));
@@ -414,7 +418,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 {
                     if (change.Reason == ChangeReason.Add)
                     {
-                        EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentRateAmperes, _initialTimeSpan);
+                        EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentRateAmperes, _batteryCardHistoryWindow);
                     }
                     else if (change.Reason == ChangeReason.Remove)
                     {
@@ -431,7 +435,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
             {
                 if (change.Reason == ChangeReason.Add)
                 {
-                    EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentVoltageVolts, _initialTimeSpan);
+                    EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentVoltageVolts, _batteryCardHistoryWindow);
                 }
                 else if (change.Reason == ChangeReason.Remove)
                 {
