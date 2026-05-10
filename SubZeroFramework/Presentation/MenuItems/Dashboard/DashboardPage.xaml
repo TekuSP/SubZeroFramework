@@ -269,13 +269,13 @@
                                                         <lvc:XamlPieSeries
                                                             AnimationsSpeed="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
-                                                            Fill="{lvc:SolidColorPaint Color='#FF8AB7E8'}"
+                                                            Fill="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind CoolGaugeValues, Mode=OneWay}" />
                                                         <lvc:XamlPieSeries
                                                             AnimationsSpeed="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
-                                                            Fill="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                            Fill="{lvc:SolidColorPaint Color='#FF8AB7E8'}"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind NormalGaugeValues, Mode=OneWay}" />
                                                         <lvc:XamlPieSeries
