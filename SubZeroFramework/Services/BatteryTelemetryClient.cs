@@ -78,6 +78,23 @@ public sealed class BatteryTelemetryClient : IBatteryTelemetryClient
 
                 var updatedSnapshot = currentSnapshot with { ObservedAt = change.Current.ObservedAt };
 
+                updatedSnapshot = updatedSnapshot with
+                {
+                    DisplayName = string.IsNullOrWhiteSpace(change.Current.DisplayName) ? currentSnapshot.DisplayName : change.Current.DisplayName,
+                    PowerSourceState = change.Current.PowerSourceState,
+                    BatteryState = change.Current.BatteryState,
+                    Manufacturer = change.Current.BatteryManufacturer,
+                    ModelNumber = change.Current.BatteryModelNumber,
+                    SerialNumber = change.Current.BatterySerialNumber,
+                    BatteryType = change.Current.BatteryType,
+                    RemainingCapacityAmpereHours = change.Current.BatteryRemainingCapacityAmpereHours,
+                    DesignCapacityAmpereHours = change.Current.BatteryDesignCapacityAmpereHours,
+                    LastFullChargeCapacityAmpereHours = change.Current.BatteryLastFullChargeCapacityAmpereHours,
+                    DesignVoltageVolts = change.Current.BatteryDesignVoltageVolts,
+                    CycleCount = change.Current.BatteryCycleCount,
+                    IsAvailable = change.Current.IsAvailable,
+                };
+
                 // Map specific metrics
                 if (change.Key.Metric == TelemetryMetric.BatteryChargePercent)
                     updatedSnapshot = updatedSnapshot with { ChargePercent = change.Current.NumericValue };
@@ -94,9 +111,7 @@ public sealed class BatteryTelemetryClient : IBatteryTelemetryClient
                         innerCache.AddOrUpdate(updatedSnapshot);
                         break;
                     case ChangeReason.Remove:
-                        // We might only remove one metric, but if the device goes offline, we typically remove the entire index.
-                        // Or we can just set IsAvailable = false. For simplicity, remove.
-                        innerCache.Remove(index);
+                        innerCache.AddOrUpdate(updatedSnapshot with { IsAvailable = false });
                         break;
                     case ChangeReason.Moved:
                         break;

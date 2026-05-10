@@ -102,6 +102,22 @@ internal static class TelemetryGrpcMapper
             HasNumericValue = change.Current.NumericValue is not null,
             NumericValue = change.Current.NumericValue ?? 0,
             TemperatureState = MapTemperatureState(change.Current.TemperatureState),
+            PowerSourceState = MapPowerSourceState(change.Current.PowerSourceState),
+            BatteryState = MapBatteryState(change.Current.BatteryState),
+            BatteryManufacturer = change.Current.BatteryManufacturer ?? string.Empty,
+            BatteryModelNumber = change.Current.BatteryModelNumber ?? string.Empty,
+            BatterySerialNumber = change.Current.BatterySerialNumber ?? string.Empty,
+            BatteryType = change.Current.BatteryType ?? string.Empty,
+            HasBatteryRemainingCapacityAmpereHours = change.Current.BatteryRemainingCapacityAmpereHours is not null,
+            BatteryRemainingCapacityAmpereHours = change.Current.BatteryRemainingCapacityAmpereHours ?? 0d,
+            HasBatteryDesignCapacityAmpereHours = change.Current.BatteryDesignCapacityAmpereHours is not null,
+            BatteryDesignCapacityAmpereHours = change.Current.BatteryDesignCapacityAmpereHours ?? 0d,
+            HasBatteryLastFullChargeCapacityAmpereHours = change.Current.BatteryLastFullChargeCapacityAmpereHours is not null,
+            BatteryLastFullChargeCapacityAmpereHours = change.Current.BatteryLastFullChargeCapacityAmpereHours ?? 0d,
+            HasBatteryDesignVoltageVolts = change.Current.BatteryDesignVoltageVolts is not null,
+            BatteryDesignVoltageVolts = change.Current.BatteryDesignVoltageVolts ?? 0d,
+            HasBatteryCycleCount = change.Current.BatteryCycleCount is not null,
+            BatteryCycleCount = change.Current.BatteryCycleCount ?? 0u,
             IsAvailable = change.Current.IsAvailable,
         };
     }
@@ -296,6 +312,32 @@ internal static class TelemetryGrpcMapper
             FrameworkTemperatureState.NotPowered => TemperatureStateValue.NotPowered,
             FrameworkTemperatureState.NotCalibrated => TemperatureStateValue.NotCalibrated,
             _ => TemperatureStateValue.Unspecified,
+        };
+    }
+
+    private static PowerSourceStateValue MapPowerSourceState(FrameworkPowerSourceState? powerSourceState)
+    {
+        return powerSourceState switch
+        {
+            FrameworkPowerSourceState.None => PowerSourceStateValue.None,
+            FrameworkPowerSourceState.AcOnly => PowerSourceStateValue.AcOnly,
+            FrameworkPowerSourceState.BatteryOnly => PowerSourceStateValue.BatteryOnly,
+            FrameworkPowerSourceState.AcAndBattery => PowerSourceStateValue.AcAndBattery,
+            _ => PowerSourceStateValue.Unspecified,
+        };
+    }
+
+    private static BatteryStateValue MapBatteryState(FrameworkBatteryState? batteryState)
+    {
+        return batteryState switch
+        {
+            FrameworkBatteryState.NotPresent => BatteryStateValue.NotPresent,
+            FrameworkBatteryState.Idle => BatteryStateValue.Idle,
+            FrameworkBatteryState.Charging => BatteryStateValue.Charging,
+            FrameworkBatteryState.Discharging => BatteryStateValue.Discharging,
+            FrameworkBatteryState.ChargingAndDischarging => BatteryStateValue.ChargingAndDischarging,
+            FrameworkBatteryState.Critical => BatteryStateValue.Critical,
+            _ => BatteryStateValue.Unspecified,
         };
     }
 

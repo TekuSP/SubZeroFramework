@@ -710,6 +710,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 batteryIndex: batteryIndex,
                 observedAt: observedAt,
                 numericValue: batterySnapshot.ChargeLevel.Percent,
+                batterySnapshot: batterySnapshot,
+                powerSourceState: powerSnapshot.PowerSourceState,
                 observedChannels: observedBatteryChannels);
 
             PublishBatteryMetric(
@@ -718,7 +720,9 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 unitSymbol: "A",
                 batteryIndex: batteryIndex,
                 observedAt: observedAt,
-                numericValue: batterySnapshot.PresentRate.Amperes,
+                numericValue: batterySnapshot.BatteryState == FrameworkBatteryState.Discharging ? (-batterySnapshot.PresentRate.Amperes) : (batterySnapshot.PresentRate.Amperes),
+                batterySnapshot: batterySnapshot,
+                powerSourceState: powerSnapshot.PowerSourceState,
                 observedChannels: observedBatteryChannels);
 
             PublishBatteryMetric(
@@ -728,6 +732,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 batteryIndex: batteryIndex,
                 observedAt: observedAt,
                 numericValue: batterySnapshot.PresentVoltage.Volts,
+                batterySnapshot: batterySnapshot,
+                powerSourceState: powerSnapshot.PowerSourceState,
                 observedChannels: observedBatteryChannels);
 
             batteryIndex++;
@@ -747,6 +753,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         int batteryIndex,
         DateTimeOffset observedAt,
         double numericValue,
+        FrameworkBatterySnapshot batterySnapshot,
+        FrameworkPowerSourceState powerSourceState,
         ISet<TelemetryChannelId> observedChannels)
     {
         var channelId = new TelemetryChannelId(
@@ -761,7 +769,18 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             displayName: $"Battery {batteryIndex} {metricName}",
             unitSymbol: unitSymbol,
             observedAt: observedAt,
-            numericValue: numericValue);
+                numericValue: numericValue,
+                powerSourceState: powerSourceState,
+                batteryState: batterySnapshot.BatteryState,
+                batteryManufacturer: batterySnapshot.Manufacturer,
+                batteryModelNumber: batterySnapshot.ModelNumber,
+                batterySerialNumber: batterySnapshot.SerialNumber,
+                batteryType: batterySnapshot.BatteryType,
+                batteryRemainingCapacityAmpereHours: batterySnapshot.RemainingCapacity.AmpereHours,
+                batteryDesignCapacityAmpereHours: batterySnapshot.DesignCapacity.AmpereHours,
+                batteryLastFullChargeCapacityAmpereHours: batterySnapshot.LastFullChargeCapacity.AmpereHours,
+                batteryDesignVoltageVolts: batterySnapshot.DesignVoltage.Volts,
+                batteryCycleCount: batterySnapshot.CycleCount);
     }
 
     private void PublishNumericTelemetry(
@@ -770,7 +789,18 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         string unitSymbol,
         DateTimeOffset observedAt,
         double numericValue,
-        FrameworkTemperatureState? temperatureState = null)
+        FrameworkTemperatureState? temperatureState = null,
+        FrameworkPowerSourceState? powerSourceState = null,
+        FrameworkBatteryState? batteryState = null,
+        string? batteryManufacturer = null,
+        string? batteryModelNumber = null,
+        string? batterySerialNumber = null,
+        string? batteryType = null,
+        double? batteryRemainingCapacityAmpereHours = null,
+        double? batteryDesignCapacityAmpereHours = null,
+        double? batteryLastFullChargeCapacityAmpereHours = null,
+        double? batteryDesignVoltageVolts = null,
+        uint? batteryCycleCount = null)
     {
         _lastTelemetryObservedAt = observedAt;
         UpsertChannel(channelId, displayName, unitSymbol, observedAt, isAvailable: true);
@@ -782,6 +812,17 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             ObservedAt = observedAt,
             NumericValue = numericValue,
             TemperatureState = temperatureState,
+            PowerSourceState = powerSourceState,
+            BatteryState = batteryState,
+            BatteryManufacturer = batteryManufacturer,
+            BatteryModelNumber = batteryModelNumber,
+            BatterySerialNumber = batterySerialNumber,
+            BatteryType = batteryType,
+            BatteryRemainingCapacityAmpereHours = batteryRemainingCapacityAmpereHours,
+            BatteryDesignCapacityAmpereHours = batteryDesignCapacityAmpereHours,
+            BatteryLastFullChargeCapacityAmpereHours = batteryLastFullChargeCapacityAmpereHours,
+            BatteryDesignVoltageVolts = batteryDesignVoltageVolts,
+            BatteryCycleCount = batteryCycleCount,
             IsAvailable = true,
         });
 
@@ -849,6 +890,17 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 ObservedAt = observedAt,
                 NumericValue = null,
                 TemperatureState = null,
+                PowerSourceState = null,
+                BatteryState = null,
+                BatteryManufacturer = null,
+                BatteryModelNumber = null,
+                BatterySerialNumber = null,
+                BatteryType = null,
+                BatteryRemainingCapacityAmpereHours = null,
+                BatteryDesignCapacityAmpereHours = null,
+                BatteryLastFullChargeCapacityAmpereHours = null,
+                BatteryDesignVoltageVolts = null,
+                BatteryCycleCount = null,
                 IsAvailable = false,
             });
         }
@@ -871,6 +923,17 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 ObservedAt = observedAt,
                 NumericValue = null,
                 TemperatureState = null,
+                PowerSourceState = null,
+                BatteryState = null,
+                BatteryManufacturer = null,
+                BatteryModelNumber = null,
+                BatterySerialNumber = null,
+                BatteryType = null,
+                BatteryRemainingCapacityAmpereHours = null,
+                BatteryDesignCapacityAmpereHours = null,
+                BatteryLastFullChargeCapacityAmpereHours = null,
+                BatteryDesignVoltageVolts = null,
+                BatteryCycleCount = null,
                 IsAvailable = false,
             });
         }

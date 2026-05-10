@@ -33,7 +33,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private readonly TimeSpan _initialTimeSpan = TimeSpan.FromSeconds(30);
     private readonly TimeSpan _temperatureHistoryWindow = TimeSpan.FromHours(1);
     private readonly TimeSpan _thermalCardHistoryWindow = TimeSpan.FromSeconds(30);
-
+    private readonly TimeSpan _batteryCardHistoryWindow = TimeSpan.FromHours(1);
     // Trackers for inner subscriptions
     private readonly Dictionary<int, IDisposable> _fanHistorySubscriptions = [];
     private readonly Dictionary<int, IDisposable> _temperatureHistorySubscriptions = [];
@@ -300,8 +300,62 @@ public partial class DashboardModel : ObservableObject, IDisposable
         _subscriptions.Add(_batteryTelemetryClient
             .WatchBatteries()
             .ObserveOn(_synchronizationContext)
-            .ToCollection()
-            .Subscribe(collection => BatteryTelemetries = [.. collection]));
+            .Subscribe(set =>
+            {
+                var newBatteries = Batteries.ToBuilder();
+                var changed = false;
+                var snapshotsChanged = false;
+
+                foreach (var change in set)
+                {
+                    if (change.Reason == ChangeReason.Add)
+                    {
+                        var battery = new PowerCardModel
+                        {
+                            BatterySnapshot = change.Current
+                        };
+
+                        RefreshBatterySensorHistory(battery, TelemetryMetric.BatteryChargePercent);
+                        RefreshBatterySensorHistory(battery, TelemetryMetric.BatteryPresentRateAmperes);
+                        RefreshBatterySensorHistory(battery, TelemetryMetric.BatteryPresentVoltageVolts);
+
+                        newBatteries.Add(battery);
+                        changed = true;
+                        snapshotsChanged = true;
+                        continue;
+                    }
+
+                    var existingBattery = newBatteries.FirstOrDefault(item => item.BatterySnapshot.BatteryIndex == change.Key);
+                    if (existingBattery is null)
+                    {
+                        continue;
+                    }
+
+                    if (change.Reason == ChangeReason.Remove)
+                    {
+                        newBatteries.Remove(existingBattery);
+                        changed = true;
+                        snapshotsChanged = true;
+                        continue;
+                    }
+
+                    existingBattery.BatterySnapshot = change.Current;
+                    RefreshBatterySensorHistory(existingBattery, TelemetryMetric.BatteryChargePercent);
+                    RefreshBatterySensorHistory(existingBattery, TelemetryMetric.BatteryPresentRateAmperes);
+                    RefreshBatterySensorHistory(existingBattery, TelemetryMetric.BatteryPresentVoltageVolts);
+                    snapshotsChanged = true;
+                }
+
+                if (changed)
+                {
+                    Batteries = [.. newBatteries.OrderBy(battery => battery.BatterySnapshot.BatteryIndex)];
+                }
+
+                if (changed || snapshotsChanged)
+                {
+                    BatteryTelemetries = [.. Batteries.Select(battery => battery.BatterySnapshot)];
+                }
+            }));
 
         // Manage Fan History Series
         _subscriptions.Add(_fanTelemetryClient
@@ -333,21 +387,58 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 }
             }));
 
-        // Manage Battery History Series (watching Charge Percent only as an example)
+        // Manage Battery History Series
         _subscriptions.Add(_batteryTelemetryClient
-            .WatchBatteries()
+            .WatchBatteryHistory(0, TelemetryMetric.BatteryChargePercent, TimeSpan.FromHours(1))
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
             {
                 foreach (var change in set)
                 {
-                    var batteryKey = (change.Key, TelemetryMetric.BatteryChargePercent);
-                    if (change.Reason == ChangeReason.Add && !_batteryHistorySubscriptions.ContainsKey(batteryKey))
-                        _batteryHistorySubscriptions.Add(batteryKey, SubscribeBatteryHistory(batteryKey.Item1, batteryKey.Item2, _initialTimeSpan));
+                    if (change.Reason == ChangeReason.Add)
+                    {
+                        EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryChargePercent, _initialTimeSpan);
+                    }
                     else if (change.Reason == ChangeReason.Remove)
-                        RemoveBatteryHistory(batteryKey.Item1, batteryKey.Item2);
+                    {
+                        RemoveBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryChargePercent);
+                    }
                 }
             }));
+        _subscriptions.Add(_batteryTelemetryClient
+            .WatchBatteryHistory(0, TelemetryMetric.BatteryPresentRateAmperes, TimeSpan.FromHours(1))
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(set =>
+            {
+                foreach (var change in set)
+                {
+                    if (change.Reason == ChangeReason.Add)
+                    {
+                        EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentRateAmperes, _initialTimeSpan);
+                    }
+                    else if (change.Reason == ChangeReason.Remove)
+                    {
+                        RemoveBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentRateAmperes);
+                    }
+                }
+            }));
+        _subscriptions.Add(_batteryTelemetryClient
+        .WatchBatteryHistory(0, TelemetryMetric.BatteryPresentVoltageVolts, TimeSpan.FromHours(1))
+        .ObserveOn(_synchronizationContext)
+        .Subscribe(set =>
+        {
+            foreach (var change in set)
+            {
+                if (change.Reason == ChangeReason.Add)
+                {
+                    EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentVoltageVolts, _initialTimeSpan);
+                }
+                else if (change.Reason == ChangeReason.Remove)
+                {
+                    RemoveBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentVoltageVolts);
+                }
+            }
+        }));
     }
 
     [ObservableProperty]
@@ -370,6 +461,9 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial ImmutableArray<BatteryTelemetryHistorySeries> BatteryHistory { get; set; } = [];
+
+    [ObservableProperty]
+    public partial ImmutableArray<PowerCardModel> Batteries { get; set; } = [];
 
     public ImmutableArray<FanCardModel> VisibleFans => [.. Fans.Where(IsFanVisible)];
 
@@ -430,7 +524,6 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .OfType<TemperatureTelemetrySnapshot>()];
     }
 
-
     public void SelectHistoryRangeChangeFan(int fanIndex, TimeSpan value)
     {
         if (_fanHistorySubscriptions.TryGetValue(fanIndex, out IDisposable? disp))
@@ -457,6 +550,20 @@ public partial class DashboardModel : ObservableObject, IDisposable
             _batteryHistorySubscriptions.Remove(batteryIndex);
         }
         _batteryHistorySubscriptions.Add(batteryIndex, SubscribeBatteryHistory(batteryIndex.index, batteryIndex.metric, value));
+    }
+
+    private void EnsureBatteryHistorySubscriptions(int batteryIndex, TelemetryMetric metric, TimeSpan range)
+    {
+        var key = (batteryIndex, metric);
+        if (!_batteryHistorySubscriptions.ContainsKey(key))
+        {
+            _batteryHistorySubscriptions.Add(key, SubscribeBatteryHistory(batteryIndex, metric, range));
+        }
+    }
+
+    private void RemoveBatteryHistorySubscriptions(int batteryIndex, TelemetryMetric metric)
+    {
+        RemoveBatteryHistory(batteryIndex, metric);
     }
 
     private IDisposable SubscribeFanHistory(int index, TimeSpan range) =>
@@ -527,6 +634,42 @@ public partial class DashboardModel : ObservableObject, IDisposable
         }
     }
 
+    private void RefreshBatterySensorHistory(PowerCardModel sensor, TelemetryMetric metric)
+    {
+        var existingHistory = BatteryHistory.FirstOrDefault(series => series.BatteryIndex == sensor.BatterySnapshot.BatteryIndex && series.Metric == metric);
+        UpdateBatterySensorHistory(sensor, metric, existingHistory is null ? [] : existingHistory.Points);
+    }
+
+    private void UpdateBatterySensorHistory(PowerCardModel sensor, TelemetryMetric metric, ImmutableArray<TelemetryPoint> points)
+    {
+        DateTimePoint[] overviewHistory = points.IsDefaultOrEmpty
+            ? []
+            :
+            [
+                .. points.Select(point => new DateTimePoint(
+                    point.ObservedAt.LocalDateTime,
+                    point.NumericValue == 0d ? null : point.NumericValue))
+            ];
+
+        if (ShouldAppendCurrentGap(sensor.BatterySnapshot, metric))
+        {
+            overviewHistory = AppendNullGapPoint(overviewHistory, sensor.BatterySnapshot.ObservedAt.LocalDateTime);
+        }
+
+        if (overviewHistory.Length == 0)
+        {
+            sensor.ClearMetricHistory(metric);
+            return;
+        }
+
+        var cardStart = overviewHistory[^1].DateTime - _batteryCardHistoryWindow;
+        var cardHistory = overviewHistory
+            .Where(point => point.DateTime >= cardStart)
+            .ToArray();
+
+        sensor.UpdateMetricHistory(metric, overviewHistory, cardHistory);
+    }
+
     private void RefreshThermalSensorHistory(ThermalSensorModel sensor)
     {
         var existingHistory = TemperatureHistory.FirstOrDefault(series => series.SensorIndex == sensor.Snapshot.SensorIndex);
@@ -573,6 +716,29 @@ public partial class DashboardModel : ObservableObject, IDisposable
         return snapshot.TemperatureState is not null && snapshot.TemperatureState != FrameworkTemperatureState.Ok;
     }
 
+    private static bool ShouldAppendCurrentGap(BatteryTelemetrySnapshot snapshot, TelemetryMetric metric)
+    {
+        if (!snapshot.IsAvailable)
+        {
+            return true;
+        }
+
+        if (snapshot.BatteryState == FrameworkBatteryState.NotPresent)
+        {
+            return true;
+        }
+
+        var metricValue = metric switch
+        {
+            TelemetryMetric.BatteryChargePercent => snapshot.ChargePercent,
+            TelemetryMetric.BatteryPresentRateAmperes => snapshot.Amperage,
+            TelemetryMetric.BatteryPresentVoltageVolts => snapshot.Voltage,
+            _ => null,
+        };
+
+        return metricValue is null;
+    }
+
     private static DateTimePoint[] AppendNullGapPoint(DateTimePoint[] history, DateTime observedAt)
     {
         if (history.Length == 0)
@@ -608,7 +774,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
         return true;
     }
 
-    private IDisposable SubscribeBatteryHistory(int index, TelemetryMetric metric,TimeSpan value) =>
+    private IDisposable SubscribeBatteryHistory(int index, TelemetryMetric metric, TimeSpan value) =>
         _batteryTelemetryClient
             .WatchBatteryHistory(index, metric, value)
             .ToCollection()
@@ -628,6 +794,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
                     ]
                 };
                 BatteryHistory = existing != null ? BatteryHistory.Replace(existing, newData) : BatteryHistory.Add(newData);
+
+                var existingBattery = Batteries.FirstOrDefault(battery => battery.BatterySnapshot.BatteryIndex == index);
+                if (existingBattery is not null)
+                {
+                    RefreshBatterySensorHistory(existingBattery, metric);
+                }
             });
 
     private void RemoveBatteryHistory(int index, TelemetryMetric metric)
@@ -636,6 +808,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
         if (_batteryHistorySubscriptions.Remove(key, out IDisposable? sub)) sub.Dispose();
         var existing = BatteryHistory.FirstOrDefault(s => s.BatteryIndex == index && s.Metric == metric);
         if (existing != null) BatteryHistory = BatteryHistory.Remove(existing);
+
+        var existingBattery = Batteries.FirstOrDefault(battery => battery.BatterySnapshot.BatteryIndex == index);
+        if (existingBattery is not null)
+        {
+            existingBattery.ClearMetricHistory(metric);
+        }
     }
 
     public void Dispose()

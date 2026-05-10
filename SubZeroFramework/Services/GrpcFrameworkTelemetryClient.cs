@@ -311,6 +311,17 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
             NumericValue = reply.HasNumericValue ? reply.NumericValue : null,
             TemperatureState = ParseTemperatureState(reply.TemperatureState),
+            PowerSourceState = ParsePowerSourceState(reply.PowerSourceState),
+            BatteryState = ParseBatteryState(reply.BatteryState),
+            BatteryManufacturer = string.IsNullOrEmpty(reply.BatteryManufacturer) ? null : reply.BatteryManufacturer,
+            BatteryModelNumber = string.IsNullOrEmpty(reply.BatteryModelNumber) ? null : reply.BatteryModelNumber,
+            BatterySerialNumber = string.IsNullOrEmpty(reply.BatterySerialNumber) ? null : reply.BatterySerialNumber,
+            BatteryType = string.IsNullOrEmpty(reply.BatteryType) ? null : reply.BatteryType,
+            BatteryRemainingCapacityAmpereHours = reply.HasBatteryRemainingCapacityAmpereHours ? reply.BatteryRemainingCapacityAmpereHours : null,
+            BatteryDesignCapacityAmpereHours = reply.HasBatteryDesignCapacityAmpereHours ? reply.BatteryDesignCapacityAmpereHours : null,
+            BatteryLastFullChargeCapacityAmpereHours = reply.HasBatteryLastFullChargeCapacityAmpereHours ? reply.BatteryLastFullChargeCapacityAmpereHours : null,
+            BatteryDesignVoltageVolts = reply.HasBatteryDesignVoltageVolts ? reply.BatteryDesignVoltageVolts : null,
+            BatteryCycleCount = reply.HasBatteryCycleCount ? reply.BatteryCycleCount : null,
             IsAvailable = reply.IsAvailable,
         };
 
@@ -438,6 +449,32 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             TemperatureStateValue.Error => FrameworkTemperatureState.Error,
             TemperatureStateValue.NotPowered => FrameworkTemperatureState.NotPowered,
             TemperatureStateValue.NotCalibrated => FrameworkTemperatureState.NotCalibrated,
+            _ => null,
+        };
+    }
+
+    private static FrameworkPowerSourceState? ParsePowerSourceState(PowerSourceStateValue value)
+    {
+        return value switch
+        {
+            PowerSourceStateValue.None => FrameworkPowerSourceState.None,
+            PowerSourceStateValue.AcOnly => FrameworkPowerSourceState.AcOnly,
+            PowerSourceStateValue.BatteryOnly => FrameworkPowerSourceState.BatteryOnly,
+            PowerSourceStateValue.AcAndBattery => FrameworkPowerSourceState.AcAndBattery,
+            _ => null,
+        };
+    }
+
+    private static FrameworkBatteryState? ParseBatteryState(BatteryStateValue value)
+    {
+        return value switch
+        {
+            BatteryStateValue.NotPresent => FrameworkBatteryState.NotPresent,
+            BatteryStateValue.Idle => FrameworkBatteryState.Idle,
+            BatteryStateValue.Charging => FrameworkBatteryState.Charging,
+            BatteryStateValue.Discharging => FrameworkBatteryState.Discharging,
+            BatteryStateValue.ChargingAndDischarging => FrameworkBatteryState.ChargingAndDischarging,
+            BatteryStateValue.Critical => FrameworkBatteryState.Critical,
             _ => null,
         };
     }

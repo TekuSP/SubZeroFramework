@@ -125,6 +125,24 @@ enum TemperatureStateValue {
   TEMPERATURE_STATE_VALUE_NOT_CALIBRATED = 5;
 }
 
+enum PowerSourceStateValue {
+  POWER_SOURCE_STATE_VALUE_UNSPECIFIED = 0;
+  POWER_SOURCE_STATE_VALUE_NONE = 1;
+  POWER_SOURCE_STATE_VALUE_AC_ONLY = 2;
+  POWER_SOURCE_STATE_VALUE_BATTERY_ONLY = 3;
+  POWER_SOURCE_STATE_VALUE_AC_AND_BATTERY = 4;
+}
+
+enum BatteryStateValue {
+  BATTERY_STATE_VALUE_UNSPECIFIED = 0;
+  BATTERY_STATE_VALUE_NOT_PRESENT = 1;
+  BATTERY_STATE_VALUE_IDLE = 2;
+  BATTERY_STATE_VALUE_CHARGING = 3;
+  BATTERY_STATE_VALUE_DISCHARGING = 4;
+  BATTERY_STATE_VALUE_CHARGING_AND_DISCHARGING = 5;
+  BATTERY_STATE_VALUE_CRITICAL = 6;
+}
+
 enum FanControlModeValue {
   FAN_CONTROL_MODE_VALUE_UNSPECIFIED = 0;
   FAN_CONTROL_MODE_VALUE_AUTO = 1;
@@ -221,6 +239,22 @@ message CurrentTelemetryValueChangeReply {
   double numeric_value = 7;
   bool is_available = 8;
   TemperatureStateValue temperature_state = 9;
+  PowerSourceStateValue power_source_state = 10;
+  BatteryStateValue battery_state = 11;
+  string battery_manufacturer = 12;
+  string battery_model_number = 13;
+  string battery_serial_number = 14;
+  string battery_type = 15;
+  bool has_battery_remaining_capacity_ampere_hours = 16;
+  double battery_remaining_capacity_ampere_hours = 17;
+  bool has_battery_design_capacity_ampere_hours = 18;
+  double battery_design_capacity_ampere_hours = 19;
+  bool has_battery_last_full_charge_capacity_ampere_hours = 20;
+  double battery_last_full_charge_capacity_ampere_hours = 21;
+  bool has_battery_design_voltage_volts = 22;
+  double battery_design_voltage_volts = 23;
+  bool has_battery_cycle_count = 24;
+  uint32 battery_cycle_count = 25;
 }
 
 message CurrentTelemetryValueChangeBatchReply {

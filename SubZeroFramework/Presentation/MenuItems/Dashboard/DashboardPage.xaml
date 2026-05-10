@@ -30,6 +30,10 @@
                         CanDragItems="True"
                         CanReorderItems="True"
                         ItemsSource="{x:Bind ViewModel.VisibleFans, Mode=OneWay}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        ScrollViewer.HorizontalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        ScrollViewer.VerticalScrollMode="Disabled"
                         SelectionMode="None">
                         <GridView.ItemTemplate>
                             <DataTemplate x:DataType="local:FanCardModel">
@@ -221,6 +225,10 @@
                     <GridView
                         Margin="10,0"
                         ItemsSource="{x:Bind ViewModel.VisibleThermalSensors, Mode=OneWay}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        ScrollViewer.HorizontalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        ScrollViewer.VerticalScrollMode="Disabled"
                         SelectionMode="None">
                         <GridView.ItemTemplate>
                             <DataTemplate x:DataType="local:ThermalSensorModel">
@@ -463,7 +471,6 @@
                                         <lvc:CartesianChart.XAxes>
                                             <lvc:AxesCollection>
                                                 <lvc:XamlDateTimeAxis
-                                                    Name="Time"
                                                     AnimationsSpeed="0"
                                                     CustomSeparators="{x:Bind ThermalHistorySeparators, Mode=OneWay}"
                                                     DateFormatter="{x:Bind ThermalHistoryDateFormatter, Mode=OneWay}"
@@ -492,6 +499,433 @@
                             </Border>
                         </Grid>
                     </controls:ElevatedCard>
+                </StackPanel>
+
+                <StackPanel>
+                    <TextBlock
+                        Margin="15,0"
+                        FontSize="28"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Power &amp; Battery" />
+                    <ItemsRepeater
+                        Margin="10,0"
+                        VerticalAlignment="Stretch"
+                        ItemsSource="{x:Bind ViewModel.Batteries, Mode=OneWay}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        ScrollViewer.HorizontalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        ScrollViewer.VerticalScrollMode="Disabled">
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="local:PowerCardModel">
+                                <Border VerticalAlignment="Stretch">
+                                    <controls:ElevatedCard
+                                        MinHeight="360"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        HorizontalContentAlignment="Stretch"
+                                        VerticalContentAlignment="Stretch"
+                                        Background="{StaticResource CardBackgroundBrush}">
+                                        <Grid
+                                            Margin="14"
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="*" />
+                                            </Grid.RowDefinitions>
+
+                                            <TextBlock
+                                                FontSize="30"
+                                                FontWeight="SemiBold"
+                                                Foreground="{StaticResource TextPrimaryBrush}"
+                                                Text="{x:Bind BatteryTitle, Mode=OneWay}" />
+
+                                            <StackPanel
+                                                Grid.Row="1"
+                                                Margin="0,12,0,0"
+                                                Spacing="8">
+                                                <ProgressBar
+                                                    Height="10"
+                                                    Foreground="{x:Bind StateBrush, Mode=OneWay}"
+                                                    Maximum="100"
+                                                    Value="{x:Bind ChargePercentValue, Mode=OneWay}" />
+                                                <TextBlock Foreground="{x:Bind StateBrush, Mode=OneWay}" Text="{x:Bind ChargeAndStateDisplay, Mode=OneWay}" />
+                                            </StackPanel>
+
+                                            <Grid
+                                                Grid.Row="2"
+                                                Margin="0,12,0,0"
+                                                ColumnSpacing="8"
+                                                RowSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="*" />
+                                                    <RowDefinition Height="*" />
+                                                </Grid.RowDefinitions>
+
+                                                <Border
+                                                    Grid.Column="0"
+                                                    Padding="10"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel>
+                                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery State" />
+                                                        <TextBlock
+                                                            FontSize="26"
+                                                            Foreground="{x:Bind StateBrush, Mode=OneWay}"
+                                                            Text="{x:Bind StateDisplay, Mode=OneWay}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border
+                                                    Grid.Column="1"
+                                                    Padding="10"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel>
+                                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Power State" />
+                                                        <TextBlock
+                                                            FontSize="26"
+                                                            Foreground="{x:Bind PowerBrush, Mode=OneWay}"
+                                                            Text="{x:Bind PowerDisplay, Mode=OneWay}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border
+                                                    Grid.Column="2"
+                                                    Padding="10"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel>
+                                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind RateKind, Mode=OneWay}" />
+                                                        <TextBlock
+                                                            FontSize="26"
+                                                            Foreground="{StaticResource StatusWarningBrush}"
+                                                            Text="{x:Bind RateDisplay, Mode=OneWay}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border
+                                                    Grid.Column="3"
+                                                    Padding="10"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel>
+                                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Voltage (V)" />
+                                                        <TextBlock
+                                                            FontSize="26"
+                                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                                            Text="{x:Bind VoltageDisplay, Mode=OneWay}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border
+                                                    Grid.Column="4"
+                                                    Padding="10"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel>
+                                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Cycles" />
+                                                        <TextBlock
+                                                            FontSize="26"
+                                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                                            Text="{x:Bind CyclesDisplay, Mode=OneWay}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border
+                                                    Grid.Row="1"
+                                                    Grid.Column="0"
+                                                    Padding="10"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel>
+                                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Nominal Voltage (V)" />
+                                                        <TextBlock
+                                                            FontSize="26"
+                                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                                            Text="{x:Bind DesignVoltage, Mode=OneWay}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border
+                                                    Grid.Row="1"
+                                                    Grid.Column="1"
+                                                    Padding="10"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel>
+                                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Design Capacity (Ah)" />
+                                                        <TextBlock
+                                                            FontSize="26"
+                                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                                            Text="{x:Bind DesignCapacityAmepereHours, Mode=OneWay}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border
+                                                    Grid.Row="1"
+                                                    Grid.Column="2"
+                                                    Padding="10"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel>
+                                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Remaining Capacity (Ah)" />
+                                                        <TextBlock
+                                                            FontSize="26"
+                                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                                            Text="{x:Bind RemainingCapacityAmpereHours, Mode=OneWay}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border
+                                                    Grid.Row="1"
+                                                    Grid.Column="3"
+                                                    Padding="10"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel>
+                                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Last Full Charge (Ah)" />
+                                                        <TextBlock
+                                                            FontSize="26"
+                                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                                            Text="{x:Bind LastFullChargeCapacityAmpereHours, Mode=OneWay}" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border
+                                                    Grid.Row="1"
+                                                    Grid.Column="4"
+                                                    Padding="10"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel>
+                                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Health" />
+                                                        <TextBlock
+                                                            FontSize="26"
+                                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                                            Text="{x:Bind BatteryLife, Mode=OneWay}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+
+                                            <Grid
+                                                Grid.Row="3"
+                                                Margin="0,12,0,0"
+                                                HorizontalAlignment="Stretch"
+                                                VerticalAlignment="Stretch"
+                                                ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <Border
+                                                    Grid.Column="0"
+                                                    Padding="8"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="12">
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="*" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock
+                                                            Margin="0,0,0,4"
+                                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                                            Text="Charge (%)" />
+                                                        <lvc:CartesianChart
+                                                            Grid.Row="1"
+                                                            Height="160"
+                                                            AutoUpdateEnabled="True"
+                                                            Background="Transparent"
+                                                            LegendPosition="Hidden"
+                                                            TooltipPosition="Top">
+                                                            <lvc:CartesianChart.Series>
+                                                                <lvc:SeriesCollection>
+                                                                    <lvc:XamlLineSeries
+                                                                        AnimationsSpeed="0"
+                                                                        Fill="{x:Null}"
+                                                                        GeometryFill="{x:Null}"
+                                                                        GeometryStroke="{x:Null}"
+                                                                        Stroke="{lvc:SolidColorPaint Color='#FF8AB7E8',
+                                                                                                     StrokeWidth='2'}"
+                                                                        Values="{x:Bind ChargeHistory, Mode=OneWay}" />
+                                                                </lvc:SeriesCollection>
+                                                            </lvc:CartesianChart.Series>
+                                                            <lvc:CartesianChart.XAxes>
+                                                                <lvc:AxesCollection>
+                                                                    <lvc:XamlDateTimeAxis
+                                                                        AnimationsSpeed="0"
+                                                                        CustomSeparators="{x:Bind ChargeSeparators, Mode=OneWay}"
+                                                                        DateFormatter="{x:Bind LabelsFormatter}"
+                                                                        Interval="0:10:0"
+                                                                        LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                                        MaxLimit="{x:Bind ChargeMax, Mode=OneWay}"
+                                                                        MinLimit="{x:Bind ChargeMin, Mode=OneWay}"
+                                                                        SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                                        ShowSeparatorLines="True"
+                                                                        TextSize="12" />
+                                                                </lvc:AxesCollection>
+                                                            </lvc:CartesianChart.XAxes>
+                                                            <lvc:CartesianChart.YAxes>
+                                                                <lvc:AxesCollection>
+                                                                    <lvc:XamlAxis
+                                                                        AnimationsSpeed="0"
+                                                                        LabelsPaint="{lvc:SolidColorPaint Color='FFD7D8FF'}"
+                                                                        MaxLimit="100"
+                                                                        MinLimit="0"
+                                                                        SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                                        ShowSeparatorLines="True"
+                                                                        TextSize="9" />
+                                                                </lvc:AxesCollection>
+                                                            </lvc:CartesianChart.YAxes>
+                                                        </lvc:CartesianChart>
+                                                    </Grid>
+                                                </Border>
+
+                                                <Border
+                                                    Grid.Column="1"
+                                                    Padding="8"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="12">
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="*" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock
+                                                            Margin="0,0,0,4"
+                                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                                            Text="{x:Bind RateKind, Mode=OneWay}" />
+                                                        <lvc:CartesianChart
+                                                            Grid.Row="1"
+                                                            Height="160"
+                                                            AutoUpdateEnabled="True"
+                                                            Background="Transparent"
+                                                            LegendPosition="Hidden"
+                                                            TooltipPosition="Top">
+                                                            <lvc:CartesianChart.Series>
+                                                                <lvc:SeriesCollection>
+                                                                    <lvc:XamlLineSeries
+                                                                        AnimationsSpeed="0"
+                                                                        Fill="{x:Null}"
+                                                                        GeometryFill="{x:Null}"
+                                                                        GeometryStroke="{x:Null}"
+                                                                        Stroke="{lvc:SolidColorPaint Color='#FFC5994E',
+                                                                                                     StrokeWidth='2'}"
+                                                                        Values="{x:Bind CurrentHistory, Mode=OneWay}" />
+                                                                </lvc:SeriesCollection>
+                                                            </lvc:CartesianChart.Series>
+                                                            <lvc:CartesianChart.XAxes>
+                                                                <lvc:AxesCollection>
+                                                                    <lvc:XamlDateTimeAxis
+                                                                        AnimationsSpeed="0"
+                                                                        CustomSeparators="{x:Bind CurrentSeparators, Mode=OneWay}"
+                                                                        DateFormatter="{x:Bind LabelsFormatter}"
+                                                                        Interval="0:10:0"
+                                                                        LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                                        MaxLimit="{x:Bind CurrentMax, Mode=OneWay}"
+                                                                        MinLimit="{x:Bind CurrentMin, Mode=OneWay}"
+                                                                        SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                                        ShowSeparatorLines="True"
+                                                                        TextSize="12" />
+                                                                </lvc:AxesCollection>
+                                                            </lvc:CartesianChart.XAxes>
+                                                            <lvc:CartesianChart.YAxes>
+                                                                <lvc:AxesCollection>
+                                                                    <lvc:XamlAxis
+                                                                        AnimationsSpeed="0"
+                                                                        LabelsPaint="{lvc:SolidColorPaint Color='FFD7D8FF'}"
+                                                                        SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                                        ShowSeparatorLines="True"
+                                                                        TextSize="9" />
+                                                                </lvc:AxesCollection>
+                                                            </lvc:CartesianChart.YAxes>
+                                                        </lvc:CartesianChart>
+                                                    </Grid>
+                                                </Border>
+
+                                                <Border
+                                                    Grid.Column="2"
+                                                    Padding="8"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="12">
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="*" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock
+                                                            Margin="0,0,0,4"
+                                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                                            Text="Battery Voltage (V)" />
+                                                        <lvc:CartesianChart
+                                                            Grid.Row="1"
+                                                            Height="160"
+                                                            AutoUpdateEnabled="True"
+                                                            Background="Transparent"
+                                                            LegendPosition="Hidden"
+                                                            TooltipPosition="Top">
+                                                            <lvc:CartesianChart.Series>
+                                                                <lvc:SeriesCollection>
+                                                                    <lvc:XamlLineSeries
+                                                                        AnimationsSpeed="0"
+                                                                        Fill="{x:Null}"
+                                                                        GeometryFill="{x:Null}"
+                                                                        GeometryStroke="{x:Null}"
+                                                                        Stroke="{lvc:SolidColorPaint Color='#FFD7D8FF',
+                                                                                                     StrokeWidth='2'}"
+                                                                        Values="{x:Bind VoltageHistory, Mode=OneWay}" />
+                                                                </lvc:SeriesCollection>
+                                                            </lvc:CartesianChart.Series>
+                                                            <lvc:CartesianChart.XAxes>
+                                                                <lvc:AxesCollection>
+                                                                    <lvc:XamlDateTimeAxis
+                                                                        AnimationsSpeed="0"
+                                                                        CustomSeparators="{x:Bind VoltageSeparators, Mode=OneWay}"
+                                                                        DateFormatter="{x:Bind LabelsFormatter}"
+                                                                        Interval="0:10:0"
+                                                                        LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                                        MaxLimit="{x:Bind VoltageMax, Mode=OneWay}"
+                                                                        MinLimit="{x:Bind VoltageMin, Mode=OneWay}"
+                                                                        SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                                        ShowSeparatorLines="True"
+                                                                        TextSize="12" />
+                                                                </lvc:AxesCollection>
+                                                            </lvc:CartesianChart.XAxes>
+                                                            <lvc:CartesianChart.YAxes>
+                                                                <lvc:AxesCollection>
+                                                                    <lvc:XamlAxis
+                                                                        AnimationsSpeed="0"
+                                                                        LabelsPaint="{lvc:SolidColorPaint Color='FFD7D8FF'}"
+                                                                        MaxLimit="18"
+                                                                        MinLimit="10"
+                                                                        SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                                        ShowSeparatorLines="True"
+                                                                        TextSize="9" />
+                                                                </lvc:AxesCollection>
+                                                            </lvc:CartesianChart.YAxes>
+                                                        </lvc:CartesianChart>
+                                                    </Grid>
+                                                </Border>
+                                            </Grid>
+                                        </Grid>
+                                    </controls:ElevatedCard>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>
