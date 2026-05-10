@@ -45,16 +45,16 @@ public partial class PowerCardModel : ObservableObject
         {
             var primaryName = string.IsNullOrWhiteSpace(BatterySnapshot.ModelNumber)
                 ? string.IsNullOrWhiteSpace(BatterySnapshot.DisplayName)
-                    ? $"Battery {BatterySnapshot.BatteryIndex + 1}"
+                    ? $"Battery {BatterySnapshot.BatteryIndex}"
                     : BatterySnapshot.DisplayName
                 : BatterySnapshot.ModelNumber;
 
             if (!string.IsNullOrWhiteSpace(BatterySnapshot.Manufacturer))
             {
-                return $"Battery {BatterySnapshot.BatteryIndex + 1} ({BatterySnapshot.Manufacturer} {primaryName})";
+                return $"Battery {BatterySnapshot.BatteryIndex} ({BatterySnapshot.Manufacturer} {primaryName})";
             }
 
-            return $"Battery {BatterySnapshot.BatteryIndex + 1} ({primaryName})";
+            return $"Battery {BatterySnapshot.BatteryIndex} ({primaryName})";
         }
     }
 
