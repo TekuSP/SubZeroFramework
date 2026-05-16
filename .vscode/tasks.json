@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build-desktop",
+      "label": "build-linux",
       "command": "dotnet",
       "type": "process",
       "args": [
@@ -15,7 +15,7 @@
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "publish-desktop",
+      "label": "publish-linux",
       "command": "dotnet",
       "type": "process",
       "args": [
@@ -23,6 +23,32 @@
         "${workspaceFolder}/SubZeroFramework/SubZeroFramework.csproj",
         "/property:GenerateFullPaths=true",
         "/property:TargetFramework=net10.0-desktop",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+        {
+      "label": "build-windows",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/SubZeroFramework/SubZeroFramework.csproj",
+        "/property:GenerateFullPaths=true",
+        "/property:TargetFramework=net10.0-windows10.0.26100",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "publish-windows",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "publish",
+        "${workspaceFolder}/SubZeroFramework/SubZeroFramework.csproj",
+        "/property:GenerateFullPaths=true",
+        "/property:TargetFramework=net10.0-windows10.0.26100",
         "/consoleloggerparameters:NoSummary"
       ],
       "problemMatcher": "$msCompile"

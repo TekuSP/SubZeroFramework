@@ -1,10 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.WinUI;
 
-using Hardware.Info;
-
 using Microsoft.UI.Dispatching;
 
+using SubZeroFramework.Models;
 using SubZeroFramework.Services;
 
 using System.Reactive.Linq;
@@ -53,10 +52,11 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
 
     private IServiceProvider? _serviceProvider = null;
     private IFrameworkStatusClient? _frameworkStatusClient = null;
-    private IHardwareInfo? _hardwareInfo = null;
+    private IHardwareInfoClient? _hardwareInfoClient = null;
     private DispatcherQueue? _dispatcherQueue = null;
     private SynchronizationContext? _synchronizationContext = null;
     private IDisposable? _runningSubscription = null;
+    private IDisposable? _hardwareInfoSubscription = null;
     private bool disposedValue;
 
     public void IServiceProviderChanged(IServiceProvider serviceProvider)
@@ -65,12 +65,12 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
 
         //Get new providers
         _frameworkStatusClient = serviceProvider.GetRequiredService<IFrameworkStatusClient>();
-        _hardwareInfo = serviceProvider.GetRequiredService<IHardwareInfo>();
+        _hardwareInfoClient = serviceProvider.GetRequiredService<IHardwareInfoClient>();
         _dispatcherQueue = serviceProvider.GetRequiredService<DispatcherQueue>();
         _synchronizationContext = serviceProvider.GetRequiredService<SynchronizationContext>();
         EndpointValidationMessage = _frameworkStatusClient.EndpointValidation.Message;
 
-        _ = Task.Run(GatherNewInformation);
+        SubscribeHardwareInfo();
     }
 
     public SubZeroHeaderModel()
@@ -79,31 +79,47 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
         EndpointValidationMessage = string.Empty;
     }
 
-    public async Task GatherNewInformation()
+    public void SubscribeHardwareInfo()
     {
-        if (_frameworkStatusClient is null)
-            return;
-        if (_hardwareInfo is null)
-            return;
-        if (_dispatcherQueue is null)
-            return;
-        if (_synchronizationContext is null)
-            return;
-
-        await _dispatcherQueue!.EnqueueAsync(() =>
+        if (_hardwareInfoClient is null || _synchronizationContext is null)
         {
-            _hardwareInfo.RefreshCPUList(false, 500, false);
-            _hardwareInfo.RefreshMemoryList();
-            if (_hardwareInfo.CpuList.Count > 0)
-                CPUName = $"CPU: {string.Join(" + ", _hardwareInfo.CpuList.Select(x => x.Name.Trim()))}";
-            if (_hardwareInfo.MemoryList.Count > 0)
-                RAMAmount = $"RAM: {string.Join(" + ", _hardwareInfo.MemoryList.Select(x => x.Capacity / (1024d * 1024d * 1024d)))} ({_hardwareInfo.MemoryList.Select(x => x.Capacity / (1024d * 1024d * 1024d)).Sum()}) GB RAM";
-        });
+            return;
+        }
+
+        _hardwareInfoSubscription?.Dispose();
+        _hardwareInfoSubscription = _hardwareInfoClient
+            .WatchHardwareInfo()
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(UpdateHardwareInfoSnapshot);
 
         if (_runningSubscription is not null)
+        {
             _runningSubscription.Dispose();
+        }
 
-        _runningSubscription = _frameworkStatusClient.WatchStatus().ObserveOn(_synchronizationContext).Subscribe(FrameworkSystemDataUpdated);
+        if (_frameworkStatusClient is not null)
+        {
+            _runningSubscription = _frameworkStatusClient.WatchStatus().ObserveOn(_synchronizationContext).Subscribe(FrameworkSystemDataUpdated);
+        }
+    }
+
+    private void UpdateHardwareInfoSnapshot(HardwareInfoSnapshot snapshot)
+    {
+        if (snapshot == null)
+        {
+            return;
+        }
+
+        if (snapshot.Cpus.Any())
+        {
+            CPUName = $"CPU: {string.Join(" + ", snapshot.Cpus.Select(x => x.Name?.Trim() ?? string.Empty))}";
+        }
+
+        if (snapshot.MemoryModules.Any())
+        {
+            var totals = snapshot.MemoryModules.Select(x => x.CapacityBytes / (1024d * 1024d * 1024d));
+            RAMAmount = $"RAM: {string.Join(" + ", totals.Select(value => value.ToString("0.##")))} ({totals.Sum():0.##}) GB RAM";
+        }
     }
 
     private void FrameworkSystemDataUpdated(FrameworkSystemStatus status)

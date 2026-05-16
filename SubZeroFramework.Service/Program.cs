@@ -1,5 +1,6 @@
 using FrameworkDotnet;
 using FrameworkDotnet.Interfaces;
+using Hardware.Info;
 
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
@@ -37,6 +38,7 @@ public static class Program
             .Bind(builder.Configuration.GetSection("FrameworkService"));
 
         builder.Services.AddGrpc();
+        builder.Services.AddSingleton<IHardwareInfo, HardwareInfo>();
         builder.Services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
         builder.Services.AddSingleton<IFrameworkDataProvider, FrameworkDataProvider>();
         builder.Services.AddSingleton<FrameworkFanControlStateStore>();
@@ -46,6 +48,7 @@ public static class Program
         var app = builder.Build();
         app.MapGrpcService<FrameworkStatusGrpcService>();
         app.MapGrpcService<FrameworkTelemetryGrpcService>();
+        app.MapGrpcService<HardwareInfoGrpcService>();
         app.MapGrpcService<FrameworkFanControlGrpcService>();
         await app.RunAsync().ConfigureAwait(false);
     }

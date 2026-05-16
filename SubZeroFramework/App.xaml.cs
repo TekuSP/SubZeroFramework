@@ -1,7 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
 
-using Hardware.Info;
-
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 
@@ -101,8 +99,7 @@ public partial class App : Application
                     services.AddSingleton<ITemperatureTelemetryClient, TemperatureTelemetryClient>();
                     services.AddSingleton<IBatteryTelemetryClient, BatteryTelemetryClient>();
                     services.AddSingleton<IFrameworkFanControlClient, GrpcFrameworkFanControlClient>();
-
-                    services.AddSingleton<IHardwareInfo>(new HardwareInfo());
+                    services.AddSingleton<IHardwareInfoClient, GrpcHardwareInfoClient>();
                     services.AddSingleton<DispatcherQueue>(DispatcherQueue.GetForCurrentThread());
                     services.AddSingleton<SynchronizationContext>(SynchronizationContext.Current!);
                 })

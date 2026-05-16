@@ -1,7 +1,5 @@
 using CommunityToolkit.WinUI;
 
-using Hardware.Info;
-
 using Microsoft.UI.Dispatching;
 
 using SubZeroFramework.Services;
@@ -13,18 +11,12 @@ public class ShellModel
     private readonly INavigator _navigator;
 
     public ShellModel(
-        INavigator navigator, DispatcherQueue dispatcherQueue, IFrameworkStatusClient frameworkStatusClient, IHardwareInfo hardwareInfo)
+        INavigator navigator, DispatcherQueue dispatcherQueue, IFrameworkStatusClient frameworkStatusClient)
     {
         _navigator = navigator;
 
         Task.Run(async () =>
         {
-            await dispatcherQueue.EnqueueAsync(() =>
-            {
-                hardwareInfo.RefreshCPUList(false, 500, false);
-                hardwareInfo.RefreshMemoryList();
-            });
-
             var lastStatus = await frameworkStatusClient.GetStatusAsync().ConfigureAwait(false);
 
             if (lastStatus.IsGrpcActive && lastStatus.IsLibraryAvailable && lastStatus.IsFrameworkDevice == true)

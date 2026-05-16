@@ -1,13 +1,16 @@
 using DynamicData;
 
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Reactive.Concurrency;
+using System.Threading;
 
 using FrameworkDotnet;
 using FrameworkDotnet.Enums;
 using FrameworkDotnet.Interfaces;
 using FrameworkDotnet.Responses;
 using FrameworkDotnet.Snapshots;
+using Hardware.Info;
 using UnitsNet;
 
 namespace SubZeroFramework.Services;
@@ -41,12 +44,24 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private readonly SourceCache<TelemetryChannel, TelemetryChannelId> _telemetryChannels = new(channel => channel.Id);
     private readonly SourceCache<CurrentTelemetryValue, TelemetryChannelId> _currentTelemetryValues = new(value => value.ChannelId);
     private readonly SourceCache<TelemetryPoint, long> _telemetryPoints = new(point => point.SampleId);
+    private readonly RetainedSnapshotStream<HardwareInfoSnapshot> _hardwareInfoSnapshots = new(MaximumHistoryWindow, TelemetryScheduler);
+    private HardwareInfoSnapshot _latestHardwareInfoSnapshot = new()
+    {
+        ObservedAt = DateTimeOffset.MinValue,
+        IsAvailable = false,
+        LastError = "Hardware information has not been collected yet.",
+    };
     private readonly IDisposable _telemetryPointExpirationSubscription;
+    private readonly IHardwareInfo _hardwareInfo;
     private IFrameworkEcConnection? _connection;
     private TimeSpan? _pollingInterval;
+    private TimeSpan? _hardwareInfoPollingInterval;
     private bool _isPolling;
+    private bool _isHardwareInfoPolling;
     private CancellationTokenSource? _pollingCancellation;
+    private CancellationTokenSource? _hardwareInfoPollingCancellation;
     private Task? _pollingTask;
+    private Task? _hardwareInfoPollingTask;
     private long _nextTelemetryPointId;
     private DateTimeOffset _lastTelemetryObservedAt;
     private bool _isFanControlEnabled;
@@ -56,15 +71,18 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     public FrameworkDataProvider(
         IFrameworkSystem frameworkSystem,
+        IHardwareInfo hardwareInfo,
         ILogger<FrameworkDataProvider> logger)
     {
         _frameworkSystem = frameworkSystem;
+        _hardwareInfo = hardwareInfo;
         _logger = logger;
         SystemStatus = _systemStatus;
         FlashSnapshots = _flashSnapshots;
         FanCapabilitiesSnapshots = _fanCapabilitiesSnapshots;
         PowerSnapshots = _powerSnapshots;
         ThermalSnapshots = _thermalSnapshots;
+        HardwareInfoSnapshots = _hardwareInfoSnapshots;
         _telemetryPointExpirationSubscription = _telemetryPoints
             .ExpireAfter(_ => MaximumHistoryWindow, scheduler: TelemetryScheduler)
             .Subscribe();
@@ -92,6 +110,28 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         }
     }
 
+    public bool IsHardwareInfoPolling
+    {
+        get
+        {
+            lock (_syncLock)
+            {
+                return _isHardwareInfoPolling;
+            }
+        }
+    }
+
+    public TimeSpan? HardwareInfoPollingInterval
+    {
+        get
+        {
+            lock (_syncLock)
+            {
+                return _hardwareInfoPollingInterval;
+            }
+        }
+    }
+
     public IObservable<FrameworkSystemStatus> SystemStatus { get; }
 
     public IObservable<FrameworkEcFlashSnapshot> FlashSnapshots { get; }
@@ -101,6 +141,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     public IObservable<FrameworkPowerSnapshot> PowerSnapshots { get; }
 
     public IObservable<FrameworkThermalSnapshot> ThermalSnapshots { get; }
+
+    public IObservable<HardwareInfoSnapshot> HardwareInfoSnapshots { get; }
 
     public void SetFanControlAuthorization(bool isFanControlEnabled, bool hasCallerIdentityValidation, string? authorizationMessage)
     {
@@ -123,6 +165,12 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     public IObservable<IChangeSet<HistoricalRecord<FrameworkThermalSnapshot>, long>> ConnectThermalHistory(TimeSpan historyWindow)
         => _thermalSnapshots.ConnectHistory(ValidateHistoryWindow(historyWindow));
+
+    public IObservable<IChangeSet<HistoricalRecord<HardwareInfoSnapshot>, long>> ConnectHardwareInfoHistory(TimeSpan historyWindow)
+        => _hardwareInfoSnapshots.ConnectHistory(ValidateHistoryWindow(historyWindow));
+
+    public HardwareInfoSnapshot GetLatestHardwareInfoSnapshot()
+        => _latestHardwareInfoSnapshot;
 
     public IObservable<IChangeSet<FanCapabilityState, int>> ConnectFanCapabilities()
         => _fanCapabilities.Connect();
@@ -183,6 +231,28 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         return true;
     }
 
+    public bool SetHardwareInfoPolling(TimeSpan pollingInterval)
+    {
+        ThrowIfDisposed();
+
+        if (pollingInterval < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pollingInterval), nameof(pollingInterval));
+        }
+
+        lock (_syncLock)
+        {
+            if (_isHardwareInfoPolling)
+            {
+                return false;
+            }
+
+            _hardwareInfoPollingInterval = pollingInterval;
+        }
+
+        return true;
+    }
+
     public bool StartPolling()
     {
         ThrowIfDisposed();
@@ -200,6 +270,28 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             pollingCancellation = new CancellationTokenSource();
             _pollingCancellation = pollingCancellation;
             _pollingTask = RunPollingAsync(pollingCancellation.Token);
+        }
+
+        return true;
+    }
+
+    public bool StartHardwareInfoPolling()
+    {
+        ThrowIfDisposed();
+
+        CancellationTokenSource pollingCancellation;
+
+        lock (_syncLock)
+        {
+            if (_isHardwareInfoPolling || _hardwareInfoPollingInterval is null || (_hardwareInfoPollingTask is not null && !_hardwareInfoPollingTask.IsCompleted))
+            {
+                return false;
+            }
+
+            _isHardwareInfoPolling = true;
+            pollingCancellation = new CancellationTokenSource();
+            _hardwareInfoPollingCancellation = pollingCancellation;
+            _hardwareInfoPollingTask = RunHardwareInfoPollingAsync(pollingCancellation.Token);
         }
 
         return true;
@@ -242,6 +334,324 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         MarkAllTelemetryUnavailable(systemStatus.ObservedAt);
         _systemStatus.Publish(systemStatus, systemStatus.ObservedAt);
         return true;
+    }
+
+    public bool StopHardwareInfoPolling()
+    {
+        ThrowIfDisposed();
+
+        CancellationTokenSource? pollingCancellation;
+        Task? pollingTask;
+
+        lock (_syncLock)
+        {
+            if (!_isHardwareInfoPolling && (_hardwareInfoPollingTask is null || _hardwareInfoPollingTask.IsCompleted))
+            {
+                return false;
+            }
+
+            _isHardwareInfoPolling = false;
+            pollingCancellation = _hardwareInfoPollingCancellation;
+            pollingTask = _hardwareInfoPollingTask;
+        }
+
+        pollingCancellation?.Cancel();
+
+        try
+        {
+            pollingTask?.GetAwaiter().GetResult();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            pollingCancellation?.Dispose();
+        }
+
+        return true;
+    }
+
+    private void PublishHardwareInfoSnapshot(HardwareInfoSnapshot snapshot, DateTimeOffset observedAt)
+    {
+        _latestHardwareInfoSnapshot = snapshot;
+        _hardwareInfoSnapshots.Publish(snapshot, observedAt);
+    }
+
+    private HardwareInfoSnapshot ReadHardwareInfoSnapshot()
+    {
+        var observedAt = DateTimeOffset.UtcNow;
+        string? lastError = null;
+
+        var operatingSystem = default(HardwareInfoOperatingSystem?);
+        var computerSystem = default(HardwareInfoComputerSystem?);
+        var motherboard = default(HardwareInfoMotherboard?);
+        var bios = default(HardwareInfoBios?);
+        var memoryStatus = default(HardwareInfoMemoryStatus?);
+        var videoControllers = ImmutableArray<HardwareInfoVideoController>.Empty;
+        var cpus = ImmutableArray<HardwareInfoCpu>.Empty;
+        var memoryModules = ImmutableArray<HardwareInfoMemoryModule>.Empty;
+
+        void CaptureFailure(Exception exception, string operation)
+        {
+            _logger.LogWarning(exception, "Unable to {Operation}.", operation);
+            lastError ??= exception.Message;
+        }
+
+        try
+        {
+            _hardwareInfo.RefreshCPUList(true, 500, false);
+            _hardwareInfo.RefreshMemoryList();
+            _hardwareInfo.RefreshMotherboardList();
+            _hardwareInfo.RefreshBIOSList();
+            _hardwareInfo.RefreshComputerSystemList();
+            _hardwareInfo.RefreshOperatingSystem();
+            _hardwareInfo.RefreshVideoControllerList();
+            _hardwareInfo.RefreshMemoryStatus();
+        }
+        catch (Exception exception)
+        {
+            CaptureFailure(exception, "refresh hardware information");
+        }
+
+        try
+        {
+            if (_hardwareInfo.OperatingSystem is not null)
+            {
+                operatingSystem = new HardwareInfoOperatingSystem(
+                    Name: _hardwareInfo.OperatingSystem.Name,
+                    VersionString: _hardwareInfo.OperatingSystem.VersionString);
+            }
+        }
+        catch (Exception exception)
+        {
+            CaptureFailure(exception, "read operating system data");
+        }
+
+        try
+        {
+            if (_hardwareInfo.ComputerSystemList.FirstOrDefault() is { } system)
+            {
+                computerSystem = new HardwareInfoComputerSystem(
+                    Vendor: system.Vendor,
+                    Caption: system.Caption,
+                    Description: system.Description,
+                    Name: system.Name,
+                    Skunumber: system.SKUNumber,
+                    Uuid: system.UUID,
+                    Version: system.Version);
+            }
+        }
+        catch (Exception exception)
+        {
+            CaptureFailure(exception, "read computer system data");
+        }
+
+        try
+        {
+            if (_hardwareInfo.MotherboardList.FirstOrDefault() is { } board)
+            {
+                motherboard = new HardwareInfoMotherboard(
+                    Manufacturer: board.Manufacturer,
+                    Product: board.Product,
+                    SerialNumber: board.SerialNumber);
+            }
+        }
+        catch (Exception exception)
+        {
+            CaptureFailure(exception, "read motherboard data");
+        }
+
+        try
+        {
+            if (_hardwareInfo.BiosList.FirstOrDefault() is { } biosSnapshot)
+            {
+                bios = new HardwareInfoBios(
+                    Manufacturer: biosSnapshot.Manufacturer,
+                    Caption: biosSnapshot.Caption,
+                    Description: biosSnapshot.Description,
+                    Name: biosSnapshot.Name,
+                    Version: biosSnapshot.Version,
+                    ReleaseDate: biosSnapshot.ReleaseDate,
+                    SerialNumber: biosSnapshot.SerialNumber,
+                    SoftwareElementId: biosSnapshot.SoftwareElementID);
+            }
+        }
+        catch (Exception exception)
+        {
+            CaptureFailure(exception, "read BIOS data");
+        }
+
+        try
+        {
+            if (_hardwareInfo.MemoryStatus is not null)
+            {
+                memoryStatus = new HardwareInfoMemoryStatus(
+                    TotalPhysical: _hardwareInfo.MemoryStatus.TotalPhysical,
+                    AvailablePhysical: _hardwareInfo.MemoryStatus.AvailablePhysical,
+                    TotalPageFile: _hardwareInfo.MemoryStatus.TotalPageFile,
+                    AvailablePageFile: _hardwareInfo.MemoryStatus.AvailablePageFile,
+                    TotalVirtual: _hardwareInfo.MemoryStatus.TotalVirtual,
+                    AvailableVirtual: _hardwareInfo.MemoryStatus.AvailableVirtual,
+                    AvailableExtendedVirtual: _hardwareInfo.MemoryStatus.AvailableExtendedVirtual);
+            }
+        }
+        catch (Exception exception)
+        {
+            CaptureFailure(exception, "read memory status data");
+        }
+
+        try
+        {
+            if (_hardwareInfo.VideoControllerList.Count > 0)
+            {
+                videoControllers = _hardwareInfo.VideoControllerList
+                    .Select(video => new HardwareInfoVideoController(
+                        AdapterRAM: video.AdapterRAM,
+                        Caption: video.Caption,
+                        CurrentBitsPerPixel: video.CurrentBitsPerPixel,
+                        CurrentHorizontalResolution: video.CurrentHorizontalResolution,
+                        CurrentNumberOfColors: video.CurrentNumberOfColors,
+                        CurrentRefreshRate: video.CurrentRefreshRate,
+                        CurrentVerticalResolution: video.CurrentVerticalResolution,
+                        Description: video.Description,
+                        DriverDate: video.DriverDate,
+                        DriverVersion: video.DriverVersion,
+                        Manufacturer: video.Manufacturer,
+                        MaxRefreshRate: video.MaxRefreshRate,
+                        MinRefreshRate: video.MinRefreshRate,
+                        Name: video.Name,
+                        VideoModeDescription: video.VideoModeDescription,
+                        VideoProcessor: video.VideoProcessor))
+                    .ToImmutableArray();
+            }
+        }
+        catch (Exception exception)
+        {
+            CaptureFailure(exception, "read video controller data");
+        }
+
+        try
+        {
+            if (_hardwareInfo.CpuList.Count > 0)
+            {
+                cpus = _hardwareInfo.CpuList
+                    .Select(cpu => new HardwareInfoCpu(
+                        Name: cpu.Name ?? cpu.Caption,
+                        Caption: cpu.Caption,
+                        Description: cpu.Description,
+                        Manufacturer: cpu.Manufacturer,
+                        Cores: checked((int)cpu.NumberOfCores),
+                        LogicalProcessors: checked((int)cpu.NumberOfLogicalProcessors),
+                        CurrentClockSpeedMHz: checked((int)cpu.CurrentClockSpeed),
+                        MaxClockSpeedMHz: checked((int)cpu.MaxClockSpeed),
+                        ProcessorId: cpu.ProcessorId,
+                        SocketDesignation: cpu.SocketDesignation,
+                        L1CacheSizeKb: checked((int)cpu.L1InstructionCacheSize),
+                        L2CacheSizeKb: checked((int)cpu.L2CacheSize),
+                        L3CacheSizeKb: checked((int)cpu.L3CacheSize),
+                        SecondLevelAddressTranslationExtensions: cpu.SecondLevelAddressTranslationExtensions,
+                        VirtualizationFirmwareEnabled: cpu.VirtualizationFirmwareEnabled,
+                        VMMonitorModeExtensions: cpu.VMMonitorModeExtensions,
+                        PercentProcessorTime: cpu.PercentProcessorTime))
+                    .ToImmutableArray();
+            }
+        }
+        catch (Exception exception)
+        {
+            CaptureFailure(exception, "read CPU data");
+        }
+
+        try
+        {
+            if (_hardwareInfo.MemoryList.Count > 0)
+            {
+                memoryModules = _hardwareInfo.MemoryList
+                    .Select(memory => new HardwareInfoMemoryModule(
+                        BankLabel: memory.BankLabel,
+                        CapacityBytes: memory.Capacity,
+                        DataWidth: memory.DataWidth,
+                        MemoryType: memory.MemoryType.ToString(),
+                        FormFactor: memory.FormFactor.ToString(),
+                        SpeedMHz: memory.Speed,
+                        MaxVoltage: memory.MaxVoltage,
+                        MinVoltage: memory.MinVoltage,
+                        Manufacturer: memory.Manufacturer,
+                        PartNumber: memory.PartNumber,
+                        SerialNumber: memory.SerialNumber))
+                    .ToImmutableArray();
+            }
+        }
+        catch (Exception exception)
+        {
+            CaptureFailure(exception, "read memory module data");
+        }
+
+        return new HardwareInfoSnapshot
+        {
+            ObservedAt = observedAt,
+            IsAvailable = lastError is null,
+            LastError = lastError,
+            OperatingSystem = operatingSystem,
+            ComputerSystem = computerSystem,
+            Motherboard = motherboard,
+            Bios = bios,
+            MemoryStatus = memoryStatus,
+            VideoControllers = videoControllers,
+            Cpus = cpus,
+            MemoryModules = memoryModules,
+        };
+    }
+
+    private async Task RunHardwareInfoPollingAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    var snapshot = ReadHardwareInfoSnapshot();
+                    PublishHardwareInfoSnapshot(snapshot, snapshot.ObservedAt);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(exception, "The HardwareInfo polling loop failed.");
+                }
+
+                var pollingInterval = GetHardwareInfoPollingIntervalOrDefault();
+                if (pollingInterval is null)
+                {
+                    break;
+                }
+
+                await Task.Delay(pollingInterval.Value, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            lock (_syncLock)
+            {
+                _isHardwareInfoPolling = false;
+                _hardwareInfoPollingTask = null;
+                _hardwareInfoPollingCancellation = null;
+            }
+        }
+    }
+
+    private TimeSpan? GetHardwareInfoPollingIntervalOrDefault()
+    {
+        lock (_syncLock)
+        {
+            return _isHardwareInfoPolling ? _hardwareInfoPollingInterval : null;
+        }
     }
 
     public async Task<FrameworkSystemStatus> RefreshAsync(CancellationToken cancellationToken = default)
@@ -328,6 +738,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         }
 
         StopPollingIfRunning();
+        StopHardwareInfoPolling();
         RestoreAutomaticFanControl();
         DisposeConnection();
         _telemetryPointExpirationSubscription.Dispose();
@@ -336,11 +747,13 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         _fanCapabilitiesSnapshots.Complete();
         _powerSnapshots.Complete();
         _thermalSnapshots.Complete();
+        _hardwareInfoSnapshots.Complete();
         _systemStatus.Dispose();
         _flashSnapshots.Dispose();
         _fanCapabilitiesSnapshots.Dispose();
         _powerSnapshots.Dispose();
         _thermalSnapshots.Dispose();
+        _hardwareInfoSnapshots.Dispose();
         _fanCapabilities.Dispose();
         _fanStates.Dispose();
         _telemetryChannels.Dispose();

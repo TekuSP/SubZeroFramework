@@ -2,8 +2,6 @@ using System.Reactive.Linq;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
-using Hardware.Info;
-
 using Microsoft.UI.Dispatching;
 
 using SubZeroFramework.Services;
@@ -15,18 +13,16 @@ public partial class MainModel : ObservableObject, IDisposable
     public readonly INavigator navigator;
     private readonly DispatcherQueue dispatcherQueue;
     private readonly SynchronizationContext context;
-    private readonly IHardwareInfo hwInfo;
     private readonly IFrameworkStatusClient frameworkStatusClient;
     private readonly IDisposable frameworkStatusProvider;
     public MainModel(
         IStringLocalizer localizer,
-        IOptions<AppConfig> appInfo, INavigator navigator, IServiceProvider serviceProvider, DispatcherQueue dispatcherQueue, SynchronizationContext context, IHardwareInfo hwInfo, IFrameworkStatusClient frameworkStatusClient)
+        IOptions<AppConfig> appInfo, INavigator navigator, IServiceProvider serviceProvider, DispatcherQueue dispatcherQueue, SynchronizationContext context, IFrameworkStatusClient frameworkStatusClient)
     {
         this.navigator = navigator;
         ServiceProvider = serviceProvider;
         this.dispatcherQueue = dispatcherQueue;
         this.context = context;
-        this.hwInfo = hwInfo;
         this.frameworkStatusClient = frameworkStatusClient;
 
         frameworkStatusProvider = frameworkStatusClient.WatchStatus().ObserveOn(context).Subscribe(SystemStatusChanged);

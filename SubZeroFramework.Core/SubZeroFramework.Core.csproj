@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="DynamicData" />
     <PackageReference Include="FrameworkDotnet" />
+    <PackageReference Include="Hardware.Info.Aot" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="System.Reactive" />
   </ItemGroup>

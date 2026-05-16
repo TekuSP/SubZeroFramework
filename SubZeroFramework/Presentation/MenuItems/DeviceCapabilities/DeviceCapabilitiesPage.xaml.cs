@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Linq;
 
 // The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=234238
 
@@ -9,19 +10,23 @@ namespace SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 /// </summary>
 public sealed partial class DeviceCapabilitiesPage : Page, INotifyPropertyChanged
 {
+    private DeviceCapabilitiesModel? _viewModel;
+
     public DeviceCapabilitiesPage()
     {
         this.InitializeComponent();
         DataContextChanged += DataContextChanged_Handler;
     }
+
     public event PropertyChangedEventHandler? PropertyChanged;
+
     public DeviceCapabilitiesModel? ViewModel
     {
-        get => field;
+        get => _viewModel;
         set
         {
-            if (field == value) return;
-            field = value;
+            if (_viewModel == value) return;
+            _viewModel = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ViewModel)));
         }
     }

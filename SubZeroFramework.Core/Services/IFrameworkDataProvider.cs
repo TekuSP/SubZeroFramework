@@ -10,6 +10,10 @@ public interface IFrameworkDataProvider
 
     TimeSpan? PollingInterval { get; }
 
+    bool IsHardwareInfoPolling { get; }
+
+    TimeSpan? HardwareInfoPollingInterval { get; }
+
     IObservable<FrameworkSystemStatus> SystemStatus { get; }
 
     IObservable<FrameworkEcFlashSnapshot> FlashSnapshots { get; }
@@ -29,6 +33,10 @@ public interface IFrameworkDataProvider
     IObservable<IChangeSet<HistoricalRecord<FrameworkPowerSnapshot>, long>> ConnectPowerHistory(TimeSpan historyWindow);
 
     IObservable<IChangeSet<HistoricalRecord<FrameworkThermalSnapshot>, long>> ConnectThermalHistory(TimeSpan historyWindow);
+
+    IObservable<HardwareInfoSnapshot> HardwareInfoSnapshots { get; }
+
+    IObservable<IChangeSet<HistoricalRecord<HardwareInfoSnapshot>, long>> ConnectHardwareInfoHistory(TimeSpan historyWindow);
 
     IObservable<IChangeSet<FanCapabilityState, int>> ConnectFanCapabilities();
 
@@ -52,9 +60,17 @@ public interface IFrameworkDataProvider
 
     bool SetPolling(TimeSpan pollingInterval);
 
+    bool SetHardwareInfoPolling(TimeSpan pollingInterval);
+
     bool StartPolling();
 
+    bool StartHardwareInfoPolling();
+
     bool StopPolling();
+
+    bool StopHardwareInfoPolling();
+
+    HardwareInfoSnapshot GetLatestHardwareInfoSnapshot();
 
     void SetFanControlAuthorization(bool isFanControlEnabled, bool hasCallerIdentityValidation, string? authorizationMessage);
 

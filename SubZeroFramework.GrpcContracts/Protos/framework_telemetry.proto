@@ -18,6 +18,11 @@ service FrameworkTelemetryService {
   rpc WatchTelemetrySeries (WatchTelemetrySeriesRequest) returns (stream TelemetrySeriesPointChangeBatchReply);
 }
 
+service HardwareInfoService {
+  rpc GetHardwareInfo (GetHardwareInfoRequest) returns (HardwareInfoReply);
+  rpc WatchHardwareInfo (WatchHardwareInfoRequest) returns (stream HardwareInfoReply);
+}
+
 service FrameworkFanControlService {
   rpc SetFanRpm (SetFanRpmRequest) returns (SetFanRpmReply);
   rpc SetFanDuty (SetFanDutyRequest) returns (SetFanDutyReply);
@@ -51,6 +56,119 @@ message WatchTelemetrySeriesRequest {
   int32 index = 3;
   TelemetryMetricValue metric = 4;
   int32 history_window_seconds = 5;
+}
+
+message GetHardwareInfoRequest {}
+
+message WatchHardwareInfoRequest {}
+
+message HardwareInfoOperatingSystemReply {
+  string name = 1;
+  string version_string = 2;
+}
+
+message HardwareInfoComputerSystemReply {
+  string vendor = 1;
+  string caption = 2;
+  string description = 3;
+  string name = 4;
+  string sku_number = 5;
+  string uuid = 6;
+  string version = 7;
+}
+
+message HardwareInfoCpuReply {
+  string name = 1;
+  string caption = 2;
+  string description = 3;
+  string manufacturer = 4;
+  uint32 cores = 5;
+  uint32 logical_processors = 6;
+  uint32 current_clock_speed_mhz = 7;
+  uint32 max_clock_speed_mhz = 8;
+  string processor_id = 9;
+  string socket_designation = 10;
+  uint32 l1_cache_size_kb = 11;
+  uint32 l2_cache_size_kb = 12;
+  uint32 l3_cache_size_kb = 13;
+  bool second_level_address_translation_extensions = 14;
+  bool virtualization_firmware_enabled = 15;
+  bool vm_monitor_mode_extensions = 16;
+  double percent_processor_time = 17;
+}
+
+message HardwareInfoMemoryModuleReply {
+  string bank_label = 1;
+  uint64 capacity_bytes = 2;
+  uint32 data_width = 3;
+  string memory_type = 4;
+  string form_factor = 5;
+  uint32 speed_mhz = 6;
+  uint32 max_voltage = 7;
+  uint32 min_voltage = 8;
+  string manufacturer = 9;
+  string part_number = 10;
+  string serial_number = 11;
+}
+
+message HardwareInfoMemoryStatusReply {
+  uint64 total_physical = 1;
+  uint64 available_physical = 2;
+  uint64 total_page_file = 3;
+  uint64 available_page_file = 4;
+  uint64 total_virtual = 5;
+  uint64 available_virtual = 6;
+  uint64 available_extended_virtual = 7;
+}
+
+message HardwareInfoMotherboardReply {
+  string manufacturer = 1;
+  string product = 2;
+  string serial_number = 3;
+}
+
+message HardwareInfoBiosReply {
+  string manufacturer = 1;
+  string caption = 2;
+  string description = 3;
+  string name = 4;
+  string version = 5;
+  string release_date = 6;
+  string serial_number = 7;
+  string software_element_id = 8;
+}
+
+message HardwareInfoVideoControllerReply {
+  string name = 1;
+  uint64 adapter_ram = 2;
+  string caption = 3;
+  uint32 current_bits_per_pixel = 4;
+  uint32 current_horizontal_resolution = 5;
+  uint64 current_number_of_colors = 6;
+  uint32 current_refresh_rate = 7;
+  uint32 current_vertical_resolution = 8;
+  string description = 9;
+  string driver_date = 10;
+  string driver_version = 11;
+  string manufacturer = 12;
+  uint32 max_refresh_rate = 13;
+  uint32 min_refresh_rate = 14;
+  string video_mode_description = 15;
+  string video_processor = 16;
+}
+
+message HardwareInfoReply {
+  int64 observed_at_unix_time_milliseconds = 1;
+  bool is_available = 2;
+  string last_error = 3;
+  HardwareInfoOperatingSystemReply operating_system = 4;
+  HardwareInfoComputerSystemReply computer_system = 5;
+  HardwareInfoMotherboardReply motherboard = 6;
+  HardwareInfoBiosReply bios = 7;
+  HardwareInfoMemoryStatusReply memory_status = 8;
+  repeated HardwareInfoCpuReply cpus = 9;
+  repeated HardwareInfoMemoryModuleReply memory_modules = 10;
+  repeated HardwareInfoVideoControllerReply video_controllers = 11;
 }
 
 message SetFanRpmRequest {

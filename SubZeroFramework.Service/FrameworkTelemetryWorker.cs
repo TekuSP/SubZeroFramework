@@ -31,6 +31,11 @@ public sealed class FrameworkTelemetryWorker : BackgroundService
             _logger.LogWarning("Unable to configure the Framework polling interval.");
         }
 
+        if (!_frameworkDataProvider.SetHardwareInfoPolling(_options.HardwareInfoPollingInterval))
+        {
+            _logger.LogWarning("Unable to configure the HardwareInfo polling interval.");
+        }
+
         var status = await _frameworkDataProvider.RefreshAsync(cancellationToken).ConfigureAwait(false);
         if (status.RequiresElevation && OperatingSystem.IsLinux())
         {
@@ -40,6 +45,11 @@ public sealed class FrameworkTelemetryWorker : BackgroundService
         if (!_frameworkDataProvider.StartPolling())
         {
             _logger.LogWarning("Unable to start the Framework polling loop.");
+        }
+
+        if (!_frameworkDataProvider.StartHardwareInfoPolling())
+        {
+            _logger.LogWarning("Unable to start the HardwareInfo polling loop.");
         }
 
         await base.StartAsync(cancellationToken).ConfigureAwait(false);
@@ -58,6 +68,7 @@ public sealed class FrameworkTelemetryWorker : BackgroundService
         try
         {
             _frameworkDataProvider.StopPolling();
+            _frameworkDataProvider.StopHardwareInfoPolling();
         }
         catch (ObjectDisposedException)
         {

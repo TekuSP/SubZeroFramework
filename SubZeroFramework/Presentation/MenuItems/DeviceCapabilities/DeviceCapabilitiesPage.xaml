@@ -5,17 +5,628 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:SubZeroFramework.Presentation.MenuItems.DeviceCapabilities"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:SubZeroFramework.Models"
     xmlns:uen="using:Uno.Extensions.Navigation.UI"
+    xmlns:uno="using:Material.Icons.UNO"
     xmlns:utu="using:Uno.Toolkit.UI"
     Background="{StaticResource AppBackgroundBrush}"
     NavigationCacheMode="Required"
     mc:Ignorable="d">
 
     <Grid utu:SafeArea.Insets="VisibleBounds">
-        <TextBlock
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            FontSize="24"
-            Text="Device Capabilities Page" />
+        <ScrollViewer Margin="16" VerticalScrollBarVisibility="Auto">
+            <GridView>
+                <GridView.Header>
+                    <Border
+                        Padding="16"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        CornerRadius="16"
+                        Translation="0,0,16">
+                        <Border.Shadow>
+                            <ThemeShadow />
+                        </Border.Shadow>
+                        <StackPanel Spacing="8">
+                            <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="Device Capabilities" />
+                            <TextBlock
+                                Style="{ThemeResource BodyTextBlockStyle}"
+                                Text="Hardware inventory and system metadata collected from the local platform. Expand each section to review details for CPU, memory, motherboard, BIOS, and the base system profile."
+                                TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+                    </Border>
+                </GridView.Header>
+                <GridView.Items>
+                    <Grid
+                        Width="500"
+                        Margin="0,0,0,8"
+                        Padding="0"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="Transparent"
+                        CornerRadius="12">
+
+                        <StackPanel Padding="12,0,12,12">
+                            <StackPanel
+                                Padding="12"
+                                Orientation="Horizontal"
+                                Spacing="10">
+                                <uno:MaterialIcon
+                                    Foreground="{StaticResource BrandPrimaryBrush}"
+                                    IconSize="20"
+                                    Kind="DesktopTowerMonitor" />
+                                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="System Profile" />
+                            </StackPanel>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="OS" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.OperatingSystem.Name, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="OS Version" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.OperatingSystem.VersionString, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Vendor" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.ComputerSystem.Vendor, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Model" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.ComputerSystem.Caption}"
+                                    TextWrapping="WrapWholeWords" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="SKU" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.ComputerSystem.Skunumber, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="System UUID" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.ComputerSystem.Uuid, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Description" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.ComputerSystem.Description, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="System Version" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.ComputerSystem.Version, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid
+                        Width="500"
+                        Margin="0,0,0,8"
+                        Padding="0"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="Transparent"
+                        CornerRadius="12">
+                        <StackPanel Padding="12,0,12,12">
+                            <StackPanel
+                                Padding="12"
+                                Orientation="Horizontal"
+                                Spacing="10">
+                                <uno:MaterialIcon
+                                    Foreground="{StaticResource BrandPrimaryBrush}"
+                                    IconSize="20"
+                                    Kind="Cpu64Bit" />
+                                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="CPU" />
+                            </StackPanel>
+                            <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Detected processors" />
+                            <GridView
+                                Margin="0,12,0,0"
+                                IsItemClickEnabled="False"
+                                ItemsSource="{x:Bind ViewModel.Snapshot.Cpus, Mode=OneWay}"
+                                SelectionMode="None">
+                                <GridView.ItemTemplate>
+                                    <DataTemplate x:DataType="models:HardwareInfoCpu">
+                                        <Border
+                                            Margin="0,0,0,12"
+                                            Padding="12"
+                                            Background="{StaticResource CardBackgroundBrush}"
+                                            CornerRadius="12">
+                                            <StackPanel Spacing="8">
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Name" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind Name}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Manufacturer" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind Manufacturer, FallbackValue=Unknown, TargetNullValue=Unknown}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Cores" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind Cores, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Logical Processors" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind LogicalProcessors, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Base Clock" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind CurrentClockSpeedMHz, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Max Clock" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind MaxClockSpeedMHz, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Socket" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind SocketDesignation, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Processor ID" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind ProcessorId, FallbackValue=Unknown, TargetNullValue=Unknown}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Description" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind Description}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </GridView.ItemTemplate>
+                            </GridView>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid
+                        Width="500"
+                        Margin="0,0,0,8"
+                        Padding="0"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="Transparent"
+                        CornerRadius="12">
+                        <StackPanel Padding="12,0,12,12">
+                            <StackPanel
+                                Padding="12"
+                                Orientation="Horizontal"
+                                Spacing="10">
+                                <uno:MaterialIcon
+                                    Foreground="{StaticResource BrandPrimaryBrush}"
+                                    IconSize="20"
+                                    Kind="Memory" />
+                                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Memory" />
+                            </StackPanel>
+                            <TextBlock
+                                Margin="0,16,0,8"
+                                Style="{ThemeResource SubtitleTextBlockStyle}"
+                                Text="Installed memory modules" />
+
+                            <GridView
+                                Margin="0,0,0,8"
+                                IsItemClickEnabled="False"
+                                ItemsSource="{x:Bind ViewModel.Snapshot.MemoryModules, Mode=OneWay}"
+                                SelectionMode="None">
+                                <GridView.ItemTemplate>
+                                    <DataTemplate x:DataType="models:HardwareInfoMemoryModule">
+                                        <Border
+                                            Margin="0,0,0,12"
+                                            Padding="12"
+                                            Background="{StaticResource CardBackgroundBrush}"
+                                            CornerRadius="12">
+                                            <StackPanel Spacing="8">
+                                                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="{x:Bind BankLabel, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Capacity" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind CapacityBytes, FallbackValue=Unknown, TargetNullValue=Unknown}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </Grid>
+                                                <Grid Margin="0,4,0,0" ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Memory Type" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind MemoryType, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                                <Grid Margin="0,4,0,0" ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Speed" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind SpeedMHz, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                                <Grid Margin="0,4,0,0" ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Manufacturer" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind Manufacturer, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                                <Grid Margin="0,4,0,0" ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Data Width" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind DataWidth, FallbackValue=Unknown, TargetNullValue=Unknown}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </Grid>
+                                                <Grid Margin="0,4,0,0" ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Part Number" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind PartNumber, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                                <Grid Margin="0,4,0,0" ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Serial Number" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind SerialNumber, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </GridView.ItemTemplate>
+                            </GridView>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid
+                        Width="500"
+                        Margin="0,0,0,8"
+                        Padding="0"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="Transparent"
+                        CornerRadius="12">
+                        <StackPanel Padding="12,0,12,12">
+                            <StackPanel
+                                Padding="12"
+                                Orientation="Horizontal"
+                                Spacing="10">
+                                <uno:MaterialIcon
+                                    Foreground="{StaticResource BrandPrimaryBrush}"
+                                    IconSize="20"
+                                    Kind="Database" />
+                                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Memory Status" />
+                            </StackPanel>
+
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Total Physical" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.MemoryStatus.TotalPhysical, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Available Physical" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.MemoryStatus.AvailablePhysical, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Total Page File" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.MemoryStatus.TotalPageFile, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Available Page File" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.MemoryStatus.AvailablePageFile, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Total Virtual" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.MemoryStatus.TotalVirtual, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Available Virtual" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.MemoryStatus.AvailableVirtual, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Available Extended Virtual" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.MemoryStatus.AvailableExtendedVirtual, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid
+                        Width="500"
+                        Margin="0,0,0,8"
+                        Padding="0"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="Transparent"
+                        CornerRadius="12">
+                        <StackPanel Padding="12,0,12,12">
+                            <StackPanel
+                                Padding="12"
+                                Orientation="Horizontal"
+                                Spacing="10">
+                                <uno:MaterialIcon
+                                    Foreground="{StaticResource BrandPrimaryBrush}"
+                                    IconSize="20"
+                                    Kind="Chip" />
+                                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Motherboard" />
+                            </StackPanel>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Manufacturer" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.Motherboard.Manufacturer, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Product" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.Motherboard.Product, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Serial" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.Motherboard.SerialNumber, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid
+                        Width="500"
+                        Margin="0,0,0,8"
+                        Padding="0"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="Transparent"
+                        CornerRadius="12">
+
+                        <StackPanel Padding="12,0,12,12">
+                            <StackPanel
+                                Padding="12"
+                                Orientation="Horizontal"
+                                Spacing="10">
+                                <uno:MaterialIcon
+                                    Foreground="{StaticResource BrandPrimaryBrush}"
+                                    IconSize="20"
+                                    Kind="IntegratedCircuitChip" />
+                                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="BIOS" />
+                            </StackPanel>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Manufacturer" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.Bios.Manufacturer, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Caption" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.Bios.Caption, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Description" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.Bios.Description}"
+                                    TextWrapping="WrapWholeWords" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Name" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.Bios.Name, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Version" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.Bios.Version, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Release Date" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.Bios.ReleaseDate, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Serial" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.Bios.SerialNumber, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0" ColumnDefinitions="170,*">
+                                <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Software Element ID" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Style="{ThemeResource BodyTextBlockStyle}"
+                                    Text="{x:Bind ViewModel.Snapshot.Bios.SoftwareElementId, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                            </Grid>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid
+                        Width="500"
+                        Margin="0,0,0,8"
+                        Padding="0"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        BorderBrush="Transparent"
+                        CornerRadius="12">
+
+                        <StackPanel Padding="12,0,12,12">
+                            <StackPanel
+                                Padding="12"
+                                Orientation="Horizontal"
+                                Spacing="10">
+                                <uno:MaterialIcon
+                                    Foreground="{StaticResource BrandPrimaryBrush}"
+                                    IconSize="20"
+                                    Kind="Monitor" />
+                                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Graphics" />
+                            </StackPanel>
+                            <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="Detected graphics adapters" />
+                            <GridView
+                                Margin="0,12,0,0"
+                                IsItemClickEnabled="False"
+                                ItemsSource="{x:Bind ViewModel.Snapshot.VideoControllers, Mode=OneWay}"
+                                SelectionMode="None">
+                                <GridView.ItemTemplate>
+                                    <DataTemplate x:DataType="models:HardwareInfoVideoController">
+                                        <Border
+                                            Margin="0,0,0,12"
+                                            Padding="12"
+                                            Background="{StaticResource CardBackgroundBrush}"
+                                            CornerRadius="12">
+                                            <StackPanel Spacing="8">
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Name" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind Name, FallbackValue=Unknown, TargetNullValue=Unknown}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Manufacturer" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind Manufacturer, FallbackValue=Unknown, TargetNullValue=Unknown}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Driver Version" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind DriverVersion, FallbackValue=Unknown, TargetNullValue=Unknown}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Driver Date" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind DriverDate, FallbackValue=Unknown, TargetNullValue=Unknown}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Video Processor" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind VideoProcessor, FallbackValue=Unknown, TargetNullValue=Unknown}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Video Mode" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind VideoModeDescription, FallbackValue=Unknown, TargetNullValue=Unknown}"
+                                                        TextWrapping="WrapWholeWords" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Resolution" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind CurrentHorizontalResolution, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Refresh Rate" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind CurrentRefreshRate, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="170,*">
+                                                    <TextBlock Style="{ThemeResource CaptionTextBlockStyle}" Text="Adapter RAM" />
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Style="{ThemeResource BodyTextBlockStyle}"
+                                                        Text="{x:Bind AdapterRAM, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </GridView.ItemTemplate>
+                            </GridView>
+                        </StackPanel>
+                    </Grid>
+                </GridView.Items>
+            </GridView>
+        </ScrollViewer>
     </Grid>
 </Page>

@@ -8,14 +8,34 @@
       // Use IntelliSense to find out which attributes exist for C# debugging
       // Use hover for the description of the existing attributes
       // For further information visit https://github.com/OmniSharp/omnisharp-vscode/blob/master/debugger-launchjson.md
-      "name": "Uno Platform Desktop Debug",
+      "name": "Uno Platform Linux Debug",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build-desktop",
+      "preLaunchTask": "build-linux",
       // If you have changed target frameworks, make sure to update the program path.
       "program": "${workspaceFolder}/SubZeroFramework/bin/Debug/net10.0-desktop/SubZeroFramework.dll",
       "args": [],
-      "launchSettingsProfile": "SubZeroFramework (Desktop)",
+      "launchSettingsProfile": "SubZeroFramework (Linux)",
+      "env": {
+        "DOTNET_MODIFIABLE_ASSEMBLIES": "debug"
+      },
+      "cwd": "${workspaceFolder}/SubZeroFramework",
+      // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
+      "console": "internalConsole",
+      "stopAtEntry": false
+    },
+    {
+      // Use IntelliSense to find out which attributes exist for C# debugging
+      // Use hover for the description of the existing attributes
+      // For further information visit https://github.com/OmniSharp/omnisharp-vscode/blob/master/debugger-launchjson.md
+      "name": "Uno Platform Windows Debug",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-windows",
+      // If you have changed target frameworks, make sure to update the program path.
+      "program": "${workspaceFolder}/SubZeroFramework/bin/Debug/net10.0-windows10.0.26100/SubZeroFramework.dll",
+      "args": [],
+      "launchSettingsProfile": "SubZeroFramework (Windows)",
       "env": {
         "DOTNET_MODIFIABLE_ASSEMBLIES": "debug"
       },
