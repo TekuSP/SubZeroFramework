@@ -47,7 +47,7 @@
             IsBackEnabled="False"
             IsPaneToggleButtonVisible="False"
             IsSettingsVisible="False"
-            OpenPaneLength="200"
+            OpenPaneLength="250"
             PaneDisplayMode="LeftCompact"
             SelectedItem="{x:Bind ViewModel.SelectedItem, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
             SelectionChanged="{x:Bind MainNavigationView_SelectionChanged}">

@@ -33,11 +33,144 @@
                         FontWeight="SemiBold"
                         Foreground="{StaticResource TextPrimaryBrush}"
                         Text="Device Capabilities" />
-                    <TextBlock
-                        Margin="0,8,0,0"
-                        Foreground="{StaticResource TextSecondaryBrush}"
-                        Text="Hardware inventory and system details for this machine, combining Framework metadata with the local hardware inventory when needed."
-                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+
+                <StackPanel Spacing="12">
+                    <StackPanel Margin="10,0">
+                        <controls:ElevatedCard
+                            Margin="0"
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Stretch"
+                            Background="{StaticResource CardBackgroundBrush}">
+                            <StackPanel Padding="14">
+                                <TextBlock
+                                    FontSize="22" Margin="0,0,0,14"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="Onboard devices status" />
+
+                                <StackPanel Spacing="8">
+                                    <TextBlock
+                                        FontSize="18"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Text="Temperature Sensors" />
+                                    <GridView
+                                        IsItemClickEnabled="False"
+                                        ItemContainerStyle="{StaticResource CapabilityGridItemStyle}"
+                                        ItemsSource="{x:Bind ViewModel.TemperatureStatusItems, Mode=OneWay}"
+                                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                        ScrollViewer.HorizontalScrollMode="Disabled"
+                                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                        ScrollViewer.VerticalScrollMode="Disabled"
+                                        SelectionMode="None">
+                                        <GridView.ItemTemplate>
+                                            <DataTemplate x:DataType="local:DeviceCapabilitiesRuntimeStatusItemModel">
+                                                <Border
+                                                    Width="220"
+                                                    Padding="12"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel Spacing="4">
+                                                        <TextBlock
+                                                            FontSize="16"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                                            Text="{x:Bind Name, Mode=OneWay}" />
+                                                        <TextBlock
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{x:Bind StatusForegroundBrush, Mode=OneWay}"
+                                                            Text="{x:Bind Status, Mode=OneWay}"
+                                                            TextWrapping="WrapWholeWords" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </GridView.ItemTemplate>
+                                    </GridView>
+                                </StackPanel>
+
+                                <StackPanel Spacing="8">
+                                    <TextBlock
+                                        FontSize="18"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Text="Fans" />
+                                    <GridView
+                                        IsItemClickEnabled="False"
+                                        ItemContainerStyle="{StaticResource CapabilityGridItemStyle}"
+                                        ItemsSource="{x:Bind ViewModel.FanStatusItems, Mode=OneWay}"
+                                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                        ScrollViewer.HorizontalScrollMode="Disabled"
+                                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                        ScrollViewer.VerticalScrollMode="Disabled"
+                                        SelectionMode="None">
+                                        <GridView.ItemTemplate>
+                                            <DataTemplate x:DataType="local:DeviceCapabilitiesRuntimeStatusItemModel">
+                                                <Border
+                                                    Width="220"
+                                                    Padding="12"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel Spacing="4">
+                                                        <TextBlock
+                                                            FontSize="16"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                                            Text="{x:Bind Name, Mode=OneWay}" />
+                                                        <TextBlock
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{x:Bind StatusForegroundBrush, Mode=OneWay}"
+                                                            Text="{x:Bind Status, Mode=OneWay}"
+                                                            TextWrapping="WrapWholeWords" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </GridView.ItemTemplate>
+                                    </GridView>
+                                </StackPanel>
+
+                                <StackPanel Spacing="8">
+                                    <TextBlock
+                                        FontSize="18"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Text="Batteries" />
+                                    <GridView
+                                        IsItemClickEnabled="False"
+                                        ItemContainerStyle="{StaticResource CapabilityGridItemStyle}"
+                                        ItemsSource="{x:Bind ViewModel.BatteryStatusItems, Mode=OneWay}"
+                                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                        ScrollViewer.HorizontalScrollMode="Disabled"
+                                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                        ScrollViewer.VerticalScrollMode="Disabled"
+                                        SelectionMode="None">
+                                        <GridView.ItemTemplate>
+                                            <DataTemplate x:DataType="local:DeviceCapabilitiesRuntimeStatusItemModel">
+                                                <Border
+                                                    Width="220"
+                                                    Padding="12"
+                                                    Background="#1AFFFFFF"
+                                                    CornerRadius="10">
+                                                    <StackPanel Spacing="4">
+                                                        <TextBlock
+                                                            FontSize="16"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                                            Text="{x:Bind Name, Mode=OneWay}" />
+                                                        <TextBlock
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{x:Bind StatusForegroundBrush, Mode=OneWay}"
+                                                            Text="{x:Bind Status, Mode=OneWay}"
+                                                            TextWrapping="WrapWholeWords" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </GridView.ItemTemplate>
+                                    </GridView>
+                                </StackPanel>
+                            </StackPanel>
+                        </controls:ElevatedCard>
+                    </StackPanel>
                 </StackPanel>
 
                 <StackPanel Spacing="12">
@@ -136,11 +269,11 @@
                                         Background="#1AFFFFFF"
                                         CornerRadius="10">
                                         <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Product" />
+                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Product / SKU" />
                                             <TextBlock
                                                 FontSize="26"
                                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind ViewModel.SystemProfileProductName, FallbackValue=Unavailable, TargetNullValue=Unavailable, Mode=OneWay}"
+                                                Text="{x:Bind ViewModel.SystemProfileProductName, FallbackValue=Not separately reported, TargetNullValue=Not separately reported, Mode=OneWay}"
                                                 TextWrapping="WrapWholeWords" />
                                         </StackPanel>
                                     </Border>
@@ -166,6 +299,7 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
 
                                     <Border
@@ -173,11 +307,11 @@
                                         Background="#1AFFFFFF"
                                         CornerRadius="12">
                                         <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="System UUID" />
+                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="EC build" />
                                             <TextBlock
                                                 FontSize="18"
                                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind ViewModel.SystemProfileUuid, FallbackValue=Unavailable, TargetNullValue=Unavailable, Mode=OneWay}"
+                                                Text="{x:Bind ViewModel.SystemProfileEcBuildInfo, FallbackValue=Unavailable, TargetNullValue=Unavailable, Mode=OneWay}"
                                                 TextWrapping="WrapWholeWords" />
                                         </StackPanel>
                                     </Border>
@@ -188,11 +322,26 @@
                                         Background="#1AFFFFFF"
                                         CornerRadius="12">
                                         <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Description" />
+                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="BIOS version" />
                                             <TextBlock
                                                 FontSize="18"
                                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind ViewModel.SystemProfileDescription, FallbackValue=Unavailable, TargetNullValue=Unavailable, Mode=OneWay}"
+                                                Text="{x:Bind ViewModel.SystemProfileBiosVersion, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                                TextWrapping="WrapWholeWords" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border
+                                        Grid.Column="2"
+                                        Padding="12"
+                                        Background="#1AFFFFFF"
+                                        CornerRadius="12">
+                                        <StackPanel>
+                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="BIOS release date" />
+                                            <TextBlock
+                                                FontSize="18"
+                                                Foreground="{StaticResource TextPrimaryBrush}"
+                                                Text="{x:Bind ViewModel.SystemProfileBiosReleaseDate, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
                                                 TextWrapping="WrapWholeWords" />
                                         </StackPanel>
                                     </Border>
@@ -727,123 +876,6 @@
                                                 FontSize="26"
                                                 Foreground="{StaticResource TextPrimaryBrush}"
                                                 Text="{x:Bind ViewModel.Snapshot.Inventory.Motherboard.SerialNumber, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                                TextWrapping="WrapWholeWords" />
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
-                            </StackPanel>
-                        </controls:ElevatedCard>
-
-                        <controls:ElevatedCard
-                            HorizontalContentAlignment="Stretch"
-                            VerticalContentAlignment="Stretch"
-                            Background="{StaticResource CardBackgroundBrush}">
-                            <StackPanel Padding="14" Spacing="14">
-                                <TextBlock
-                                    FontSize="22"
-                                    FontWeight="SemiBold"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="BIOS" />
-                                <Grid ColumnSpacing="12" RowSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Border Padding="12" Background="#1AFFFFFF" CornerRadius="10">
-                                        <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
-                                            <TextBlock
-                                                FontSize="26"
-                                                Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind ViewModel.Snapshot.Inventory.Bios.Manufacturer, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                                TextWrapping="WrapWholeWords" />
-                                        </StackPanel>
-                                    </Border>
-                                    <Border Grid.Column="1" Padding="12" Background="#1AFFFFFF" CornerRadius="10">
-                                        <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Version" />
-                                            <TextBlock
-                                                FontSize="26"
-                                                Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind ViewModel.Snapshot.Inventory.Bios.Version, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                                TextWrapping="WrapWholeWords" />
-                                        </StackPanel>
-                                    </Border>
-                                    <Border Grid.Column="2" Padding="12" Background="#1AFFFFFF" CornerRadius="10">
-                                        <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Release Date" />
-                                            <TextBlock
-                                                FontSize="26"
-                                                Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind ViewModel.Snapshot.Inventory.Bios.DisplayReleaseDate, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                                TextWrapping="WrapWholeWords" />
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
-
-                                <Grid ColumnSpacing="12" RowSpacing="12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-
-                                    <Border Padding="12" Background="#1AFFFFFF" CornerRadius="12">
-                                        <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Caption" />
-                                            <TextBlock
-                                                FontSize="18"
-                                                Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind ViewModel.Snapshot.Inventory.Bios.Caption, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                                TextWrapping="WrapWholeWords" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Grid.Column="1" Padding="12" Background="#1AFFFFFF" CornerRadius="12">
-                                        <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Name" />
-                                            <TextBlock
-                                                FontSize="18"
-                                                Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind ViewModel.Snapshot.Inventory.Bios.Name, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                                TextWrapping="WrapWholeWords" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Grid.Column="2" Padding="12" Background="#1AFFFFFF" CornerRadius="12">
-                                        <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Serial" />
-                                            <TextBlock
-                                                FontSize="18"
-                                                Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind ViewModel.Snapshot.Inventory.Bios.SerialNumber, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                                TextWrapping="WrapWholeWords" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Grid.Row="1" Padding="12" Background="#1AFFFFFF" CornerRadius="12">
-                                        <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Software Element ID" />
-                                            <TextBlock
-                                                FontSize="18"
-                                                Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind ViewModel.Snapshot.Inventory.Bios.SoftwareElementId, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                                TextWrapping="WrapWholeWords" />
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Padding="12" Background="#1AFFFFFF" CornerRadius="12">
-                                        <StackPanel>
-                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Description" />
-                                            <TextBlock
-                                                FontSize="18"
-                                                Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind ViewModel.Snapshot.Inventory.Bios.Description, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
                                                 TextWrapping="WrapWholeWords" />
                                         </StackPanel>
                                     </Border>
