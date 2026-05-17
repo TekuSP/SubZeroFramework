@@ -10,6 +10,10 @@ public sealed record HardwareInfoInventorySnapshot
 
     public ImmutableArray<HardwareInfoMemoryModule> MemoryModules { get; init; } = ImmutableArray<HardwareInfoMemoryModule>.Empty;
 
+    public ImmutableArray<HardwareInfoDrive> Drives { get; init; } = ImmutableArray<HardwareInfoDrive>.Empty;
+
+    public ImmutableArray<HardwareInfoNetworkAdapter> NetworkAdapters { get; init; } = ImmutableArray<HardwareInfoNetworkAdapter>.Empty;
+
     public HardwareInfoMotherboard? Motherboard { get; init; }
 
     public HardwareInfoBios? Bios { get; init; }

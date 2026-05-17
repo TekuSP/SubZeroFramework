@@ -185,6 +185,34 @@ message HardwareInfoVideoControllerReply {
   string video_processor = 16;
 }
 
+message HardwareInfoDriveReply {
+  uint32 index = 1;
+  string name = 2;
+  string model = 3;
+  string caption = 4;
+  string description = 5;
+  string manufacturer = 6;
+  string media_type = 7;
+  string serial_number = 8;
+  string firmware_revision = 9;
+  uint64 size = 10;
+  uint64 free_space = 11;
+}
+
+message HardwareInfoNetworkAdapterReply {
+  string name = 1;
+  string net_connection_id = 2;
+  string product_name = 3;
+  string caption = 4;
+  string description = 5;
+  string manufacturer = 6;
+  string adapter_type = 7;
+  string mac_address = 8;
+  uint64 speed = 9;
+  repeated string ip_addresses = 10;
+  repeated string default_gateways = 11;
+}
+
 message HardwareInfoReply {
   int64 observed_at_unix_time_milliseconds = 1;
   bool is_available = 2;
@@ -198,6 +226,8 @@ message HardwareInfoReply {
   repeated HardwareInfoMemoryModuleReply memory_modules = 10;
   repeated HardwareInfoVideoControllerReply video_controllers = 11;
   repeated HardwareInfoMonitorReply monitors = 12;
+  repeated HardwareInfoDriveReply drives = 13;
+  repeated HardwareInfoNetworkAdapterReply network_adapters = 14;
 }
 
 message HardwareInfoHistoryChangeReply {

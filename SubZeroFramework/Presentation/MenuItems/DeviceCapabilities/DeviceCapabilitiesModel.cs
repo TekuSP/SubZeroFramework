@@ -34,6 +34,8 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     private readonly Dictionary<int, BatteryTelemetrySnapshot> _batterySnapshots = [];
     private readonly ObservableCollection<DeviceCapabilitiesCpuPackageCardModel> _cpuPackageCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesMemoryModuleCardModel> _memoryModuleCards = [];
+    private readonly ObservableCollection<DeviceCapabilitiesStorageDriveCardModel> _storageDriveCards = [];
+    private readonly ObservableCollection<DeviceCapabilitiesNetworkAdapterCardModel> _networkAdapterCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesVideoControllerCardModel> _videoControllerCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesMonitorCardModel> _monitorCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesMonitorResolutionCard> _monitorResolutionCards = [];
@@ -53,6 +55,14 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         nameof(GraphicsAdapterCount),
         nameof(MonitorCount),
         nameof(ActiveMonitorCount),
+        nameof(StorageDriveCount),
+        nameof(TotalStorageCapacity),
+        nameof(TotalStorageUsedSpace),
+        nameof(TotalStorageFreeSpace),
+        nameof(TotalStorageUsagePercent),
+        nameof(TotalStorageUsageSummary),
+        nameof(NetworkAdapterCount),
+        nameof(ConnectedNetworkAdapterCount),
         nameof(MonitorResolutionCards),
         nameof(SystemProfileOs),
         nameof(SystemProfileVendor),
@@ -79,6 +89,10 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     public ReadOnlyObservableCollection<DeviceCapabilitiesCpuPackageCardModel> CpuPackageCards { get; }
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesMemoryModuleCardModel> MemoryModuleCards { get; }
+
+    public ReadOnlyObservableCollection<DeviceCapabilitiesStorageDriveCardModel> StorageDriveCards { get; }
+
+    public ReadOnlyObservableCollection<DeviceCapabilitiesNetworkAdapterCardModel> NetworkAdapterCards { get; }
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesVideoControllerCardModel> VideoControllerCards { get; }
 
@@ -115,6 +129,46 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     public int ActiveMonitorCount => Snapshot?.Runtime.Monitors.Length is > 0
         ? Snapshot.Runtime.Monitors.Count(monitor => monitor.Active)
         : Snapshot?.Runtime.VideoControllers.Count(HasActiveDisplay) ?? 0;
+
+    public int StorageDriveCount => Snapshot?.Inventory.Drives.Length ?? 0;
+
+    public string TotalStorageCapacity => Snapshot?.Inventory.Drives.Length > 0
+        ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.Size))
+        : "Unknown";
+
+    public string TotalStorageUsedSpace => Snapshot?.Inventory.Drives.Length > 0
+        ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.UsedSpace))
+        : "Unknown";
+
+    public string TotalStorageFreeSpace => Snapshot?.Inventory.Drives.Length > 0
+        ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.ClampedFreeSpace))
+        : "Unknown";
+
+    public double TotalStorageUsagePercent
+    {
+        get
+        {
+            if (Snapshot?.Inventory.Drives.Length is not > 0)
+            {
+                return 0d;
+            }
+
+            var totalCapacity = Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.Size);
+            var totalUsed = Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.UsedSpace);
+
+            return totalCapacity == 0
+                ? 0d
+                : Math.Clamp(totalUsed * 100d / totalCapacity, 0d, 100d);
+        }
+    }
+
+    public string TotalStorageUsageSummary => Snapshot?.Inventory.Drives.Length > 0
+        ? $"{TotalStorageUsedSpace} used / {TotalStorageFreeSpace} free"
+        : "Unknown";
+
+    public int NetworkAdapterCount => Snapshot?.Inventory.NetworkAdapters.Length ?? 0;
+
+    public int ConnectedNetworkAdapterCount => Snapshot?.Inventory.NetworkAdapters.Count(adapter => adapter.HasAssignedAddress) ?? 0;
 
     public string SystemProfileOs => Snapshot?.Inventory.OperatingSystem?.Name ?? "Unknown";
 
@@ -240,6 +294,8 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         _synchronizationContext = synchronizationContext;
         CpuPackageCards = new ReadOnlyObservableCollection<DeviceCapabilitiesCpuPackageCardModel>(_cpuPackageCards);
         MemoryModuleCards = new ReadOnlyObservableCollection<DeviceCapabilitiesMemoryModuleCardModel>(_memoryModuleCards);
+        StorageDriveCards = new ReadOnlyObservableCollection<DeviceCapabilitiesStorageDriveCardModel>(_storageDriveCards);
+        NetworkAdapterCards = new ReadOnlyObservableCollection<DeviceCapabilitiesNetworkAdapterCardModel>(_networkAdapterCards);
         VideoControllerCards = new ReadOnlyObservableCollection<DeviceCapabilitiesVideoControllerCardModel>(_videoControllerCards);
         MonitorCards = new ReadOnlyObservableCollection<DeviceCapabilitiesMonitorCardModel>(_monitorCards);
         MonitorResolutionCards = new ReadOnlyObservableCollection<DeviceCapabilitiesMonitorResolutionCard>(_monitorResolutionCards);
@@ -345,6 +401,8 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     {
         SynchronizeCpuPackageCards(Snapshot?.Runtime.Cpus ?? []);
         SynchronizeMemoryModuleCards(Snapshot?.Inventory.MemoryModules ?? []);
+        SynchronizeStorageDriveCards(Snapshot?.Inventory.Drives ?? []);
+        SynchronizeNetworkAdapterCards(Snapshot?.Inventory.NetworkAdapters ?? []);
         SynchronizeVideoControllerCards(Snapshot?.Runtime.VideoControllers ?? []);
         SynchronizeMonitorCards(Snapshot?.Runtime.Monitors ?? []);
         SynchronizeMonitorResolutionCards(BuildMonitorResolutionCardData());
@@ -492,6 +550,24 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             static (card, _, memoryModule) => card.Snapshot = memoryModule);
     }
 
+    private void SynchronizeStorageDriveCards(IReadOnlyList<HardwareInfoDrive> drives)
+    {
+        SynchronizeCards(
+            _storageDriveCards,
+            drives,
+            static (_, drive) => new DeviceCapabilitiesStorageDriveCardModel(drive),
+            static (card, _, drive) => card.Snapshot = drive);
+    }
+
+    private void SynchronizeNetworkAdapterCards(IReadOnlyList<HardwareInfoNetworkAdapter> networkAdapters)
+    {
+        SynchronizeCards(
+            _networkAdapterCards,
+            networkAdapters,
+            static (_, networkAdapter) => new DeviceCapabilitiesNetworkAdapterCardModel(networkAdapter),
+            static (card, _, networkAdapter) => card.Snapshot = networkAdapter);
+    }
+
     private void SynchronizeVideoControllerCards(IReadOnlyList<HardwareInfoVideoController> videoControllers)
     {
         SynchronizeCards(
@@ -512,10 +588,16 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     public string FormatBytes(ulong bytes)
     {
+        const double OneTerabyte = 1024d * 1024d * 1024d * 1024d;
         const double OneGigabyte = 1024d * 1024d * 1024d;
         if (bytes == 0)
         {
             return "0 GB";
+        }
+
+        if (bytes >= OneTerabyte)
+        {
+            return $"{bytes / OneTerabyte:0.##} TB";
         }
 
         return bytes >= OneGigabyte

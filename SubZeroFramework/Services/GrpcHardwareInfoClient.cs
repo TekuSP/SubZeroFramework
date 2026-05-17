@@ -228,6 +228,8 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
                 Motherboard = MapMotherboard(reply.Motherboard),
                 Bios = MapBios(reply.Bios),
                 MemoryModules = reply.MemoryModules.Select(MapMemoryModule).ToImmutableArray(),
+                Drives = reply.Drives.Select(MapDrive).ToImmutableArray(),
+                NetworkAdapters = reply.NetworkAdapters.Select(MapNetworkAdapter).ToImmutableArray(),
             },
             Runtime = new HardwareInfoRuntimeSnapshot
             {
@@ -339,6 +341,38 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
             reply.Manufacturer,
             reply.PartNumber,
             reply.SerialNumber);
+    }
+
+    private static HardwareInfoDrive MapDrive(HardwareInfoDriveReply reply)
+    {
+        return new HardwareInfoDrive(
+            reply.Index,
+            reply.Name,
+            reply.Model,
+            reply.Caption,
+            reply.Description,
+            reply.Manufacturer,
+            reply.MediaType,
+            reply.SerialNumber,
+            reply.FirmwareRevision,
+                reply.Size,
+                reply.FreeSpace);
+    }
+
+    private static HardwareInfoNetworkAdapter MapNetworkAdapter(HardwareInfoNetworkAdapterReply reply)
+    {
+        return new HardwareInfoNetworkAdapter(
+            reply.Name,
+            reply.NetConnectionId,
+            reply.ProductName,
+            reply.Caption,
+            reply.Description,
+            reply.Manufacturer,
+            reply.AdapterType,
+            reply.MacAddress,
+            reply.Speed,
+            reply.IpAddresses.ToImmutableArray(),
+            reply.DefaultGateways.ToImmutableArray());
     }
 
     private static HardwareInfoVideoController MapVideoController(HardwareInfoVideoControllerReply reply)

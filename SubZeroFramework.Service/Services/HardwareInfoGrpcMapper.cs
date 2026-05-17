@@ -84,6 +84,8 @@ internal static class HardwareInfoGrpcMapper
         reply.MemoryModules.AddRange(snapshot.Inventory.MemoryModules.Select(MapHardwareInfoMemoryModule));
         reply.Monitors.AddRange(snapshot.Runtime.Monitors.Select(MapHardwareInfoMonitor));
         reply.VideoControllers.AddRange(snapshot.Runtime.VideoControllers.Select(MapHardwareInfoVideoController));
+        reply.Drives.AddRange(snapshot.Inventory.Drives.Select(MapHardwareInfoDrive));
+        reply.NetworkAdapters.AddRange(snapshot.Inventory.NetworkAdapters.Select(MapHardwareInfoNetworkAdapter));
 
         return reply;
     }
@@ -184,6 +186,45 @@ internal static class HardwareInfoGrpcMapper
             WeekOfManufacture = monitor.WeekOfManufacture,
             YearOfManufacture = monitor.YearOfManufacture,
         };
+    }
+
+    private static HardwareInfoDriveReply MapHardwareInfoDrive(HardwareInfoDrive drive)
+    {
+        return new HardwareInfoDriveReply
+        {
+            Index = drive.Index,
+            Name = drive.Name ?? string.Empty,
+            Model = drive.Model ?? string.Empty,
+            Caption = drive.Caption ?? string.Empty,
+            Description = drive.Description ?? string.Empty,
+            Manufacturer = drive.Manufacturer ?? string.Empty,
+            MediaType = drive.MediaType ?? string.Empty,
+            SerialNumber = drive.SerialNumber ?? string.Empty,
+            FirmwareRevision = drive.FirmwareRevision ?? string.Empty,
+            Size = drive.Size,
+            FreeSpace = drive.FreeSpace,
+        };
+    }
+
+    private static HardwareInfoNetworkAdapterReply MapHardwareInfoNetworkAdapter(HardwareInfoNetworkAdapter adapter)
+    {
+        var reply = new HardwareInfoNetworkAdapterReply
+        {
+            Name = adapter.Name ?? string.Empty,
+            NetConnectionId = adapter.NetConnectionId ?? string.Empty,
+            ProductName = adapter.ProductName ?? string.Empty,
+            Caption = adapter.Caption ?? string.Empty,
+            Description = adapter.Description ?? string.Empty,
+            Manufacturer = adapter.Manufacturer ?? string.Empty,
+            AdapterType = adapter.AdapterType ?? string.Empty,
+            MacAddress = adapter.MacAddress ?? string.Empty,
+            Speed = adapter.Speed,
+        };
+
+        reply.IpAddresses.AddRange(adapter.IpAddresses);
+        reply.DefaultGateways.AddRange(adapter.DefaultGateways);
+
+        return reply;
     }
 
     private static HardwareInfoVideoControllerReply MapHardwareInfoVideoController(HardwareInfoVideoController videoController)

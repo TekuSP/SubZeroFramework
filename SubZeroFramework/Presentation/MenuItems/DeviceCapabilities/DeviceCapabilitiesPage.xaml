@@ -16,11 +16,20 @@
     mc:Ignorable="d">
 
     <Page.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="IsTextSelectionEnabled" Value="True" />
+        </Style>
+
         <Style x:Key="CapabilityGridItemStyle" TargetType="GridViewItem">
             <Setter Property="Margin" Value="0,0,12,12" />
             <Setter Property="Padding" Value="0" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        </Style>
+
+        <Style x:Key="CopyableValueTextBlockStyle" TargetType="TextBlock">
+            <Setter Property="IsTextSelectionEnabled" Value="True" />
+            <Setter Property="TextWrapping" Value="WrapWholeWords" />
         </Style>
     </Page.Resources>
 
@@ -611,6 +620,224 @@
                         FontSize="28"
                         FontWeight="SemiBold"
                         Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Storage" />
+                    <StackPanel Margin="10,0" Spacing="12">
+                        <controls:ElevatedCard
+                            HorizontalContentAlignment="Stretch"
+                            VerticalContentAlignment="Stretch"
+                            Background="{StaticResource CardBackgroundBrush}">
+                            <StackPanel Padding="14" Spacing="14">
+                                <TextBlock
+                                    FontSize="22"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="Drive Summary" />
+                                <Grid ColumnSpacing="12" RowSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <Border Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                        <StackPanel>
+                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Drives" />
+                                            <TextBlock
+                                                Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                FontSize="26"
+                                                Foreground="{StaticResource TextPrimaryBrush}"
+                                                Text="{x:Bind ViewModel.StorageDriveCount, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Grid.Column="1" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                        <StackPanel>
+                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Total capacity" />
+                                            <TextBlock
+                                                Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                FontSize="26"
+                                                Foreground="{StaticResource TextPrimaryBrush}"
+                                                Text="{x:Bind ViewModel.TotalStorageCapacity, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Grid.Row="1" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                        <StackPanel>
+                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Used" />
+                                            <TextBlock
+                                                Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                FontSize="26"
+                                                Foreground="{StaticResource TextPrimaryBrush}"
+                                                Text="{x:Bind ViewModel.TotalStorageUsedSpace, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Grid.Row="1" Grid.Column="1" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                        <StackPanel>
+                                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Free" />
+                                            <TextBlock
+                                                Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                FontSize="26"
+                                                Foreground="{StaticResource TextPrimaryBrush}"
+                                                Text="{x:Bind ViewModel.TotalStorageFreeSpace, Mode=OneWay}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <StackPanel Spacing="8">
+                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Storage usage" />
+                                    <ProgressBar
+                                        Height="10"
+                                        Maximum="100"
+                                        Value="{x:Bind ViewModel.TotalStorageUsagePercent, Mode=OneWay}" />
+                                    <TextBlock
+                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Text="{x:Bind ViewModel.TotalStorageUsageSummary, Mode=OneWay}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </controls:ElevatedCard>
+                    </StackPanel>
+
+                    <TextBlock
+                        Margin="15,0"
+                        FontSize="22"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Detected Drives" />
+                    <GridView
+                        Margin="10,0"
+                        IsItemClickEnabled="False"
+                        ItemContainerStyle="{StaticResource CapabilityGridItemStyle}"
+                        ItemsSource="{x:Bind ViewModel.StorageDriveCards, Mode=OneWay}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        ScrollViewer.HorizontalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        ScrollViewer.VerticalScrollMode="Disabled"
+                        SelectionMode="None">
+                        <GridView.ItemTemplate>
+                            <DataTemplate x:DataType="local:DeviceCapabilitiesStorageDriveCardModel">
+                                <controls:ElevatedCard
+                                    Width="420"
+                                    HorizontalContentAlignment="Stretch"
+                                    VerticalContentAlignment="Stretch"
+                                    Background="{StaticResource CardBackgroundBrush}">
+                                    <StackPanel Padding="14" Spacing="10">
+                                        <StackPanel Spacing="2">
+                                            <TextBlock
+                                                Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                Foreground="{StaticResource TextSecondaryBrush}"
+                                                Text="{x:Bind DriveLabel, Mode=OneWay}" />
+                                            <TextBlock
+                                                Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                FontSize="18"
+                                                FontWeight="SemiBold"
+                                                Foreground="{StaticResource TextPrimaryBrush}"
+                                                Text="{x:Bind Title, FallbackValue=Unknown drive, TargetNullValue=Unknown drive}"
+                                                TextWrapping="WrapWholeWords" />
+                                        </StackPanel>
+                                        <Grid ColumnSpacing="8" RowSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+
+                                            <Border Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind ManufacturerDisplay, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Grid.Column="1" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Media Type" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind MediaTypeDisplay, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Grid.Row="1" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Capacity" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind CapacityDisplay, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Grid.Row="1" Grid.Column="1" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Firmware" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind FirmwareRevisionDisplay, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Grid.Row="2" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Used" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind UsedSpaceDisplay, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Grid.Row="2" Grid.Column="1" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Free" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind FreeSpaceDisplay, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Grid.Row="3" Grid.ColumnSpan="2" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel Spacing="8">
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Usage" />
+                                                    <ProgressBar
+                                                        Height="10"
+                                                        Maximum="100"
+                                                        Value="{x:Bind UsagePercent, Mode=OneWay}" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind UsageSummary, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </StackPanel>
+                                </controls:ElevatedCard>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
+                </StackPanel>
+
+                <StackPanel Spacing="12">
+                    <TextBlock
+                        Margin="15,0"
+                        FontSize="28"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
                         Text="Memory" />
                     <StackPanel Margin="10,0" Spacing="12">
                         <controls:ElevatedCard
@@ -932,10 +1159,6 @@
                                     </Border>
                                 </Grid>
 
-                                <TextBlock
-                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                    Text="Display classes for the monitors currently exposed by the hardware snapshot."
-                                    TextWrapping="WrapWholeWords" />
                                 <GridView
                                     IsItemClickEnabled="False"
                                     ItemContainerStyle="{StaticResource CapabilityGridItemStyle}"
@@ -995,6 +1218,7 @@
                                     Background="{StaticResource CardBackgroundBrush}">
                                     <StackPanel Padding="14" Spacing="10">
                                         <TextBlock
+                                            Style="{StaticResource CopyableValueTextBlockStyle}"
                                             FontSize="18"
                                             FontWeight="SemiBold"
                                             Foreground="{StaticResource TextPrimaryBrush}"
@@ -1016,6 +1240,7 @@
                                                 <StackPanel>
                                                     <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
                                                     <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
                                                         Foreground="{StaticResource TextPrimaryBrush}"
                                                         Text="{x:Bind Manufacturer, FallbackValue=Unknown, TargetNullValue=Unknown}"
                                                         TextWrapping="WrapWholeWords" />
@@ -1026,6 +1251,7 @@
                                                 <StackPanel>
                                                     <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Video Processor" />
                                                     <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
                                                         Foreground="{StaticResource TextPrimaryBrush}"
                                                         Text="{x:Bind VideoProcessor, FallbackValue=Unknown, TargetNullValue=Unknown}"
                                                         TextWrapping="WrapWholeWords" />
@@ -1036,6 +1262,7 @@
                                                 <StackPanel>
                                                     <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Driver Version" />
                                                     <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
                                                         Foreground="{StaticResource TextPrimaryBrush}"
                                                         Text="{x:Bind DriverVersion, FallbackValue=Unknown, TargetNullValue=Unknown}"
                                                         TextWrapping="WrapWholeWords" />
@@ -1046,6 +1273,7 @@
                                                 <StackPanel>
                                                     <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Driver Date" />
                                                     <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
                                                         Foreground="{StaticResource TextPrimaryBrush}"
                                                         Text="{x:Bind DisplayDriverDate, FallbackValue=Unknown, TargetNullValue=Unknown}"
                                                         TextWrapping="WrapWholeWords" />
@@ -1056,6 +1284,7 @@
                                                 <StackPanel>
                                                     <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Video Mode" />
                                                     <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
                                                         Foreground="{StaticResource TextPrimaryBrush}"
                                                         Text="{x:Bind VideoModeDescription, FallbackValue=Unknown, TargetNullValue=Unknown}"
                                                         TextWrapping="WrapWholeWords" />
@@ -1066,6 +1295,7 @@
                                                 <StackPanel>
                                                     <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Resolution" />
                                                     <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
                                                         Foreground="{StaticResource TextPrimaryBrush}"
                                                         Text="{x:Bind DisplayResolution, FallbackValue=Unknown, TargetNullValue=Unknown}"
                                                         TextWrapping="WrapWholeWords" />
@@ -1076,6 +1306,7 @@
                                                 <StackPanel>
                                                     <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Refresh Rate" />
                                                     <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
                                                         Foreground="{StaticResource TextPrimaryBrush}"
                                                         Text="{x:Bind DisplayRefreshRate, FallbackValue=Unknown, TargetNullValue=Unknown}"
                                                         TextWrapping="WrapWholeWords" />
@@ -1086,6 +1317,7 @@
                                                 <StackPanel>
                                                     <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Adapter RAM" />
                                                     <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
                                                         Foreground="{StaticResource TextPrimaryBrush}"
                                                         Text="{x:Bind DisplayAdapterRam, FallbackValue=Unknown, TargetNullValue=Unknown}"
                                                         TextWrapping="WrapWholeWords" />
@@ -1228,6 +1460,132 @@
                                                         Foreground="{StaticResource TextPrimaryBrush}"
                                                         Text="{x:Bind Description, FallbackValue=Unknown, TargetNullValue=Unknown}"
                                                         TextWrapping="WrapWholeWords" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </StackPanel>
+                                </controls:ElevatedCard>
+                            </DataTemplate>
+                        </GridView.ItemTemplate>
+                    </GridView>
+
+                    <TextBlock
+                        Margin="15,0"
+                        FontSize="28"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Network" />
+                    <TextBlock
+                        Margin="15,0"
+                        FontSize="22"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Detected Adapters" />
+                    <GridView
+                        Margin="10,0"
+                        IsItemClickEnabled="False"
+                        ItemContainerStyle="{StaticResource CapabilityGridItemStyle}"
+                        ItemsSource="{x:Bind ViewModel.NetworkAdapterCards, Mode=OneWay}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        ScrollViewer.HorizontalScrollMode="Disabled"
+                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                        ScrollViewer.VerticalScrollMode="Disabled"
+                        SelectionMode="None">
+                        <GridView.ItemTemplate>
+                            <DataTemplate x:DataType="local:DeviceCapabilitiesNetworkAdapterCardModel">
+                                <controls:ElevatedCard
+                                    Width="420"
+                                    HorizontalContentAlignment="Stretch"
+                                    VerticalContentAlignment="Stretch"
+                                    Background="{StaticResource CardBackgroundBrush}">
+                                    <StackPanel Padding="14" Spacing="10">
+                                        <TextBlock
+                                            Style="{StaticResource CopyableValueTextBlockStyle}"
+                                            FontSize="18"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            Text="{x:Bind Title, Mode=OneWay}"
+                                            TextWrapping="WrapWholeWords" />
+                                        <Grid ColumnSpacing="8" RowSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+
+                                            <Border Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Product" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind ProductDisplay, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Grid.Column="1" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Adapter Type" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind AdapterTypeDisplay, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Grid.Row="1" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind ManufacturerDisplay, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Grid.Row="1" Grid.Column="1" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Link Speed" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind SpeedDisplay, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Grid.Row="2" Grid.ColumnSpan="2" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="MAC Address" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind MacAddressDisplay, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Grid.Row="3" Grid.ColumnSpan="2" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="IP Addresses" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind IpAddressesDisplay, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border Grid.Row="4" Grid.ColumnSpan="2" Padding="10" Background="#1AFFFFFF" CornerRadius="10">
+                                                <StackPanel>
+                                                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Gateways" />
+                                                    <TextBlock
+                                                        Style="{StaticResource CopyableValueTextBlockStyle}"
+                                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                                        Text="{x:Bind DefaultGatewaysDisplay, Mode=OneWay}" />
                                                 </StackPanel>
                                             </Border>
                                         </Grid>

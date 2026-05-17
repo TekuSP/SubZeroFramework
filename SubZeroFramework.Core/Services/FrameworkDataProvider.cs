@@ -395,6 +395,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         var videoControllers = ImmutableArray<HardwareInfoVideoController>.Empty;
         var cpus = ImmutableArray<HardwareInfoCpu>.Empty;
         var memoryModules = ImmutableArray<HardwareInfoMemoryModule>.Empty;
+        var drives = ImmutableArray<HardwareInfoDrive>.Empty;
+        var networkAdapters = ImmutableArray<HardwareInfoNetworkAdapter>.Empty;
 
         void CaptureFailure(Exception exception, string operation)
         {
@@ -402,14 +404,58 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             lastError ??= exception.Message;
         }
 
+        static ulong GetDriveFreeSpace(Drive drive)
+        {
+            if (drive.PartitionList is null || drive.PartitionList.Count == 0)
+            {
+                return 0;
+            }
+
+            ulong freeSpace = 0;
+
+            foreach (var partition in drive.PartitionList)
+            {
+                if (partition.VolumeList is null)
+                {
+                    continue;
+                }
+
+                foreach (var volume in partition.VolumeList)
+                {
+                    freeSpace += volume.FreeSpace;
+                }
+            }
+
+            return drive.Size == 0
+                ? freeSpace
+                : Math.Min(freeSpace, drive.Size);
+        }
+
+        ImmutableArray<string> ToStringArray<TValue>(System.Collections.Generic.IEnumerable<TValue>? values)
+        {
+            return values is null
+                ? []
+                : [
+                    .. values
+                        .Select(value => value?.ToString())
+                        .Where(value => !string.IsNullOrWhiteSpace(value))
+                        .Select(value => value!)
+                ];
+        }
+
         try
         {
             _hardwareInfo.RefreshCPUList(false, 500, true);
             _hardwareInfo.RefreshMemoryList();
+            _hardwareInfo.RefreshDriveList();
             _hardwareInfo.RefreshMotherboardList();
             _hardwareInfo.RefreshBIOSList();
             _hardwareInfo.RefreshComputerSystemList();
             _hardwareInfo.RefreshOperatingSystem();
+            _hardwareInfo.RefreshNetworkAdapterList(
+                includeBytesPerSec: false,
+                includeNetworkAdapterConfiguration: true,
+                millisecondsDelayBetweenTwoMeasurements: 0);
             _hardwareInfo.RefreshMonitorList();
             _hardwareInfo.RefreshVideoControllerList();
             _hardwareInfo.RefreshMemoryStatus();
@@ -621,6 +667,56 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             CaptureFailure(exception, "read memory module data");
         }
 
+        try
+        {
+            if (_hardwareInfo.DriveList.Count > 0)
+            {
+                drives = _hardwareInfo.DriveList
+                    .Select(drive => new HardwareInfoDrive(
+                        Index: drive.Index,
+                        Name: drive.Name,
+                        Model: drive.Model,
+                        Caption: drive.Caption,
+                        Description: drive.Description,
+                        Manufacturer: drive.Manufacturer,
+                        MediaType: drive.MediaType,
+                        SerialNumber: drive.SerialNumber,
+                        FirmwareRevision: drive.FirmwareRevision,
+                        Size: drive.Size,
+                        FreeSpace: GetDriveFreeSpace(drive)))
+                    .ToImmutableArray();
+            }
+        }
+        catch (Exception exception)
+        {
+            CaptureFailure(exception, "read drive data");
+        }
+
+        try
+        {
+            if (_hardwareInfo.NetworkAdapterList.Count > 0)
+            {
+                networkAdapters = _hardwareInfo.NetworkAdapterList
+                    .Select(adapter => new HardwareInfoNetworkAdapter(
+                        Name: adapter.Name,
+                        NetConnectionId: adapter.NetConnectionID,
+                        ProductName: adapter.ProductName,
+                        Caption: adapter.Caption,
+                        Description: adapter.Description,
+                        Manufacturer: adapter.Manufacturer,
+                        AdapterType: adapter.AdapterType,
+                        MacAddress: adapter.MACAddress,
+                        Speed: adapter.Speed,
+                        IpAddresses: ToStringArray(adapter.IPAddressList),
+                        DefaultGateways: ToStringArray(adapter.DefaultIPGatewayList)))
+                    .ToImmutableArray();
+            }
+        }
+        catch (Exception exception)
+        {
+            CaptureFailure(exception, "read network adapter data");
+        }
+
         return new HardwareInfoSnapshot
         {
             ObservedAt = observedAt,
@@ -633,6 +729,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 Motherboard = motherboard,
                 Bios = bios,
                 MemoryModules = memoryModules,
+                Drives = drives,
+                NetworkAdapters = networkAdapters,
             },
             Runtime = new HardwareInfoRuntimeSnapshot
             {

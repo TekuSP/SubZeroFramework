@@ -22,6 +22,10 @@ public sealed record HardwareInfoSnapshot
 
     public ImmutableArray<HardwareInfoMemoryModule> MemoryModules => Inventory.MemoryModules;
 
+    public ImmutableArray<HardwareInfoDrive> Drives => Inventory.Drives;
+
+    public ImmutableArray<HardwareInfoNetworkAdapter> NetworkAdapters => Inventory.NetworkAdapters;
+
     public HardwareInfoMemoryStatus? MemoryStatus => Runtime.MemoryStatus;
 
     public ImmutableArray<HardwareInfoMonitor> Monitors => Runtime.Monitors;
