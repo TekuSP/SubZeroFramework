@@ -48,6 +48,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private readonly SourceCache<TelemetryPoint, long> _telemetryPoints = new(point => point.SampleId);
     private readonly RetainedSnapshotStream<HardwareInfoSnapshot> _hardwareInfoSnapshots = new(MaximumHistoryWindow, TelemetryScheduler);
     private readonly CompositeDisposable _subscriptions = [];
+    private readonly FrameworkFanControlSafetyTracker _fanControlSafetyTracker;
     private HardwareInfoSnapshot _latestHardwareInfoSnapshot = new()
     {
         ObservedAt = DateTimeOffset.MinValue,
@@ -74,10 +75,12 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     public FrameworkDataProvider(
         IFrameworkSystem frameworkSystem,
         IHardwareInfo hardwareInfo,
+        FrameworkFanControlSafetyTracker fanControlSafetyTracker,
         ILogger<FrameworkDataProvider> logger)
     {
         _frameworkSystem = frameworkSystem;
         _hardwareInfo = hardwareInfo;
+        _fanControlSafetyTracker = fanControlSafetyTracker;
         _logger = logger;
         SystemStatus = _systemStatus;
         FlashSnapshots = _flashSnapshots;
@@ -335,6 +338,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         var systemStatus = ReadSystemStatus();
         MarkAllTelemetryUnavailable(systemStatus.ObservedAt);
+        _logger.LogDebug("Publishing system status after stopping polling. IsConnectionOpen={IsConnectionOpen}, RequiresElevation={RequiresElevation}, LastErrorPresent={HasLastError}.", systemStatus.IsConnectionOpen, systemStatus.RequiresElevation, !string.IsNullOrEmpty(systemStatus.LastError));
         _systemStatus.Publish(systemStatus, systemStatus.ObservedAt);
         return true;
     }
@@ -378,6 +382,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private void PublishHardwareInfoSnapshot(HardwareInfoSnapshot snapshot, DateTimeOffset observedAt)
     {
         _latestHardwareInfoSnapshot = snapshot;
+        _logger.LogDebug("Publishing hardware info snapshot. IsAvailable={IsAvailable}, LastErrorPresent={HasLastError}, ObservedAt={ObservedAt}.", snapshot.IsAvailable, !string.IsNullOrEmpty(snapshot.LastError), observedAt);
         _hardwareInfoSnapshots.Publish(snapshot, observedAt);
     }
 
@@ -804,6 +809,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         {
             DisposeConnection();
             MarkAllTelemetryUnavailable(systemStatus.ObservedAt);
+            _logger.LogDebug("Publishing system status without EC polling. RequiresElevation={RequiresElevation}, LastErrorPresent={HasLastError}.", systemStatus.RequiresElevation, !string.IsNullOrEmpty(systemStatus.LastError));
             _systemStatus.Publish(systemStatus, systemStatus.ObservedAt);
             return systemStatus;
         }
@@ -814,6 +820,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         {
             var unavailableStatus = systemStatus with { LastError = systemStatus.LastError ?? "Unable to open the default EC connection." };
             MarkAllTelemetryUnavailable(unavailableStatus.ObservedAt);
+            _logger.LogDebug("Publishing unavailable system status because the EC connection could not be opened. LastErrorPresent={HasLastError}.", !string.IsNullOrEmpty(unavailableStatus.LastError));
             _systemStatus.Publish(unavailableStatus, unavailableStatus.ObservedAt);
             return unavailableStatus;
         }
@@ -826,12 +833,14 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         if (TryReadSnapshot(connection.GetFlashSnapshot, "flash", ref snapshotError, out var flashSnapshot))
         {
+            _logger.LogDebug("Publishing flash snapshot at {ObservedAt}.", observedAt);
             _flashSnapshots.Publish(flashSnapshot!, observedAt);
             successfulReads += 1;
         }
 
         if (TryReadSnapshot(connection.GetFanCapabilitiesSnapshot, "fan capabilities", ref snapshotError, out var fanCapabilitiesSnapshot))
         {
+            _logger.LogDebug("Publishing fan capability snapshot for {FanCount} fan(s) at {ObservedAt}.", fanCapabilitiesSnapshot!.FanCount, observedAt);
             _fanCapabilitiesSnapshots.Publish(fanCapabilitiesSnapshot!, observedAt);
             PublishFanCapabilities(fanCapabilitiesSnapshot!, observedAt);
             successfulReads += 1;
@@ -839,6 +848,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         if (TryReadSnapshot(connection.GetPowerSnapshot, "power", ref snapshotError, out var powerSnapshot))
         {
+            _logger.LogDebug("Publishing power snapshot for {BatteryCount} battery or batteries at {ObservedAt}.", powerSnapshot!.ReportedBatteries.Count(), observedAt);
             _powerSnapshots.Publish(powerSnapshot!, observedAt);
             PublishPowerTelemetry(powerSnapshot!, observedAt);
             successfulReads += 1;
@@ -846,6 +856,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         if (TryReadSnapshot(connection.GetThermalSnapshot, "thermal", ref snapshotError, out var thermalSnapshot))
         {
+            _logger.LogDebug("Publishing thermal snapshot for {SensorCount} sensor(s) and {FanCount} reported fan(s) at {ObservedAt}.", thermalSnapshot!.SensorCount, thermalSnapshot.ReportedFans.Count(), observedAt);
             _thermalSnapshots.Publish(thermalSnapshot!, observedAt);
             PublishThermalTelemetry(thermalSnapshot!, observedAt);
             successfulReads += 1;
@@ -864,6 +875,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             LastError = snapshotError ?? connectedStatus.LastError,
         };
 
+        _logger.LogDebug("Publishing system status after refresh. IsConnectionOpen={IsConnectionOpen}, SuccessfulReads={SuccessfulReads}, LastErrorPresent={HasLastError}.", publishedStatus.IsConnectionOpen, successfulReads, !string.IsNullOrEmpty(publishedStatus.LastError));
         _systemStatus.Publish(publishedStatus, publishedStatus.ObservedAt);
 
         return publishedStatus;
@@ -920,6 +932,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         var connection = EnsureWritableConnection();
         FrameworkSetFanRpmResponse response = connection.SetFanRpm(fanIndex, RotationalSpeed.FromRevolutionsPerMinute(targetSpeedRpm));
+        _fanControlSafetyTracker.MarkOverrideActive(response.FanIndex);
 
         return Task.FromResult(new FrameworkFanRpmCommandResult
         {
@@ -945,6 +958,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         var connection = EnsureWritableConnection();
         FrameworkSetFanDutyResponse response = connection.SetFanDuty(fanIndex, Ratio.FromPercent(dutyPercent));
+        _fanControlSafetyTracker.MarkOverrideActive(response.FanIndex);
 
         return Task.FromResult(new FrameworkFanDutyCommandResult
         {
@@ -965,6 +979,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         var connection = EnsureWritableConnection();
         FrameworkRestoreAutoFanControlResponse response = connection.RestoreAutoFanControl(fanIndex);
+        _fanControlSafetyTracker.MarkAutoRestored(response.FanIndex);
 
         return Task.FromResult(new FrameworkRestoreAutoFanControlCommandResult
         {
@@ -1530,20 +1545,34 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     private void RestoreAutomaticFanControl()
     {
-        if (_connection is null)
+        var fansToRestore = _fanControlSafetyTracker.BeginRestoreBatch();
+        if (fansToRestore.Length == 0)
         {
             return;
         }
 
-        var fanCount = _fanCapabilities.Items.Count(capability => capability.IsAvailable);
-        for (var fanIndex = 0; fanIndex < fanCount; fanIndex++)
+        if (_connection is null)
+        {
+            _logger.LogWarning("Skipping automatic fan control restore because no EC connection is available for {FanCount} overridden fan(s).", fansToRestore.Length);
+
+            foreach (var fanIndex in fansToRestore)
+            {
+                _fanControlSafetyTracker.CompleteRestore(fanIndex, restored: false, errorMessage: "The EC connection was unavailable while automatic fan control was being restored.");
+            }
+
+            return;
+        }
+
+        foreach (var fanIndex in fansToRestore)
         {
             try
             {
                 _connection.RestoreAutoFanControl(fanIndex);
+                _fanControlSafetyTracker.CompleteRestore(fanIndex, restored: true);
             }
             catch (Exception exception)
             {
+                _fanControlSafetyTracker.CompleteRestore(fanIndex, restored: false, errorMessage: exception.Message);
                 _logger.LogWarning(exception, "Unable to restore automatic fan control for fan {FanIndex}.", fanIndex);
             }
         }

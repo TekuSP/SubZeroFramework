@@ -6,9 +6,11 @@ namespace SubZeroFramework.Service.Services;
 
 internal static class ObservableChannelBridge
 {
-    public static ChannelReader<T> CreateBoundedReader<T>(IObservable<T> source, CancellationToken cancellationToken)
+    public static ChannelReader<T> CreateBoundedReader<T>(IObservable<T> source, CancellationToken cancellationToken, ILogger? logger = null, string? streamName = null)
     {
         ArgumentNullException.ThrowIfNull(source);
+
+        var resolvedStreamName = streamName ?? typeof(T).Name;
 
         var channel = Channel.CreateBounded<T>(new BoundedChannelOptions(32)
         {
@@ -26,6 +28,23 @@ internal static class ObservableChannelBridge
             if (Interlocked.Exchange(ref completionState, 1) != 0)
             {
                 return;
+            }
+
+            if (exception is ReactiveBackpressureExceededException)
+            {
+                logger?.LogWarning(exception, "Backpressure exceeded while buffering {StreamName}.", resolvedStreamName);
+            }
+            else if (exception is OperationCanceledException)
+            {
+                logger?.LogDebug("Stopping buffered stream {StreamName} because the request was cancelled.", resolvedStreamName);
+            }
+            else if (exception is not null)
+            {
+                logger?.LogWarning(exception, "Buffered source stream {StreamName} faulted.", resolvedStreamName);
+            }
+            else
+            {
+                logger?.LogDebug("Buffered source stream {StreamName} completed.", resolvedStreamName);
             }
 
             subscription.Dispose();
@@ -51,7 +70,7 @@ internal static class ObservableChannelBridge
 
         cancellationToken.Register(() =>
         {
-            Complete();
+            Complete(new OperationCanceledException(cancellationToken));
         });
 
         return channel.Reader;

@@ -38,8 +38,12 @@
                 </Grid>
             </controls:ElevatedCard>
 
-            <controls:ElevatedCard Grid.Column="1" Background="{StaticResource CardBackgroundBrush}">
-                <StackPanel>
+            <controls:ElevatedCard
+                Grid.Column="1"
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Stretch"
+                Background="{StaticResource CardBackgroundBrush}">
+                <StackPanel Margin="15,2.5">
                     <TextBlock
                         Foreground="White"
                         Style="{ThemeResource SubtitleTextBlockStyle}"
@@ -62,7 +66,7 @@
                 Title="{x:Bind ViewModel.ErrorTitle, Mode=OneWay}"
                 Margin="4,0"
                 IsClosable="{x:Bind ViewModel.IsErrorClosable, Mode=OneWay}"
-                IsOpen="{x:Bind ViewModel.IsInError, Mode=OneWay}"
+                IsOpen="{x:Bind ViewModel.ShouldShowErrorBar, Mode=OneWay}"
                 Message="{x:Bind ViewModel.ErrorReason, Mode=OneWay}"
                 Severity="{x:Bind ViewModel.ErrorSeverity, Mode=OneWay}" />
         </Grid>

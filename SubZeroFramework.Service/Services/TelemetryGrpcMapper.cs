@@ -66,8 +66,21 @@ internal static class TelemetryGrpcMapper
             ControlMode = MapFanControlMode(change.Current.Mode),
             ObservedAtUnixTimeMilliseconds = change.Current.ObservedAt.ToUnixTimeMilliseconds(),
             IsAvailable = change.Current.IsAvailable,
+            HasActiveOverride = change.Current.HasActiveOverride,
+            LastAutoRestoreAttemptFailed = change.Current.LastAutoRestoreAttemptFailed,
             DrivingTemperatureAggregation = MapTemperatureAggregationMode(change.Current.DrivingTemperatureAggregation),
         };
+        if (change.Current.LastAutoRestoreAttemptAt is not null)
+        {
+            reply.HasLastAutoRestoreAttempt = true;
+            reply.LastAutoRestoreAttemptAtUnixTimeMilliseconds = change.Current.LastAutoRestoreAttemptAt.Value.ToUnixTimeMilliseconds();
+        }
+
+        if (!string.IsNullOrWhiteSpace(change.Current.LastAutoRestoreError))
+        {
+            reply.LastAutoRestoreError = change.Current.LastAutoRestoreError;
+        }
+
         reply.DrivingSensorIndices.AddRange(change.Current.DrivingSensorIndices);
         reply.CustomCurvePoints.AddRange(change.Current.CustomCurvePoints.Select(point => new FanCurvePointReply
         {

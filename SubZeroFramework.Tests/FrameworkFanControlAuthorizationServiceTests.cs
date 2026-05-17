@@ -1,5 +1,7 @@
 using NUnit.Framework;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
 using SubZeroFramework.Service.Models;
 using SubZeroFramework.Service.Services;
 
@@ -31,5 +33,5 @@ public class FrameworkFanControlAuthorizationServiceTests
         => new(new TestOptionsMonitor<FrameworkServiceOptions>(new FrameworkServiceOptions
         {
             AllowFanControlCommands = allowFanControlCommands,
-        }));
+        }), NullLogger<FrameworkFanControlAuthorizationService>.Instance);
 }

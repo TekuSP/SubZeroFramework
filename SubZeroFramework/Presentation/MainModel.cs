@@ -99,6 +99,14 @@ public partial class MainModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial bool IsWarningIssuesEnabled { get; set; }
 
+    public bool IsWarningIssuesSelected => SelectedItem is NavigationViewItemBase item
+        && string.Equals(item.Tag?.ToString(), "WarningIssues", StringComparison.Ordinal);
+
     [ObservableProperty]
     public partial object? SelectedItem { get; set; }
+
+    partial void OnSelectedItemChanged(object? value)
+    {
+        OnPropertyChanged(nameof(IsWarningIssuesSelected));
+    }
 }

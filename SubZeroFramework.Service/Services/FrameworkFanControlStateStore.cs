@@ -16,26 +16,44 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 {
     private readonly SourceCache<FanControlStateSnapshot, int> _fanControlStates = new(state => state.FanIndex);
     private readonly CompositeDisposable _subscriptions = [];
+    private readonly FrameworkFanControlSafetyTracker _fanControlSafetyTracker;
     private readonly IOptionsMonitor<FrameworkServiceOptions> _optionsMonitor;
+    private readonly ILogger<FrameworkFanControlStateStore> _logger;
     private bool _disposed;
 
-    public FrameworkFanControlStateStore(IFrameworkDataProvider frameworkDataProvider, IOptionsMonitor<FrameworkServiceOptions> optionsMonitor)
+    public FrameworkFanControlStateStore(IFrameworkDataProvider frameworkDataProvider, FrameworkFanControlSafetyTracker fanControlSafetyTracker, IOptionsMonitor<FrameworkServiceOptions> optionsMonitor, ILogger<FrameworkFanControlStateStore> logger)
     {
         ArgumentNullException.ThrowIfNull(frameworkDataProvider);
+        ArgumentNullException.ThrowIfNull(fanControlSafetyTracker);
         ArgumentNullException.ThrowIfNull(optionsMonitor);
 
+        _fanControlSafetyTracker = fanControlSafetyTracker;
         _optionsMonitor = optionsMonitor;
+        _logger = logger;
 
         frameworkDataProvider
             .ConnectFanStates()
-            .Subscribe(ApplyFanStateChanges)
+            .Subscribe(
+                ApplyFanStateChanges,
+                exception => _logger.LogError(exception, "The fan state stream faulted inside the fan control state store."))
             .DisposeWith(_subscriptions);
 
-        var optionsSubscription = _optionsMonitor.OnChange(_ => ApplyConfiguredStates());
+        Action<int> safetyStateChanged = ApplySafetyStateChange;
+        _fanControlSafetyTracker.SafetyStateChanged += safetyStateChanged;
+        Disposable.Create(() => _fanControlSafetyTracker.SafetyStateChanged -= safetyStateChanged)
+            .DisposeWith(_subscriptions);
+
+        var optionsSubscription = _optionsMonitor.OnChange(_ =>
+        {
+            _logger.LogInformation("Applying configured fan control states after service option changes.");
+            ApplyConfiguredStates();
+        });
         if (optionsSubscription is not null)
         {
             optionsSubscription.DisposeWith(_subscriptions);
         }
+
+        _logger.LogInformation("Initialized the fan control state store.");
         ApplyConfiguredStates();
     }
 
@@ -45,25 +63,31 @@ public sealed class FrameworkFanControlStateStore : IDisposable
     public void MarkManual(int fanIndex)
     {
         ThrowIfDisposed();
-        UpsertState(fanIndex, existing => existing with
-        {
-            Mode = FanControlMode.Manual,
-            ObservedAt = DateTimeOffset.UtcNow,
-            CustomCurvePoints = ImmutableSortedDictionary<int, double>.Empty,
-            DrivingSensorIndices = [],
-        });
+        UpsertState(
+            fanIndex,
+            existing => existing with
+            {
+                Mode = FanControlMode.Manual,
+                ObservedAt = DateTimeOffset.UtcNow,
+                CustomCurvePoints = ImmutableSortedDictionary<int, double>.Empty,
+                DrivingSensorIndices = [],
+            },
+            "manual command");
     }
 
     public void MarkAuto(int fanIndex)
     {
         ThrowIfDisposed();
-        UpsertState(fanIndex, existing => existing with
-        {
-            Mode = FanControlMode.Auto,
-            ObservedAt = DateTimeOffset.UtcNow,
-            CustomCurvePoints = ImmutableSortedDictionary<int, double>.Empty,
-            DrivingSensorIndices = [],
-        });
+        UpsertState(
+            fanIndex,
+            existing => existing with
+            {
+                Mode = FanControlMode.Auto,
+                ObservedAt = DateTimeOffset.UtcNow,
+                CustomCurvePoints = ImmutableSortedDictionary<int, double>.Empty,
+                DrivingSensorIndices = [],
+            },
+            "automatic restore");
     }
 
     public void SetCustomCurve(int fanIndex, IReadOnlyDictionary<int, double> customCurvePoints, TemperatureAggregationMode aggregationMode, IReadOnlyCollection<int> drivingSensorIndices)
@@ -72,16 +96,19 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         ArgumentNullException.ThrowIfNull(customCurvePoints);
         ArgumentNullException.ThrowIfNull(drivingSensorIndices);
 
-        UpsertState(fanIndex, existing => existing with
-        {
-            Mode = FanControlMode.CustomCurve,
-            ObservedAt = DateTimeOffset.UtcNow,
-            CustomCurvePoints = customCurvePoints.Count == 0
-                ? ImmutableSortedDictionary<int, double>.Empty
-                : customCurvePoints.ToImmutableSortedDictionary(pair => pair.Key, pair => pair.Value),
-            DrivingTemperatureAggregation = aggregationMode,
-            DrivingSensorIndices = [.. drivingSensorIndices],
-        });
+        UpsertState(
+            fanIndex,
+            existing => existing with
+            {
+                Mode = FanControlMode.CustomCurve,
+                ObservedAt = DateTimeOffset.UtcNow,
+                CustomCurvePoints = customCurvePoints.Count == 0
+                    ? ImmutableSortedDictionary<int, double>.Empty
+                    : customCurvePoints.ToImmutableSortedDictionary(pair => pair.Key, pair => pair.Value),
+                DrivingTemperatureAggregation = aggregationMode,
+                DrivingSensorIndices = [.. drivingSensorIndices],
+            },
+            "custom curve update");
     }
 
     public void Dispose()
@@ -91,6 +118,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
             return;
         }
 
+        _logger.LogInformation("Disposing the fan control state store.");
         _subscriptions.Dispose();
         _fanControlStates.Dispose();
         _disposed = true;
@@ -101,6 +129,8 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         var optionsByFanIndex = _optionsMonitor.CurrentValue.FanControlStates
             .ToDictionary(option => option.FanIndex);
 
+        _logger.LogDebug("Applying configured fan control state overlays for {ConfiguredFanCount} configured fan(s).", optionsByFanIndex.Count);
+
         foreach (var existingState in _fanControlStates.Items.ToArray())
         {
             if (!optionsByFanIndex.TryGetValue(existingState.FanIndex, out var configuredState))
@@ -108,7 +138,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                 continue;
             }
 
-            _fanControlStates.AddOrUpdate(ApplyConfiguredState(existingState, configuredState));
+            PublishState(ApplySafetyState(ApplyConfiguredState(existingState, configuredState)), "configured state refresh");
         }
     }
 
@@ -121,7 +151,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         {
             if (change.Reason == ChangeReason.Remove)
             {
-                _fanControlStates.Remove(change.Key);
+                RemoveState(change.Key, "fan state removal");
                 continue;
             }
 
@@ -151,8 +181,37 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                 updated = ApplyConfiguredState(updated, configuredState);
             }
 
-            _fanControlStates.AddOrUpdate(updated);
+            PublishState(ApplySafetyState(updated), currentLookup.HasValue ? "fan state update" : "fan state initialization");
         }
+    }
+
+    private void ApplySafetyStateChange(int fanIndex)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        UpsertState(
+            fanIndex,
+            existing => ApplySafetyState(existing with
+            {
+                ObservedAt = DateTimeOffset.UtcNow,
+            }),
+            "safety state change");
+    }
+
+    private FanControlStateSnapshot ApplySafetyState(FanControlStateSnapshot state)
+    {
+        var safetyState = _fanControlSafetyTracker.GetState(state.FanIndex);
+
+        return state with
+        {
+            HasActiveOverride = safetyState.HasActiveOverride,
+            LastAutoRestoreAttemptFailed = safetyState.LastAutoRestoreAttemptFailed,
+            LastAutoRestoreAttemptAt = safetyState.LastAutoRestoreAttemptAt,
+            LastAutoRestoreError = safetyState.LastAutoRestoreError,
+        };
     }
 
     private static FanControlStateSnapshot ApplyConfiguredState(FanControlStateSnapshot state, FanControlStateOptions configuredState)
@@ -170,7 +229,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         };
     }
 
-    private void UpsertState(int fanIndex, Func<FanControlStateSnapshot, FanControlStateSnapshot> update)
+    private void UpsertState(int fanIndex, Func<FanControlStateSnapshot, FanControlStateSnapshot> update, string reason)
     {
         var existingLookup = _fanControlStates.Lookup(fanIndex);
         var existing = existingLookup.HasValue
@@ -187,7 +246,19 @@ public sealed class FrameworkFanControlStateStore : IDisposable
             IsAvailable = true,
         };
 
-        _fanControlStates.AddOrUpdate(update(existing));
+        PublishState(ApplySafetyState(update(existing)), reason);
+    }
+
+    private void PublishState(FanControlStateSnapshot state, string reason)
+    {
+        _logger.LogDebug("Publishing fan control state for fan {FanIndex}. Reason={Reason}, Mode={Mode}, IsAvailable={IsAvailable}, HasActiveOverride={HasActiveOverride}, RestoreFailed={RestoreFailed}.", state.FanIndex, reason, state.Mode, state.IsAvailable, state.HasActiveOverride, state.LastAutoRestoreAttemptFailed);
+        _fanControlStates.AddOrUpdate(state);
+    }
+
+    private void RemoveState(int fanIndex, string reason)
+    {
+        _logger.LogDebug("Removing fan control state for fan {FanIndex}. Reason={Reason}.", fanIndex, reason);
+        _fanControlStates.Remove(fanIndex);
     }
 
     private void ThrowIfDisposed()

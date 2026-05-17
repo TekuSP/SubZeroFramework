@@ -7,15 +7,20 @@ Use `WorkToBeDone.md` as the execution roadmap and priority list.
 
 Use `FunctionalitySpecification.md` as the source of truth for intended menu-item and page behavior.
 
+Use `Architecture.md` as the source of truth for the service/client split, privilege boundary, process lifecycle, IPC ownership, and multi-instance assumptions.
+
 ## Key areas of expertise
 
 ### Important steps
 - Avoid using PowerShell unless MCP tools (such as Microsoft Knowledge Search or Nuget Package Search) are completely unavailable or fail to provide the required documentation, code samples, or best practices for the tasks at hand.
 - Always refer to `WorkToBeDone.md` for the current list of required improvements and align your work with those items.
 - Refer to `FunctionalitySpecification.md` when working on navigation, page responsibilities, or user-facing surface behavior.
+- Refer to `Architecture.md` when working on service/client boundaries, privileges, shutdown behavior, IPC ownership, or multi-instance behavior.
+- When modifying service or core service-boundary code, prefer structured DI-backed logging with `ILogger<T>` at lifecycle boundaries, mutating commands, direct stream writes, publish points, authorization rejections, and exceptional shutdown/restore paths.
 - If you need source codes, preferably use the GitHub web interface to navigate and search the codebase, as it provides better context and understanding of the code structure. Use the file paths and class names mentioned in this document to locate relevant code sections.
 If possible use ObservableProperty with ObservableObject, leveraging C# partial classes to reduce boilerplate and ensure change notifications are properly raised for UI updates. This is especially important for view models and any state that the UI binds to.
 - For inventory surfaces, prefer FrameworkDotnet data first and only use Hardware.Info to fill gaps, keeping that fallback flow behind the existing service/gRPC/client boundary.
+- For service lifecycle work, keep install/update/shutdown/restart/autorun management out of gRPC. Prefer the packaged service executable and `FrameworkServiceManagementCli` so the client stays unelevated and the action still works when the service is offline.
 - Preserve stable item identity in GridView/ListView card layouts. Prefer persistent mutable card/view-model instances exposed via `ReadOnlyObservableCollection<T>` over rebinding fresh arrays every refresh, otherwise cards blink and pointer/layout state resets.
 - Re-read any existing XAML page immediately before editing it. The user often makes small manual visual tweaks between turns, and those should be preserved.
 - When working on telemetry streams, ensure that you are properly marshalling back to the UI thread using `ObserveOn(SynchronizationContext.Current)` or `ObserveOn(DispatcherQueue.Current)` as appropriate for the platform. This will prevent threading issues and ensure that UI updates happen smoothly.
@@ -26,10 +31,15 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - You build via tasks "build-service", "build-windows", which compiles the service and UNO app.
 - Do not build via dotnet build or Visual Studio directly, as they may not execute all necessary steps for the service and UNO app correctly.
 
+### Testing
+- You run service and shared regression tests via task "test-service".
+- Prefer "test-service" over calling dotnet test directly when validating service, core, contract, or related test changes.
+
 ### 1. Service / IPC architecture
 - The app uses a background service (`SubZeroFramework.Service`) to isolate Framework EC access from the UI.
 - IPC is implemented with gRPC over a Unix domain socket.
 - The client app is UNO WinUI3 / Linux SKIA and must never directly call Framework EC on Linux.
+- Service work should preserve observable operational logging for startup/shutdown, command handling, stream open/close, and snapshot/state publish paths so failures can be diagnosed without attaching a debugger.
 - Code style: one type per file for records, classes, structs, and enums; keep each HardwareInfo model type in its own source file.
 - There is a strong contract assembly in `SubZeroFramework.GrpcContracts`.
 - `FrameworkGrpcSocketSecurity` validates socket location, path, symlinks, and Linux permissions.
@@ -110,8 +120,8 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - Power Telemetry: battery and power system diagnostics, including charge, voltage, current, power source state, cycles, and history charts.
 - Fan Curve Profiles: per-fan editor and profile manager, allowing sensor-to-fan associations, aggregation mode choices, delta/CPU/GPU usage options, and profile save/restore controls.
 - Device Capabilities: dashboard-aligned inventory page with device identity, EC version/build, BIOS release date, CPU identity plus frequency history, memory/storage/network/graphics/display inventory, runtime sensor/fan/battery status cards, copyable value text, and drive-level usage summaries. Prefer Framework data first, then Hardware.Info through IPC.
-- Warnings / Issues: error and warning surface with quick remediation buttons—restart service, rescan device, install/uninstall/reinstall service, and other corrective actions.
-- Settings: service install/uninstall/reinstall, user preferences such as preferred units, feature toggles for modules and custom fan curves, and app behavior options.
+- Warnings / Issues: error and warning surface with quick remediation buttons—restart service, install/update/uninstall service when a packaged bundle is available, privilege-prompt guidance, and other corrective actions.
+- Settings: service health, service-manager identity, shutdown/restart/autorun/install/update/uninstall controls, privilege guidance, plus user preferences and app behavior options.
 
 ### 4. UI/UX design guidance
 - Preserve the existing dark, flattened Fluent-inspired dashboard style with layered panels and subtle depth.
@@ -146,9 +156,10 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - Telemetry stream integration remains a priority: end-to-end UI wiring plus explicit throttling/backpressure policy.
 
 ### Windows and Linux service operations
-- The code lacks install/publish scripts for Windows `sc.exe create` and Linux systemd.
-- There is no documented service recovery or logging guidance for production.
-- Root execution on Linux must be validated under real systemd.
+- Packaged publish scripts now exist for Windows and Linux service bundles, and CI stages them under `service-package/windows` and `service-package/linux` next to the app artifacts.
+- Service install/update/shutdown/restart/autorun work now goes through the published service executable in `--service-management` mode so the client remains unelevated.
+- There is still no production logging guidance for Event Log, files, or journald.
+- Root execution on Linux still needs real systemd validation.
 
 ### Fan safety
 - Manual fan control tracking is incomplete; add explicit state tracking for active manual control.
@@ -158,7 +169,7 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 
 ### UI integration
 - Replace any remaining direct `IFrameworkDataProvider` usage with IPC clients.
-- Add visible service-health indicator, logs/diagnostics actions, and installation/elevation guidance.
+- Visible service-health and installation/elevation guidance now exist in header/settings/warnings; logs and copy-diagnostics actions are still missing.
 - Decide which views use distinct status transitions versus live telemetry cadence.
 - Treat Device Capabilities as substantially complete for inventory/status work; the next preferred UI slice is the first dedicated Thermal Telemetry page over `IFrameworkTelemetryClient`.
 
@@ -194,8 +205,8 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
    - preserve the command boundary
    - implement explicit manual override tracking and restore semantics
 5. Deployment and service lifecycle
-   - add publish/install automation for Windows and Linux
-   - document and test service startup, restart, and failure modes
+  - finish real-world validation and documentation of the packaged Windows/Linux service install and update flows
+  - document and test service startup, restart, update, and failure modes
 
 ## Recommended work habits
 - Always preserve the service boundary between UI and native Framework access.
@@ -207,6 +218,7 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 
 ## Useful files and classes
 - `SubZeroFramework.Service/Program.cs`
+- `SubZeroFramework.Service/FrameworkServiceManagementCli.cs`
 - `SubZeroFramework.Service/Services/FrameworkTelemetryGrpcService.cs`
 - `SubZeroFramework.Service/Services/FrameworkFanControlGrpcService.cs`
 - `SubZeroFramework.Service/Services/FrameworkFanControlStateStore.cs`
@@ -214,6 +226,7 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - `SubZeroFramework.Service/Services/HardwareInfoGrpcMapper.cs`
 - `SubZeroFramework.Services/FrameworkGrpcChannelFactory.cs`
 - `SubZeroFramework.Services/FrameworkGrpcSocketSecurity.cs`
+- `SubZeroFramework/Services/LocalFrameworkServiceControlClient.cs`
 - `SubZeroFramework/Services/GrpcHardwareInfoClient.cs`
 - `SubZeroFramework.Services/RefCountedObservableCache.cs`
 - `SubZeroFramework/WorkToBeDone.md`
@@ -223,8 +236,13 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - `SubZeroFramework/Presentation/MainModel.cs`
 - `SubZeroFramework/Presentation/Header/SubZeroHeaderModel.cs`
 - `SubZeroFramework/Presentation/MenuItems/DeviceCapabilities/DeviceCapabilitiesModel.cs`
+- `SubZeroFramework/Presentation/MenuItems/Settings/SettingsModel.cs`
+- `SubZeroFramework/Presentation/MenuItems/WarningsIssues/WarningIssuesModel.cs`
 - `SubZeroFramework/Presentation/MenuItems/DeviceCapabilities/DeviceCapabilitiesPage.xaml`
 - `SubZeroFramework/Presentation/MenuItems/Dashboard/DashboardPage.xaml`
+- `SubZeroFramework.Service/Scripts/package-windows-service.ps1`
+- `SubZeroFramework.Service/Scripts/package-linux-service.sh`
+- `.github/workflows/ci.yml`
 
 ## Short guidance for future copilots
 - Understand the root cause: Linux requires root for Framework driver access, so service isolation is mandatory.

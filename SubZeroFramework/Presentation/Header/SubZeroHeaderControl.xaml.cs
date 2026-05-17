@@ -12,11 +12,27 @@ public sealed partial class SubZeroHeaderControl : UserControl, INotifyPropertyC
         typeof(SubZeroHeaderControl),
         new PropertyMetadata(null, ContainerChanged)
     );
+
+    public static readonly DependencyProperty SuppressErrorBarProperty = DependencyProperty.Register(
+        nameof(SuppressErrorBar),
+        typeof(bool),
+        typeof(SubZeroHeaderControl),
+        new PropertyMetadata(false, SuppressErrorBarChanged)
+    );
+
     private static void ContainerChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is SubZeroHeaderControl control && e.NewValue is IServiceProvider serv)
         {
             control.ViewModel.IServiceProviderChanged(serv); //Refresh VM
+        }
+    }
+
+    private static void SuppressErrorBarChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is SubZeroHeaderControl control && e.NewValue is bool suppressErrorBar)
+        {
+            control.ViewModel.SuppressErrorBar = suppressErrorBar;
         }
     }
 
@@ -39,9 +55,16 @@ public sealed partial class SubZeroHeaderControl : UserControl, INotifyPropertyC
         set => this.SetValue(SystemContainerProperty, value);
     }
 
+    public bool SuppressErrorBar
+    {
+        get => (bool)this.GetValue(SuppressErrorBarProperty);
+        set => this.SetValue(SuppressErrorBarProperty, value);
+    }
+
     public SubZeroHeaderControl()
     {
         this.InitializeComponent();
         ViewModel = new SubZeroHeaderModel();
+        ViewModel.SuppressErrorBar = SuppressErrorBar;
     }
 }

@@ -5,6 +5,8 @@ using Microsoft.UI.Windowing;
 
 using LiveChartsCore.SkiaSharpView;
 
+using Microsoft.Extensions.Options;
+
 using SubZeroFramework.Presentation.MenuItems.Dashboard;
 using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
@@ -89,6 +91,8 @@ public partial class App : Application
                 .UseLocalization()
                 .ConfigureServices((context, services) =>
                 {
+                    services.AddOptions<FrameworkServiceControlOptions>()
+                        .Bind(context.Configuration.GetSection("ServiceControl"));
                     services.AddSingleton<FrameworkGrpcChannelFactory>();
                     services.AddSingleton<IFrameworkStatusClient, GrpcFrameworkStatusClient>();
                     services.AddSingleton<IFrameworkTelemetryClient, GrpcFrameworkTelemetryClient>();
@@ -100,6 +104,7 @@ public partial class App : Application
                     services.AddSingleton<IBatteryTelemetryClient, BatteryTelemetryClient>();
                     services.AddSingleton<IFrameworkFanControlClient, GrpcFrameworkFanControlClient>();
                     services.AddSingleton<IHardwareInfoClient, GrpcHardwareInfoClient>();
+                    services.AddSingleton<IFrameworkServiceControlClient, LocalFrameworkServiceControlClient>();
                     services.AddSingleton<DispatcherQueue>(DispatcherQueue.GetForCurrentThread());
                     services.AddSingleton<SynchronizationContext>(SynchronizationContext.Current!);
                 })

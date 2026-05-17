@@ -10,11 +10,13 @@ namespace SubZeroFramework.Service.Services;
 public sealed class FrameworkFanControlAuthorizationService
 {
     private readonly IOptionsMonitor<FrameworkServiceOptions> _optionsMonitor;
+    private readonly ILogger<FrameworkFanControlAuthorizationService> _logger;
 
-    public FrameworkFanControlAuthorizationService(IOptionsMonitor<FrameworkServiceOptions> optionsMonitor)
+    public FrameworkFanControlAuthorizationService(IOptionsMonitor<FrameworkServiceOptions> optionsMonitor, ILogger<FrameworkFanControlAuthorizationService> logger)
     {
         ArgumentNullException.ThrowIfNull(optionsMonitor);
         _optionsMonitor = optionsMonitor;
+        _logger = logger;
     }
 
     /// <summary>
@@ -62,7 +64,9 @@ public sealed class FrameworkFanControlAuthorizationService
     {
         if (!IsFanControlEnabled)
         {
-            throw new InvalidOperationException(GetAuthorizationMessage());
+            var message = GetAuthorizationMessage();
+            _logger.LogWarning("Rejected fan-control command because authorization failed. Message={AuthorizationMessage}.", message);
+            throw new InvalidOperationException(message);
         }
     }
 }

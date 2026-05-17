@@ -71,6 +71,19 @@
       "problemMatcher": "$msCompile"
     },
     {
+      "label": "test-service",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "test",
+        "${workspaceFolder}/SubZeroFramework.Tests/SubZeroFramework.Tests.csproj",
+        "/property:GenerateFullPaths=true",
+        "/v:minimal",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
       "label": "build-all",
       "dependsOn": ["build-service", "build-linux", "build-windows"],
       "dependsOrder": "sequence"

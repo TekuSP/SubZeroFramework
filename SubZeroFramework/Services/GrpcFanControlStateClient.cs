@@ -129,6 +129,14 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
                 : reply.CustomCurvePoints.ToImmutableSortedDictionary(point => point.TemperatureCelsius, point => point.FanDutyPercent),
             DrivingTemperatureAggregation = ParseTemperatureAggregationMode(reply.DrivingTemperatureAggregation),
             DrivingSensorIndices = [.. reply.DrivingSensorIndices],
+            HasActiveOverride = reply.HasActiveOverride,
+            LastAutoRestoreAttemptFailed = reply.LastAutoRestoreAttemptFailed,
+            LastAutoRestoreAttemptAt = reply.HasLastAutoRestoreAttempt
+                ? DateTimeOffset.FromUnixTimeMilliseconds(reply.LastAutoRestoreAttemptAtUnixTimeMilliseconds)
+                : null,
+            LastAutoRestoreError = string.IsNullOrWhiteSpace(reply.LastAutoRestoreError)
+                ? null
+                : reply.LastAutoRestoreError,
             ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
             IsAvailable = reply.IsAvailable,
         });

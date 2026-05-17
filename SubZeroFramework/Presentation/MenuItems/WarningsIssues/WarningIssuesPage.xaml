@@ -2,208 +2,312 @@
     x:Class="SubZeroFramework.Presentation.MenuItems.WarningsIssues.WarningIssuesPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:SubZeroFramework.Presentation.MenuItems.WarningsIssues"
+    xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:uen="using:Uno.Extensions.Navigation.UI"
-    xmlns:uno="using:Material.Icons.UNO"
     xmlns:utu="using:Uno.Toolkit.UI"
     Background="{StaticResource AppBackgroundBrush}"
     NavigationCacheMode="Required"
     mc:Ignorable="d">
 
-    <Grid Margin="5,0,5,5" utu:SafeArea.Insets="VisibleBounds">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="*" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <Page.Resources>
+        <Style x:Key="WarningCardTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        </Style>
 
-        <Grid Grid.Row="0">
-            <Grid
-                x:Name="errorGrid"
-                Margin="5,0,5,5"
-                Background="{StaticResource StatusWarningBrush}"
-                BorderBrush="{StaticResource StatusErrorBrush}"
-                CornerRadius="8">
-                <StackPanel>
-                    <Viewbox Height="130" Margin="10">
-                        <Grid>
-                            <FontIcon Foreground="{StaticResource BrandPrimaryBrush}" Glyph="&#xEA39;" />
-                            <Viewbox Height="10" Margin="15,15,0,0">
-                                <Grid>
-                                    <FontIcon Foreground="{StaticResource BrandPrimaryBrush}" Glyph="&#xEA3A;" />
-                                    <uno:MaterialIcon Foreground="White" Kind="FanOff" />
-                                </Grid>
-                            </Viewbox>
+        <Style x:Key="WarningCardBodyStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="WrapWholeWords" />
+        </Style>
+
+        <Style x:Key="WarningCardValueStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="TextWrapping" Value="WrapWholeWords" />
+        </Style>
+
+        <Style x:Key="DisabledCardValueStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Foreground" Value="{StaticResource SecondaryDisabledBrush}" />
+            <Setter Property="TextWrapping" Value="WrapWholeWords" />
+            <Setter Property="TextDecorations" Value="Strikethrough" />
+        </Style>
+
+        <Style x:Key="WarningSmallLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+
+        <Style x:Key="WarningActionButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+    </Page.Resources>
+
+    <Grid utu:SafeArea.Insets="VisibleBounds">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Padding="0,0,0,20">
+                <StackPanel Margin="10,0,0,12">
+                    <TextBlock
+                        FontSize="28"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Warnings and Issues" />
+                </StackPanel>
+
+                <controls:ElevatedCard
+                    Margin="5,0,0,5"
+                    Padding="0"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch"
+                    Background="{StaticResource CardBackgroundBrush}"
+                    CornerRadius="16">
+                    <Grid MinHeight="252">
+                        <Border
+                            Background="{StaticResource StatusErrorBrush}"
+                            CornerRadius="16"
+                            Visibility="{x:Bind ViewModel.ErrorHeroVisibility, Mode=OneWay}" />
+                        <Border
+                            Background="{StaticResource StatusWarningBrush}"
+                            CornerRadius="16"
+                            Visibility="{x:Bind ViewModel.WarningHeroVisibility, Mode=OneWay}" />
+                        <Border
+                            Background="{StaticResource StatusSuccessBrush}"
+                            CornerRadius="16"
+                            Visibility="{x:Bind ViewModel.SuccessHeroVisibility, Mode=OneWay}" />
+                        <Border
+                            Background="{StaticResource BrandPrimaryBrush}"
+                            CornerRadius="16"
+                            Visibility="{x:Bind ViewModel.InformationalHeroVisibility, Mode=OneWay}" />
+
+                        <Grid
+                            Padding="22,20"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            ColumnSpacing="18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="146" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Grid
+                                Width="128"
+                                Height="128"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center">
+                                <Border
+                                    Width="100"
+                                    Height="100"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Top"
+                                    Background="#14000000"
+                                    BorderBrush="{StaticResource BrandPrimaryBrush}"
+                                    BorderThickness="5"
+                                    CornerRadius="50">
+                                    <TextBlock
+                                        Margin="0,-6,0,0"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource MontserratFont}"
+                                        FontSize="66"
+                                        FontWeight="Bold"
+                                        Foreground="{StaticResource BrandPrimaryBrush}"
+                                        Text="i" />
+                                </Border>
+
+                                <Border
+                                    Width="56"
+                                    Height="56"
+                                    Margin="0,0,4,8"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Bottom"
+                                    Background="#16000000"
+                                    BorderBrush="{StaticResource BrandPrimaryBrush}"
+                                    BorderThickness="4"
+                                    CornerRadius="28">
+                                    <Grid>
+                                        <material:MaterialIcon
+                                            Width="30"
+                                            Height="30"
+                                            Margin="0,0,0,0"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            Kind="Fan" />
+                                        <Line
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch"
+                                            Stroke="{StaticResource BrandPrimaryBrush}"
+                                            StrokeEndLineCap="Round"
+                                            StrokeStartLineCap="Round"
+                                            StrokeThickness="4"
+                                            X1="43"
+                                            X2="9"
+                                            Y1="9"
+                                            Y2="43" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <StackPanel
+                                Grid.Column="1"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Spacing="8">
+                                <TextBlock
+                                    FontSize="40"
+                                    FontWeight="Bold"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.StatusTitle, Mode=OneWay}"
+                                    TextAlignment="Left"
+                                    TextWrapping="WrapWholeWords" />
+
+                                <TextBlock
+                                    FontSize="19"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+                                    TextAlignment="Left"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
                         </Grid>
-                    </Viewbox>
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Foreground="White"
-                        Style="{ThemeResource TitleTextBlockStyle}"
-                        Text="NON-FRAMEWORK DEVICE DETECTED" />
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Foreground="White"
-                        Style="{ThemeResource BodyTextBlockStyle}"
-                        Text="Unsupported hardware has been detected."
-                        TextAlignment="Center"
-                        TextWrapping="WrapWholeWords" />
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Foreground="White"
-                        Style="{ThemeResource BodyTextBlockStyle}"
-                        Text="This tool was designed for Framework devices only."
-                        TextAlignment="Center"
-                        TextWrapping="WrapWholeWords" />
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Foreground="White"
-                        Style="{ThemeResource BodyTextBlockStyle}"
-                        Text="If you believe this is a mistake, please open bug issue on Github."
-                        TextAlignment="Center"
-                        TextWrapping="WrapWholeWords" />
-                </StackPanel>
-            </Grid>
+                    </Grid>
+                </controls:ElevatedCard>
 
-            <Border
-                Margin="5"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                CornerRadius="{ThemeResource OverlayCornerRadius}"
-                Loaded="ErrorGridShadow_Loaded"
-                Translation="0,0,30">
-                <Border.Shadow>
-                    <ThemeShadow x:Name="errorGridShadow" />
-                </Border.Shadow>
-            </Border>
-        </Grid>
-        <Grid
-            Grid.Row="1"
-            ColumnSpacing="5"
-            RowSpacing="5">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition />
-                <ColumnDefinition />
-            </Grid.ColumnDefinitions>
-            <Grid.RowDefinitions>
-                <RowDefinition />
-                <RowDefinition />
-            </Grid.RowDefinitions>
-            <Grid
-                x:Name="card00"
-                Grid.Row="0"
-                Grid.Column="0"
-                Margin="5"
-                Background="{StaticResource CardBackgroundBrush}"
-                CornerRadius="8">
-                <StackPanel Margin="15,5">
-                    <TextBlock
-                        Foreground="White"
-                        Style="{ThemeResource SubtitleTextBlockStyle}"
-                        Text="Detected System Profile" />
-                </StackPanel>
-            </Grid>
+                <Grid Margin="5,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
 
-            <Border
-                Grid.Row="0"
-                Grid.Column="0"
-                Margin="5"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                CornerRadius="{ThemeResource OverlayCornerRadius}"
-                Loaded="Card00Shadow_Loaded"
-                Translation="0,0,30">
-                <Border.Shadow>
-                    <ThemeShadow x:Name="card00Shadow" />
-                </Border.Shadow>
-            </Border>
+                    <controls:ElevatedCard
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        MinHeight="200"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
+                        Background="{StaticResource CardBackgroundBrush}">
+                        <StackPanel Margin="15" Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <material:MaterialIcon
+                                    Width="24"
+                                    Height="24"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Kind="LanConnect" />
+                                <TextBlock Style="{StaticResource WarningCardTitleStyle}" Text="Detected Service State" />
+                            </StackPanel>
 
-            <Grid
-                x:Name="card01"
-                Grid.Row="1"
-                Grid.Column="0"
-                Margin="5"
-                Background="{StaticResource CardBackgroundBrush}"
-                CornerRadius="8">
-                <StackPanel Margin="15,5">
-                    <TextBlock
-                        Foreground="White"
-                        Style="{ThemeResource SubtitleTextBlockStyle}"
-                        Text="Explanation" />
-                </StackPanel>
-            </Grid>
+                            <TextBlock Style="{StaticResource WarningCardValueStyle}" Text="{x:Bind ViewModel.ServiceStateLineOne, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource WarningCardValueStyle}" Text="{x:Bind ViewModel.ServiceStateLineTwo, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource WarningCardValueStyle}" Text="{x:Bind ViewModel.ServiceStateLineThree, Mode=OneWay}" />
+                        </StackPanel>
+                    </controls:ElevatedCard>
 
-            <Border
-                Grid.Row="1"
-                Grid.Column="0"
-                Margin="5"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                CornerRadius="{ThemeResource OverlayCornerRadius}"
-                Loaded="Card01Shadow_Loaded"
-                Translation="0,0,30">
-                <Border.Shadow>
-                    <ThemeShadow x:Name="card01Shadow" />
-                </Border.Shadow>
-            </Border>
+                    <controls:ElevatedCard
+                        Grid.Row="0"
+                        Grid.Column="1"
+                        MinHeight="200"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
+                        Background="{StaticResource CardBackgroundBrush}">
+                        <StackPanel Margin="15" Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <material:MaterialIcon
+                                    Width="24"
+                                    Height="24"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Kind="AlertCircleOutline" />
+                                <TextBlock Style="{StaticResource WarningCardTitleStyle}" Text="Disabled Controls" />
+                            </StackPanel>
 
-            <Grid
-                x:Name="card10"
-                Grid.Row="0"
-                Grid.Column="1"
-                Margin="5"
-                Background="{StaticResource CardBackgroundBrush}"
-                CornerRadius="8">
-                <StackPanel Margin="15,5">
-                    <TextBlock
-                        Foreground="White"
-                        Style="{ThemeResource SubtitleTextBlockStyle}"
-                        Text="Disabled controls" />
-                </StackPanel>
-            </Grid>
+                            <TextBlock Style="{StaticResource DisabledCardValueStyle}" Text="{x:Bind ViewModel.DisabledControlOne, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource DisabledCardValueStyle}" Text="{x:Bind ViewModel.DisabledControlTwo, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource DisabledCardValueStyle}" Text="{x:Bind ViewModel.DisabledControlThree, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource DisabledCardValueStyle}" Text="{x:Bind ViewModel.DisabledControlFour, Mode=OneWay}" />
+                        </StackPanel>
+                    </controls:ElevatedCard>
 
-            <Border
-                Grid.Row="0"
-                Grid.Column="1"
-                Margin="5"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                CornerRadius="{ThemeResource OverlayCornerRadius}"
-                Loaded="Card10Shadow_Loaded"
-                Translation="0,0,30">
-                <Border.Shadow>
-                    <ThemeShadow x:Name="card10Shadow" />
-                </Border.Shadow>
-            </Border>
+                    <controls:ElevatedCard
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        MinHeight="200"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
+                        Background="{StaticResource CardBackgroundBrush}">
+                        <StackPanel Margin="15" Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <material:MaterialIcon
+                                    Width="24"
+                                    Height="24"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Kind="TextBoxOutline" />
+                                <TextBlock Style="{StaticResource WarningCardTitleStyle}" Text="Explanation" />
+                            </StackPanel>
 
-            <Grid
-                x:Name="card11"
-                Grid.Row="1"
-                Grid.Column="1"
-                Margin="5"
-                Background="{StaticResource CardBackgroundBrush}"
-                CornerRadius="8">
-                <StackPanel Margin="15,5">
-                    <TextBlock
-                        Foreground="White"
-                        Style="{ThemeResource SubtitleTextBlockStyle}"
-                        Text="Actions" />
-                </StackPanel>
-            </Grid>
+                            <TextBlock Style="{StaticResource WarningCardBodyStyle}" Text="{x:Bind ViewModel.ExplanationBody, Mode=OneWay}" />
+                        </StackPanel>
+                    </controls:ElevatedCard>
 
-            <Border
-                Grid.Row="1"
-                Grid.Column="1"
-                Margin="5"
-                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                CornerRadius="{ThemeResource OverlayCornerRadius}"
-                Loaded="Card11Shadow_Loaded"
-                Translation="0,0,30">
-                <Border.Shadow>
-                    <ThemeShadow x:Name="card11Shadow" />
-                </Border.Shadow>
-            </Border>
-        </Grid>
+                    <controls:ElevatedCard
+                        Grid.Row="1"
+                        Grid.Column="1"
+                        MinHeight="200"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
+                        Background="{StaticResource CardBackgroundBrush}">
+                        <StackPanel Margin="15" Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <material:MaterialIcon
+                                    Width="24"
+                                    Height="24"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Kind="WrenchOutline" />
+                                <TextBlock Style="{StaticResource WarningCardTitleStyle}" Text="Actions" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="10">
+                                <Button
+                                    Command="{x:Bind ViewModel.RestartServiceCommand, Mode=OneWay}"
+                                    Content="Restart service"
+                                    IsEnabled="{x:Bind ViewModel.IsServiceControlSupported, Mode=OneWay}"
+                                    Style="{StaticResource WarningActionButtonStyle}" />
+                                <Button
+                                    Command="{x:Bind ViewModel.InstallServiceCommand, Mode=OneWay}"
+                                    Content="Install service"
+                                    IsEnabled="{x:Bind ViewModel.CanInstallService, Mode=OneWay}"
+                                    Style="{StaticResource WarningActionButtonStyle}" />
+                                <Button
+                                    Command="{x:Bind ViewModel.UpdateServiceCommand, Mode=OneWay}"
+                                    Content="Update service"
+                                    IsEnabled="{x:Bind ViewModel.CanUpdateService, Mode=OneWay}"
+                                    Style="{StaticResource WarningActionButtonStyle}" />
+                                <Button
+                                    Command="{x:Bind ViewModel.UninstallServiceCommand, Mode=OneWay}"
+                                    Content="Uninstall service"
+                                    IsEnabled="{x:Bind ViewModel.IsServiceControlSupported, Mode=OneWay}"
+                                    Style="{StaticResource WarningActionButtonStyle}" />
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource WarningCardBodyStyle}" Text="{x:Bind ViewModel.ActionHint, Mode=OneWay}" />
+
+                            <InfoBar
+                                Title="{x:Bind ViewModel.LastActionTitle, Mode=OneWay}"
+                                IsClosable="True"
+                                IsOpen="{x:Bind ViewModel.IsLastActionVisible, Mode=TwoWay}"
+                                Message="{x:Bind ViewModel.LastActionMessage, Mode=OneWay}"
+                                Severity="{x:Bind ViewModel.LastActionSeverity, Mode=OneWay}" />
+                        </StackPanel>
+                    </controls:ElevatedCard>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Page>

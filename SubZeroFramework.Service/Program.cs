@@ -3,6 +3,9 @@ using FrameworkDotnet.Interfaces;
 using Hardware.Info;
 
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.Logging.Configuration;
+using Microsoft.Extensions.Logging.EventLog;
+using Microsoft.Extensions.Options;
 
 using SubZeroFramework.Service.Models;
 using SubZeroFramework.Service.Services;
@@ -12,8 +15,14 @@ namespace SubZeroFramework.Service;
 
 public static class Program
 {
-    public static async Task Main(string[] args)
+    public static async Task<int> Main(string[] args)
     {
+        var managementExitCode = await FrameworkServiceManagementCli.TryExecuteAsync(args).ConfigureAwait(false);
+        if (managementExitCode.HasValue)
+        {
+            return managementExitCode.Value;
+        }
+
         var builder = WebApplication.CreateBuilder(args);
         var socketPath = SubZeroFramework.Service.Services.FrameworkGrpcSocketPath.GetPath();
 
@@ -22,6 +31,11 @@ public static class Program
             options.ServiceName = "SubZeroFrameworkService";
         });
         builder.Services.AddSystemd();
+
+        if (OperatingSystem.IsWindows())
+        {
+            LoggerProviderOptions.RegisterProviderOptions<EventLogSettings, EventLogLoggerProvider>(builder.Services);
+        }
 
         builder.WebHost.ConfigureKestrel(serverOptions =>
         {
@@ -40,16 +54,32 @@ public static class Program
         builder.Services.AddGrpc();
         builder.Services.AddSingleton<IHardwareInfo, HardwareInfo>();
         builder.Services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
+        builder.Services.AddSingleton<FrameworkFanControlSafetyTracker>();
         builder.Services.AddSingleton<IFrameworkDataProvider, FrameworkDataProvider>();
+        builder.Services.AddSingleton<FrameworkShutdownCoordinator>();
         builder.Services.AddSingleton<FrameworkFanControlStateStore>();
         builder.Services.AddSingleton<FrameworkFanControlAuthorizationService>();
+        builder.Services.AddHostedService(static services => services.GetRequiredService<FrameworkShutdownCoordinator>());
         builder.Services.AddHostedService<FrameworkTelemetryWorker>();
 
         var app = builder.Build();
+        var serviceOptions = app.Services.GetRequiredService<IOptionsMonitor<FrameworkServiceOptions>>().CurrentValue;
+
+        app.Logger.LogInformation("Starting SubZeroFramework service on socket {SocketPath}. FanControlCommandsEnabled={FanControlCommandsEnabled}.", socketPath, serviceOptions.AllowFanControlCommands);
         app.MapGrpcService<FrameworkStatusGrpcService>();
         app.MapGrpcService<FrameworkTelemetryGrpcService>();
         app.MapGrpcService<HardwareInfoGrpcService>();
         app.MapGrpcService<FrameworkFanControlGrpcService>();
-        await app.RunAsync().ConfigureAwait(false);
+        app.Logger.LogInformation("Mapped gRPC services for status, telemetry, hardware info, and fan control.");
+
+        try
+        {
+            await app.RunAsync().ConfigureAwait(false);
+            return 0;
+        }
+        finally
+        {
+            app.Logger.LogInformation("SubZeroFramework service has stopped.");
+        }
     }
 }

@@ -5,6 +5,7 @@ using FrameworkDotnet.Enums;
 using LiveChartsCore.Defaults;
 
 using Microsoft.UI;
+using Microsoft.UI.Xaml;
 
 namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 
@@ -48,6 +49,15 @@ public partial class FanCardModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DrivingTemperatureDisplay))]
     public partial string DrivingTemperature { get; set; } = "--°C";
+
+    [ObservableProperty]
+    public partial string OverrideStateText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial Brush OverrideStateBrush { get; set; } = GetBrush("StatusWarningBrush", ColorHelper.FromArgb(255, 197, 153, 78));
+
+    [ObservableProperty]
+    public partial Visibility OverrideStateVisibility { get; set; } = Visibility.Collapsed;
 
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
 
@@ -112,6 +122,7 @@ public partial class FanCardModel : ObservableObject
         {
             TargetMode = "Auto";
             DrivingTemperature = Capability?.SupportsThermalReporting == false ? "n/a" : "--°C";
+            UpdateOverrideStatePresentation();
             return;
         }
 
@@ -126,12 +137,14 @@ public partial class FanCardModel : ObservableObject
         if (Capability?.SupportsThermalReporting == false)
         {
             DrivingTemperature = "n/a";
+            UpdateOverrideStatePresentation();
             return;
         }
 
         if (ControlState.Mode != FanControlMode.CustomCurve)
         {
             DrivingTemperature = "--°C";
+            UpdateOverrideStatePresentation();
             return;
         }
 
@@ -139,6 +152,32 @@ public partial class FanCardModel : ObservableObject
             ControlState.DrivingTemperatureAggregation,
             ControlState.DrivingSensorIndices,
             DrivingSensors);
+        UpdateOverrideStatePresentation();
+    }
+
+    private void UpdateOverrideStatePresentation()
+    {
+        if (ControlState?.LastAutoRestoreAttemptFailed == true)
+        {
+            OverrideStateText = "Auto restore failed";
+            OverrideStateBrush = GetBrush("StatusErrorBrush", ColorHelper.FromArgb(255, 68, 39, 38));
+            OverrideStateVisibility = Visibility.Visible;
+            return;
+        }
+
+        if (ControlState?.HasActiveOverride == true)
+        {
+            OverrideStateText = ControlState.Mode == FanControlMode.CustomCurve
+                ? "Curve override active"
+                : "Manual override active";
+            OverrideStateBrush = GetBrush("StatusWarningBrush", ColorHelper.FromArgb(255, 197, 153, 78));
+            OverrideStateVisibility = Visibility.Visible;
+            return;
+        }
+
+        OverrideStateText = string.Empty;
+        OverrideStateBrush = GetBrush("StatusWarningBrush", ColorHelper.FromArgb(255, 197, 153, 78));
+        OverrideStateVisibility = Visibility.Collapsed;
     }
 
     private void UpdateFanStatePresentation()

@@ -10,18 +10,21 @@ public sealed class FrameworkTelemetryWorker : BackgroundService
     private readonly IFrameworkDataProvider _frameworkDataProvider;
     private readonly FrameworkServiceOptions _options;
     private readonly ILogger<FrameworkTelemetryWorker> _logger;
-    private readonly IHostApplicationLifetime _applicationLifetime;
+    private readonly FrameworkShutdownCoordinator _shutdownCoordinator;
+    private readonly CancellationTokenRegistration _applicationStoppingRegistration;
 
     public FrameworkTelemetryWorker(
         IFrameworkDataProvider frameworkDataProvider,
         IOptions<FrameworkServiceOptions> options,
         ILogger<FrameworkTelemetryWorker> logger,
-        IHostApplicationLifetime applicationLifetime)
+        IHostApplicationLifetime applicationLifetime,
+        FrameworkShutdownCoordinator shutdownCoordinator)
     {
         _frameworkDataProvider = frameworkDataProvider;
         _options = options.Value;
         _logger = logger;
-        _applicationLifetime = applicationLifetime;
+        _shutdownCoordinator = shutdownCoordinator;
+        _applicationStoppingRegistration = applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
     }
 
     public override async Task StartAsync(CancellationToken cancellationToken)
@@ -65,15 +68,20 @@ public sealed class FrameworkTelemetryWorker : BackgroundService
     {
         _logger.LogInformation("Stopping Framework telemetry service.");
 
-        try
-        {
-            _frameworkDataProvider.StopPolling();
-            _frameworkDataProvider.StopHardwareInfoPolling();
-        }
-        catch (ObjectDisposedException)
-        {
-        }
+        _shutdownCoordinator.StopTelemetryLoops("FrameworkTelemetryWorker.StopAsync");
 
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public override void Dispose()
+    {
+        _applicationStoppingRegistration.Dispose();
+        base.Dispose();
+    }
+
+    private void OnApplicationStopping()
+    {
+        _logger.LogInformation("Host shutdown requested. Stopping telemetry loops so fan control can be restored before exit.");
+        _shutdownCoordinator.StopTelemetryLoops("IHostApplicationLifetime.ApplicationStopping");
     }
 }

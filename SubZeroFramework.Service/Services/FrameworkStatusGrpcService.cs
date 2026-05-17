@@ -12,17 +12,21 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
 {
     private readonly FrameworkFanControlAuthorizationService _authorizationService;
     private readonly IFrameworkDataProvider _frameworkDataProvider;
+    private readonly ILogger<FrameworkStatusGrpcService> _logger;
 
-    public FrameworkStatusGrpcService(IFrameworkDataProvider frameworkDataProvider, FrameworkFanControlAuthorizationService authorizationService)
+    public FrameworkStatusGrpcService(IFrameworkDataProvider frameworkDataProvider, FrameworkFanControlAuthorizationService authorizationService, ILogger<FrameworkStatusGrpcService> logger)
     {
         _frameworkDataProvider = frameworkDataProvider;
         _authorizationService = authorizationService;
+        _logger = logger;
     }
 
     public override async Task<FrameworkStatusReply> GetStatus(GetStatusRequest request, ServerCallContext context)
     {
+        _logger.LogDebug("Received GetStatus request.");
         ApplyFanControlAuthorization();
         var status = await _frameworkDataProvider.RefreshAsync(context.CancellationToken).ConfigureAwait(false);
+        _logger.LogDebug("Publishing GetStatus reply. IsConnectionOpen={IsConnectionOpen}, RequiresElevation={RequiresElevation}, LastErrorPresent={HasLastError}.", status.IsConnectionOpen, status.RequiresElevation, !string.IsNullOrEmpty(status.LastError));
         return MapStatus(status);
     }
 
@@ -30,8 +34,10 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
     {
         try
         {
+            _logger.LogInformation("Opening status stream.");
             ApplyFanControlAuthorization();
             var initialStatus = await _frameworkDataProvider.RefreshAsync(context.CancellationToken).ConfigureAwait(false);
+            _logger.LogDebug("Publishing initial status stream reply. IsConnectionOpen={IsConnectionOpen}, RequiresElevation={RequiresElevation}, LastErrorPresent={HasLastError}.", initialStatus.IsConnectionOpen, initialStatus.RequiresElevation, !string.IsNullOrEmpty(initialStatus.LastError));
             await responseStream.WriteAsync(MapStatus(initialStatus), context.CancellationToken).ConfigureAwait(false);
 
             var statusStream = _frameworkDataProvider.SystemStatus
@@ -51,18 +57,20 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
                     status.LastError,
                 });
 
-            var reader = ObservableChannelBridge.CreateBoundedReader(statusStream.Skip(1), context.CancellationToken);
+            var reader = ObservableChannelBridge.CreateBoundedReader(statusStream.Skip(1), context.CancellationToken, _logger, "status stream");
 
             while (await reader.WaitToReadAsync(context.CancellationToken).ConfigureAwait(false))
             {
                 while (reader.TryRead(out var status))
                 {
+                    _logger.LogDebug("Publishing status stream update. IsConnectionOpen={IsConnectionOpen}, RequiresElevation={RequiresElevation}, LastErrorPresent={HasLastError}.", status.IsConnectionOpen, status.RequiresElevation, !string.IsNullOrEmpty(status.LastError));
                     await responseStream.WriteAsync(MapStatus(status), context.CancellationToken).ConfigureAwait(false);
                 }
             }
         }
         catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
         {
+            _logger.LogDebug("Stopping status stream because the request was cancelled.");
         }
     }
 

@@ -31,6 +31,7 @@
             <SolidColorBrush x:Key="BrandHoverBrush" Color="#15191B" />
             <SolidColorBrush x:Key="BrandCheckedBrush" Color="#1c2828" />
             <SolidColorBrush x:Key="BrandDisabledBrush" Color="#4A4C59" />
+            <SolidColorBrush x:Key="SecondaryDisabledBrush" Color="#71728c" />
 
             <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1b2727" />
             <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#000000" />

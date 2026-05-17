@@ -398,6 +398,11 @@ message FanControlStateChangeReply {
   TemperatureAggregationModeValue driving_temperature_aggregation = 9;
   repeated int32 driving_sensor_indices = 10;
   repeated FanCurvePointReply custom_curve_points = 11;
+  bool has_active_override = 12;
+  bool last_auto_restore_attempt_failed = 13;
+  bool has_last_auto_restore_attempt = 14;
+  int64 last_auto_restore_attempt_at_unix_time_milliseconds = 15;
+  string last_auto_restore_error = 16;
 }
 
 message FanControlStateChangeBatchReply {

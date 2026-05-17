@@ -26,11 +26,30 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
 
     public async Task<FrameworkSystemStatus> GetStatusAsync(CancellationToken cancellationToken = default)
     {
-        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
-        var reply = await _client.GetStatusAsync(new GetStatusRequest(), cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
-        var status = MapStatus(reply);
-        _lastObservedAt = status.ObservedAt;
-        return status;
+        try
+        {
+            using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+            var reply = await _client.GetStatusAsync(new GetStatusRequest(), cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+            var status = MapStatus(reply);
+            _lastObservedAt = status.ObservedAt;
+            return status;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (RpcException exception)
+        {
+            var unavailableStatus = CreateUnavailableStatus($"Unable to connect to SubZeroFramework.Service. {exception.Status.Detail}");
+            _lastObservedAt = unavailableStatus.ObservedAt;
+            return unavailableStatus;
+        }
+        catch (Exception exception)
+        {
+            var unavailableStatus = CreateUnavailableStatus($"Unable to connect to SubZeroFramework.Service. {exception.Message}");
+            _lastObservedAt = unavailableStatus.ObservedAt;
+            return unavailableStatus;
+        }
     }
 
     public IObservable<FrameworkSystemStatus> WatchStatus()

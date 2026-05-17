@@ -99,7 +99,10 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <header:SubZeroHeaderControl Grid.Row="0" SystemContainer="{x:Bind ViewModel.ServiceProvider, Mode=OneWay}" />
+                <header:SubZeroHeaderControl
+                    Grid.Row="0"
+                    SuppressErrorBar="{x:Bind ViewModel.IsWarningIssuesSelected, Mode=OneWay}"
+                    SystemContainer="{x:Bind ViewModel.ServiceProvider, Mode=OneWay}" />
                 <Grid
                     Grid.Row="1"
                     uen:Region.Attached="True"

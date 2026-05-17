@@ -29,6 +29,7 @@ The current shell navigation is intended to contain these user-facing items:
 - GridView and ListView card layouts should preserve stable item identity and avoid full rebinding that causes visual blinking.
 - Gauge rings should remain visually static on hover.
 - Useful text values should be selectable and copyable.
+- Service lifecycle guidance should use standard reachable WinUI or Uno surfaces such as `InfoBar` for privilege prompts, readiness messaging, and action results.
 
 ## Data and architecture rules
 
@@ -211,18 +212,21 @@ Warnings and Issues is the degraded-state or unsupported-state page.
 
 ### Warnings and Issues contents
 
-- A clear top warning banner or warning hero surface.
+- A clear top warning banner or top `InfoBar` status surface.
 - A detected system profile summary.
 - An explanation of why the system is unsupported or unhealthy.
 - A list of disabled controls or unavailable features.
-- Action buttons for recovery or diagnostics.
+- Service-manager readiness and privilege-prompt guidance when lifecycle recovery is possible.
+- Quick action buttons for recovery or diagnostics.
+- A result `InfoBar` after lifecycle actions run.
 
 ### Warnings and Issues actions
 
-- Retry detection.
-- Restart or rescan the service.
-- Install, uninstall, or reinstall the service when relevant.
-- Open or copy diagnostics.
+- Restart the service.
+- Install the service from a packaged service bundle when one is available.
+- Update the installed service from a packaged service bundle when one is available.
+- Uninstall the service when a clean reinstall is needed.
+- Open or copy diagnostics when that workflow is implemented.
 - Direct users to support or GitHub reporting when needed.
 
 ### Warnings and Issues safety role
@@ -240,7 +244,8 @@ Settings is the control panel for application behavior, service lifecycle action
 
 - Application preferences such as start with Windows and start minimized.
 - Default profile selection.
-- Service install, uninstall, and reinstall actions when needed.
+- Service-manager identity, install source summary, readiness guidance, and privilege-prompt messaging.
+- Service shutdown, restart, autorun, install, update, uninstall, and reinstall actions when needed.
 - Feature toggles for app modules or custom fan control features.
 - Advanced configuration blocks when they are safe and meaningful.
 - Update and about information.
@@ -249,7 +254,7 @@ Settings is the control panel for application behavior, service lifecycle action
 
 - Managing startup behavior.
 - Managing profile defaults.
-- Managing service lifecycle operations.
+- Managing service lifecycle operations, including shutdown, restart, autorun, install, update, uninstall, and reinstall.
 - Reviewing version and build information.
 - Accessing update or project links.
 
@@ -280,6 +285,7 @@ The design boards currently suggest these broad visual intentions:
 ## Notes on current implementation state
 
 - Dashboard and Device Capabilities already contain the most mature UI direction.
-- Thermal Telemetry, Power Telemetry, Fan Curve Profiles, and Settings still need more of the intended functionality implemented.
-- Warnings and Issues exists as the unhealthy-state fallback and should continue evolving toward the richer warning and action model shown in the design boards.
+- Settings now includes service-health, package-readiness, privilege-prompt, and lifecycle-action functionality; the broader app-preferences surface still needs more work.
+- Warnings and Issues now acts as the unhealthy-state remediation surface with top-level status messaging, package readiness, privilege guidance, and quick service lifecycle actions.
+- Thermal Telemetry, Power Telemetry, and Fan Curve Profiles still need more of the intended functionality implemented.
 - The old broader design idea of a single generic Telemetry or Diagnostics area has effectively been split into Thermal Telemetry, Power Telemetry, Fan Curve Profiles, Device Capabilities, and Warnings and Issues.

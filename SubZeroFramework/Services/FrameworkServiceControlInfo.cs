@@ -1,0 +1,20 @@
+namespace SubZeroFramework.Services;
+
+public sealed record FrameworkServiceControlInfo
+{
+    public required bool IsSupported { get; init; }
+
+    public required bool CanInstall { get; init; }
+
+    public required bool CanUpdate { get; init; }
+
+    public required string PlatformServiceManager { get; init; }
+
+    public required string ServiceIdentity { get; init; }
+
+    public required string InstallSourceSummary { get; init; }
+
+    public required string InstallReadinessMessage { get; init; }
+
+    public required string PrivilegePromptMessage { get; init; }
+}

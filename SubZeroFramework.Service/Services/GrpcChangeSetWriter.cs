@@ -11,7 +11,9 @@ internal static class GrpcChangeSetWriter
         IServerStreamWriter<TBatchReply> responseStream,
         Func<Change<TObject, TKey>, TReply> mapChange,
         Func<IReadOnlyList<TReply>, TBatchReply> mapBatch,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ILogger? logger = null,
+        string? streamName = null)
         where TObject : notnull
         where TKey : notnull
     {
@@ -39,12 +41,18 @@ internal static class GrpcChangeSetWriter
                         replies.Add(mapChange(change));
                     }
 
+                    logger?.LogDebug("Publishing {ChangeCount} change(s) to {StreamName}.", replies.Count, streamName ?? typeof(TBatchReply).Name);
                     await responseStream.WriteAsync(mapBatch(replies), cancellationToken).ConfigureAwait(false);
                 }
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            logger?.LogDebug("Stopping publish loop for {StreamName} because the request was cancelled.", streamName ?? typeof(TBatchReply).Name);
+        }
         catch (ReactiveBackpressureExceededException exception)
         {
+            logger?.LogWarning(exception, "Backpressure exceeded while publishing {StreamName}.", streamName ?? typeof(TBatchReply).Name);
             throw new RpcException(new Status(StatusCode.ResourceExhausted, exception.Message));
         }
     }

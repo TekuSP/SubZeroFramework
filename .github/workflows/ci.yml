@@ -73,13 +73,17 @@ jobs:
 
       - name: Restore
         run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:PublishReadyToRun=true -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
-         
+
       - name: Build
         run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
-         
+
       - name: Publish
         run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
-          
+
+      - name: Package Windows service bundle
+        shell: pwsh
+        run: ./SubZeroFramework.Service/Scripts/package-windows-service.ps1 -RuntimeIdentifier ${{ matrix.platform }} -OutputRoot "${{ env.ARTIFACT_OUTPUT }}" -Configuration Release
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         continue-on-error: false
@@ -138,13 +142,18 @@ jobs:
 
       - name: Restore
         run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
-         
+
       - name: Build
         run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
-         
+
       - name: Publish
         run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }}  -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
-          
+
+      - name: Package Linux service bundle
+        run: |
+          chmod +x ./SubZeroFramework.Service/Scripts/package-linux-service.sh
+          ./SubZeroFramework.Service/Scripts/package-linux-service.sh ${{ matrix.platform }} "${{ env.ARTIFACT_OUTPUT }}" Release
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         continue-on-error: false

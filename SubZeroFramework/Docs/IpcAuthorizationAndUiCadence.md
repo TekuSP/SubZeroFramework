@@ -53,6 +53,30 @@ Fan commands can change EC behavior and therefore require a higher trust bar tha
 
 Until the service can validate peer identity in a supported and portable way, enabling fan-control RPCs should remain an explicit operator decision, not the default behavior.
 
+## Service lifecycle control path
+
+Service install, update, uninstall, shutdown, restart, and autorun actions are intentionally not normal gRPC operations.
+
+### Current policy
+
+- the client discovers a packaged service bundle under `service-package/windows` or `service-package/linux`, or a configured override path
+- the client launches the packaged service executable with `--service-management <operation>`
+- Windows relies on a UAC administrator prompt for the service executable
+- Linux relies on a root or `pkexec` prompt for the service executable
+- the service executable performs the underlying `sc.exe`, `net.exe`, `systemctl`, and file-installation work on its own behalf
+
+### Why this stays out of gRPC
+
+- install and update must work even when the service is offline or not yet registered
+- shutdown, restart, and uninstall may deliberately tear down the current service instance
+- the client must remain unelevated and should not become the long-lived privileged worker
+
+### UI expectations
+
+- Settings and Warnings and Issues should surface install readiness and privilege-prompt guidance before enabling install or update actions
+- action results should be surfaced distinctly from transport health, ideally through `InfoBar`-style feedback
+- elevation prompt cancellation should be treated as a warning, not as a transport failure
+
 ## UI command enablement rules
 
 The UI should not enable fan-control actions only because the service is reachable.

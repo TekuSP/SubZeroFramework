@@ -31,35 +31,36 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 
 ## Windows service operations
 
-- ⏳ Add an installation script for `sc.exe create` and service recovery configuration.
-- ⏳ Configure automatic restart on service failure.
+- ✅ Add a packaged self-management install and update path for Windows service registration and recovery configuration. The published service executable now supports `--service-management install|update|...`, and install or update configures the SCM entry plus restart-on-failure behavior.
+- ✅ Configure automatic restart on service failure during Windows install and update flows.
 - ⏳ Validate service account requirements for EC access on Windows.
 - ⏳ Investigate whether specific shutdown ordering or preshutdown handling is needed before Windows update restart.
 - ⏳ Add logging guidance for Event Log or file logging in production.
 
 ## Linux service operations
 
-- ⏳ Publish and validate the systemd unit in a real Linux environment.
+- 🟡 Publish and stage the systemd unit in the packaged service bundle. CI now emits `service-package/linux`, and install or update copies the bundle into `/usr/local/lib/subzeroframework`, refreshes the unit, and starts the service; real Linux validation is still pending.
 - ⏳ Verify root execution and EC access end-to-end under systemd.
-- ⏳ Add an install script that copies the service binary and unit file, reloads systemd, and enables the unit.
+- 🟡 Add an install and update path that copies the service binary and unit file, reloads systemd, and starts the unit. Explicit autorun remains a separate action.
 - ⏳ Add journald logging guidance.
 - ⏳ Consider hardening options in the systemd unit that do not break EC access.
 
 ## Fan safety
 
-- ⏳ Add explicit tracking for whether manual fan control is currently active.
-- 🟡 Ensure automatic fan control is restored on all controlled stop paths before exit. Controlled shutdown restore exists, but broader verification and edge-case coverage still need work.
+- ✅ Add explicit tracking for whether manual fan control is currently active.
+- 🟡 Ensure automatic fan control is restored on all controlled stop paths before exit. Service stop requests, host stopping, controlled polling shutdown, and disposal now attempt targeted restore for active overrides, but broader verification and edge-case coverage still need work.
 - ⏳ Attempt automatic fan control restore from global exception and unhandled termination paths when process state still allows native calls.
-- ⏳ Add protection against duplicate restore attempts during shutdown.
-- ⏳ Define behavior when restore-to-auto fails.
-- ⏳ Add tests or manual verification steps for service stop, restart, and machine shutdown scenarios.
+- ✅ Add protection against duplicate restore attempts during shutdown.
+- 🟡 Define behavior when restore-to-auto fails. Failure state is now tracked and surfaced through fan-control state, but the broader operator-facing policy is still incomplete.
+- ⏳ Define service-side coordination semantics when multiple UI instances issue concurrent fan-control commands.
+- ✅ Add tests or manual verification steps for service stop, restart, and machine shutdown scenarios. Worker coverage now verifies start, service stop, and host-stopping paths, and `SubZeroFramework/Docs/FanSafetyShutdownChecklist.md` captures the manual restart, shutdown, and multi-instance verification steps.
 - ⏳ Consider a watchdog or heartbeat model if fan safety requires external recovery guarantees.
 
 ## UI integration
 
 - 🟡 Replace direct `IFrameworkDataProvider` usage in the UNO app with an IPC client abstraction. Status-side integration is done; telemetry surfaces should continue moving to IPC-only usage.
-- 🟡 Update warning and settings pages to show service installation, elevation, and connection guidance. Diagnostics and endpoint validation messaging are present, but the full guidance experience still needs work.
-- 🟡 Add a visible service-health indicator in the UI. Header, settings, and warning/status handling are partially in place.
+- ✅ Update warning and settings pages to show service installation, update, elevation, and connection guidance using WinUI or Uno `InfoBar` surfaces for readiness, privilege prompts, and action results.
+- 🟡 Add a visible service-health indicator in the UI. Header, settings, and warning/status handling are now in place; logs and deeper diagnostics actions still need work.
 - ✅ Decide which UI surfaces should react only to state transitions versus live telemetry cadence. Header receives distinct system-status changes, with heartbeat/last-observed data kept separate.
 - ⏳ Add user actions to open logs or copy diagnostics.
 
@@ -70,6 +71,15 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 - ✅ Expand Device Capabilities with cleaned-up device identity, EC version/build, BIOS release date, runtime sensor/fan/battery status cards, drive-level storage usage summaries, and detected network adapter inventory.
 - ✅ Keep the Device Capabilities CPU section honest by showing CPU identity and frequency history only; do not report the previously unreliable load/core values.
 - ✅ Keep Dashboard fan and thermal gauge rings visually stable by disabling hover pushout and hover highlighting.
+
+## Recent completed service lifecycle and packaging work
+
+- ✅ Add shutdown coordination hooks across host-stopping, process-exit, unhandled-exception, and unobserved-task paths so the service can attempt orderly fan restore and emit lifecycle logs during controlled teardown.
+- ✅ Add broader structured logging around lifecycle boundaries, fan commands, publish points, and authorization rejections using DI-backed logging.
+- ✅ Add client-facing lifecycle actions in Settings and Warnings and Issues for shutdown, restart, autorun, install, update, and uninstall.
+- ✅ Keep install and update out of the privileged client path by launching the packaged service executable elevated with `--service-management` instead of relying on a permanently elevated UI or self-destructive gRPC operations.
+- ✅ Package the service alongside CI app artifacts under `service-package/windows` and `service-package/linux` so install and update have a deterministic source bundle.
+- ✅ Validate the current integrated state with `build-windows`, `build-linux`, and `test-service`.
 
 ## Testing and validation
 
@@ -134,6 +144,6 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 
 ## Packaging and deployment
 
-- ⏳ Decide publish layout for the worker service on Windows and Linux.
-- ⏳ Add publish profiles or scripts for the service binaries.
-- ⏳ Document versioning and update strategy for the service and UI.
+- ✅ Decide publish layout for the worker service on Windows and Linux. Published app artifacts now include `service-package/windows` or `service-package/linux` next to the client binaries.
+- ✅ Add publish scripts for the service binaries in `SubZeroFramework.Service/Scripts` and invoke them from CI.
+- 🟡 Document versioning and update strategy for the service and UI. The update command path and packaged bundle discovery are in place, but release/version presentation still needs work.
