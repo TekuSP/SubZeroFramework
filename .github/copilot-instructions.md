@@ -3,11 +3,16 @@
 ## Purpose
 This document captures repository-specific skills, architecture patterns, and problem areas for AI copilots working on SubZeroFramework.
 
+Use `WorkToBeDone.md` as the execution roadmap and priority list.
+
+Use `FunctionalitySpecification.md` as the source of truth for intended menu-item and page behavior.
+
 ## Key areas of expertise
 
 ### Important steps
 - Avoid using PowerShell unless MCP tools (such as Microsoft Knowledge Search or Nuget Package Search) are completely unavailable or fail to provide the required documentation, code samples, or best practices for the tasks at hand.
 - Always refer to `WorkToBeDone.md` for the current list of required improvements and align your work with those items.
+- Refer to `FunctionalitySpecification.md` when working on navigation, page responsibilities, or user-facing surface behavior.
 - If you need source codes, preferably use the GitHub web interface to navigate and search the codebase, as it provides better context and understanding of the code structure. Use the file paths and class names mentioned in this document to locate relevant code sections.
 If possible use ObservableProperty with ObservableObject, leveraging C# partial classes to reduce boilerplate and ensure change notifications are properly raised for UI updates. This is especially important for view models and any state that the UI binds to.
 - For inventory surfaces, prefer FrameworkDotnet data first and only use Hardware.Info to fill gaps, keeping that fallback flow behind the existing service/gRPC/client boundary.

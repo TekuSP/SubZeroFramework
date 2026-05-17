@@ -1,5 +1,9 @@
 # Work To Be Done
 
+Use this document as the execution roadmap and status tracker for the repo.
+
+Use `FunctionalitySpecification.md` as the source of truth for intended menu-item and page behavior when deciding what each UI surface should do.
+
 ## Status legend
 
 - ✅ Done
