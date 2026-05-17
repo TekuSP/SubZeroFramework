@@ -58,7 +58,7 @@
                                             Foreground="{StaticResource TextPrimaryBrush}"
                                             Text="{x:Bind Snapshot.DisplayName, Mode=OneWay}" />
 
-                                        <Grid Grid.Row="1" Margin="-125,-5,0,0">
+                                        <Grid Grid.Row="1" Margin="-110,5,0,0">
                                             <lvc:PieChart
                                                 Background="Transparent"
                                                 CornerRadius="0"
@@ -74,11 +74,15 @@
                                                             CornerRadius="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                             Fill="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                            HoverPushout="0"
+                                                            IsHoverable="False"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind FanSpeedGaugeValues, Mode=OneWay}" />
                                                         <lvc:XamlPieSeries
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                             Fill="{lvc:SolidColorPaint Color='#FF5D5E73'}"
+                                                            HoverPushout="0"
+                                                            IsHoverable="False"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind FanSpeedRemainingGaugeValues, Mode=OneWay}" />
                                                     </lvc:SeriesCollection>
@@ -253,7 +257,7 @@
                                             Foreground="{StaticResource TextPrimaryBrush}"
                                             Text="{x:Bind DisplayName, Mode=OneWay}" />
 
-                                        <Grid Grid.Row="1" Margin="-100,0,0,0">
+                                        <Grid Grid.Row="1" Margin="-85,8,0,0">
                                             <lvc:PieChart
                                                 AnimationsSpeed="0"
                                                 Background="Transparent"
@@ -270,30 +274,40 @@
                                                             AnimationsSpeed="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                             Fill="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                            HoverPushout="0"
+                                                            IsHoverable="False"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind CoolGaugeValues, Mode=OneWay}" />
                                                         <lvc:XamlPieSeries
                                                             AnimationsSpeed="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                             Fill="{lvc:SolidColorPaint Color='#FF8AB7E8'}"
+                                                            HoverPushout="0"
+                                                            IsHoverable="False"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind NormalGaugeValues, Mode=OneWay}" />
                                                         <lvc:XamlPieSeries
                                                             AnimationsSpeed="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                             Fill="{lvc:SolidColorPaint Color='#FFC5994E'}"
+                                                            HoverPushout="0"
+                                                            IsHoverable="False"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind WarmGaugeValues, Mode=OneWay}" />
                                                         <lvc:XamlPieSeries
                                                             AnimationsSpeed="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                             Fill="{lvc:SolidColorPaint Color='#FF8A5C5B'}"
+                                                            HoverPushout="0"
+                                                            IsHoverable="False"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind HotGaugeValues, Mode=OneWay}" />
                                                         <lvc:XamlPieSeries
                                                             AnimationsSpeed="0"
                                                             DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
                                                             Fill="{lvc:SolidColorPaint Color='#FF5D5E73'}"
+                                                            HoverPushout="0"
+                                                            IsHoverable="False"
                                                             MaxRadialColumnWidth="15"
                                                             Values="{x:Bind RemainingGaugeValues, Mode=OneWay}" />
                                                     </lvc:SeriesCollection>
