@@ -419,10 +419,6 @@
                                     FontWeight="SemiBold"
                                     Foreground="{StaticResource TextPrimaryBrush}"
                                     Text="Frequency History" />
-                                <TextBlock
-                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                    Text="Average package frequency across recent hardware snapshots, shown over time."
-                                    TextWrapping="WrapWholeWords" />
                                 <lvc:CartesianChart
                                     Height="200"
                                     AutoUpdateEnabled="True"
