@@ -33,12 +33,14 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
         {
             var executablePath = ResolveWindowsServiceExecutablePath();
             var isElevated = IsRunningAsAdministrator();
+            var isInstalled = IsWindowsServiceInstalled();
 
             return new FrameworkServiceControlInfo
             {
                 IsSupported = true,
-                CanInstall = executablePath is not null,
-                CanUpdate = executablePath is not null,
+                IsInstalled = isInstalled,
+                CanInstall = executablePath is not null && !isInstalled,
+                CanUpdate = executablePath is not null && isInstalled,
                 PlatformServiceManager = WindowsServiceManagerName,
                 ServiceIdentity = _options.WindowsServiceName,
                 InstallSourceSummary = executablePath is null
@@ -46,9 +48,13 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
                     : $"Install source executable: {executablePath}",
                 InstallReadinessMessage = executablePath is null
                     ? "Windows install and update stay disabled until the packaged service executable is discoverable."
-                    : isElevated
-                        ? "Windows install and update are ready. This client session already has administrator privileges, so the packaged service executable can register or refresh the SCM entry directly."
-                        : "Windows install and update are ready, but this client session is not elevated. The packaged service executable will request a UAC administrator prompt before it can register or refresh the SCM entry.",
+                    : isInstalled
+                        ? isElevated
+                            ? "Windows update is ready. This client session already has administrator privileges, so the packaged service executable can refresh the SCM entry directly."
+                            : "Windows update is ready, but this client session is not elevated. The packaged service executable will request a UAC administrator prompt before it can refresh the SCM entry."
+                        : isElevated
+                            ? "Windows install is ready. This client session already has administrator privileges, so the packaged service executable can register the SCM entry directly."
+                            : "Windows install is ready, but this client session is not elevated. The packaged service executable will request a UAC administrator prompt before it can register the SCM entry.",
                 PrivilegePromptMessage = isElevated
                     ? "This client session already has administrator privileges. Windows service lifecycle actions can launch the packaged service helper directly without another UAC prompt."
                     : "This client session does not currently have administrator privileges. Windows service lifecycle actions will show a UAC administrator prompt before the packaged service helper can continue.",
@@ -60,21 +66,27 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
             var executablePath = ResolveLinuxServiceExecutablePath();
             var canInstall = executablePath is not null;
             var isRoot = ClientLinuxPrivilegeDetector.IsRunningAsRoot();
+            var isInstalled = IsLinuxServiceInstalled();
 
             return new FrameworkServiceControlInfo
             {
                 IsSupported = true,
-                CanInstall = canInstall,
-                CanUpdate = canInstall,
+                IsInstalled = isInstalled,
+                CanInstall = canInstall && !isInstalled,
+                CanUpdate = canInstall && isInstalled,
                 PlatformServiceManager = LinuxServiceManagerName,
                 ServiceIdentity = _options.LinuxUnitName,
                 InstallSourceSummary = canInstall
                     ? $"Install source executable: {executablePath}"
                     : "Service package unavailable. Place a packaged service executable under service-package/linux or configure ServiceControl:LinuxServiceExecutablePath.",
                 InstallReadinessMessage = canInstall
-                    ? isRoot
-                        ? $"Linux install and update are ready. This client session is already running as root, so the packaged service executable can copy itself into {_options.LinuxInstalledWorkingDirectory} and register {_options.LinuxInstalledUnitPath} directly."
-                        : $"Linux install and update are ready, but this client session is not running as root. The packaged service executable will request pkexec or root authentication before it can copy itself into {_options.LinuxInstalledWorkingDirectory} and register {_options.LinuxInstalledUnitPath}."
+                    ? isInstalled
+                        ? isRoot
+                            ? $"Linux update is ready. This client session is already running as root, so the packaged service executable can refresh {_options.LinuxInstalledWorkingDirectory} and {_options.LinuxInstalledUnitPath} directly."
+                            : $"Linux update is ready, but this client session is not running as root. The packaged service executable will request pkexec or root authentication before it can refresh {_options.LinuxInstalledWorkingDirectory} and {_options.LinuxInstalledUnitPath}."
+                        : isRoot
+                            ? $"Linux install is ready. This client session is already running as root, so the packaged service executable can copy itself into {_options.LinuxInstalledWorkingDirectory} and register {_options.LinuxInstalledUnitPath} directly."
+                            : $"Linux install is ready, but this client session is not running as root. The packaged service executable will request pkexec or root authentication before it can copy itself into {_options.LinuxInstalledWorkingDirectory} and register {_options.LinuxInstalledUnitPath}."
                     : "Linux install and update stay disabled until the packaged service executable is discoverable.",
                 PrivilegePromptMessage = isRoot
                     ? "This client session is already running as root. Linux service lifecycle actions can launch the packaged service helper directly without another privilege prompt."
@@ -85,6 +97,7 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
         return new FrameworkServiceControlInfo
         {
             IsSupported = false,
+            IsInstalled = false,
             CanInstall = false,
             CanUpdate = false,
             PlatformServiceManager = "Unsupported platform",
@@ -456,6 +469,33 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
             Path.Combine(AppContext.BaseDirectory, "subzeroframework.service"),
             Path.Combine(AppContext.BaseDirectory, "SubZeroFramework.Service", "subzeroframework.service"));
 
+    private bool IsWindowsServiceInstalled()
+    {
+        try
+        {
+            return RunProbeProcess(CreateDirectProcess("sc.exe", "query", _options.WindowsServiceName)) == 0;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Unable to determine whether Windows service {ServiceName} is installed.", _options.WindowsServiceName);
+            return false;
+        }
+    }
+
+    private bool IsLinuxServiceInstalled()
+    {
+        try
+        {
+            return File.Exists(_options.LinuxInstalledUnitPath)
+                || File.Exists(_options.LinuxInstalledExecutablePath);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Unable to determine whether Linux service unit {UnitName} is installed.", _options.LinuxUnitName);
+            return false;
+        }
+    }
+
     private static string? ResolveExistingFile(params string?[] candidates)
         => candidates
             .Where(candidate => !string.IsNullOrWhiteSpace(candidate))
@@ -517,6 +557,22 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
         }
 
         return startInfo;
+    }
+
+    private static int RunProbeProcess(ProcessStartInfo startInfo)
+    {
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException($"Unable to start {startInfo.FileName} while probing local service state.");
+
+        var standardOutputTask = process.StandardOutput.ReadToEndAsync();
+        var standardErrorTask = process.StandardError.ReadToEndAsync();
+
+        process.WaitForExit();
+
+        _ = standardOutputTask.GetAwaiter().GetResult();
+        _ = standardErrorTask.GetAwaiter().GetResult();
+
+        return process.ExitCode;
     }
 
     private static string QuoteWindowsArgument(string value)

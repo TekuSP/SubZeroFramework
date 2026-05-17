@@ -3,6 +3,7 @@ using DynamicData;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
 using System.Reactive.Disposables.Fluent;
+using System.Reactive.Linq;
 using System.Reactive.Subjects;
 
 namespace SubZeroFramework.Services;
@@ -57,7 +58,14 @@ internal sealed class RetainedSnapshotStream<T> : IObservable<T>, IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
-        return _latest.Subscribe(observer);
+        var subscription = new CompositeDisposable();
+
+        _latest
+            .ObserveOn(_scheduler)
+            .Subscribe(observer)
+            .DisposeWith(subscription);
+
+        return subscription;
     }
 
     public void Complete()

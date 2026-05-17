@@ -21,7 +21,7 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
     private readonly SynchronizationContext _synchronizationContext;
     private readonly IFrameworkServiceControlClient _frameworkServiceControlClient;
     private readonly CompositeDisposable _subscriptions = [];
-    private readonly IAsyncRelayCommand[] _serviceCommands;
+    private FrameworkSystemStatus? _lastObservedStatus;
 
     public WarningIssuesModel(
         IStringLocalizer localizer,
@@ -38,10 +38,13 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
         LastActionSeverity = InfoBarSeverity.Informational;
 
         var serviceInfo = _frameworkServiceControlClient.GetInfo();
-        PlatformServiceManager = serviceInfo.PlatformServiceManager;
-        InstallSourceSummary = serviceInfo.InstallSourceSummary;
-        InstallReadinessMessage = serviceInfo.InstallReadinessMessage;
-        PrivilegePromptMessage = serviceInfo.PrivilegePromptMessage;
+
+        RestartServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.RestartAsync), CanRunInstalledServiceAction);
+        InstallServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.InstallAsync), CanRunInstallAction);
+        UpdateServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.UpdateAsync), CanRunUpdateAction);
+        UninstallServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.UninstallAsync), CanRunInstalledServiceAction);
+
+        ApplyServiceControlInfo(serviceInfo);
 
         ApplyPageState(
             title: "Waiting for service status",
@@ -55,24 +58,7 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
             disabledControlThree: "Curve and profile writes",
             disabledControlFour: "Service-backed hardware refresh",
             explanation: "The fallback surface is waiting for the first service status update before it decides which controls need to stay disabled.",
-            actionHint: PrivilegePromptMessage);
-
-        RestartServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.RestartAsync), CanRunServiceAction);
-        InstallServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.InstallAsync), CanRunInstallAction);
-        UpdateServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.UpdateAsync), CanRunUpdateAction);
-        UninstallServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.UninstallAsync), CanRunServiceAction);
-
-        _serviceCommands =
-        [
-            RestartServiceCommand,
-            InstallServiceCommand,
-            UpdateServiceCommand,
-            UninstallServiceCommand,
-        ];
-
-        IsServiceControlSupported = serviceInfo.IsSupported;
-        CanInstallService = serviceInfo.CanInstall;
-        CanUpdateService = serviceInfo.CanUpdate;
+            actionHint: ResolveActionHint());
 
         _frameworkStatusClient
             .WatchStatus()
@@ -88,6 +74,10 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
     public partial string StatusMessage { get; set; } = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ErrorHeroVisibility))]
+    [NotifyPropertyChangedFor(nameof(WarningHeroVisibility))]
+    [NotifyPropertyChangedFor(nameof(SuccessHeroVisibility))]
+    [NotifyPropertyChangedFor(nameof(InformationalHeroVisibility))]
     public partial InfoBarSeverity StatusSeverity { get; set; }
 
     [ObservableProperty]
@@ -142,15 +132,33 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
     public partial bool IsLastActionVisible { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanManageInstalledService))]
+    [NotifyCanExecuteChangedFor(nameof(RestartServiceCommand))]
+    [NotifyCanExecuteChangedFor(nameof(InstallServiceCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UpdateServiceCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UninstallServiceCommand))]
     public partial bool IsOperationInProgress { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanManageInstalledService))]
+    [NotifyCanExecuteChangedFor(nameof(RestartServiceCommand))]
+    [NotifyCanExecuteChangedFor(nameof(InstallServiceCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UpdateServiceCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UninstallServiceCommand))]
     public partial bool IsServiceControlSupported { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanManageInstalledService))]
+    [NotifyCanExecuteChangedFor(nameof(RestartServiceCommand))]
+    [NotifyCanExecuteChangedFor(nameof(UninstallServiceCommand))]
+    public partial bool IsServiceInstalled { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(InstallServiceCommand))]
     public partial bool CanInstallService { get; set; }
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UpdateServiceCommand))]
     public partial bool CanUpdateService { get; set; }
 
     public Visibility ErrorHeroVisibility => StatusSeverity == InfoBarSeverity.Error ? Visibility.Visible : Visibility.Collapsed;
@@ -161,6 +169,8 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
 
     public Visibility InformationalHeroVisibility => StatusSeverity == InfoBarSeverity.Informational ? Visibility.Visible : Visibility.Collapsed;
 
+    public bool CanManageInstalledService => IsServiceControlSupported && IsServiceInstalled && !IsOperationInProgress;
+
     public IAsyncRelayCommand RestartServiceCommand { get; }
 
     public IAsyncRelayCommand InstallServiceCommand { get; }
@@ -169,42 +179,11 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand UninstallServiceCommand { get; }
 
-    partial void OnIsOperationInProgressChanged(bool value)
-    {
-        foreach (var command in _serviceCommands)
-        {
-            command.NotifyCanExecuteChanged();
-        }
-    }
-
-    partial void OnCanInstallServiceChanged(bool value)
-    {
-        InstallServiceCommand.NotifyCanExecuteChanged();
-    }
-
-    partial void OnCanUpdateServiceChanged(bool value)
-    {
-        UpdateServiceCommand.NotifyCanExecuteChanged();
-    }
-
-    partial void OnStatusSeverityChanged(InfoBarSeverity value)
-    {
-        OnPropertyChanged(nameof(ErrorHeroVisibility));
-        OnPropertyChanged(nameof(WarningHeroVisibility));
-        OnPropertyChanged(nameof(SuccessHeroVisibility));
-        OnPropertyChanged(nameof(InformationalHeroVisibility));
-    }
-
-    partial void OnIsServiceControlSupportedChanged(bool value)
-    {
-        foreach (var command in _serviceCommands)
-        {
-            command.NotifyCanExecuteChanged();
-        }
-    }
-
     private bool CanRunServiceAction()
         => IsServiceControlSupported && !IsOperationInProgress;
+
+    private bool CanRunInstalledServiceAction()
+        => CanRunServiceAction() && IsServiceInstalled;
 
     private bool CanRunInstallAction()
         => CanRunServiceAction() && CanInstallService;
@@ -224,6 +203,7 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
         try
         {
             var result = await action(CancellationToken.None);
+            RefreshServiceControlInfo();
             LastActionTitle = result.OperationName;
             LastActionMessage = result.Message;
             LastActionSeverity = MapSeverity(result.Kind);
@@ -237,20 +217,28 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
 
     private void UpdateStatus(FrameworkSystemStatus status)
     {
+        _lastObservedStatus = status;
+
         if (!status.IsGrpcActive)
         {
+            var serviceIsInstalled = IsServiceInstalled;
+
             ApplyPageState(
-                title: "Background service offline",
-                message: "SubZeroFramework.Service is not reachable, so the app has switched to a safe recovery mode.",
+                title: serviceIsInstalled ? "Background service offline" : "Background service not installed",
+                message: serviceIsInstalled
+                    ? "SubZeroFramework.Service is not reachable, so the app has switched to a safe recovery mode."
+                    : "SubZeroFramework.Service is not installed, so the app has switched to a safe recovery mode.",
                 severity: InfoBarSeverity.Error,
                 stateLineOne: $"Manager: {PlatformServiceManager}",
-                stateLineTwo: InstallSourceSummary,
-                stateLineThree: InstallReadinessMessage,
+                stateLineTwo: serviceIsInstalled ? InstallSourceSummary : "Service registration is not currently installed.",
+                stateLineThree: serviceIsInstalled ? InstallReadinessMessage : InstallSourceSummary,
                 disabledControlOne: "Live telemetry and history refresh",
                 disabledControlTwo: "Manual fan control and direct write actions",
                 disabledControlThree: "Curve, profile, and override changes",
                 disabledControlFour: "Service-backed inventory refresh and hardware checks",
-                explanation: "SubZeroFramework.Service was not found running, or the installed service is not currently reachable over local gRPC IPC. Until it is installed and running again, the UI stays read-only so it does not surface stale telemetry or unsafe control actions.",
+                explanation: serviceIsInstalled
+                    ? "SubZeroFramework.Service was not found running, or the installed service is not currently reachable over local gRPC IPC. Until it is installed and running again, the UI stays read-only so it does not surface stale telemetry or unsafe control actions."
+                    : "SubZeroFramework.Service is not currently installed. Until it is installed and reachable again, the UI stays read-only so it does not surface stale telemetry or unsafe control actions.",
                 actionHint: ResolveActionHint());
             return;
         }
@@ -411,9 +399,31 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
         ActionHint = actionHint;
     }
 
+    private void ApplyServiceControlInfo(FrameworkServiceControlInfo serviceInfo)
+    {
+        PlatformServiceManager = serviceInfo.PlatformServiceManager;
+        InstallSourceSummary = serviceInfo.InstallSourceSummary;
+        InstallReadinessMessage = serviceInfo.InstallReadinessMessage;
+        PrivilegePromptMessage = serviceInfo.PrivilegePromptMessage;
+        IsServiceControlSupported = serviceInfo.IsSupported;
+        IsServiceInstalled = serviceInfo.IsInstalled;
+        CanInstallService = serviceInfo.CanInstall;
+        CanUpdateService = serviceInfo.CanUpdate;
+    }
+
+    private void RefreshServiceControlInfo()
+    {
+        ApplyServiceControlInfo(_frameworkServiceControlClient.GetInfo());
+
+        if (_lastObservedStatus is not null)
+        {
+            UpdateStatus(_lastObservedStatus);
+        }
+    }
+
     private string ResolveActionHint()
     {
-        if (CanInstallService || CanUpdateService || IsServiceControlSupported)
+        if (CanInstallService || CanUpdateService || (IsServiceControlSupported && IsServiceInstalled))
         {
             return PrivilegePromptMessage;
         }
@@ -421,7 +431,7 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
         return InstallReadinessMessage;
     }
 
-    private static InfoBarSeverity MapSeverity(FrameworkServiceCommandResultKind kind)
+    private InfoBarSeverity MapSeverity(FrameworkServiceCommandResultKind kind)
         => kind switch
         {
             FrameworkServiceCommandResultKind.Success => InfoBarSeverity.Success,

@@ -164,7 +164,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
                 if (visibleFansChanged)
                 {
-                    OnPropertyChanged(nameof(VisibleFans));
+                    VisibleFansRevision++;
                 }
             })
             .DisposeWith(_subscriptions);
@@ -223,7 +223,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
                 if (visibleFansChanged)
                 {
-                    OnPropertyChanged(nameof(VisibleFans));
+                    VisibleFansRevision++;
                 }
             })
             .DisposeWith(_subscriptions);
@@ -482,6 +482,10 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial ImmutableArray<PowerCardModel> Batteries { get; set; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VisibleFans))]
+    public partial int VisibleFansRevision { get; set; }
 
     public ImmutableArray<FanCardModel> VisibleFans => [.. Fans.Where(IsFanVisible)];
 

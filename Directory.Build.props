@@ -13,4 +13,11 @@
     -->
         <NoWarn>$(NoWarn);NU1507;NETSDK1201;PRI257</NoWarn>
     </PropertyGroup>
+
+    <ItemGroup Condition="'$(MSBuildProjectName)' != 'SubZeroFramework.Analyzers' and Exists('$(MSBuildThisFileDirectory)SubZeroFramework.Analyzers\SubZeroFramework.Analyzers.csproj')">
+        <ProjectReference Include="$(MSBuildThisFileDirectory)SubZeroFramework.Analyzers\SubZeroFramework.Analyzers.csproj"
+                          OutputItemType="Analyzer"
+                          ReferenceOutputAssembly="false"
+                          PrivateAssets="all" />
+    </ItemGroup>
 </Project>

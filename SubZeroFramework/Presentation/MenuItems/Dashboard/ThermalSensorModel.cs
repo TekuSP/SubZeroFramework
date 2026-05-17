@@ -42,6 +42,11 @@ public partial class ThermalSensorModel : ObservableObject
 	public ObservableCollection<DateTimePoint> OverviewTemperatureHistory { get; } = [];
 
 	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(OverviewTemperatureHistory))]
+	[NotifyPropertyChangedFor(nameof(TemperatureHistory))]
+	public partial int HistoryRevision { get; set; }
+
+	[ObservableProperty]
 	public partial double[] Separators { get; set; } = [];
 
 	[ObservableProperty]
@@ -193,8 +198,7 @@ public partial class ThermalSensorModel : ObservableObject
 		SynchronizePoints(OverviewTemperatureHistory, []);
 		SynchronizePoints(TemperatureHistory, []);
 		Separators = [];
-		OnPropertyChanged(nameof(OverviewTemperatureHistory));
-		OnPropertyChanged(nameof(TemperatureHistory));
+		HistoryRevision++;
 	}
 
 	public void UpdateTemperatureHistory(IReadOnlyList<DateTimePoint> overviewHistory, IReadOnlyList<DateTimePoint> cardHistory)
@@ -202,8 +206,7 @@ public partial class ThermalSensorModel : ObservableObject
 		SynchronizePoints(OverviewTemperatureHistory, overviewHistory);
 		SynchronizePoints(TemperatureHistory, cardHistory);
 		Separators = GetSeparators();
-		OnPropertyChanged(nameof(OverviewTemperatureHistory));
-		OnPropertyChanged(nameof(TemperatureHistory));
+		HistoryRevision++;
 	}
 
 	private bool ShouldDisplayMeasuredTemperature => Snapshot.IsAvailable

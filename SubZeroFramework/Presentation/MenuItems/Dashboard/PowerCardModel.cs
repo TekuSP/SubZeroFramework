@@ -114,6 +114,15 @@ public partial class PowerCardModel : ObservableObject
 
     public ObservableCollection<DateTimePoint> VoltageOverviewHistory { get; } = [];
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ChargeHistory))]
+    [NotifyPropertyChangedFor(nameof(ChargeOverviewHistory))]
+    [NotifyPropertyChangedFor(nameof(CurrentHistory))]
+    [NotifyPropertyChangedFor(nameof(CurrentOverviewHistory))]
+    [NotifyPropertyChangedFor(nameof(VoltageHistory))]
+    [NotifyPropertyChangedFor(nameof(VoltageOverviewHistory))]
+    public partial int HistoryRevision { get; set; }
+
 
     [ObservableProperty]
     public partial double[] ChargeSeparators { get; set; } = [];
@@ -147,22 +156,19 @@ public partial class PowerCardModel : ObservableObject
                 SynchronizePoints(ChargeOverviewHistory, overviewHistory);
                 SynchronizePoints(ChargeHistory, cardHistory);
                 UpdateChargeHistory();
-                OnPropertyChanged(nameof(ChargeOverviewHistory));
-                OnPropertyChanged(nameof(ChargeHistory));
+                HistoryRevision++;
                 break;
             case TelemetryMetric.BatteryPresentRateAmperes:
                 SynchronizePoints(CurrentOverviewHistory, overviewHistory);
                 SynchronizePoints(CurrentHistory, cardHistory);
                 UpdateCurrentHistory();
-                OnPropertyChanged(nameof(CurrentOverviewHistory));
-                OnPropertyChanged(nameof(CurrentHistory));
+                HistoryRevision++;
                 break;
             case TelemetryMetric.BatteryPresentVoltageVolts:
                 SynchronizePoints(VoltageOverviewHistory, overviewHistory);
                 SynchronizePoints(VoltageHistory, cardHistory);
                 UpdateVoltageHistory();
-                OnPropertyChanged(nameof(VoltageOverviewHistory));
-                OnPropertyChanged(nameof(VoltageHistory));
+                HistoryRevision++;
                 break;
         }
     }

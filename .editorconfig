@@ -165,3 +165,12 @@ csharp_style_expression_bodied_indexers = true:silent
 csharp_style_expression_bodied_accessors = true:silent
 csharp_style_expression_bodied_lambdas = true:silent
 csharp_style_expression_bodied_local_functions = false:silent
+
+dotnet_diagnostic.SZF0001.severity = warning
+dotnet_diagnostic.SZF0002.severity = warning
+dotnet_diagnostic.SZF0003.severity = warning
+dotnet_diagnostic.SZF0004.severity = warning
+dotnet_diagnostic.SZF0005.severity = warning
+dotnet_diagnostic.SZF0006.severity = warning
+dotnet_diagnostic.SZF0007.severity = warning
+dotnet_diagnostic.SZF0008.severity = warning

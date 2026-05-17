@@ -32,6 +32,7 @@
     <Platform Solution="*|x64" Project="x64" />
     <Build Solution="Release|*" Project="false" />
   </Project>
+  <Project Path="SubZeroFramework.Analyzers/SubZeroFramework.Analyzers.csproj" />
   <Project Path="SubZeroFramework.GrpcContracts/SubZeroFramework.GrpcContracts.csproj">
     <Platform Solution="*|ARM64" Project="ARM64" />
     <Platform Solution="*|x64" Project="x64" />

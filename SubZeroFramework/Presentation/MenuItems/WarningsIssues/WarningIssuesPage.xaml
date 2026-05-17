@@ -277,7 +277,7 @@
                                 <Button
                                     Command="{x:Bind ViewModel.RestartServiceCommand, Mode=OneWay}"
                                     Content="Restart service"
-                                    IsEnabled="{x:Bind ViewModel.IsServiceControlSupported, Mode=OneWay}"
+                                    IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}"
                                     Style="{StaticResource WarningActionButtonStyle}" />
                                 <Button
                                     Command="{x:Bind ViewModel.InstallServiceCommand, Mode=OneWay}"
@@ -292,7 +292,7 @@
                                 <Button
                                     Command="{x:Bind ViewModel.UninstallServiceCommand, Mode=OneWay}"
                                     Content="Uninstall service"
-                                    IsEnabled="{x:Bind ViewModel.IsServiceControlSupported, Mode=OneWay}"
+                                    IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}"
                                     Style="{StaticResource WarningActionButtonStyle}" />
                             </StackPanel>
 

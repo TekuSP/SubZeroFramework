@@ -77,7 +77,18 @@ public sealed class TemperatureTelemetryClient : ITemperatureTelemetryClient
                         innerCache.AddOrUpdate(MapSnapshot(change.Current));
                         break;
                     case ChangeReason.Remove:
-                        innerCache.Remove(change.Key.Index);
+                        var existingSnapshot = innerCache.Lookup(change.Key.Index);
+                        var unavailableSnapshot = existingSnapshot.HasValue
+                            ? existingSnapshot.Value with
+                            {
+                                ObservedAt = change.Current.ObservedAt,
+                                IsAvailable = false,
+                            }
+                            : MapSnapshot(change.Current) with
+                            {
+                                IsAvailable = false,
+                            };
+                        innerCache.AddOrUpdate(unavailableSnapshot);
                         break;
                     case ChangeReason.Moved:
                         break;

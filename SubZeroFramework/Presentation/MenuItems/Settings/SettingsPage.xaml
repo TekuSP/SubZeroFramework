@@ -170,26 +170,26 @@
                                 Grid.Column="0"
                                 Command="{x:Bind ViewModel.ShutdownServiceCommand, Mode=OneWay}"
                                 Content="Shutdown service"
-                                IsEnabled="{x:Bind ViewModel.IsServiceControlSupported, Mode=OneWay}" />
+                                IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}" />
                             <Button
                                 Grid.Row="0"
                                 Grid.Column="1"
                                 Command="{x:Bind ViewModel.RestartServiceCommand, Mode=OneWay}"
                                 Content="Restart service"
-                                IsEnabled="{x:Bind ViewModel.IsServiceControlSupported, Mode=OneWay}" />
+                                IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}" />
 
                             <Button
                                 Grid.Row="1"
                                 Grid.Column="0"
                                 Command="{x:Bind ViewModel.EnableAutorunCommand, Mode=OneWay}"
                                 Content="Enable autorun"
-                                IsEnabled="{x:Bind ViewModel.IsServiceControlSupported, Mode=OneWay}" />
+                                IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}" />
                             <Button
                                 Grid.Row="1"
                                 Grid.Column="1"
                                 Command="{x:Bind ViewModel.DisableAutorunCommand, Mode=OneWay}"
                                 Content="Disable autorun"
-                                IsEnabled="{x:Bind ViewModel.IsServiceControlSupported, Mode=OneWay}" />
+                                IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}" />
 
                             <Button
                                 Grid.Row="2"
@@ -209,7 +209,7 @@
                                 Grid.Column="0"
                                 Command="{x:Bind ViewModel.UninstallServiceCommand, Mode=OneWay}"
                                 Content="Uninstall service"
-                                IsEnabled="{x:Bind ViewModel.IsServiceControlSupported, Mode=OneWay}"
+                                IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}"
                                 Grid.ColumnSpan="2" />
                         </Grid>
 

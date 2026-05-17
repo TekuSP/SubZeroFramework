@@ -4,6 +4,8 @@ public sealed record FrameworkServiceControlInfo
 {
     public required bool IsSupported { get; init; }
 
+    public required bool IsInstalled { get; init; }
+
     public required bool CanInstall { get; init; }
 
     public required bool CanUpdate { get; init; }
