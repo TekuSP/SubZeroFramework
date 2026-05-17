@@ -3,6 +3,8 @@ using DynamicData;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Reactive.Concurrency;
+using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
 using System.Threading;
 
 using FrameworkDotnet;
@@ -45,13 +47,13 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private readonly SourceCache<CurrentTelemetryValue, TelemetryChannelId> _currentTelemetryValues = new(value => value.ChannelId);
     private readonly SourceCache<TelemetryPoint, long> _telemetryPoints = new(point => point.SampleId);
     private readonly RetainedSnapshotStream<HardwareInfoSnapshot> _hardwareInfoSnapshots = new(MaximumHistoryWindow, TelemetryScheduler);
+    private readonly CompositeDisposable _subscriptions = [];
     private HardwareInfoSnapshot _latestHardwareInfoSnapshot = new()
     {
         ObservedAt = DateTimeOffset.MinValue,
         IsAvailable = false,
         LastError = "Hardware information has not been collected yet.",
     };
-    private readonly IDisposable _telemetryPointExpirationSubscription;
     private readonly IHardwareInfo _hardwareInfo;
     private IFrameworkEcConnection? _connection;
     private TimeSpan? _pollingInterval;
@@ -83,9 +85,10 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         PowerSnapshots = _powerSnapshots;
         ThermalSnapshots = _thermalSnapshots;
         HardwareInfoSnapshots = _hardwareInfoSnapshots;
-        _telemetryPointExpirationSubscription = _telemetryPoints
+        _telemetryPoints
             .ExpireAfter(_ => MaximumHistoryWindow, scheduler: TelemetryScheduler)
-            .Subscribe();
+            .Subscribe()
+            .DisposeWith(_subscriptions);
     }
 
     public bool IsPolling
@@ -388,6 +391,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         var motherboard = default(HardwareInfoMotherboard?);
         var bios = default(HardwareInfoBios?);
         var memoryStatus = default(HardwareInfoMemoryStatus?);
+        var monitors = ImmutableArray<HardwareInfoMonitor>.Empty;
         var videoControllers = ImmutableArray<HardwareInfoVideoController>.Empty;
         var cpus = ImmutableArray<HardwareInfoCpu>.Empty;
         var memoryModules = ImmutableArray<HardwareInfoMemoryModule>.Empty;
@@ -400,12 +404,13 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         try
         {
-            _hardwareInfo.RefreshCPUList(true, 500, false);
+            _hardwareInfo.RefreshCPUList(false, 500, true);
             _hardwareInfo.RefreshMemoryList();
             _hardwareInfo.RefreshMotherboardList();
             _hardwareInfo.RefreshBIOSList();
             _hardwareInfo.RefreshComputerSystemList();
             _hardwareInfo.RefreshOperatingSystem();
+            _hardwareInfo.RefreshMonitorList();
             _hardwareInfo.RefreshVideoControllerList();
             _hardwareInfo.RefreshMemoryStatus();
         }
@@ -503,6 +508,34 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         try
         {
+            if (_hardwareInfo.MonitorList.Count > 0)
+            {
+                monitors = _hardwareInfo.MonitorList
+                    .Select(monitor => new HardwareInfoMonitor(
+                        Active: monitor.Active,
+                        Caption: monitor.Caption,
+                        Description: monitor.Description,
+                        ManufacturerName: monitor.ManufacturerName,
+                        MonitorManufacturer: monitor.MonitorManufacturer,
+                        MonitorType: monitor.MonitorType,
+                        Name: monitor.Name,
+                        PixelsPerXLogicalInch: monitor.PixelsPerXLogicalInch,
+                        PixelsPerYLogicalInch: monitor.PixelsPerYLogicalInch,
+                        ProductCodeId: monitor.ProductCodeID,
+                        SerialNumberId: monitor.SerialNumberID,
+                        UserFriendlyName: monitor.UserFriendlyName,
+                        WeekOfManufacture: monitor.WeekOfManufacture,
+                        YearOfManufacture: monitor.YearOfManufacture))
+                    .ToImmutableArray();
+            }
+        }
+        catch (Exception exception)
+        {
+            CaptureFailure(exception, "read monitor data");
+        }
+
+        try
+        {
             if (_hardwareInfo.VideoControllerList.Count > 0)
             {
                 videoControllers = _hardwareInfo.VideoControllerList
@@ -553,7 +586,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                         SecondLevelAddressTranslationExtensions: cpu.SecondLevelAddressTranslationExtensions,
                         VirtualizationFirmwareEnabled: cpu.VirtualizationFirmwareEnabled,
                         VMMonitorModeExtensions: cpu.VMMonitorModeExtensions,
-                        PercentProcessorTime: cpu.PercentProcessorTime))
+                        PercentProcessorTime: null,
+                        CpuCores: []))
                     .ToImmutableArray();
             }
         }
@@ -592,14 +626,21 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             ObservedAt = observedAt,
             IsAvailable = lastError is null,
             LastError = lastError,
-            OperatingSystem = operatingSystem,
-            ComputerSystem = computerSystem,
-            Motherboard = motherboard,
-            Bios = bios,
-            MemoryStatus = memoryStatus,
-            VideoControllers = videoControllers,
-            Cpus = cpus,
-            MemoryModules = memoryModules,
+            Inventory = new HardwareInfoInventorySnapshot
+            {
+                OperatingSystem = operatingSystem,
+                ComputerSystem = computerSystem,
+                Motherboard = motherboard,
+                Bios = bios,
+                MemoryModules = memoryModules,
+            },
+            Runtime = new HardwareInfoRuntimeSnapshot
+            {
+                MemoryStatus = memoryStatus,
+                Monitors = monitors,
+                VideoControllers = videoControllers,
+                Cpus = cpus,
+            },
         };
     }
 
@@ -741,7 +782,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         StopHardwareInfoPolling();
         RestoreAutomaticFanControl();
         DisposeConnection();
-        _telemetryPointExpirationSubscription.Dispose();
+        _subscriptions.Dispose();
         _systemStatus.Complete();
         _flashSnapshots.Complete();
         _fanCapabilitiesSnapshots.Complete();

@@ -21,6 +21,7 @@ service FrameworkTelemetryService {
 service HardwareInfoService {
   rpc GetHardwareInfo (GetHardwareInfoRequest) returns (HardwareInfoReply);
   rpc WatchHardwareInfo (WatchHardwareInfoRequest) returns (stream HardwareInfoReply);
+  rpc WatchHardwareInfoHistory (WatchHardwareInfoHistoryRequest) returns (stream HardwareInfoHistoryChangeBatchReply);
 }
 
 service FrameworkFanControlService {
@@ -62,6 +63,10 @@ message GetHardwareInfoRequest {}
 
 message WatchHardwareInfoRequest {}
 
+message WatchHardwareInfoHistoryRequest {
+  int32 history_window_seconds = 1;
+}
+
 message HardwareInfoOperatingSystemReply {
   string name = 1;
   string version_string = 2;
@@ -94,7 +99,13 @@ message HardwareInfoCpuReply {
   bool second_level_address_translation_extensions = 14;
   bool virtualization_firmware_enabled = 15;
   bool vm_monitor_mode_extensions = 16;
-  double percent_processor_time = 17;
+  optional double percent_processor_time = 17;
+  repeated HardwareInfoCpuCoreReply cpu_cores = 18;
+}
+
+message HardwareInfoCpuCoreReply {
+  string name = 1;
+  double percent_processor_time = 2;
 }
 
 message HardwareInfoMemoryModuleReply {
@@ -138,6 +149,23 @@ message HardwareInfoBiosReply {
   string software_element_id = 8;
 }
 
+message HardwareInfoMonitorReply {
+  bool active = 1;
+  string caption = 2;
+  string description = 3;
+  string manufacturer_name = 4;
+  string monitor_manufacturer = 5;
+  string monitor_type = 6;
+  string name = 7;
+  uint32 pixels_per_x_logical_inch = 8;
+  uint32 pixels_per_y_logical_inch = 9;
+  string product_code_id = 10;
+  string serial_number_id = 11;
+  string user_friendly_name = 12;
+  uint32 week_of_manufacture = 13;
+  uint32 year_of_manufacture = 14;
+}
+
 message HardwareInfoVideoControllerReply {
   string name = 1;
   uint64 adapter_ram = 2;
@@ -169,6 +197,18 @@ message HardwareInfoReply {
   repeated HardwareInfoCpuReply cpus = 9;
   repeated HardwareInfoMemoryModuleReply memory_modules = 10;
   repeated HardwareInfoVideoControllerReply video_controllers = 11;
+  repeated HardwareInfoMonitorReply monitors = 12;
+}
+
+message HardwareInfoHistoryChangeReply {
+  TelemetryChangeKind change_kind = 1;
+  int64 sample_id = 2;
+  int64 observed_at_unix_time_milliseconds = 3;
+  HardwareInfoReply snapshot = 4;
+}
+
+message HardwareInfoHistoryChangeBatchReply {
+  repeated HardwareInfoHistoryChangeReply changes = 1;
 }
 
 message SetFanRpmRequest {

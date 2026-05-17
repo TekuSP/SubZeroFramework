@@ -1,6 +1,8 @@
 using DynamicData;
 
 using System.Reactive.Concurrency;
+using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
 using System.Reactive.Subjects;
 
 namespace SubZeroFramework.Services;
@@ -10,9 +12,9 @@ internal sealed class RetainedSnapshotStream<T> : IObservable<T>, IDisposable
 {
     private readonly TimeSpan _retentionWindow;
     private readonly IScheduler _scheduler;
+    private readonly CompositeDisposable _subscriptions = [];
     private readonly ReplaySubject<T> _latest = new(1);
     private readonly SourceCache<HistoricalRecord<T>, long> _history = new(record => record.SampleId);
-    private readonly IDisposable _historyExpirationSubscription;
     private long _nextSampleId;
     private bool _disposed;
 
@@ -20,9 +22,10 @@ internal sealed class RetainedSnapshotStream<T> : IObservable<T>, IDisposable
     {
         _retentionWindow = retentionWindow;
         _scheduler = scheduler ?? Scheduler.Default;
-        _historyExpirationSubscription = _history
+        _history
             .ExpireAfter(_ => _retentionWindow, scheduler: _scheduler)
-            .Subscribe();
+            .Subscribe()
+            .DisposeWith(_subscriptions);
     }
 
     public void Publish(T value, DateTimeOffset observedAt)
@@ -75,7 +78,7 @@ internal sealed class RetainedSnapshotStream<T> : IObservable<T>, IDisposable
         }
 
         _disposed = true;
-        _historyExpirationSubscription.Dispose();
+        _subscriptions.Dispose();
         _latest.Dispose();
         _history.Dispose();
     }

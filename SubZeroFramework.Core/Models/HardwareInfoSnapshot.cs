@@ -10,19 +10,25 @@ public sealed record HardwareInfoSnapshot
 
     public string? LastError { get; init; }
 
-    public HardwareInfoOperatingSystem? OperatingSystem { get; init; }
+    public HardwareInfoInventorySnapshot Inventory { get; init; } = new();
 
-    public HardwareInfoComputerSystem? ComputerSystem { get; init; }
+    public HardwareInfoRuntimeSnapshot Runtime { get; init; } = new();
 
-    public ImmutableArray<HardwareInfoCpu> Cpus { get; init; } = ImmutableArray<HardwareInfoCpu>.Empty;
+    public HardwareInfoOperatingSystem? OperatingSystem => Inventory.OperatingSystem;
 
-    public ImmutableArray<HardwareInfoMemoryModule> MemoryModules { get; init; } = ImmutableArray<HardwareInfoMemoryModule>.Empty;
+    public HardwareInfoComputerSystem? ComputerSystem => Inventory.ComputerSystem;
 
-    public HardwareInfoMemoryStatus? MemoryStatus { get; init; }
+    public ImmutableArray<HardwareInfoCpu> Cpus => Runtime.Cpus;
 
-    public HardwareInfoMotherboard? Motherboard { get; init; }
+    public ImmutableArray<HardwareInfoMemoryModule> MemoryModules => Inventory.MemoryModules;
 
-    public HardwareInfoBios? Bios { get; init; }
+    public HardwareInfoMemoryStatus? MemoryStatus => Runtime.MemoryStatus;
 
-    public ImmutableArray<HardwareInfoVideoController> VideoControllers { get; init; } = ImmutableArray<HardwareInfoVideoController>.Empty;
+    public ImmutableArray<HardwareInfoMonitor> Monitors => Runtime.Monitors;
+
+    public HardwareInfoMotherboard? Motherboard => Inventory.Motherboard;
+
+    public HardwareInfoBios? Bios => Inventory.Bios;
+
+    public ImmutableArray<HardwareInfoVideoController> VideoControllers => Runtime.VideoControllers;
 }

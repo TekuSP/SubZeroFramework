@@ -6,6 +6,8 @@ using Microsoft.UI.Dispatching;
 using SubZeroFramework.Models;
 using SubZeroFramework.Services;
 
+using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
 
 using Material.Icons;
@@ -19,10 +21,10 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
     public partial bool IsInError { get; set; } = false;
 
     [ObservableProperty]
-    public partial string ErrorTitle { get; set; }
+    public partial string ErrorTitle { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string ErrorReason { get; set; }
+    public partial string ErrorReason { get; set; } = string.Empty;
 
     [ObservableProperty]
     public partial InfoBarSeverity ErrorSeverity { get; set; }
@@ -55,8 +57,9 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
     private IHardwareInfoClient? _hardwareInfoClient = null;
     private DispatcherQueue? _dispatcherQueue = null;
     private SynchronizationContext? _synchronizationContext = null;
-    private IDisposable? _runningSubscription = null;
-    private IDisposable? _hardwareInfoSubscription = null;
+    private readonly CompositeDisposable _subscriptions = [];
+    private readonly SerialDisposable _runningSubscription = new();
+    private readonly SerialDisposable _hardwareInfoSubscription = new();
     private bool disposedValue;
 
     public void IServiceProviderChanged(IServiceProvider serviceProvider)
@@ -75,6 +78,8 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
 
     public SubZeroHeaderModel()
     {
+        _runningSubscription.DisposeWith(_subscriptions);
+        _hardwareInfoSubscription.DisposeWith(_subscriptions);
         StatusHeartbeat = "Telemetry: waiting";
         EndpointValidationMessage = string.Empty;
     }
@@ -86,20 +91,21 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
             return;
         }
 
-        _hardwareInfoSubscription?.Dispose();
-        _hardwareInfoSubscription = _hardwareInfoClient
+        _hardwareInfoSubscription.Disposable = _hardwareInfoClient
             .WatchHardwareInfo()
             .ObserveOn(_synchronizationContext)
             .Subscribe(UpdateHardwareInfoSnapshot);
 
-        if (_runningSubscription is not null)
-        {
-            _runningSubscription.Dispose();
-        }
-
         if (_frameworkStatusClient is not null)
         {
-            _runningSubscription = _frameworkStatusClient.WatchStatus().ObserveOn(_synchronizationContext).Subscribe(FrameworkSystemDataUpdated);
+            _runningSubscription.Disposable = _frameworkStatusClient
+                .WatchStatus()
+                .ObserveOn(_synchronizationContext)
+                .Subscribe(FrameworkSystemDataUpdated);
+        }
+        else
+        {
+            _runningSubscription.Disposable = null;
         }
     }
 
@@ -206,8 +212,12 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
         {
             if (disposing)
             {
-                _runningSubscription?.Dispose();
+                _subscriptions.Dispose();
                 _frameworkStatusClient = null;
+                _hardwareInfoClient = null;
+                _serviceProvider = null;
+                _dispatcherQueue = null;
+                _synchronizationContext = null;
             }
             
             disposedValue = true;

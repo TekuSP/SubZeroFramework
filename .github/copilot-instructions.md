@@ -5,6 +5,19 @@ This document captures repository-specific skills, architecture patterns, and pr
 
 ## Key areas of expertise
 
+### Important steps
+- Avoid using PowerShell unless MCP tools (such as Microsoft Knowledge Search or Nuget Package Search) are completely unavailable or fail to provide the required documentation, code samples, or best practices for the tasks at hand.
+- Always refer to `WorkToBeDone.md` for the current list of required improvements and align your work with those items.
+- If you need source codes, preferably use the GitHub web interface to navigate and search the codebase, as it provides better context and understanding of the code structure. Use the file paths and class names mentioned in this document to locate relevant code sections.
+If possible use ObservableProperty with ObservableObject, leveraging C# partial classes to reduce boilerplate and ensure change notifications are properly raised for UI updates. This is especially important for view models and any state that the UI binds to.
+- When working on telemetry streams, ensure that you are properly marshalling back to the UI thread using `ObserveOn(SynchronizationContext.Current)` or `ObserveOn(DispatcherQueue.Current)` as appropriate for the platform. This will prevent threading issues and ensure that UI updates happen smoothly.
+- When working on IObservable use `DisposeWith` and `CompositeDisposable` to manage subscriptions and ensure they are cleaned up properly to avoid memory leaks or unintended side effects.
+- When modifying or adding new telemetry streams, consider the implications of stream sharing and backpressure. Use `RefCountedObservableCache` or similar patterns to avoid creating multiple gRPC subscriptions for the same data, and implement explicit throttling or buffering strategies if consumers may fall behind.
+
+### Building
+- You build via tasks "build-service", "build-windows", which compiles the service and UNO app.
+- Do not build via dotnet build or Visual Studio directly, as they may not execute all necessary steps for the service and UNO app correctly.
+
 ### 1. Service / IPC architecture
 - The app uses a background service (`SubZeroFramework.Service`) to isolate Framework EC access from the UI.
 - IPC is implemented with gRPC over a Unix domain socket.
@@ -65,6 +78,9 @@ This document captures repository-specific skills, architecture patterns, and pr
   - Use XAML-friendly types like `lvc:CartesianChart`, `lvc:XamlLineSeries`, `SeriesSource`, and `SeriesTemplate` for clean MVVM binding.
 - Material Design Icons: `https://pictogrammers.com/library/mdi/`
   - Choose glyph names from the MDI library for status icons, cards, actions, and navigation.
+- Reactive: `https://introtorx.com/chapters/disposables` and other pages from intro to Rx
+  - Use `IObservable<T>`, `Subscribe`, `ObserveOn`, `Select`, `Where`, `CombineLatest`, and other operators to compose telemetry streams.
+  - Manage subscriptions with `CompositeDisposable` and `DisposeWith` to ensure proper cleanup.
 - DynamicData: `https://github.com/reactivemarbles/DynamicData`
   - Use `SourceCache<T, K>` or `SourceList<T>` as the source.
   - Call `.Connect()` and compose `Filter`, `Transform`, `Sort`, `Bind(out collection)`, `DisposeMany`, `ExpireAfter`, `AsObservableCache`, `AsObservableList`.

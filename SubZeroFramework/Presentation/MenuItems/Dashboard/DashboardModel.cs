@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
 
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -63,12 +64,13 @@ public partial class DashboardModel : ObservableObject, IDisposable
         _synchronizationContext = synchronizationContext;
         VisibleThermalSensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_visibleThermalSensors);
 
-        _subscriptions.Add(_frameworkStatusClient
+        _frameworkStatusClient
             .WatchStatus()
             .ObserveOn(_synchronizationContext)
-            .Subscribe(status => LastStatus = status));
+            .Subscribe(status => LastStatus = status)
+            .DisposeWith(_subscriptions);
 
-        _subscriptions.Add(_fanCapabilityClient
+        _fanCapabilityClient
             .WatchFanCapabilities()
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
@@ -94,9 +96,10 @@ public partial class DashboardModel : ObservableObject, IDisposable
                         fan.Capability = change.Current;
                     }
                 }
-            }));
+            })
+            .DisposeWith(_subscriptions);
 
-        _subscriptions.Add(_fanControlStateClient
+        _fanControlStateClient
             .WatchFanControlStates()
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
@@ -124,9 +127,10 @@ public partial class DashboardModel : ObservableObject, IDisposable
                         UpdateDrivingSensors(fan);
                     }
                 }
-            }));
+            })
+            .DisposeWith(_subscriptions);
 
-        _subscriptions.Add(_fanStateClient
+        _fanStateClient
             .WatchFanStates()
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
@@ -162,10 +166,11 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 {
                     OnPropertyChanged(nameof(VisibleFans));
                 }
-            }));
+            })
+            .DisposeWith(_subscriptions);
 
         // Sync Current Fans
-        _subscriptions.Add(_fanTelemetryClient
+        _fanTelemetryClient
             .WatchFans()
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
@@ -220,10 +225,11 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 {
                     OnPropertyChanged(nameof(VisibleFans));
                 }
-            }));
+            })
+            .DisposeWith(_subscriptions);
 
         // Sync Current Temperatures
-        _subscriptions.Add(_temperatureTelemetryClient
+        _temperatureTelemetryClient
             .WatchTemperatures()
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
@@ -280,9 +286,10 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 {
                     SynchronizeVisibleThermalSensors();
                 }
-            }));
+            })
+            .DisposeWith(_subscriptions);
 
-        _subscriptions.Add(_temperatureTelemetryClient
+        _temperatureTelemetryClient
             .WatchTemperatures()
             .ObserveOn(_synchronizationContext)
             .ToCollection()
@@ -294,10 +301,11 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 {
                     UpdateDrivingSensors(fan);
                 }
-            }));
+            })
+            .DisposeWith(_subscriptions);
 
         // Sync Current Batteries
-        _subscriptions.Add(_batteryTelemetryClient
+        _batteryTelemetryClient
             .WatchBatteries()
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
@@ -355,10 +363,11 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 {
                     BatteryTelemetries = [.. Batteries.Select(battery => battery.BatterySnapshot)];
                 }
-            }));
+            })
+            .DisposeWith(_subscriptions);
 
         // Manage Fan History Series
-        _subscriptions.Add(_fanTelemetryClient
+        _fanTelemetryClient
             .WatchFans()
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
@@ -370,10 +379,11 @@ public partial class DashboardModel : ObservableObject, IDisposable
                     else if (change.Reason == ChangeReason.Remove)
                         RemoveFanHistory(change.Key);
                 }
-            }));
+            })
+            .DisposeWith(_subscriptions);
 
         // Manage Temperature History Series
-        _subscriptions.Add(_temperatureTelemetryClient
+        _temperatureTelemetryClient
             .WatchTemperatures()
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
@@ -385,10 +395,11 @@ public partial class DashboardModel : ObservableObject, IDisposable
                     else if (change.Reason == ChangeReason.Remove)
                         RemoveTemperatureHistory(change.Key);
                 }
-            }));
+            })
+            .DisposeWith(_subscriptions);
 
         // Manage Battery History Series
-        _subscriptions.Add(_batteryTelemetryClient
+        _batteryTelemetryClient
             .WatchBatteryHistory(0, TelemetryMetric.BatteryChargePercent, _batteryCardHistoryWindow)
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
@@ -408,8 +419,9 @@ public partial class DashboardModel : ObservableObject, IDisposable
                         ;
                     }
                 }
-            }));
-        _subscriptions.Add(_batteryTelemetryClient
+            })
+            .DisposeWith(_subscriptions);
+        _batteryTelemetryClient
             .WatchBatteryHistory(0, TelemetryMetric.BatteryPresentRateAmperes, TimeSpan.FromHours(1))
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
@@ -425,24 +437,26 @@ public partial class DashboardModel : ObservableObject, IDisposable
                         RemoveBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentRateAmperes);
                     }
                 }
-            }));
-        _subscriptions.Add(_batteryTelemetryClient
-        .WatchBatteryHistory(0, TelemetryMetric.BatteryPresentVoltageVolts, TimeSpan.FromHours(1))
-        .ObserveOn(_synchronizationContext)
-        .Subscribe(set =>
-        {
-            foreach (var change in set)
+            })
+            .DisposeWith(_subscriptions);
+        _batteryTelemetryClient
+            .WatchBatteryHistory(0, TelemetryMetric.BatteryPresentVoltageVolts, TimeSpan.FromHours(1))
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(set =>
             {
-                if (change.Reason == ChangeReason.Add)
+                foreach (var change in set)
                 {
-                    EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentVoltageVolts, _batteryCardHistoryWindow);
+                    if (change.Reason == ChangeReason.Add)
+                    {
+                        EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentVoltageVolts, _batteryCardHistoryWindow);
+                    }
+                    else if (change.Reason == ChangeReason.Remove)
+                    {
+                        RemoveBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentVoltageVolts);
+                    }
                 }
-                else if (change.Reason == ChangeReason.Remove)
-                {
-                    RemoveBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentVoltageVolts);
-                }
-            }
-        }));
+            })
+            .DisposeWith(_subscriptions);
     }
 
     [ObservableProperty]

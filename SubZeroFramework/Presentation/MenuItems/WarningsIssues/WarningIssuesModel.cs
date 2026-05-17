@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
+using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
 
 using SubZeroFramework.Services;
@@ -10,7 +12,7 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
 {
     private readonly IFrameworkStatusClient _frameworkStatusClient;
     private readonly SynchronizationContext _synchronizationContext;
-    private readonly IDisposable _statusSubscription;
+    private readonly CompositeDisposable _subscriptions = [];
 
     public WarningIssuesModel(
         IStringLocalizer localizer,
@@ -22,7 +24,11 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
         _synchronizationContext = synchronizationContext;
         StatusTitle = "Waiting for service status";
         StatusMessage = "Checking SubZeroFramework.Service health.";
-        _statusSubscription = _frameworkStatusClient.WatchStatus().ObserveOn(_synchronizationContext).Subscribe(UpdateStatus);
+        _frameworkStatusClient
+            .WatchStatus()
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(UpdateStatus)
+            .DisposeWith(_subscriptions);
     }
 
     [ObservableProperty]
@@ -88,6 +94,6 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        _statusSubscription.Dispose();
+        _subscriptions.Dispose();
     }
 }

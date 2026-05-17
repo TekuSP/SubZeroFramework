@@ -1,3 +1,6 @@
+using System.Collections.Immutable;
+using System.Linq;
+
 namespace SubZeroFramework.Models;
 
 public sealed record HardwareInfoCpu(
@@ -17,4 +20,19 @@ public sealed record HardwareInfoCpu(
     bool SecondLevelAddressTranslationExtensions,
     bool VirtualizationFirmwareEnabled,
     bool VMMonitorModeExtensions,
-    double PercentProcessorTime);
+    double? PercentProcessorTime,
+    ImmutableArray<HardwareInfoCpuCore> CpuCores)
+{
+    public string DisplayCurrentClockSpeed => CurrentClockSpeedMHz > 0
+        ? $"{CurrentClockSpeedMHz:N0} MHz"
+        : "Unknown";
+
+    public string DisplayMaxClockSpeed => MaxClockSpeedMHz > 0
+        ? $"{MaxClockSpeedMHz:N0} MHz"
+        : "Unknown";
+
+    public double? EffectivePercentProcessorTime => PercentProcessorTime
+        ?? (CpuCores.Length > 0
+            ? CpuCores.Average(core => core.PercentProcessorTime)
+            : null);
+}

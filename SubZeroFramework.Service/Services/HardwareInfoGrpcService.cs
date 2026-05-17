@@ -8,6 +8,8 @@ namespace SubZeroFramework.Service.Services;
 
 public sealed class HardwareInfoGrpcService : HardwareInfoService.HardwareInfoServiceBase
 {
+    private static readonly TimeSpan MaximumHistoryWindow = TimeSpan.FromHours(1);
+
     private readonly IFrameworkDataProvider _frameworkDataProvider;
 
     public HardwareInfoGrpcService(IFrameworkDataProvider frameworkDataProvider)
@@ -32,5 +34,21 @@ public sealed class HardwareInfoGrpcService : HardwareInfoService.HardwareInfoSe
                 await responseStream.WriteAsync(HardwareInfoGrpcMapper.MapHardwareInfoSnapshot(snapshot), context.CancellationToken).ConfigureAwait(false);
             }
         }
+    }
+
+    public override Task WatchHardwareInfoHistory(WatchHardwareInfoHistoryRequest request, IServerStreamWriter<HardwareInfoHistoryChangeBatchReply> responseStream, ServerCallContext context)
+    {
+        var requestedHistoryWindow = TimeSpan.FromSeconds(request.HistoryWindowSeconds);
+        if (requestedHistoryWindow <= TimeSpan.Zero || requestedHistoryWindow > MaximumHistoryWindow)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "The hardware info history window must be between 1 second and 1 hour."));
+        }
+
+        return GrpcChangeSetWriter.WriteAsync(
+            _frameworkDataProvider.ConnectHardwareInfoHistory(requestedHistoryWindow),
+            responseStream,
+            HardwareInfoGrpcMapper.MapHardwareInfoHistoryChange,
+            HardwareInfoGrpcMapper.MapHardwareInfoHistoryBatch,
+            context.CancellationToken);
     }
 }

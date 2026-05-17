@@ -10,6 +10,7 @@
         "${workspaceFolder}/SubZeroFramework/SubZeroFramework.csproj",
         "/property:GenerateFullPaths=true",
         "/property:TargetFramework=net10.0-desktop",
+        "/v:minimal",
         "/consoleloggerparameters:NoSummary"
       ],
       "problemMatcher": "$msCompile"
@@ -23,11 +24,12 @@
         "${workspaceFolder}/SubZeroFramework/SubZeroFramework.csproj",
         "/property:GenerateFullPaths=true",
         "/property:TargetFramework=net10.0-desktop",
+        "/v:minimal",
         "/consoleloggerparameters:NoSummary"
       ],
       "problemMatcher": "$msCompile"
     },
-        {
+    {
       "label": "build-windows",
       "command": "dotnet",
       "type": "process",
@@ -36,6 +38,7 @@
         "${workspaceFolder}/SubZeroFramework/SubZeroFramework.csproj",
         "/property:GenerateFullPaths=true",
         "/property:TargetFramework=net10.0-windows10.0.26100",
+        "/v:minimal",
         "/consoleloggerparameters:NoSummary"
       ],
       "problemMatcher": "$msCompile"
@@ -49,9 +52,34 @@
         "${workspaceFolder}/SubZeroFramework/SubZeroFramework.csproj",
         "/property:GenerateFullPaths=true",
         "/property:TargetFramework=net10.0-windows10.0.26100",
+        "/v:minimal",
         "/consoleloggerparameters:NoSummary"
       ],
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build-service",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/SubZeroFramework.Service/SubZeroFramework.Service.csproj",
+        "/property:GenerateFullPaths=true",
+        "/v:minimal",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build-all",
+      "dependsOn": ["build-service", "build-linux", "build-windows"],
+      "dependsOrder": "sequence"
+    },
+    {
+      "label": "build-all-windows",
+      "dependsOn": ["build-service", "build-windows"],
+      "dependsOrder": "sequence"
     }
+
   ]
 }

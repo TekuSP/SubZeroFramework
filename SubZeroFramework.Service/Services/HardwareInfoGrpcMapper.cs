@@ -1,3 +1,5 @@
+using DynamicData;
+
 using System.Linq;
 
 using SubZeroFramework.GrpcContracts;
@@ -16,78 +18,97 @@ internal static class HardwareInfoGrpcMapper
             LastError = snapshot.LastError ?? string.Empty,
         };
 
-        if (snapshot.OperatingSystem is not null)
+        if (snapshot.Inventory.OperatingSystem is not null)
         {
             reply.OperatingSystem = new HardwareInfoOperatingSystemReply
             {
-                Name = snapshot.OperatingSystem.Name ?? string.Empty,
-                VersionString = snapshot.OperatingSystem.VersionString ?? string.Empty,
+                Name = snapshot.Inventory.OperatingSystem.Name ?? string.Empty,
+                VersionString = snapshot.Inventory.OperatingSystem.VersionString ?? string.Empty,
             };
         }
 
-        if (snapshot.ComputerSystem is not null)
+        if (snapshot.Inventory.ComputerSystem is not null)
         {
             reply.ComputerSystem = new HardwareInfoComputerSystemReply
             {
-                Vendor = snapshot.ComputerSystem.Vendor ?? string.Empty,
-                Caption = snapshot.ComputerSystem.Caption ?? string.Empty,
-                Description = snapshot.ComputerSystem.Description ?? string.Empty,
-                Name = snapshot.ComputerSystem.Name ?? string.Empty,
-                SkuNumber = snapshot.ComputerSystem.Skunumber ?? string.Empty,
-                Uuid = snapshot.ComputerSystem.Uuid ?? string.Empty,
-                Version = snapshot.ComputerSystem.Version ?? string.Empty,
+                Vendor = snapshot.Inventory.ComputerSystem.Vendor ?? string.Empty,
+                Caption = snapshot.Inventory.ComputerSystem.Caption ?? string.Empty,
+                Description = snapshot.Inventory.ComputerSystem.Description ?? string.Empty,
+                Name = snapshot.Inventory.ComputerSystem.Name ?? string.Empty,
+                SkuNumber = snapshot.Inventory.ComputerSystem.Skunumber ?? string.Empty,
+                Uuid = snapshot.Inventory.ComputerSystem.Uuid ?? string.Empty,
+                Version = snapshot.Inventory.ComputerSystem.Version ?? string.Empty,
             };
         }
 
-        if (snapshot.Motherboard is not null)
+        if (snapshot.Inventory.Motherboard is not null)
         {
             reply.Motherboard = new HardwareInfoMotherboardReply
             {
-                Manufacturer = snapshot.Motherboard.Manufacturer ?? string.Empty,
-                Product = snapshot.Motherboard.Product ?? string.Empty,
-                SerialNumber = snapshot.Motherboard.SerialNumber ?? string.Empty,
+                Manufacturer = snapshot.Inventory.Motherboard.Manufacturer ?? string.Empty,
+                Product = snapshot.Inventory.Motherboard.Product ?? string.Empty,
+                SerialNumber = snapshot.Inventory.Motherboard.SerialNumber ?? string.Empty,
             };
         }
 
-        if (snapshot.Bios is not null)
+        if (snapshot.Inventory.Bios is not null)
         {
             reply.Bios = new HardwareInfoBiosReply
             {
-                Manufacturer = snapshot.Bios.Manufacturer ?? string.Empty,
-                Caption = snapshot.Bios.Caption ?? string.Empty,
-                Description = snapshot.Bios.Description ?? string.Empty,
-                Name = snapshot.Bios.Name ?? string.Empty,
-                Version = snapshot.Bios.Version ?? string.Empty,
-                ReleaseDate = snapshot.Bios.ReleaseDate ?? string.Empty,
-                SerialNumber = snapshot.Bios.SerialNumber ?? string.Empty,
-                SoftwareElementId = snapshot.Bios.SoftwareElementId ?? string.Empty,
+                Manufacturer = snapshot.Inventory.Bios.Manufacturer ?? string.Empty,
+                Caption = snapshot.Inventory.Bios.Caption ?? string.Empty,
+                Description = snapshot.Inventory.Bios.Description ?? string.Empty,
+                Name = snapshot.Inventory.Bios.Name ?? string.Empty,
+                Version = snapshot.Inventory.Bios.Version ?? string.Empty,
+                ReleaseDate = snapshot.Inventory.Bios.ReleaseDate ?? string.Empty,
+                SerialNumber = snapshot.Inventory.Bios.SerialNumber ?? string.Empty,
+                SoftwareElementId = snapshot.Inventory.Bios.SoftwareElementId ?? string.Empty,
             };
         }
 
-        if (snapshot.MemoryStatus is not null)
+        if (snapshot.Runtime.MemoryStatus is not null)
         {
             reply.MemoryStatus = new HardwareInfoMemoryStatusReply
             {
-                TotalPhysical = snapshot.MemoryStatus.TotalPhysical,
-                AvailablePhysical = snapshot.MemoryStatus.AvailablePhysical,
-                TotalPageFile = snapshot.MemoryStatus.TotalPageFile,
-                AvailablePageFile = snapshot.MemoryStatus.AvailablePageFile,
-                TotalVirtual = snapshot.MemoryStatus.TotalVirtual,
-                AvailableVirtual = snapshot.MemoryStatus.AvailableVirtual,
-                AvailableExtendedVirtual = snapshot.MemoryStatus.AvailableExtendedVirtual,
+                TotalPhysical = snapshot.Runtime.MemoryStatus.TotalPhysical,
+                AvailablePhysical = snapshot.Runtime.MemoryStatus.AvailablePhysical,
+                TotalPageFile = snapshot.Runtime.MemoryStatus.TotalPageFile,
+                AvailablePageFile = snapshot.Runtime.MemoryStatus.AvailablePageFile,
+                TotalVirtual = snapshot.Runtime.MemoryStatus.TotalVirtual,
+                AvailableVirtual = snapshot.Runtime.MemoryStatus.AvailableVirtual,
+                AvailableExtendedVirtual = snapshot.Runtime.MemoryStatus.AvailableExtendedVirtual,
             };
         }
 
-        reply.Cpus.AddRange(snapshot.Cpus.Select(MapHardwareInfoCpu));
-        reply.MemoryModules.AddRange(snapshot.MemoryModules.Select(MapHardwareInfoMemoryModule));
-        reply.VideoControllers.AddRange(snapshot.VideoControllers.Select(MapHardwareInfoVideoController));
+        reply.Cpus.AddRange(snapshot.Runtime.Cpus.Select(MapHardwareInfoCpu));
+        reply.MemoryModules.AddRange(snapshot.Inventory.MemoryModules.Select(MapHardwareInfoMemoryModule));
+        reply.Monitors.AddRange(snapshot.Runtime.Monitors.Select(MapHardwareInfoMonitor));
+        reply.VideoControllers.AddRange(snapshot.Runtime.VideoControllers.Select(MapHardwareInfoVideoController));
 
         return reply;
     }
 
+    public static HardwareInfoHistoryChangeReply MapHardwareInfoHistoryChange(Change<HistoricalRecord<HardwareInfoSnapshot>, long> change)
+    {
+        return new HardwareInfoHistoryChangeReply
+        {
+            ChangeKind = TelemetryGrpcMapper.MapChangeReason(change.Reason),
+            SampleId = change.Key,
+            ObservedAtUnixTimeMilliseconds = change.Current.ObservedAt.ToUnixTimeMilliseconds(),
+            Snapshot = MapHardwareInfoSnapshot(change.Current.Value),
+        };
+    }
+
+    public static HardwareInfoHistoryChangeBatchReply MapHardwareInfoHistoryBatch(IReadOnlyList<HardwareInfoHistoryChangeReply> replies)
+    {
+        var batch = new HardwareInfoHistoryChangeBatchReply();
+        batch.Changes.AddRange(replies);
+        return batch;
+    }
+
     private static HardwareInfoCpuReply MapHardwareInfoCpu(HardwareInfoCpu cpu)
     {
-        return new HardwareInfoCpuReply
+        var reply = new HardwareInfoCpuReply
         {
             Name = cpu.Name ?? string.Empty,
             Caption = cpu.Caption ?? string.Empty,
@@ -105,7 +126,24 @@ internal static class HardwareInfoGrpcMapper
             SecondLevelAddressTranslationExtensions = cpu.SecondLevelAddressTranslationExtensions,
             VirtualizationFirmwareEnabled = cpu.VirtualizationFirmwareEnabled,
             VmMonitorModeExtensions = cpu.VMMonitorModeExtensions,
-            PercentProcessorTime = cpu.PercentProcessorTime,
+        };
+
+        if (cpu.PercentProcessorTime is { } percentProcessorTime)
+        {
+            reply.PercentProcessorTime = percentProcessorTime;
+        }
+
+        reply.CpuCores.AddRange(cpu.CpuCores.Select(MapHardwareInfoCpuCore));
+
+        return reply;
+    }
+
+    private static HardwareInfoCpuCoreReply MapHardwareInfoCpuCore(HardwareInfoCpuCore cpuCore)
+    {
+        return new HardwareInfoCpuCoreReply
+        {
+            Name = cpuCore.Name ?? string.Empty,
+            PercentProcessorTime = cpuCore.PercentProcessorTime,
         };
     }
 
@@ -124,6 +162,27 @@ internal static class HardwareInfoGrpcMapper
             Manufacturer = module.Manufacturer ?? string.Empty,
             PartNumber = module.PartNumber ?? string.Empty,
             SerialNumber = module.SerialNumber ?? string.Empty,
+        };
+    }
+
+    private static HardwareInfoMonitorReply MapHardwareInfoMonitor(HardwareInfoMonitor monitor)
+    {
+        return new HardwareInfoMonitorReply
+        {
+            Active = monitor.Active,
+            Caption = monitor.Caption ?? string.Empty,
+            Description = monitor.Description ?? string.Empty,
+            ManufacturerName = monitor.ManufacturerName ?? string.Empty,
+            MonitorManufacturer = monitor.MonitorManufacturer ?? string.Empty,
+            MonitorType = monitor.MonitorType ?? string.Empty,
+            Name = monitor.Name ?? string.Empty,
+            PixelsPerXLogicalInch = monitor.PixelsPerXLogicalInch,
+            PixelsPerYLogicalInch = monitor.PixelsPerYLogicalInch,
+            ProductCodeId = monitor.ProductCodeId ?? string.Empty,
+            SerialNumberId = monitor.SerialNumberId ?? string.Empty,
+            UserFriendlyName = monitor.UserFriendlyName ?? string.Empty,
+            WeekOfManufacture = monitor.WeekOfManufacture,
+            YearOfManufacture = monitor.YearOfManufacture,
         };
     }
 

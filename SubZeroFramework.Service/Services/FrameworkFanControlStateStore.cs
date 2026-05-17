@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
 
 using DynamicData;
 
@@ -25,14 +26,15 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
         _optionsMonitor = optionsMonitor;
 
-        _subscriptions.Add(frameworkDataProvider
+        frameworkDataProvider
             .ConnectFanStates()
-            .Subscribe(ApplyFanStateChanges));
+            .Subscribe(ApplyFanStateChanges)
+            .DisposeWith(_subscriptions);
 
         var optionsSubscription = _optionsMonitor.OnChange(_ => ApplyConfiguredStates());
         if (optionsSubscription is not null)
         {
-            _subscriptions.Add(optionsSubscription);
+            optionsSubscription.DisposeWith(_subscriptions);
         }
         ApplyConfiguredStates();
     }

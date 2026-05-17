@@ -1,3 +1,5 @@
+using DynamicData;
+
 using System.Reactive.Linq;
 
 using Grpc.Core;
@@ -9,11 +11,14 @@ namespace SubZeroFramework.Services;
 
 public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
 {
+    private static readonly TimeSpan MaximumHistoryWindow = TimeSpan.FromHours(1);
     private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(2);
 
     private readonly FrameworkGrpcChannelFactory _channelFactory;
     private readonly HardwareInfoService.HardwareInfoServiceClient _client;
     private readonly IObservable<HardwareInfoSnapshot> _sharedHardwareInfoStream;
+    private readonly RefCountedObservableCache<TimeSpan, IChangeSet<HistoricalRecord<HardwareInfoSnapshot>, long>> _historyStreams = new();
+    private bool _disposed;
 
     public GrpcHardwareInfoClient(FrameworkGrpcChannelFactory channelFactory)
     {
@@ -26,15 +31,33 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
 
     public async Task<HardwareInfoSnapshot> GetHardwareInfoAsync(CancellationToken cancellationToken = default)
     {
+        ThrowIfDisposed();
         using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
         var reply = await _client.GetHardwareInfoAsync(new GetHardwareInfoRequest(), cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
         return MapHardwareInfoReply(reply);
     }
 
-    public IObservable<HardwareInfoSnapshot> WatchHardwareInfo() => _sharedHardwareInfoStream;
+    public IObservable<HardwareInfoSnapshot> WatchHardwareInfo()
+    {
+        ThrowIfDisposed();
+        return _sharedHardwareInfoStream;
+    }
+
+    public IObservable<IChangeSet<HistoricalRecord<HardwareInfoSnapshot>, long>> WatchHardwareInfoHistory(TimeSpan historyWindow)
+    {
+        ThrowIfDisposed();
+
+        if (historyWindow <= TimeSpan.Zero || historyWindow > MaximumHistoryWindow)
+        {
+            throw new ArgumentOutOfRangeException(nameof(historyWindow), $"History window must be between {TimeSpan.Zero} and {MaximumHistoryWindow}.");
+        }
+
+        return _historyStreams.GetOrAdd(historyWindow, () => CreateHardwareInfoHistoryStream(historyWindow));
+    }
 
     public void Dispose()
     {
+        _disposed = true;
     }
 
     private IObservable<HardwareInfoSnapshot> CreateHardwareInfoStream()
@@ -100,6 +123,73 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
         });
     }
 
+    private IObservable<IChangeSet<HistoricalRecord<HardwareInfoSnapshot>, long>> CreateHardwareInfoHistoryStream(TimeSpan historyWindow)
+    {
+        return Observable.Create<IChangeSet<HistoricalRecord<HardwareInfoSnapshot>, long>>(observer =>
+        {
+            var history = new SourceCache<HistoricalRecord<HardwareInfoSnapshot>, long>(record => record.SampleId);
+            var cancellationSource = new CancellationTokenSource();
+
+            _ = Task.Run(async () =>
+            {
+                while (!cancellationSource.IsCancellationRequested)
+                {
+                    AsyncServerStreamingCall<HardwareInfoHistoryChangeBatchReply>? call = null;
+
+                    try
+                    {
+                        call = _client.WatchHardwareInfoHistory(new WatchHardwareInfoHistoryRequest
+                        {
+                            HistoryWindowSeconds = checked((int)Math.Ceiling(historyWindow.TotalSeconds)),
+                        }, cancellationToken: cancellationSource.Token);
+
+                        using var connection = history.Connect().Subscribe(observer);
+
+                        while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
+                        {
+                            foreach (var change in call.ResponseStream.Current.Changes)
+                            {
+                                ApplyHardwareInfoHistoryChange(history, change);
+                            }
+                        }
+                    }
+                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (RpcException) when (!cancellationSource.IsCancellationRequested)
+                    {
+                    }
+                    catch (Exception) when (!cancellationSource.IsCancellationRequested)
+                    {
+                    }
+                    finally
+                    {
+                        call?.Dispose();
+                    }
+
+                    try
+                    {
+                        await Task.Delay(ReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                }
+
+                history.Dispose();
+                observer.OnCompleted();
+            }, cancellationSource.Token);
+
+            return () =>
+            {
+                cancellationSource.Cancel();
+                cancellationSource.Dispose();
+            };
+        });
+    }
+
     private static HardwareInfoSnapshot CreateUnavailableSnapshot(string message)
     {
         return new HardwareInfoSnapshot
@@ -110,6 +200,20 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
         };
     }
 
+    private static void ApplyHardwareInfoHistoryChange(SourceCache<HistoricalRecord<HardwareInfoSnapshot>, long> history, HardwareInfoHistoryChangeReply reply)
+    {
+        if (reply.ChangeKind == TelemetryChangeKind.Remove)
+        {
+            history.RemoveKey(reply.SampleId);
+            return;
+        }
+
+        history.AddOrUpdate(new HistoricalRecord<HardwareInfoSnapshot>(
+            reply.SampleId,
+            DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
+            MapHardwareInfoReply(reply.Snapshot)));
+    }
+
     private static HardwareInfoSnapshot MapHardwareInfoReply(HardwareInfoReply reply)
     {
         return new HardwareInfoSnapshot
@@ -117,14 +221,22 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
             ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
             IsAvailable = reply.IsAvailable,
             LastError = string.IsNullOrEmpty(reply.LastError) ? null : reply.LastError,
-            OperatingSystem = MapOperatingSystem(reply.OperatingSystem),
-            ComputerSystem = MapComputerSystem(reply.ComputerSystem),
-            Motherboard = MapMotherboard(reply.Motherboard),
-            Bios = MapBios(reply.Bios),
-            MemoryStatus = MapMemoryStatus(reply.MemoryStatus),
-            Cpus = reply.Cpus.Select(MapCpu).ToImmutableArray(),
-            MemoryModules = reply.MemoryModules.Select(MapMemoryModule).ToImmutableArray(),
-            VideoControllers = reply.VideoControllers.Select(MapVideoController).ToImmutableArray(),
+            Inventory = new HardwareInfoInventorySnapshot
+            {
+                OperatingSystem = MapOperatingSystem(reply.OperatingSystem),
+                ComputerSystem = MapComputerSystem(reply.ComputerSystem),
+                Motherboard = MapMotherboard(reply.Motherboard),
+                Bios = MapBios(reply.Bios),
+                MemoryModules = reply.MemoryModules.Select(MapMemoryModule).ToImmutableArray(),
+            },
+            Runtime = new HardwareInfoRuntimeSnapshot
+            {
+                MemoryStatus = MapMemoryStatus(reply.MemoryStatus),
+                Cpus = reply.Cpus.Select(MapCpu).ToImmutableArray(),
+                Monitors = reply.Monitors.Select(MapMonitor).ToImmutableArray(),
+                VideoControllers = reply.VideoControllers.Select(MapVideoController).ToImmutableArray(),
+            },
+
         };
     }
 
@@ -200,6 +312,16 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
             reply.SecondLevelAddressTranslationExtensions,
             reply.VirtualizationFirmwareEnabled,
             reply.VmMonitorModeExtensions,
+            reply.HasPercentProcessorTime
+                ? reply.PercentProcessorTime
+                : null,
+            reply.CpuCores.Select(MapCpuCore).ToImmutableArray());
+    }
+
+    private static HardwareInfoCpuCore MapCpuCore(HardwareInfoCpuCoreReply reply)
+    {
+        return new HardwareInfoCpuCore(
+            reply.Name,
             reply.PercentProcessorTime);
     }
 
@@ -238,5 +360,29 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
             reply.Name,
             reply.VideoModeDescription,
             reply.VideoProcessor);
+    }
+
+    private static HardwareInfoMonitor MapMonitor(HardwareInfoMonitorReply reply)
+    {
+        return new HardwareInfoMonitor(
+            reply.Active,
+            reply.Caption,
+            reply.Description,
+            reply.ManufacturerName,
+            reply.MonitorManufacturer,
+            reply.MonitorType,
+            reply.Name,
+            reply.PixelsPerXLogicalInch,
+            reply.PixelsPerYLogicalInch,
+            reply.ProductCodeId,
+            reply.SerialNumberId,
+            reply.UserFriendlyName,
+            checked((ushort)reply.WeekOfManufacture),
+            checked((ushort)reply.YearOfManufacture));
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
     }
 }

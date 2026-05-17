@@ -1,3 +1,5 @@
+using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
 
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -11,10 +13,10 @@ namespace SubZeroFramework.Presentation;
 public partial class MainModel : ObservableObject, IDisposable
 {
     public readonly INavigator navigator;
+    private readonly CompositeDisposable _subscriptions = [];
     private readonly DispatcherQueue dispatcherQueue;
     private readonly SynchronizationContext context;
     private readonly IFrameworkStatusClient frameworkStatusClient;
-    private readonly IDisposable frameworkStatusProvider;
     public MainModel(
         IStringLocalizer localizer,
         IOptions<AppConfig> appInfo, INavigator navigator, IServiceProvider serviceProvider, DispatcherQueue dispatcherQueue, SynchronizationContext context, IFrameworkStatusClient frameworkStatusClient)
@@ -25,7 +27,11 @@ public partial class MainModel : ObservableObject, IDisposable
         this.context = context;
         this.frameworkStatusClient = frameworkStatusClient;
 
-        frameworkStatusProvider = frameworkStatusClient.WatchStatus().ObserveOn(context).Subscribe(SystemStatusChanged);
+        frameworkStatusClient
+            .WatchStatus()
+            .ObserveOn(context)
+            .Subscribe(SystemStatusChanged)
+            .DisposeWith(_subscriptions);
     }
 
     private void SystemStatusChanged(FrameworkSystemStatus status)
@@ -69,7 +75,7 @@ public partial class MainModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        frameworkStatusProvider.Dispose();
+        _subscriptions.Dispose();
     }
 
     [ObservableProperty]
