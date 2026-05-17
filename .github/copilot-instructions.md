@@ -10,6 +10,9 @@ This document captures repository-specific skills, architecture patterns, and pr
 - Always refer to `WorkToBeDone.md` for the current list of required improvements and align your work with those items.
 - If you need source codes, preferably use the GitHub web interface to navigate and search the codebase, as it provides better context and understanding of the code structure. Use the file paths and class names mentioned in this document to locate relevant code sections.
 If possible use ObservableProperty with ObservableObject, leveraging C# partial classes to reduce boilerplate and ensure change notifications are properly raised for UI updates. This is especially important for view models and any state that the UI binds to.
+- For inventory surfaces, prefer FrameworkDotnet data first and only use Hardware.Info to fill gaps, keeping that fallback flow behind the existing service/gRPC/client boundary.
+- Preserve stable item identity in GridView/ListView card layouts. Prefer persistent mutable card/view-model instances exposed via `ReadOnlyObservableCollection<T>` over rebinding fresh arrays every refresh, otherwise cards blink and pointer/layout state resets.
+- Re-read any existing XAML page immediately before editing it. The user often makes small manual visual tweaks between turns, and those should be preserved.
 - When working on telemetry streams, ensure that you are properly marshalling back to the UI thread using `ObserveOn(SynchronizationContext.Current)` or `ObserveOn(DispatcherQueue.Current)` as appropriate for the platform. This will prevent threading issues and ensure that UI updates happen smoothly.
 - When working on IObservable use `DisposeWith` and `CompositeDisposable` to manage subscriptions and ensure they are cleaned up properly to avoid memory leaks or unintended side effects.
 - When modifying or adding new telemetry streams, consider the implications of stream sharing and backpressure. Use `RefCountedObservableCache` or similar patterns to avoid creating multiple gRPC subscriptions for the same data, and implement explicit throttling or buffering strategies if consumers may fall behind.
@@ -42,6 +45,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - DI container is configured in `SubZeroFramework/App.xaml.cs`.
 - UI view models use `SynchronizationContext` or `DispatcherQueue` to observe on UI thread.
 - `ReadOnlyObservableCollection<T>` is the preferred binding target for DynamicData outputs.
+- Device Capabilities is the current reference pattern for inventory pages: dashboard-aligned cards, copyable value text, stable mutable card/view models, and Framework-first with Hardware.Info fallback data sourcing through IPC.
 - The dashboard and header surface service health and telemetry state.
 - `MainModel`, `HeaderModel`, and dashboard view models are the primary reactive consumers.
 - Prefer `IFrameworkStatusClient`, `IFrameworkTelemetryClient`, `IFanCapabilityClient`, `IFanControlStateClient`, and higher-level telemetry clients instead of raw data providers.
@@ -50,8 +54,12 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - Use a visually distinct fallback/error card for unsupported hardware and safe-mode states.
 - Maintain a persistent system info/profile card near the top of dashboard and telemetry pages.
 - Preserve the current dashboard style: dark flattened Fluent-inspired cards, top-level system info, active cooling cards, thermal snapshot cards, and a large history chart section.
+- Dashboard gauge rings are intentionally non-hoverable. Preserve `HoverPushout="0"` and `IsHoverable="False"` on comparable LiveCharts pie gauges so they do not jump or darken on hover.
 - Provide a consistent interaction pattern for fan-curve editing: per-fan mode buttons, chart point manipulation, and clear instructions.
 - Fan curve pages should allow associating sensors to each fan, selecting aggregation mode (average, max, min), and enabling delta/CPU/GPU usage inputs for decision logic.
+- Device Capabilities CPU should currently show CPU identity plus frequency history only. Do not reintroduce CPU load/core-count UI from current Hardware.Info polling unless the data source is verified trustworthy.
+- Storage inventory should stay at drive level, not partition level, with total and per-drive used/free summaries and progress bars.
+- Network inventory should show detected adapter cards without a redundant adapter summary block unless explicitly requested.
 - Telemetry pages should support multi-series chart legend toggles and clearly labeled axis/context.
 
 ### NuGet package usage
@@ -60,6 +68,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - `DynamicData`: powers the dynamic change-set model for telemetry caches, fan state collections, current values, and history series.
 - `FrameworkDotnet`: is our native Framework EC/firmware wrapper library used in the service and core provider for device snapshots, fan commands, thermal/power telemetry, and EC control. Its source lives in `C:\Users\richa\source\repos\framework-dotnet`, so missing features can be added there.
 - `Hardware.Info.Aot`: supplies hardware inventory details in the UNO app for the Device Capabilities page, including RAM modules, manufacturers, serial numbers, and system component metadata.
+- For current inventory surfaces, prefer targeted refreshes over `RefreshAll()` and keep storage/network inventory flowing through the service snapshot rather than direct UI reads.
 - `LiveChartsCore.SkiaSharpView.Uno.WinUI`: used for rendering line charts and telemetry graphs in the UNO UI.
 - `Material.Icons`: provides icon glyphs for UI chrome, status, and navigation.
 - `CommunityToolkit.WinUI.Extensions`: supplies additional WinUI/Uno UI helpers and extension APIs used in app UI wiring.
@@ -71,11 +80,15 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 ### Reference docs
 - Hardware.Info: `https://github.com/Jinjinov/Hardware.Info`
   - Use `IHardwareInfo`, call `RefreshAll()` or targeted methods like `RefreshCPUList`, `RefreshMemoryList`, `RefreshBatteryList`, `RefreshMotherboardList`.
+  - For storage/network inventory, use `RefreshDriveList()` and `RefreshNetworkAdapterList(includeBytesPerSec: false, includeNetworkAdapterConfiguration: true, millisecondsDelayBetweenTwoMeasurements: 0)`.
   - Avoid Windows WMI startup delay by excluding heavy queries; use `includePercentProcessorTime=false` or `includeBytesPersec=false` where applicable.
+  - Do not surface CPU load/core data from the current Windows Hardware.Info polling path unless it has been revalidated; prior values were misleading and often read as `0%`.
   - Prefer `Hardware.Info.Aot` in Uno/WASM/AOT contexts when available.
 - LiveCharts UNO WinUI: `https://livecharts.dev/docs/unowinui/2.0.0/Overview.Installation`
   - Install `LiveChartsCore.SkiaSharpView.Uno.WinUI` and configure `LiveCharts.Configure(c => c.AddSkiaSharp().AddDefaultMappers().AddDefaultTheme().UseDefaults())`.
   - Use XAML-friendly types like `lvc:CartesianChart`, `lvc:XamlLineSeries`, `SeriesSource`, and `SeriesTemplate` for clean MVVM binding.
+  - For gauge-style `PieChart` rings that should stay visually static, preserve `HoverPushout="0"` and `IsHoverable="False"` on the `XamlPieSeries`.
+  - Prefer relative-time labels such as `30s`, `25s`, `5s`, and `now` for compact history cards when matching the current dashboard/device-capability history style.
 - Material Design Icons: `https://pictogrammers.com/library/mdi/`
   - Choose glyph names from the MDI library for status icons, cards, actions, and navigation.
 - Reactive: `https://introtorx.com/chapters/disposables` and other pages from intro to Rx
@@ -87,11 +100,11 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
   - Use change-set operators to keep UI collections in sync without manual collection maintenance.
 
 ### Page/tab behavior
-- Dashboard: full landing page with system identity, active cooling cards, thermal snapshot cards, history charts, power/battery summary, and service/health status.
+- Dashboard: full landing page with system identity, active cooling cards, thermal snapshot cards, history charts, power/battery summary, and service/health status. Fan and thermal gauge rings should remain visually stable on hover.
 - Thermal Telemetry: detailed temperature history with sensor selection, series toggles, legends, and comparison across multiple sensors.
 - Power Telemetry: battery and power system diagnostics, including charge, voltage, current, power source state, cycles, and history charts.
 - Fan Curve Profiles: per-fan editor and profile manager, allowing sensor-to-fan associations, aggregation mode choices, delta/CPU/GPU usage options, and profile save/restore controls.
-- Device Capabilities: detected hardware inventory, HardwareInfo-derived details (RAM modules, manufacturer, serial number, etc.) presented with expandable sections to reduce clutter, supported firmware features, available module cards, and future framework card module support when the translation layer exposes them.
+- Device Capabilities: dashboard-aligned inventory page with device identity, EC version/build, BIOS release date, CPU identity plus frequency history, memory/storage/network/graphics/display inventory, runtime sensor/fan/battery status cards, copyable value text, and drive-level usage summaries. Prefer Framework data first, then Hardware.Info through IPC.
 - Warnings / Issues: error and warning surface with quick remediation buttons—restart service, rescan device, install/uninstall/reinstall service, and other corrective actions.
 - Settings: service install/uninstall/reinstall, user preferences such as preferred units, feature toggles for modules and custom fan curves, and app behavior options.
 
@@ -142,6 +155,7 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - Replace any remaining direct `IFrameworkDataProvider` usage with IPC clients.
 - Add visible service-health indicator, logs/diagnostics actions, and installation/elevation guidance.
 - Decide which views use distinct status transitions versus live telemetry cadence.
+- Treat Device Capabilities as substantially complete for inventory/status work; the next preferred UI slice is the first dedicated Thermal Telemetry page over `IFrameworkTelemetryClient`.
 
 ### Testing
 - Expand integration coverage for gRPC contract validation and reconnect behaviors.
@@ -156,6 +170,7 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - Custom fan curve command support is not fully implemented end-to-end.
 - The service needs better shutdown/recovery semantics and fan safety failure handling.
 - Telemetry UI is still partially wired; getting the first end-to-end thermal surface is a near-term goal.
+- Device Capabilities CPU load/core views are intentionally omitted because the current Windows Hardware.Info values were not trustworthy.
 - Configuration binding and option response coverage need broader tests.
 
 ## Priorities for future copilots
@@ -191,8 +206,10 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - `SubZeroFramework.Service/Services/FrameworkFanControlGrpcService.cs`
 - `SubZeroFramework.Service/Services/FrameworkFanControlStateStore.cs`
 - `SubZeroFramework.Core/Services/FrameworkDataProvider.cs`
+- `SubZeroFramework.Service/Services/HardwareInfoGrpcMapper.cs`
 - `SubZeroFramework.Services/FrameworkGrpcChannelFactory.cs`
 - `SubZeroFramework.Services/FrameworkGrpcSocketSecurity.cs`
+- `SubZeroFramework/Services/GrpcHardwareInfoClient.cs`
 - `SubZeroFramework.Services/RefCountedObservableCache.cs`
 - `SubZeroFramework/WorkToBeDone.md`
 - `SubZeroFramework/Docs/TelemetryUiGuide.md`
@@ -200,6 +217,9 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - `SubZeroFramework.Service/Services/ObservableChannelBridge.cs`
 - `SubZeroFramework/Presentation/MainModel.cs`
 - `SubZeroFramework/Presentation/Header/SubZeroHeaderModel.cs`
+- `SubZeroFramework/Presentation/MenuItems/DeviceCapabilities/DeviceCapabilitiesModel.cs`
+- `SubZeroFramework/Presentation/MenuItems/DeviceCapabilities/DeviceCapabilitiesPage.xaml`
+- `SubZeroFramework/Presentation/MenuItems/Dashboard/DashboardPage.xaml`
 
 ## Short guidance for future copilots
 - Understand the root cause: Linux requires root for Framework driver access, so service isolation is mandatory.
