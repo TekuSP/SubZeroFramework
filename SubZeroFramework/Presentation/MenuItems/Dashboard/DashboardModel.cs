@@ -18,24 +18,36 @@ namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 public partial class DashboardModel : ObservableObject, IDisposable
 {
     private readonly CompositeDisposable _subscriptions = [];
+    private readonly ObservableCollection<FanCardModel> _fans = [];
+    private readonly ObservableCollection<ThermalSensorModel> _thermalSensors = [];
+    private readonly ObservableCollection<PowerCardModel> _batteries = [];
+    private readonly Dictionary<int, FanCardModel> _fanCardsByIndex = [];
     private readonly Dictionary<int, FanCapabilityState> _fanCapabilities = [];
     private readonly Dictionary<int, FanControlStateSnapshot> _fanControlStates = [];
     private readonly Dictionary<int, FanStateSnapshot> _fanStates = [];
-    private readonly IFrameworkStatusClient _frameworkStatusClient;
-    private readonly IFrameworkTelemetryClient _frameworkTelemetryClient;
+    private readonly Dictionary<int, TemperatureTelemetrySnapshot> _temperatureSnapshots = [];
+    private readonly Dictionary<int, ThermalSensorModel> _thermalSensorsByIndex = [];
+    private readonly Dictionary<int, TelemetryPoint[]> _temperatureHistoryPoints = [];
+    private readonly Dictionary<int, PowerCardModel> _batteryCardsByIndex = [];
+    private readonly Dictionary<(int Index, TelemetryMetric Metric), TelemetryPoint[]> _batteryHistoryPoints = [];
     private readonly IFanCapabilityClient _fanCapabilityClient;
     private readonly IFanControlStateClient _fanControlStateClient;
     private readonly IFanStateClient _fanStateClient;
     private readonly IFanTelemetryClient _fanTelemetryClient;
     private readonly ITemperatureTelemetryClient _temperatureTelemetryClient;
     private readonly IBatteryTelemetryClient _batteryTelemetryClient;
-    private readonly ObservableCollection<ThermalSensorModel> _visibleThermalSensors = [];
     private readonly SynchronizationContext _synchronizationContext;
     private readonly TimeSpan _initialTimeSpan = TimeSpan.FromSeconds(30);
     private readonly TimeSpan _temperatureHistoryWindow = TimeSpan.FromHours(1);
     private readonly TimeSpan _thermalCardHistoryWindow = TimeSpan.FromSeconds(30);
     private readonly TimeSpan _batteryCardHistoryWindow = TimeSpan.FromHours(1);
-    // Trackers for inner subscriptions
+    private static readonly TelemetryMetric[] BatteryHistoryMetrics =
+    [
+        TelemetryMetric.BatteryChargePercent,
+        TelemetryMetric.BatteryPresentRateAmperes,
+        TelemetryMetric.BatteryPresentVoltageVolts,
+    ];
+
     private readonly Dictionary<int, IDisposable> _fanHistorySubscriptions = [];
     private readonly Dictionary<int, IDisposable> _temperatureHistorySubscriptions = [];
     private readonly Dictionary<(int Index, TelemetryMetric Metric), IDisposable> _batteryHistorySubscriptions = [];
@@ -53,8 +65,6 @@ public partial class DashboardModel : ObservableObject, IDisposable
         IBatteryTelemetryClient batteryTelemetryClient,
         SynchronizationContext synchronizationContext)
     {
-        _frameworkStatusClient = frameworkStatusClient;
-        _frameworkTelemetryClient = frameworkTelemetryClient;
         _fanCapabilityClient = fanCapabilityClient;
         _fanControlStateClient = fanControlStateClient;
         _fanStateClient = fanStateClient;
@@ -62,9 +72,14 @@ public partial class DashboardModel : ObservableObject, IDisposable
         _temperatureTelemetryClient = temperatureTelemetryClient;
         _batteryTelemetryClient = batteryTelemetryClient;
         _synchronizationContext = synchronizationContext;
-        VisibleThermalSensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_visibleThermalSensors);
 
-        _frameworkStatusClient
+        Fans = new ReadOnlyObservableCollection<FanCardModel>(_fans);
+        VisibleFans = Fans;
+        ThermalSensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_thermalSensors);
+        VisibleThermalSensors = ThermalSensors;
+        Batteries = new ReadOnlyObservableCollection<PowerCardModel>(_batteries);
+
+        frameworkStatusClient
             .WatchStatus()
             .ObserveOn(_synchronizationContext)
             .Subscribe(status => LastStatus = status)
@@ -77,12 +92,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
             {
                 foreach (var change in set)
                 {
-                    var fan = Fans.FirstOrDefault(existingFan => existingFan.Snapshot.FanIndex == change.Key);
+                    _fanCardsByIndex.TryGetValue(change.Key, out var fan);
 
                     if (change.Reason == ChangeReason.Remove)
                     {
                         _fanCapabilities.Remove(change.Key);
-                        if (fan != null)
+                        if (fan is not null)
                         {
                             fan.Capability = null;
                         }
@@ -91,7 +106,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                     }
 
                     _fanCapabilities[change.Key] = change.Current;
-                    if (fan != null)
+                    if (fan is not null)
                     {
                         fan.Capability = change.Current;
                     }
@@ -106,12 +121,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
             {
                 foreach (var change in set)
                 {
-                    var fan = Fans.FirstOrDefault(existingFan => existingFan.Snapshot.FanIndex == change.Key);
+                    _fanCardsByIndex.TryGetValue(change.Key, out var fan);
 
                     if (change.Reason == ChangeReason.Remove)
                     {
                         _fanControlStates.Remove(change.Key);
-                        if (fan != null)
+                        if (fan is not null)
                         {
                             fan.ControlState = null;
                             fan.DrivingSensors = [];
@@ -121,7 +136,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                     }
 
                     _fanControlStates[change.Key] = change.Current;
-                    if (fan != null)
+                    if (fan is not null)
                     {
                         fan.ControlState = change.Current;
                         UpdateDrivingSensors(fan);
@@ -135,53 +150,45 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
             {
-                var visibleFansChanged = false;
-
                 foreach (var change in set)
                 {
-                    var fan = Fans.FirstOrDefault(existingFan => existingFan.Snapshot.FanIndex == change.Key);
-                    var wasVisible = fan is not null && IsFanVisible(fan);
+                    _fanCardsByIndex.TryGetValue(change.Key, out var fan);
 
                     if (change.Reason == ChangeReason.Remove)
                     {
                         _fanStates.Remove(change.Key);
-                        if (fan != null)
+                        if (fan is not null)
                         {
                             fan.FanState = null;
-                            visibleFansChanged |= wasVisible != IsFanVisible(fan);
                         }
 
                         continue;
                     }
 
                     _fanStates[change.Key] = change.Current;
-                    if (fan != null)
+                    if (fan is not null)
                     {
                         fan.FanState = change.Current;
-                        visibleFansChanged |= wasVisible != IsFanVisible(fan);
                     }
-                }
-
-                if (visibleFansChanged)
-                {
-                    VisibleFansRevision++;
                 }
             })
             .DisposeWith(_subscriptions);
 
-        // Sync Current Fans
         _fanTelemetryClient
             .WatchFans()
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
             {
-                var newFans = Fans.ToBuilder();
-                bool changed = false;
-                var visibleFansChanged = false;
                 foreach (var change in set)
                 {
                     if (change.Reason == ChangeReason.Add)
                     {
+                        if (_fanCardsByIndex.TryGetValue(change.Key, out var existingFan))
+                        {
+                            existingFan.Snapshot = change.Current;
+                            continue;
+                        }
+
                         var fan = new FanCardModel
                         {
                             Snapshot = change.Current,
@@ -190,101 +197,27 @@ public partial class DashboardModel : ObservableObject, IDisposable
                             DrivingSensors = GetDrivingSensors(_fanControlStates.GetValueOrDefault(change.Current.FanIndex)),
                             FanState = _fanStates.GetValueOrDefault(change.Current.FanIndex),
                         };
-                        newFans.Add(fan);
-                        changed = true;
-                        visibleFansChanged |= IsFanVisible(fan);
-                    }
-                    else if (change.Reason == ChangeReason.Update || change.Reason == ChangeReason.Refresh)
-                    {
-                        var fan = newFans.FirstOrDefault(f => f.Snapshot.FanIndex == change.Current.FanIndex);
-                        if (fan != null)
-                        {
-                            var wasVisible = IsFanVisible(fan);
-                            fan.Snapshot = change.Current;
-                            visibleFansChanged |= wasVisible != IsFanVisible(fan);
-                        }
-                    }
-                    else if (change.Reason == ChangeReason.Remove)
-                    {
-                        var fan = newFans.FirstOrDefault(f => f.Snapshot.FanIndex == change.Current.FanIndex);
-                        if (fan != null)
-                        {
-                            visibleFansChanged |= IsFanVisible(fan);
-                            newFans.Remove(fan);
-                            changed = true;
-                        }
-                    }
-                }
 
-                if (changed)
-                {
-                    Fans = newFans.ToImmutable();
-                }
-
-                if (visibleFansChanged)
-                {
-                    VisibleFansRevision++;
-                }
-            })
-            .DisposeWith(_subscriptions);
-
-        // Sync Current Temperatures
-        _temperatureTelemetryClient
-            .WatchTemperatures()
-            .ObserveOn(_synchronizationContext)
-            .Subscribe(set =>
-            {
-                var newSensors = ThermalSensors.ToBuilder();
-                var changed = false;
-                var visibleSensorsChanged = false;
-
-                foreach (var change in set)
-                {
-                    if (change.Reason == ChangeReason.Add)
-                    {
-                        var thermalSensor = new ThermalSensorModel
-                        {
-                            Snapshot = change.Current,
-                            IsSelected = ShouldShowThermalSensorByDefault(change.Current)
-                                && newSensors.Count(existingSensor => existingSensor.IsSelected) < 4,
-                        };
-
-                        RefreshThermalSensorHistory(thermalSensor);
-
-                        newSensors.Add(thermalSensor);
-                        changed = true;
-                        visibleSensorsChanged |= IsThermalSensorVisible(thermalSensor);
+                        _fanCardsByIndex[change.Key] = fan;
+                        InsertSorted(_fans, fan, card => card.Snapshot.FanIndex);
+                        EnsureFanHistorySubscription(change.Key, _initialTimeSpan);
                         continue;
                     }
 
-                    var existingSensor = newSensors.FirstOrDefault(sensor => sensor.Snapshot.SensorIndex == change.Key);
-                    if (existingSensor is null)
+                    if (change.Reason == ChangeReason.Update || change.Reason == ChangeReason.Refresh)
                     {
+                        if (_fanCardsByIndex.TryGetValue(change.Current.FanIndex, out var fan))
+                        {
+                            fan.Snapshot = change.Current;
+                        }
+
                         continue;
                     }
 
                     if (change.Reason == ChangeReason.Remove)
                     {
-                        visibleSensorsChanged |= IsThermalSensorVisible(existingSensor);
-                        newSensors.Remove(existingSensor);
-                        changed = true;
-                        continue;
+                        RemoveFanCard(change.Key);
                     }
-
-                    var wasVisible = IsThermalSensorVisible(existingSensor);
-                    existingSensor.Snapshot = change.Current;
-                    RefreshThermalSensorHistory(existingSensor);
-                    visibleSensorsChanged |= wasVisible != IsThermalSensorVisible(existingSensor);
-                }
-
-                if (changed)
-                {
-                    ThermalSensors = [.. newSensors.OrderBy(sensor => sensor.Snapshot.SensorIndex)];
-                }
-
-                if (changed || visibleSensorsChanged)
-                {
-                    SynchronizeVisibleThermalSensors();
                 }
             })
             .DisposeWith(_subscriptions);
@@ -292,167 +225,102 @@ public partial class DashboardModel : ObservableObject, IDisposable
         _temperatureTelemetryClient
             .WatchTemperatures()
             .ObserveOn(_synchronizationContext)
-            .ToCollection()
-            .Subscribe(collection =>
+            .Subscribe(set =>
             {
-                TemperatureTelemetries = [.. collection];
+                var drivingSensorsChanged = false;
 
-                foreach (var fan in Fans)
+                foreach (var change in set)
                 {
-                    UpdateDrivingSensors(fan);
+                    if (change.Reason == ChangeReason.Add)
+                    {
+                        _temperatureSnapshots[change.Key] = change.Current;
+
+                        if (_thermalSensorsByIndex.TryGetValue(change.Key, out var existingSensor))
+                        {
+                            existingSensor.Snapshot = change.Current;
+                            RefreshThermalSensorHistory(existingSensor);
+                            drivingSensorsChanged = true;
+                            continue;
+                        }
+
+                        var thermalSensor = new ThermalSensorModel
+                        {
+                            Snapshot = change.Current,
+                            IsSelected = ShouldShowThermalSensorByDefault(change.Current)
+                                && _thermalSensors.Count(existingSensor => existingSensor.IsSelected) < 4,
+                        };
+
+                        _thermalSensorsByIndex[change.Key] = thermalSensor;
+                        InsertSorted(_thermalSensors, thermalSensor, sensor => sensor.Snapshot.SensorIndex);
+                        EnsureTemperatureHistorySubscription(change.Key, _temperatureHistoryWindow);
+                        RefreshThermalSensorHistory(thermalSensor);
+                        drivingSensorsChanged = true;
+                        continue;
+                    }
+
+                    if (change.Reason == ChangeReason.Remove)
+                    {
+                        _temperatureSnapshots.Remove(change.Key);
+                        RemoveTemperatureSensor(change.Key);
+                        drivingSensorsChanged = true;
+                        continue;
+                    }
+
+                    _temperatureSnapshots[change.Key] = change.Current;
+                    if (_thermalSensorsByIndex.TryGetValue(change.Key, out var sensor))
+                    {
+                        sensor.Snapshot = change.Current;
+                        RefreshThermalSensorHistory(sensor);
+                    }
+
+                    drivingSensorsChanged = true;
+                }
+
+                if (drivingSensorsChanged)
+                {
+                    RefreshDrivingSensors();
                 }
             })
             .DisposeWith(_subscriptions);
 
-        // Sync Current Batteries
         _batteryTelemetryClient
             .WatchBatteries()
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
             {
-                var newBatteries = Batteries.ToBuilder();
-                var changed = false;
-                var snapshotsChanged = false;
-
                 foreach (var change in set)
                 {
                     if (change.Reason == ChangeReason.Add)
                     {
-                        var battery = new PowerCardModel
+                        if (_batteryCardsByIndex.TryGetValue(change.Key, out var existingBattery))
+                        {
+                            existingBattery.BatterySnapshot = change.Current;
+                            RefreshBatterySensorHistories(existingBattery);
+                            continue;
+                        }
+
+                        var batteryCard = new PowerCardModel
                         {
                             BatterySnapshot = change.Current
                         };
 
-                        RefreshBatterySensorHistory(battery, TelemetryMetric.BatteryChargePercent);
-                        RefreshBatterySensorHistory(battery, TelemetryMetric.BatteryPresentRateAmperes);
-                        RefreshBatterySensorHistory(battery, TelemetryMetric.BatteryPresentVoltageVolts);
-
-                        newBatteries.Add(battery);
-                        changed = true;
-                        snapshotsChanged = true;
-                        continue;
-                    }
-
-                    var existingBattery = newBatteries.FirstOrDefault(item => item.BatterySnapshot.BatteryIndex == change.Key);
-                    if (existingBattery is null)
-                    {
+                        _batteryCardsByIndex[change.Key] = batteryCard;
+                        InsertSorted(_batteries, batteryCard, card => card.BatterySnapshot.BatteryIndex);
+                        EnsureBatteryHistorySubscriptions(change.Key, _batteryCardHistoryWindow);
+                        RefreshBatterySensorHistories(batteryCard);
                         continue;
                     }
 
                     if (change.Reason == ChangeReason.Remove)
                     {
-                        newBatteries.Remove(existingBattery);
-                        changed = true;
-                        snapshotsChanged = true;
+                        RemoveBatteryCard(change.Key);
                         continue;
                     }
 
-                    existingBattery.BatterySnapshot = change.Current;
-                    RefreshBatterySensorHistory(existingBattery, TelemetryMetric.BatteryChargePercent);
-                    RefreshBatterySensorHistory(existingBattery, TelemetryMetric.BatteryPresentRateAmperes);
-                    RefreshBatterySensorHistory(existingBattery, TelemetryMetric.BatteryPresentVoltageVolts);
-                    snapshotsChanged = true;
-                }
-
-                if (changed)
-                {
-                    Batteries = [.. newBatteries.OrderBy(battery => battery.BatterySnapshot.BatteryIndex)];
-                }
-
-                if (changed || snapshotsChanged)
-                {
-                    BatteryTelemetries = [.. Batteries.Select(battery => battery.BatterySnapshot)];
-                }
-            })
-            .DisposeWith(_subscriptions);
-
-        // Manage Fan History Series
-        _fanTelemetryClient
-            .WatchFans()
-            .ObserveOn(_synchronizationContext)
-            .Subscribe(set =>
-            {
-                foreach (var change in set)
-                {
-                    if (change.Reason == ChangeReason.Add && !_fanHistorySubscriptions.ContainsKey(change.Key))
-                        _fanHistorySubscriptions.Add(change.Key, SubscribeFanHistory(change.Key, _initialTimeSpan));
-                    else if (change.Reason == ChangeReason.Remove)
-                        RemoveFanHistory(change.Key);
-                }
-            })
-            .DisposeWith(_subscriptions);
-
-        // Manage Temperature History Series
-        _temperatureTelemetryClient
-            .WatchTemperatures()
-            .ObserveOn(_synchronizationContext)
-            .Subscribe(set =>
-            {
-                foreach (var change in set)
-                {
-                    if (change.Reason == ChangeReason.Add && !_temperatureHistorySubscriptions.ContainsKey(change.Key))
-                        _temperatureHistorySubscriptions.Add(change.Key, SubscribeTemperatureHistory(change.Key, _temperatureHistoryWindow));
-                    else if (change.Reason == ChangeReason.Remove)
-                        RemoveTemperatureHistory(change.Key);
-                }
-            })
-            .DisposeWith(_subscriptions);
-
-        // Manage Battery History Series
-        _batteryTelemetryClient
-            .WatchBatteryHistory(0, TelemetryMetric.BatteryChargePercent, _batteryCardHistoryWindow)
-            .ObserveOn(_synchronizationContext)
-            .Subscribe(set =>
-            {
-                foreach (var change in set)
-                {
-                    if (change.Reason == ChangeReason.Add)
+                    if (_batteryCardsByIndex.TryGetValue(change.Key, out var battery))
                     {
-                        EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryChargePercent, _batteryCardHistoryWindow);
-                    }
-                    else if (change.Reason == ChangeReason.Remove)
-                    {
-                        RemoveBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryChargePercent);
-                    }
-                    else
-                    {
-                        ;
-                    }
-                }
-            })
-            .DisposeWith(_subscriptions);
-        _batteryTelemetryClient
-            .WatchBatteryHistory(0, TelemetryMetric.BatteryPresentRateAmperes, TimeSpan.FromHours(1))
-            .ObserveOn(_synchronizationContext)
-            .Subscribe(set =>
-            {
-                foreach (var change in set)
-                {
-                    if (change.Reason == ChangeReason.Add)
-                    {
-                        EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentRateAmperes, _batteryCardHistoryWindow);
-                    }
-                    else if (change.Reason == ChangeReason.Remove)
-                    {
-                        RemoveBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentRateAmperes);
-                    }
-                }
-            })
-            .DisposeWith(_subscriptions);
-        _batteryTelemetryClient
-            .WatchBatteryHistory(0, TelemetryMetric.BatteryPresentVoltageVolts, TimeSpan.FromHours(1))
-            .ObserveOn(_synchronizationContext)
-            .Subscribe(set =>
-            {
-                foreach (var change in set)
-                {
-                    if (change.Reason == ChangeReason.Add)
-                    {
-                        EnsureBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentVoltageVolts, _batteryCardHistoryWindow);
-                    }
-                    else if (change.Reason == ChangeReason.Remove)
-                    {
-                        RemoveBatteryHistorySubscriptions(change.Current.ChannelId.Index, TelemetryMetric.BatteryPresentVoltageVolts);
+                        battery.BatterySnapshot = change.Current;
+                        RefreshBatterySensorHistories(battery);
                     }
                 }
             })
@@ -462,73 +330,107 @@ public partial class DashboardModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial FrameworkSystemStatus? LastStatus { get; set; }
 
-    [ObservableProperty]
-    public partial ImmutableArray<FanCardModel> Fans { get; set; } = [];
+    public ReadOnlyObservableCollection<FanCardModel> Fans { get; }
 
-    [ObservableProperty]
-    public partial ImmutableArray<TemperatureTelemetrySnapshot> TemperatureTelemetries { get; set; } = [];
+    public ReadOnlyObservableCollection<FanCardModel> VisibleFans { get; }
 
-    [ObservableProperty]
-    public partial ImmutableArray<ThermalSensorModel> ThermalSensors { get; set; } = [];
-
-    [ObservableProperty]
-    public partial ImmutableArray<BatteryTelemetrySnapshot> BatteryTelemetries { get; set; } = [];
-
-    [ObservableProperty]
-    public partial ImmutableArray<TemperatureTelemetryHistorySeries> TemperatureHistory { get; set; } = [];
-
-    [ObservableProperty]
-    public partial ImmutableArray<BatteryTelemetryHistorySeries> BatteryHistory { get; set; } = [];
-
-    [ObservableProperty]
-    public partial ImmutableArray<PowerCardModel> Batteries { get; set; } = [];
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(VisibleFans))]
-    public partial int VisibleFansRevision { get; set; }
-
-    public ImmutableArray<FanCardModel> VisibleFans => [.. Fans.Where(IsFanVisible)];
+    public ReadOnlyObservableCollection<ThermalSensorModel> ThermalSensors { get; }
 
     public ReadOnlyObservableCollection<ThermalSensorModel> VisibleThermalSensors { get; }
+
+    public ReadOnlyObservableCollection<PowerCardModel> Batteries { get; }
 
     private void UpdateDrivingSensors(FanCardModel fan)
     {
         fan.DrivingSensors = GetDrivingSensors(fan.ControlState);
     }
 
-    private void SynchronizeVisibleThermalSensors()
+    private void RefreshDrivingSensors()
     {
-        var visibleSensors = ThermalSensors
-            .Where(IsThermalSensorVisible)
-            .ToArray();
-
-        SynchronizeSensors(_visibleThermalSensors, visibleSensors);
+        foreach (var fan in _fans)
+        {
+            UpdateDrivingSensors(fan);
+        }
     }
 
-    private static void SynchronizeSensors(ObservableCollection<ThermalSensorModel> target, IReadOnlyList<ThermalSensorModel> source)
+    private static void InsertSorted<TModel>(ObservableCollection<TModel> target, TModel item, Func<TModel, int> keySelector)
     {
-        for (var index = 0; index < source.Count; index++)
+        var itemKey = keySelector(item);
+        var insertIndex = 0;
+
+        while (insertIndex < target.Count && keySelector(target[insertIndex]) < itemKey)
         {
-            var expectedSensor = source[index];
-
-            if (index < target.Count && ReferenceEquals(target[index], expectedSensor))
-            {
-                continue;
-            }
-
-            var existingIndex = target.IndexOf(expectedSensor);
-            if (existingIndex >= 0)
-            {
-                target.Move(existingIndex, index);
-                continue;
-            }
-
-            target.Insert(index, expectedSensor);
+            insertIndex++;
         }
 
-        while (target.Count > source.Count)
+        target.Insert(insertIndex, item);
+    }
+
+    private void EnsureFanHistorySubscription(int fanIndex, TimeSpan range)
+    {
+        if (!_fanHistorySubscriptions.ContainsKey(fanIndex))
         {
-            target.RemoveAt(target.Count - 1);
+            _fanHistorySubscriptions.Add(fanIndex, SubscribeFanHistory(fanIndex, range));
+        }
+    }
+
+    private void EnsureTemperatureHistorySubscription(int sensorIndex, TimeSpan range)
+    {
+        if (!_temperatureHistorySubscriptions.ContainsKey(sensorIndex))
+        {
+            _temperatureHistorySubscriptions.Add(sensorIndex, SubscribeTemperatureHistory(sensorIndex, range));
+        }
+    }
+
+    private void EnsureBatteryHistorySubscriptions(int batteryIndex, TimeSpan range)
+    {
+        foreach (var metric in BatteryHistoryMetrics)
+        {
+            EnsureBatteryHistorySubscription(batteryIndex, metric, range);
+        }
+    }
+
+    private void EnsureBatteryHistorySubscription(int batteryIndex, TelemetryMetric metric, TimeSpan range)
+    {
+        var key = (batteryIndex, metric);
+        if (!_batteryHistorySubscriptions.ContainsKey(key))
+        {
+            _batteryHistorySubscriptions.Add(key, SubscribeBatteryHistory(batteryIndex, metric, range));
+        }
+    }
+
+    private void RemoveFanCard(int fanIndex)
+    {
+        RemoveFanHistory(fanIndex);
+        if (_fanCardsByIndex.Remove(fanIndex, out var fan))
+        {
+            _fans.Remove(fan);
+        }
+    }
+
+    private void RemoveTemperatureSensor(int sensorIndex)
+    {
+        RemoveTemperatureHistory(sensorIndex);
+        if (_thermalSensorsByIndex.Remove(sensorIndex, out var sensor))
+        {
+            _thermalSensors.Remove(sensor);
+        }
+    }
+
+    private void RemoveBatteryCard(int batteryIndex)
+    {
+        RemoveBatteryHistorySubscriptions(batteryIndex);
+        if (_batteryCardsByIndex.Remove(batteryIndex, out var battery))
+        {
+            _batteries.Remove(battery);
+        }
+    }
+
+    private void RemoveBatteryHistorySubscriptions(int batteryIndex)
+    {
+        foreach (var metric in BatteryHistoryMetrics)
+        {
+            RemoveBatteryHistory(batteryIndex, metric);
         }
     }
 
@@ -539,53 +441,27 @@ public partial class DashboardModel : ObservableObject, IDisposable
             return [];
         }
 
-        var temperaturesByIndex = TemperatureTelemetries.ToDictionary(snapshot => snapshot.SensorIndex);
-
         return [.. controlState.DrivingSensorIndices
-            .Select(sensorIndex => temperaturesByIndex.TryGetValue(sensorIndex, out var snapshot) ? snapshot : null)
+            .Select(sensorIndex => _temperatureSnapshots.TryGetValue(sensorIndex, out var snapshot) ? snapshot : null)
             .OfType<TemperatureTelemetrySnapshot>()];
     }
 
     public void SelectHistoryRangeChangeFan(int fanIndex, TimeSpan value)
     {
-        if (_fanHistorySubscriptions.TryGetValue(fanIndex, out IDisposable? disp))
-        {
-            disp?.Dispose();
-            _fanHistorySubscriptions.Remove(fanIndex);
-        }
-        _fanHistorySubscriptions.Add(fanIndex, SubscribeFanHistory(fanIndex, value));
+        RemoveFanHistory(fanIndex);
+        _fanHistorySubscriptions[fanIndex] = SubscribeFanHistory(fanIndex, value);
     }
+
     public void SelectHistoryRangeChangeThermal(int sensorIndex, TimeSpan value)
     {
-        if (_temperatureHistorySubscriptions.TryGetValue(sensorIndex, out IDisposable? disp))
-        {
-            disp?.Dispose();
-            _temperatureHistorySubscriptions.Remove(sensorIndex);
-        }
-        _temperatureHistorySubscriptions.Add(sensorIndex, SubscribeTemperatureHistory(sensorIndex, value));
+        RemoveTemperatureHistory(sensorIndex);
+        _temperatureHistorySubscriptions[sensorIndex] = SubscribeTemperatureHistory(sensorIndex, value);
     }
+
     public void SelectHistoryRangeChangePower((int index, TelemetryMetric metric) batteryIndex, TimeSpan value)
     {
-        if (_batteryHistorySubscriptions.TryGetValue(batteryIndex, out IDisposable? disp))
-        {
-            disp?.Dispose();
-            _batteryHistorySubscriptions.Remove(batteryIndex);
-        }
-        _batteryHistorySubscriptions.Add(batteryIndex, SubscribeBatteryHistory(batteryIndex.index, batteryIndex.metric, value));
-    }
-
-    private void EnsureBatteryHistorySubscriptions(int batteryIndex, TelemetryMetric metric, TimeSpan range)
-    {
-        var key = (batteryIndex, metric);
-        if (!_batteryHistorySubscriptions.ContainsKey(key))
-        {
-            _batteryHistorySubscriptions.Add(key, SubscribeBatteryHistory(batteryIndex, metric, range));
-        }
-    }
-
-    private void RemoveBatteryHistorySubscriptions(int batteryIndex, TelemetryMetric metric)
-    {
-        RemoveBatteryHistory(batteryIndex, metric);
+        RemoveBatteryHistory(batteryIndex.index, batteryIndex.metric);
+        _batteryHistorySubscriptions[batteryIndex] = SubscribeBatteryHistory(batteryIndex.index, batteryIndex.metric, value);
     }
 
     private IDisposable SubscribeFanHistory(int index, TimeSpan range) =>
@@ -595,10 +471,9 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .ObserveOn(_synchronizationContext)
             .Subscribe(pts =>
             {
-                var existingFan = Fans.FirstOrDefault(f => f.Snapshot.FanIndex == index);
-                if (existingFan != null)
+                if (_fanCardsByIndex.TryGetValue(index, out var fan))
                 {
-                    existingFan.FanSpeedHistory = pts
+                    fan.FanSpeedHistory = pts
                         .OrderBy(x => x.ObservedAt)
                         .ThenBy(x => x.SampleId)
                         .Select(x => new DateTimePoint(x.ObservedAt.LocalDateTime, x.SpeedRpm))
@@ -608,63 +483,34 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
     private void RemoveFanHistory(int index)
     {
-        if (_fanHistorySubscriptions.Remove(index, out IDisposable? sub)) sub.Dispose();
-        var existingFan = Fans.FirstOrDefault(f => f.Snapshot.FanIndex == index);
-        if (existingFan != null)
+        if (_fanHistorySubscriptions.Remove(index, out IDisposable? sub))
         {
-            existingFan.FanSpeedHistory = [];
+            sub.Dispose();
+        }
+
+        if (_fanCardsByIndex.TryGetValue(index, out var fan))
+        {
+            fan.FanSpeedHistory = [];
         }
     }
 
-    private IDisposable SubscribeTemperatureHistory(int index, TimeSpan value) =>
-        _temperatureTelemetryClient
-            .WatchTemperatureHistory(index, value)
-            .ToCollection()
-            .ObserveOn(_synchronizationContext)
-            .Subscribe(pts =>
-            {
-                var existing = TemperatureHistory.FirstOrDefault(s => s.SensorIndex == index);
-                var newData = new TemperatureTelemetryHistorySeries
-                {
-                    SensorIndex = index,
-                    Points =
-                    [
-                        .. pts
-                            .OrderBy(x => x.ObservedAt)
-                            .ThenBy(x => x.SampleId)
-                    ]
-                };
-                TemperatureHistory = existing != null ? TemperatureHistory.Replace(existing, newData) : TemperatureHistory.Add(newData);
-
-                var thermalSensor = ThermalSensors.FirstOrDefault(sensor => sensor.Snapshot.SensorIndex == index);
-                if (thermalSensor is not null)
-                {
-                    RefreshThermalSensorHistory(thermalSensor);
-                }
-            });
-
-    private void RemoveTemperatureHistory(int index)
+    private void RefreshBatterySensorHistories(PowerCardModel sensor)
     {
-        if (_temperatureHistorySubscriptions.Remove(index, out IDisposable? sub)) sub.Dispose();
-        var existing = TemperatureHistory.FirstOrDefault(s => s.SensorIndex == index);
-        if (existing != null) TemperatureHistory = TemperatureHistory.Remove(existing);
-
-        var thermalSensor = ThermalSensors.FirstOrDefault(sensor => sensor.Snapshot.SensorIndex == index);
-        if (thermalSensor is not null)
+        foreach (var metric in BatteryHistoryMetrics)
         {
-            thermalSensor.ClearTemperatureHistory();
+            RefreshBatterySensorHistory(sensor, metric);
         }
     }
 
     private void RefreshBatterySensorHistory(PowerCardModel sensor, TelemetryMetric metric)
     {
-        var existingHistory = BatteryHistory.FirstOrDefault(series => series.BatteryIndex == sensor.BatterySnapshot.BatteryIndex && series.Metric == metric);
-        UpdateBatterySensorHistory(sensor, metric, existingHistory is null ? [] : existingHistory.Points);
+        var key = (sensor.BatterySnapshot.BatteryIndex, metric);
+        UpdateBatterySensorHistory(sensor, metric, _batteryHistoryPoints.TryGetValue(key, out var historyPoints) ? historyPoints : []);
     }
 
-    private void UpdateBatterySensorHistory(PowerCardModel sensor, TelemetryMetric metric, ImmutableArray<TelemetryPoint> points)
+    private void UpdateBatterySensorHistory(PowerCardModel sensor, TelemetryMetric metric, IReadOnlyList<TelemetryPoint> points)
     {
-        DateTimePoint[] overviewHistory = points.IsDefaultOrEmpty
+        DateTimePoint[] overviewHistory = points.Count == 0
             ? []
             :
             [
@@ -694,13 +540,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
     private void RefreshThermalSensorHistory(ThermalSensorModel sensor)
     {
-        var existingHistory = TemperatureHistory.FirstOrDefault(series => series.SensorIndex == sensor.Snapshot.SensorIndex);
-        UpdateThermalSensorHistory(sensor, existingHistory is null ? [] : existingHistory.Points);
+        UpdateThermalSensorHistory(sensor, _temperatureHistoryPoints.TryGetValue(sensor.Snapshot.SensorIndex, out var historyPoints) ? historyPoints : []);
     }
 
-    private void UpdateThermalSensorHistory(ThermalSensorModel sensor, ImmutableArray<TelemetryPoint> points)
+    private void UpdateThermalSensorHistory(ThermalSensorModel sensor, IReadOnlyList<TelemetryPoint> points)
     {
-        DateTimePoint[] overviewHistory = points.IsDefaultOrEmpty
+        DateTimePoint[] overviewHistory = points.Count == 0
             ? []
             :
             [
@@ -786,14 +631,39 @@ public partial class DashboardModel : ObservableObject, IDisposable
         return snapshot.IsAvailable;
     }
 
-    private static bool IsThermalSensorVisible(ThermalSensorModel sensor)
-    {
-        return true;
-    }
+    private IDisposable SubscribeTemperatureHistory(int index, TimeSpan value) =>
+        _temperatureTelemetryClient
+            .WatchTemperatureHistory(index, value)
+            .ToCollection()
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(pts =>
+            {
+                _temperatureHistoryPoints[index] =
+                [
+                    .. pts
+                        .OrderBy(x => x.ObservedAt)
+                        .ThenBy(x => x.SampleId)
+                ];
 
-    private static bool IsFanVisible(FanCardModel fan)
+                if (_thermalSensorsByIndex.TryGetValue(index, out var sensor))
+                {
+                    RefreshThermalSensorHistory(sensor);
+                }
+            });
+
+    private void RemoveTemperatureHistory(int index)
     {
-        return true;
+        if (_temperatureHistorySubscriptions.Remove(index, out IDisposable? sub))
+        {
+            sub.Dispose();
+        }
+
+        _temperatureHistoryPoints.Remove(index);
+
+        if (_thermalSensorsByIndex.TryGetValue(index, out var sensor))
+        {
+            sensor.ClearTemperatureHistory();
+        }
     }
 
     private IDisposable SubscribeBatteryHistory(int index, TelemetryMetric metric, TimeSpan value) =>
@@ -803,38 +673,32 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .ObserveOn(_synchronizationContext)
             .Subscribe(pts =>
             {
-                var existing = BatteryHistory.FirstOrDefault(s => s.BatteryIndex == index && s.Metric == metric);
-                var newData = new BatteryTelemetryHistorySeries
-                {
-                    BatteryIndex = index,
-                    Metric = metric,
-                    Points =
-                    [
-                        .. pts
-                            .OrderBy(x => x.ObservedAt)
-                            .ThenBy(x => x.SampleId)
-                    ]
-                };
-                BatteryHistory = existing != null ? BatteryHistory.Replace(existing, newData) : BatteryHistory.Add(newData);
+                _batteryHistoryPoints[(index, metric)] =
+                [
+                    .. pts
+                        .OrderBy(x => x.ObservedAt)
+                        .ThenBy(x => x.SampleId)
+                ];
 
-                var existingBattery = Batteries.FirstOrDefault(battery => battery.BatterySnapshot.BatteryIndex == index);
-                if (existingBattery is not null)
+                if (_batteryCardsByIndex.TryGetValue(index, out var battery))
                 {
-                    RefreshBatterySensorHistory(existingBattery, metric);
+                    RefreshBatterySensorHistory(battery, metric);
                 }
             });
 
     private void RemoveBatteryHistory(int index, TelemetryMetric metric)
     {
         var key = (index, metric);
-        if (_batteryHistorySubscriptions.Remove(key, out IDisposable? sub)) sub.Dispose();
-        var existing = BatteryHistory.FirstOrDefault(s => s.BatteryIndex == index && s.Metric == metric);
-        if (existing != null) BatteryHistory = BatteryHistory.Remove(existing);
-
-        var existingBattery = Batteries.FirstOrDefault(battery => battery.BatterySnapshot.BatteryIndex == index);
-        if (existingBattery is not null)
+        if (_batteryHistorySubscriptions.Remove(key, out IDisposable? sub))
         {
-            existingBattery.ClearMetricHistory(metric);
+            sub.Dispose();
+        }
+
+        _batteryHistoryPoints.Remove(key);
+
+        if (_batteryCardsByIndex.TryGetValue(index, out var battery))
+        {
+            battery.ClearMetricHistory(metric);
         }
     }
 

@@ -18,6 +18,7 @@ namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 public sealed partial class DashboardPage : Page, INotifyPropertyChanged
 {
     private readonly Dictionary<ThermalSensorModel, PropertyChangedEventHandler> _thermalSensorHandlers = [];
+    private INotifyCollectionChanged? _thermalSensorsCollection;
     private INotifyCollectionChanged? _visibleThermalSensorsCollection;
     private double[] _thermalHistorySeparators = [];
     private double? _thermalHistoryMinLimit;
@@ -96,37 +97,66 @@ public sealed partial class DashboardPage : Page, INotifyPropertyChanged
 
     private void AttachViewModel(DashboardModel model)
     {
-        model.PropertyChanged += ViewModel_PropertyChanged;
+        _thermalSensorsCollection = model.ThermalSensors;
+        _thermalSensorsCollection.CollectionChanged += ThermalSensors_CollectionChanged;
         _visibleThermalSensorsCollection = model.VisibleThermalSensors;
-        _visibleThermalSensorsCollection.CollectionChanged += VisibleThermalSensors_CollectionChanged;
+        if (!ReferenceEquals(_visibleThermalSensorsCollection, _thermalSensorsCollection))
+        {
+            _visibleThermalSensorsCollection.CollectionChanged += VisibleThermalSensors_CollectionChanged;
+        }
+
         AttachThermalSensorHandlers(model.ThermalSensors);
         RefreshThermalHistoryChart();
     }
 
     private void DetachViewModel(DashboardModel model)
     {
-        model.PropertyChanged -= ViewModel_PropertyChanged;
+        var thermalSensorsCollection = _thermalSensorsCollection;
+
+        if (thermalSensorsCollection is not null)
+        {
+            thermalSensorsCollection.CollectionChanged -= ThermalSensors_CollectionChanged;
+            _thermalSensorsCollection = null;
+        }
+
         if (_visibleThermalSensorsCollection is not null)
         {
-            _visibleThermalSensorsCollection.CollectionChanged -= VisibleThermalSensors_CollectionChanged;
+            if (!ReferenceEquals(_visibleThermalSensorsCollection, thermalSensorsCollection))
+            {
+                _visibleThermalSensorsCollection.CollectionChanged -= VisibleThermalSensors_CollectionChanged;
+            }
+
             _visibleThermalSensorsCollection = null;
         }
 
         DetachThermalSensorHandlers();
     }
 
-    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs args)
+    private void ThermalSensors_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        if (ViewModel is null)
+        if (e.Action == NotifyCollectionChangedAction.Reset)
         {
+            DetachThermalSensorHandlers();
+            if (ViewModel is not null)
+            {
+                AttachThermalSensorHandlers(ViewModel.ThermalSensors);
+            }
+
+            RefreshThermalHistoryChart();
             return;
         }
 
-        if (args.PropertyName == nameof(DashboardModel.ThermalSensors))
+        if (e.OldItems is not null)
         {
-            DetachThermalSensorHandlers();
-            AttachThermalSensorHandlers(ViewModel.ThermalSensors);
+            DetachThermalSensorHandlers(e.OldItems.OfType<ThermalSensorModel>());
         }
+
+        if (e.NewItems is not null)
+        {
+            AttachThermalSensorHandlers(e.NewItems.OfType<ThermalSensorModel>());
+        }
+
+        RefreshThermalHistoryChart();
     }
 
     private void VisibleThermalSensors_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -138,6 +168,11 @@ public sealed partial class DashboardPage : Page, INotifyPropertyChanged
     {
         foreach (var sensor in sensors)
         {
+            if (_thermalSensorHandlers.ContainsKey(sensor))
+            {
+                continue;
+            }
+
             PropertyChangedEventHandler handler = (_, args) =>
             {
                 if (args.PropertyName == nameof(ThermalSensorModel.IsSelected))
@@ -157,14 +192,20 @@ public sealed partial class DashboardPage : Page, INotifyPropertyChanged
         }
     }
 
+    private void DetachThermalSensorHandlers(IEnumerable<ThermalSensorModel> sensors)
+    {
+        foreach (var sensor in sensors)
+        {
+            if (_thermalSensorHandlers.Remove(sensor, out var handler))
+            {
+                sensor.PropertyChanged -= handler;
+            }
+        }
+    }
+
     private void DetachThermalSensorHandlers()
     {
-        foreach (var (sensor, handler) in _thermalSensorHandlers)
-        {
-            sensor.PropertyChanged -= handler;
-        }
-
-        _thermalSensorHandlers.Clear();
+        DetachThermalSensorHandlers(_thermalSensorHandlers.Keys.ToArray());
     }
 
     private void RefreshThermalHistoryChart()
@@ -202,8 +243,7 @@ public sealed partial class DashboardPage : Page, INotifyPropertyChanged
             return [];
         }
 
-        return [.. ViewModel.ThermalSensors
-            .Where(sensor => ViewModel.VisibleThermalSensors.Contains(sensor) && sensor.IsSelected)];
+        return [.. ViewModel.VisibleThermalSensors.Where(sensor => sensor.IsSelected)];
     }
 
     private void UpdateThermalHistoryAxis(IEnumerable<ThermalSensorModel> selectedSensors)

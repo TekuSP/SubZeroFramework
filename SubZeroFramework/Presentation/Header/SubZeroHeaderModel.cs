@@ -18,6 +18,7 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
     //Error part
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShouldShowErrorBar))]
     public partial bool IsInError { get; set; } = false;
 
     [ObservableProperty]
@@ -33,6 +34,7 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
     public partial bool IsErrorClosable { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShouldShowErrorBar))]
     public partial bool SuppressErrorBar { get; set; }
 
     public bool ShouldShowErrorBar => IsInError && !SuppressErrorBar;
@@ -87,16 +89,6 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
         _hardwareInfoSubscription.DisposeWith(_subscriptions);
         StatusHeartbeat = "Telemetry: waiting";
         EndpointValidationMessage = string.Empty;
-    }
-
-    partial void OnIsInErrorChanged(bool value)
-    {
-        OnPropertyChanged(nameof(ShouldShowErrorBar));
-    }
-
-    partial void OnSuppressErrorBarChanged(bool value)
-    {
-        OnPropertyChanged(nameof(ShouldShowErrorBar));
     }
 
     public void SubscribeHardwareInfo()

@@ -93,7 +93,7 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 - ⏳ Add local caller validation for the gRPC socket before fan commands are enabled for broader use.
 - ⏳ Add stronger client-side validation of expected local service endpoint ownership and permissions where the platform allows it.
 - ✅ Add telemetry client sharing/consolidation for channels and current values similar to the shared status stream.
-- ⏳ Wire the first dedicated telemetry page end-to-end from `IFrameworkTelemetryClient` using the existing 1-hour DynamicData-backed history model. Dashboard and Device Capabilities inventory/status work is now in place; the preferred next target is Thermal Telemetry.
+- ✅ Wire the first dedicated telemetry page end-to-end from the existing IPC telemetry clients using the DynamicData-backed history model. Thermal Telemetry now shows stable current sensor cards, sensor-selection toggles, and a dedicated multi-series history chart without reintroducing direct `IFrameworkDataProvider` usage.
 - ✅ Decide whether header/service-health UI needs a heartbeat or last-updated indicator separate from distinct status transitions.
 - ✅ Start the command contract for fan-control writes with explicit acknowledgements and validation boundaries.
 - 🟡 Add integration tests for status reconnect behavior and telemetry stream startup semantics. Current regression coverage now includes endpoint validation failures and fan-command authorization gating, but reconnect and long-lived stream integration tests are still pending.
@@ -116,10 +116,10 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 
 ### 3. First end-to-end telemetry surface
 
-- ⏳ Pick the first dedicated telemetry page to wire next, preferably thermal telemetry, now that Dashboard and Device Capabilities inventory/status work is in place.
-- ⏳ Bind current values from `IFrameworkTelemetryClient`.
-- ⏳ Bind one chart series using the existing 1-hour DynamicData-backed history model.
-- ⏳ Keep the page behind IPC only; do not reintroduce direct `IFrameworkDataProvider` usage in the UI.
+- ✅ Pick the first dedicated telemetry page to wire next. Thermal Telemetry is now the implemented first dedicated telemetry surface.
+- ✅ Bind current values from the IPC telemetry clients.
+- ✅ Bind one chart series using the existing DynamicData-backed history model.
+- ✅ Keep the page behind IPC only; do not reintroduce direct `IFrameworkDataProvider` usage in the UI.
 
 ### 4. Header heartbeat decision
 

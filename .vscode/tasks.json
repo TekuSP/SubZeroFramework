@@ -85,14 +85,23 @@
     },
     {
       "label": "build-all",
-      "dependsOn": ["build-service", "build-linux", "build-windows"],
+      "dependsOn": [
+        "build-service",
+        "build-linux",
+        "build-windows"
+      ],
       "dependsOrder": "sequence"
     },
     {
       "label": "build-all-windows",
-      "dependsOn": ["build-service", "build-windows"],
-      "dependsOrder": "sequence"
+      "dependsOn": [
+        "build-service",
+        "build-windows"
+      ],
+      "dependsOrder": "sequence",
+      "problemMatcher": [
+        "$msCompile"
+      ]
     }
-
   ]
 }

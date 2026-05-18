@@ -103,10 +103,6 @@ public partial class MainModel : ObservableObject, IDisposable
         && string.Equals(item.Tag?.ToString(), "WarningIssues", StringComparison.Ordinal);
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWarningIssuesSelected))]
     public partial object? SelectedItem { get; set; }
-
-    partial void OnSelectedItemChanged(object? value)
-    {
-        OnPropertyChanged(nameof(IsWarningIssuesSelected));
-    }
 }

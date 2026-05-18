@@ -234,27 +234,45 @@ public partial class ThermalSensorModel : ObservableObject
 
 	private static void SynchronizePoints(ObservableCollection<DateTimePoint> target, IReadOnlyList<DateTimePoint> source)
 	{
-		var commonCount = Math.Min(target.Count, source.Count);
+		var targetIndex = 0;
+		var sourceIndex = 0;
 
-		for (var index = 0; index < commonCount; index++)
+		while (targetIndex < target.Count && sourceIndex < source.Count)
 		{
-			var current = target[index];
-			var next = source[index];
+			var current = target[targetIndex];
+			var next = source[sourceIndex];
 
-			if (current.DateTime != next.DateTime || current.Value != next.Value)
+			if (current.DateTime < next.DateTime)
 			{
-				target[index] = next;
+				target.RemoveAt(targetIndex);
+				continue;
 			}
+
+			if (current.DateTime > next.DateTime)
+			{
+				target.Insert(targetIndex, next);
+				targetIndex++;
+				sourceIndex++;
+				continue;
+			}
+
+			if (current.Value != next.Value)
+			{
+				target[targetIndex] = next;
+			}
+
+			targetIndex++;
+			sourceIndex++;
 		}
 
-		for (var index = target.Count - 1; index >= source.Count; index--)
+		while (targetIndex < target.Count)
 		{
-			target.RemoveAt(index);
+			target.RemoveAt(targetIndex);
 		}
 
-		for (var index = commonCount; index < source.Count; index++)
+		for (; sourceIndex < source.Count; sourceIndex++)
 		{
-			target.Add(source[index]);
+			target.Add(source[sourceIndex]);
 		}
 	}
 
