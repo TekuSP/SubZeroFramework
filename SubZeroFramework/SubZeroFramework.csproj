@@ -91,6 +91,56 @@
       </Page>
     </ItemGroup>
     <ItemGroup>
+      <Page Update="Controls\DeviceCapabilities\CoolingSectionView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+        <Page Update="Controls\DeviceCapabilities\CpuSectionView.xaml">
+            <Generator>MSBuild:Compile</Generator>
+        </Page>
+    </ItemGroup>
+    <ItemGroup>
+        <Page Update="Controls\DeviceCapabilities\GraphicsSectionView.xaml">
+            <Generator>MSBuild:Compile</Generator>
+        </Page>
+    </ItemGroup>
+    <ItemGroup>
+        <Page Update="Controls\DeviceCapabilities\MemorySectionView.xaml">
+            <Generator>MSBuild:Compile</Generator>
+        </Page>
+    </ItemGroup>
+    <ItemGroup>
+        <Page Update="Controls\DeviceCapabilities\NetworkSectionView.xaml">
+            <Generator>MSBuild:Compile</Generator>
+        </Page>
+    </ItemGroup>
+    <ItemGroup>
+        <Page Update="Controls\DeviceCapabilities\OnboardStatusSectionView.xaml">
+            <Generator>MSBuild:Compile</Generator>
+        </Page>
+    </ItemGroup>
+    <ItemGroup>
+        <Page Update="Controls\DeviceCapabilities\PlatformFirmwareSectionView.xaml">
+            <Generator>MSBuild:Compile</Generator>
+        </Page>
+    </ItemGroup>
+    <ItemGroup>
+        <Page Update="Controls\DeviceCapabilities\StorageSectionView.xaml">
+            <Generator>MSBuild:Compile</Generator>
+        </Page>
+    </ItemGroup>
+    <ItemGroup>
+        <Page Update="Controls\DeviceCapabilities\SystemProfileSectionView.xaml">
+            <Generator>MSBuild:Compile</Generator>
+        </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Controls\Dashboard\Fans\FanCardView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
       <Page Update="Themes\Generic.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>

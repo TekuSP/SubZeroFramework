@@ -58,6 +58,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 
 ### 3. UI patterns
 - DI container is configured in `SubZeroFramework/App.xaml.cs`.
+- Page code-behind must keep `ViewModel` as a simple CLR property, not a `DependencyProperty`. Follow the lightweight pattern used by `PowerTelemetryPage`, `ThermalTelemetryPage`, and `WarningIssuesPage`: a simple `ViewModel` property in code-behind, with all additional bindable state moved into the view model and consumed via `x:Bind`.
 - UI view models use `SynchronizationContext` or `DispatcherQueue` to observe on UI thread.
 - `ReadOnlyObservableCollection<T>` is the preferred binding target for DynamicData outputs.
 - Device Capabilities is the current reference pattern for inventory pages: dashboard-aligned cards, copyable value text, stable mutable card/view models, and Framework-first with Hardware.Info fallback data sourcing through IPC.

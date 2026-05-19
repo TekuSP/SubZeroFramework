@@ -11,9 +11,6 @@ namespace SubZeroFramework.Services;
 
 public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, IDisposable
 {
-    private static readonly TimeSpan MaximumHistoryWindow = TimeSpan.FromHours(1);
-    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(2);
-
     private readonly FrameworkGrpcChannelFactory _channelFactory;
     private readonly FrameworkTelemetryService.FrameworkTelemetryServiceClient _client;
     private readonly IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> _sharedChannels;
@@ -58,9 +55,9 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
     {
         ThrowIfDisposed();
 
-        if (historyWindow <= TimeSpan.Zero || historyWindow > MaximumHistoryWindow)
+        if (historyWindow <= TimeSpan.Zero || historyWindow > TelemetryHistoryLimits.MaximumHistoryWindow)
         {
-            throw new ArgumentOutOfRangeException(nameof(historyWindow), $"History window must be between {TimeSpan.Zero} and {MaximumHistoryWindow}.");
+            throw new ArgumentOutOfRangeException(nameof(historyWindow), $"History window must be between {TimeSpan.Zero} and {TelemetryHistoryLimits.MaximumHistoryWindow}.");
         }
 
         return _seriesStreams.GetOrAdd(new TelemetrySeriesStreamKey(channelId, historyWindow), () => CreateSeriesStream(channelId, historyWindow));
@@ -120,7 +117,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
                     try
                     {
-                        await Task.Delay(ReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
+                        await Task.Delay(GrpcTransportDefaults.StreamReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
                     {
@@ -184,7 +181,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
                     try
                     {
-                        await Task.Delay(ReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
+                        await Task.Delay(GrpcTransportDefaults.StreamReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
                     {
@@ -255,7 +252,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
                     try
                     {
-                        await Task.Delay(ReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
+                        await Task.Delay(GrpcTransportDefaults.StreamReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
                     {

@@ -1,10 +1,8 @@
-using System.ComponentModel;
-
 // The User Control item template is documented at https://go.microsoft.com/fwlink/?LinkId=234236
 
 namespace SubZeroFramework.Presentation.Header;
 
-public sealed partial class SubZeroHeaderControl : UserControl, INotifyPropertyChanged
+public sealed partial class SubZeroHeaderControl : UserControl
 {
     public static readonly DependencyProperty SystemContainerProperty = DependencyProperty.Register(
         nameof(SystemContainer),
@@ -19,6 +17,12 @@ public sealed partial class SubZeroHeaderControl : UserControl, INotifyPropertyC
         typeof(SubZeroHeaderControl),
         new PropertyMetadata(false, SuppressErrorBarChanged)
     );
+
+    public static readonly DependencyProperty ViewModelProperty = DependencyProperty.Register(
+        nameof(ViewModel),
+        typeof(SubZeroHeaderModel),
+        typeof(SubZeroHeaderControl),
+        new PropertyMetadata(null));
 
     private static void ContainerChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -36,17 +40,10 @@ public sealed partial class SubZeroHeaderControl : UserControl, INotifyPropertyC
         }
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-
     public SubZeroHeaderModel ViewModel
     {
-        get => field;
-        set
-        {
-            if (field == value) return;
-            field = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ViewModel)));
-        }
+        get => (SubZeroHeaderModel)GetValue(ViewModelProperty);
+        private set => SetValue(ViewModelProperty, value);
     }
 
     public IServiceProvider SystemContainer

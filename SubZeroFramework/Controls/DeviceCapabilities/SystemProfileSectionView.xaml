@@ -1,0 +1,193 @@
+﻿<UserControl
+    x:Class="SubZeroFramework.Controls.DeviceCapabilities.SystemProfileSectionView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="IsTextSelectionEnabled" Value="True" />
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Spacing="12">
+        <TextBlock
+            Margin="15,0"
+            FontSize="28"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource TextPrimaryBrush}"
+            Text="System Profile" />
+        <StackPanel Margin="10,0">
+            <controls:ElevatedCard
+                Margin="0"
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Stretch"
+                Background="{StaticResource CardBackgroundBrush}">
+                <StackPanel Padding="14" Spacing="14">
+                    <TextBlock
+                        FontSize="22"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Device Identity" />
+                    <Grid ColumnSpacing="12" RowSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Border
+                            Padding="12"
+                            Background="#1AFFFFFF"
+                            CornerRadius="10">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Operating system" />
+                                <TextBlock
+                                    FontSize="26"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.SystemProfileOs, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border
+                            Grid.Column="1"
+                            Padding="12"
+                            Background="#1AFFFFFF"
+                            CornerRadius="10">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Vendor" />
+                                <TextBlock
+                                    FontSize="26"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.SystemProfileVendor, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border
+                            Grid.Column="2"
+                            Padding="12"
+                            Background="#1AFFFFFF"
+                            CornerRadius="10">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Model" />
+                                <TextBlock
+                                    FontSize="26"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.SystemProfileModel, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border
+                            Grid.Row="1"
+                            Padding="12"
+                            Background="#1AFFFFFF"
+                            CornerRadius="10">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="OS version" />
+                                <TextBlock
+                                    FontSize="26"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.SystemProfileOsVersion, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Padding="12"
+                            Background="#1AFFFFFF"
+                            CornerRadius="10">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Product / SKU" />
+                                <TextBlock
+                                    FontSize="26"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.SystemProfileProductName, FallbackValue=Not separately reported, TargetNullValue=Not separately reported, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border
+                            Grid.Row="1"
+                            Grid.Column="2"
+                            Padding="12"
+                            Background="#1AFFFFFF"
+                            CornerRadius="10">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="System revision" />
+                                <TextBlock
+                                    FontSize="26"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.SystemProfileSystemVersion, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Grid ColumnSpacing="12" RowSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border
+                            Padding="12"
+                            Background="#1AFFFFFF"
+                            CornerRadius="12">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="EC build" />
+                                <TextBlock
+                                    FontSize="18"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.SystemProfileEcBuildInfo, FallbackValue=Unavailable, TargetNullValue=Unavailable, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border
+                            Grid.Column="1"
+                            Padding="12"
+                            Background="#1AFFFFFF"
+                            CornerRadius="12">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="BIOS version" />
+                                <TextBlock
+                                    FontSize="18"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.SystemProfileBiosVersion, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border
+                            Grid.Column="2"
+                            Padding="12"
+                            Background="#1AFFFFFF"
+                            CornerRadius="12">
+                            <StackPanel>
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="BIOS release date" />
+                                <TextBlock
+                                    FontSize="18"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.SystemProfileBiosReleaseDate, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </controls:ElevatedCard>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

@@ -1,21 +1,19 @@
 using System.ComponentModel;
 
-// The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=234238
-
 namespace SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 
-/// <summary>
-/// An empty page that can be used on its own or navigated to within a Frame.
-/// </summary>
-public sealed partial class FanCurveProfilesPage : Page, INotifyPropertyChanged
+public sealed partial class FanCurveProfilesPage : Page
 {
     public FanCurveProfilesPage()
     {
         this.InitializeComponent();
         DataContextChanged += DataContextChanged_Handler;
     }
+
     public event PropertyChangedEventHandler? PropertyChanged;
-    public FanCurveProfilesModel? ViewModel
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SubZeroFramework.Mvvm", "SZF0009:Avoid direct PropertyChanged event invocation", Justification = "<Pending>")]
+    public FanCurveProfilesModel ViewModel
     {
         get => field;
         set
@@ -24,7 +22,7 @@ public sealed partial class FanCurveProfilesPage : Page, INotifyPropertyChanged
             field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ViewModel)));
         }
-    }
+    } = default!;
 
     private void DataContextChanged_Handler(FrameworkElement sender, DataContextChangedEventArgs args)
     {

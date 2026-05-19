@@ -1,0 +1,56 @@
+using System;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+
+using CommunityToolkit.Mvvm.ComponentModel;
+
+using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
+
+namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
+
+public sealed partial class DeviceCapabilitiesStorageSectionModel : ObservableObject, IDisposable
+{
+    private readonly DeviceCapabilitiesModel _parent;
+
+    public DeviceCapabilitiesStorageSectionModel(DeviceCapabilitiesModel parent)
+    {
+        _parent = parent;
+        _parent.PropertyChanged += ParentPropertyChanged;
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StorageDriveCount))]
+    [NotifyPropertyChangedFor(nameof(TotalStorageCapacity))]
+    [NotifyPropertyChangedFor(nameof(TotalStorageUsedSpace))]
+    [NotifyPropertyChangedFor(nameof(TotalStorageFreeSpace))]
+    [NotifyPropertyChangedFor(nameof(TotalStorageUsagePercent))]
+    [NotifyPropertyChangedFor(nameof(TotalStorageUsageSummary))]
+    private partial int SnapshotVersion { get; set; }
+
+    public int StorageDriveCount => _parent.StorageDriveCount;
+
+    public string TotalStorageCapacity => _parent.TotalStorageCapacity;
+
+    public string TotalStorageUsedSpace => _parent.TotalStorageUsedSpace;
+
+    public string TotalStorageFreeSpace => _parent.TotalStorageFreeSpace;
+
+    public double TotalStorageUsagePercent => _parent.TotalStorageUsagePercent;
+
+    public string TotalStorageUsageSummary => _parent.TotalStorageUsageSummary;
+
+    public ReadOnlyObservableCollection<DeviceCapabilitiesStorageDriveCardModel> StorageDriveCards => _parent.StorageDriveCards;
+
+    public void Dispose()
+    {
+        _parent.PropertyChanged -= ParentPropertyChanged;
+    }
+
+    private void ParentPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DeviceCapabilitiesModel.Snapshot))
+        {
+            SnapshotVersion++;
+        }
+    }
+}

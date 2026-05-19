@@ -12,8 +12,6 @@ namespace SubZeroFramework.Services;
 
 public sealed class GrpcFanStateClient : IFanStateClient, IDisposable
 {
-    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(2);
-
     private readonly FrameworkGrpcChannelFactory _channelFactory;
     private readonly FrameworkTelemetryService.FrameworkTelemetryServiceClient _client;
     private readonly IObservable<IChangeSet<FanStateSnapshot, int>> _sharedFanStates;
@@ -88,7 +86,7 @@ public sealed class GrpcFanStateClient : IFanStateClient, IDisposable
 
                     try
                     {
-                        await Task.Delay(ReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
+                        await Task.Delay(GrpcTransportDefaults.StreamReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
                     {

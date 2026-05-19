@@ -7,6 +7,9 @@ internal static class AnalyzerSymbolHelpers
     internal const string ObservableObjectMetadataName = "CommunityToolkit.Mvvm.ComponentModel.ObservableObject";
     internal const string ObservablePropertyAttributeMetadataName = "CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute";
     internal const string RelayCommandInterfaceMetadataName = "CommunityToolkit.Mvvm.Input.IRelayCommand";
+    internal const string PropertyChangedEventHandlerMetadataName = "System.ComponentModel.PropertyChangedEventHandler";
+    internal const string DictionaryMetadataName = "System.Collections.Generic.Dictionary`2";
+    internal const string DictionaryInterfaceMetadataName = "System.Collections.Generic.IDictionary`2";
     internal const string IObservableMetadataName = "System.IObservable`1";
     internal const string IObserverMetadataName = "System.IObserver`1";
     internal const string IDisposableMetadataName = "System.IDisposable";
@@ -68,5 +71,26 @@ internal static class AnalyzerSymbolHelpers
         return namedType.TypeArguments.Length == 2
             && IsType(namedType.TypeArguments[0], CurrentTelemetryValueMetadataName)
             && IsType(namedType.TypeArguments[1], TelemetryChannelIdMetadataName);
+    }
+
+    internal static bool IsDisposableRegistry(ITypeSymbol? type, Compilation compilation)
+    {
+        if (type is not INamedTypeSymbol namedType || namedType.TypeArguments.Length != 2)
+        {
+            return false;
+        }
+
+        var isDictionaryLike = IsType(namedType.OriginalDefinition, DictionaryMetadataName)
+            || IsType(namedType.OriginalDefinition, DictionaryInterfaceMetadataName)
+            || ImplementsInterface(namedType, compilation, DictionaryInterfaceMetadataName);
+
+        if (!isDictionaryLike)
+        {
+            return false;
+        }
+
+        var valueType = namedType.TypeArguments[1];
+        return IsType(valueType, IDisposableMetadataName)
+            || ImplementsInterface(valueType as INamedTypeSymbol, compilation, IDisposableMetadataName);
     }
 }

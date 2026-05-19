@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Reactive.Disposables;
 using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
@@ -9,8 +10,16 @@ using DynamicData;
 
 using FrameworkDotnet.Enums;
 
+using LiveChartsCore;
 using LiveChartsCore.Defaults;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
 
+using SkiaSharp;
+
+using SubZeroFramework.Controls.Fans.Models;
+using SubZeroFramework.Controls.Power.Models;
+using SubZeroFramework.Controls.Thermal.Models;
 using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
@@ -37,10 +46,6 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private readonly ITemperatureTelemetryClient _temperatureTelemetryClient;
     private readonly IBatteryTelemetryClient _batteryTelemetryClient;
     private readonly SynchronizationContext _synchronizationContext;
-    private readonly TimeSpan _initialTimeSpan = TimeSpan.FromSeconds(30);
-    private readonly TimeSpan _temperatureHistoryWindow = TimeSpan.FromHours(1);
-    private readonly TimeSpan _thermalCardHistoryWindow = TimeSpan.FromSeconds(30);
-    private readonly TimeSpan _batteryCardHistoryWindow = TimeSpan.FromHours(1);
     private static readonly TelemetryMetric[] BatteryHistoryMetrics =
     [
         TelemetryMetric.BatteryChargePercent,
@@ -51,6 +56,8 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private readonly Dictionary<int, IDisposable> _fanHistorySubscriptions = [];
     private readonly Dictionary<int, IDisposable> _temperatureHistorySubscriptions = [];
     private readonly Dictionary<(int Index, TelemetryMetric Metric), IDisposable> _batteryHistorySubscriptions = [];
+    private readonly Dictionary<ThermalSensorModel, PropertyChangedEventHandler> _thermalSensorHandlers = [];
+    private readonly Dictionary<int, ISeries> _thermalHistorySeriesBySensorIndex = [];
 
     public DashboardModel(
         IStringLocalizer localizer,
@@ -78,6 +85,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
         ThermalSensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_thermalSensors);
         VisibleThermalSensors = ThermalSensors;
         Batteries = new ReadOnlyObservableCollection<PowerCardModel>(_batteries);
+        UpdateThermalHistoryAxis([]);
 
         frameworkStatusClient
             .WatchStatus()
@@ -200,7 +208,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
                         _fanCardsByIndex[change.Key] = fan;
                         InsertSorted(_fans, fan, card => card.Snapshot.FanIndex);
-                        EnsureFanHistorySubscription(change.Key, _initialTimeSpan);
+                        EnsureFanHistorySubscription(change.Key, PresentationDefaults.RecentTelemetryHistoryWindow);
                         continue;
                     }
 
@@ -251,9 +259,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
                         };
 
                         _thermalSensorsByIndex[change.Key] = thermalSensor;
+                        AttachThermalSensorHandler(thermalSensor);
+                        _thermalHistorySeriesBySensorIndex[change.Key] = CreateThermalHistorySeries(thermalSensor);
                         InsertSorted(_thermalSensors, thermalSensor, sensor => sensor.Snapshot.SensorIndex);
-                        EnsureTemperatureHistorySubscription(change.Key, _temperatureHistoryWindow);
+                        EnsureTemperatureHistorySubscription(change.Key, TelemetryHistoryLimits.MaximumHistoryWindow);
                         RefreshThermalSensorHistory(thermalSensor);
+                        RefreshThermalHistoryChart();
                         drivingSensorsChanged = true;
                         continue;
                     }
@@ -306,7 +317,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
                         _batteryCardsByIndex[change.Key] = batteryCard;
                         InsertSorted(_batteries, batteryCard, card => card.BatterySnapshot.BatteryIndex);
-                        EnsureBatteryHistorySubscriptions(change.Key, _batteryCardHistoryWindow);
+                        EnsureBatteryHistorySubscriptions(change.Key, TelemetryHistoryLimits.MaximumHistoryWindow);
                         RefreshBatterySensorHistories(batteryCard);
                         continue;
                     }
@@ -329,6 +340,22 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial FrameworkSystemStatus? LastStatus { get; set; }
+
+    [ObservableProperty]
+    public partial ISeries[] ThermalHistorySeries { get; set; } = [];
+
+    [ObservableProperty]
+    public partial double[] ThermalHistorySeparators { get; set; } = [];
+
+    [ObservableProperty]
+    public partial double? ThermalHistoryMinLimit { get; set; }
+
+    [ObservableProperty]
+    public partial double? ThermalHistoryMaxLimit { get; set; }
+
+    public Func<double, string> ThermalLabelFormatter { get; } = static value => $"{value:N0}°C";
+
+    public Func<DateTime, string> ThermalHistoryDateFormatter { get; } = ThermalSensorModel.Formatter;
 
     public ReadOnlyObservableCollection<FanCardModel> Fans { get; }
 
@@ -411,10 +438,16 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private void RemoveTemperatureSensor(int sensorIndex)
     {
         RemoveTemperatureHistory(sensorIndex);
+
+        _thermalHistorySeriesBySensorIndex.Remove(sensorIndex);
+
         if (_thermalSensorsByIndex.Remove(sensorIndex, out var sensor))
         {
+            DetachThermalSensorHandler(sensor);
             _thermalSensors.Remove(sensor);
         }
+
+        RefreshThermalHistoryChart();
     }
 
     private void RemoveBatteryCard(int batteryIndex)
@@ -530,7 +563,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
             return;
         }
 
-        var cardStart = overviewHistory[^1].DateTime - _batteryCardHistoryWindow;
+        var cardStart = overviewHistory[^1].DateTime - TelemetryHistoryLimits.MaximumHistoryWindow;
         var cardHistory = overviewHistory
             .Where(point => point.DateTime >= cardStart)
             .ToArray();
@@ -541,6 +574,112 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private void RefreshThermalSensorHistory(ThermalSensorModel sensor)
     {
         UpdateThermalSensorHistory(sensor, _temperatureHistoryPoints.TryGetValue(sensor.Snapshot.SensorIndex, out var historyPoints) ? historyPoints : []);
+    }
+
+    private void AttachThermalSensorHandler(ThermalSensorModel sensor)
+    {
+        if (_thermalSensorHandlers.ContainsKey(sensor))
+        {
+            return;
+        }
+
+        PropertyChangedEventHandler handler = (_, args) =>
+        {
+            if (args.PropertyName == nameof(ThermalSensorModel.IsSelected))
+            {
+                RefreshThermalHistoryChart();
+                return;
+            }
+
+            if (args.PropertyName == nameof(ThermalSensorModel.OverviewTemperatureHistory))
+            {
+                UpdateThermalHistoryAxis();
+            }
+        };
+
+        sensor.PropertyChanged += handler;
+        _thermalSensorHandlers[sensor] = handler;
+    }
+
+    private void DetachThermalSensorHandler(ThermalSensorModel sensor)
+    {
+        if (_thermalSensorHandlers.Remove(sensor, out var handler))
+        {
+            sensor.PropertyChanged -= handler;
+        }
+    }
+
+    private void DetachThermalSensorHandlers()
+    {
+        foreach (var sensor in _thermalSensorHandlers.Keys.ToArray())
+        {
+            DetachThermalSensorHandler(sensor);
+        }
+    }
+
+    private void RefreshThermalHistoryChart()
+    {
+        var selectedSensors = GetSelectedThermalSensors();
+
+        UpdateThermalHistoryAxis(selectedSensors);
+        ThermalHistorySeries = [.. selectedSensors.Select(GetOrCreateThermalHistorySeries)];
+    }
+
+    private void UpdateThermalHistoryAxis()
+    {
+        UpdateThermalHistoryAxis(GetSelectedThermalSensors());
+    }
+
+    private void UpdateThermalHistoryAxis(IEnumerable<ThermalSensorModel> selectedSensors)
+    {
+        var historyPoints = selectedSensors
+            .SelectMany(sensor => sensor.OverviewTemperatureHistory)
+            .Select(point => point.DateTime)
+            .OrderBy(point => point)
+            .ToArray();
+
+        var (axisStart, axisEnd, separators) = TimeChartAxisHelper.BuildAxis(
+            historyPoints,
+            TelemetryHistoryLimits.MaximumHistoryWindow,
+            TimeChartAxisHelper.StandardLongSpanSeparatorStep);
+
+        ThermalHistoryMinLimit = axisStart.Ticks;
+        ThermalHistoryMaxLimit = axisEnd.Ticks;
+        ThermalHistorySeparators = separators;
+    }
+
+    private ThermalSensorModel[] GetSelectedThermalSensors()
+    {
+        return [.. VisibleThermalSensors.Where(sensor => sensor.IsSelected)];
+    }
+
+    private ISeries GetOrCreateThermalHistorySeries(ThermalSensorModel sensor)
+    {
+        if (_thermalHistorySeriesBySensorIndex.TryGetValue(sensor.Snapshot.SensorIndex, out var series))
+        {
+            return series;
+        }
+
+        series = CreateThermalHistorySeries(sensor);
+        _thermalHistorySeriesBySensorIndex[sensor.Snapshot.SensorIndex] = series;
+        return series;
+    }
+
+    private static ISeries CreateThermalHistorySeries(ThermalSensorModel sensor)
+    {
+        var strokeColor = SKColor.Parse(sensor.HistoryStrokeHex);
+
+        return new LineSeries<DateTimePoint>
+        {
+            Values = sensor.OverviewTemperatureHistory,
+            Name = sensor.DisplayName,
+            Fill = null,
+            GeometrySize = 6,
+            GeometryFill = new SolidColorPaint(strokeColor),
+            GeometryStroke = new SolidColorPaint(strokeColor, 2),
+            LineSmoothness = 0.6,
+            Stroke = new SolidColorPaint(strokeColor, 3),
+        };
     }
 
     private void UpdateThermalSensorHistory(ThermalSensorModel sensor, IReadOnlyList<TelemetryPoint> points)
@@ -565,7 +704,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
             return;
         }
 
-        var cardStart = overviewHistory[^1].DateTime - _thermalCardHistoryWindow;
+        var cardStart = overviewHistory[^1].DateTime - PresentationDefaults.RecentTelemetryHistoryWindow;
         var cardHistory = overviewHistory
             .Where(point => point.DateTime >= cardStart)
             .ToArray();
@@ -704,6 +843,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        DetachThermalSensorHandlers();
         _subscriptions.Dispose();
         foreach (var sub in _fanHistorySubscriptions.Values) sub.Dispose();
         foreach (var sub in _temperatureHistorySubscriptions.Values) sub.Dispose();

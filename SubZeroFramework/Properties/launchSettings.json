@@ -12,10 +12,10 @@
       "commandName": "Project",
       "compatibleTargetFramework": "windows"
     },
-    //"SubZeroFramework (Desktop)": {
-    //  "commandName": "Project",
-    //  "compatibleTargetFramework": "desktop"
-    //},
+    "SubZeroFramework (Desktop DEBUG ONLY - EMERGENCY)": {
+      "commandName": "Project",
+      "compatibleTargetFramework": "desktop"
+    },
     "SubZeroFramework (Desktop WSL2)": {
       "commandName": "WSL2",
       "commandLineArgs": "{ProjectDir}/bin/x64/Debug/net10.0-desktop/SubZeroFramework.dll",

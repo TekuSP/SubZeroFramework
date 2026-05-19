@@ -13,6 +13,8 @@
         "DOTNET_ENVIRONMENT": "Development"
       },
       "distributionName": "archlinux",
+      "executablePath": "sudo",
+      "commandLineArgs": "dotnet \"{ProjectDir}/bin/Debug/net10.0/SubZeroFramework.Service.dll\"",
       "compatibleTargetFramework": "desktop",
       "DISPLAY": ":0",
       "GDK_GL": "gles" // use this line when running under WSL on Windows 11

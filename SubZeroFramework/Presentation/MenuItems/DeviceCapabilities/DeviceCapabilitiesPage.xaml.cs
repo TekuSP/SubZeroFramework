@@ -1,17 +1,9 @@
 using System.ComponentModel;
-using System.Linq;
-
-// The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=234238
 
 namespace SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 
-/// <summary>
-/// An empty page that can be used on its own or navigated to within a Frame.
-/// </summary>
 public sealed partial class DeviceCapabilitiesPage : Page, INotifyPropertyChanged
 {
-    private DeviceCapabilitiesModel? _viewModel;
-
     public DeviceCapabilitiesPage()
     {
         this.InitializeComponent();
@@ -20,16 +12,17 @@ public sealed partial class DeviceCapabilitiesPage : Page, INotifyPropertyChange
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public DeviceCapabilitiesModel? ViewModel
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SubZeroFramework.Mvvm", "SZF0009:Avoid direct PropertyChanged event invocation", Justification = "<Pending>")]
+    public DeviceCapabilitiesModel ViewModel
     {
-        get => _viewModel;
+        get => field;
         set
         {
-            if (_viewModel == value) return;
-            _viewModel = value;
+            if (field == value) return;
+            field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ViewModel)));
         }
-    }
+    } = default!;
 
     private void DataContextChanged_Handler(FrameworkElement sender, DataContextChangedEventArgs args)
     {

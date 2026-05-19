@@ -58,6 +58,8 @@ Use this for fan settings UI, capability badges, or conditional command enableme
 - `Features`
 - `SupportsFanControl`
 - `SupportsThermalReporting`
+- `MaximumSpeedRpm`
+- `CoolingDetails`
 - `ObservedAt`
 - `IsAvailable`
 

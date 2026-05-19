@@ -19,7 +19,6 @@ namespace SubZeroFramework.Services;
 
 public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 {
-    private static readonly TimeSpan MaximumHistoryWindow = TimeSpan.FromHours(1);
     private static readonly IScheduler TelemetryScheduler = Scheduler.Default;
 
     private static readonly string ConnectionLibraryVersion = typeof(FrameworkSystem)
@@ -36,17 +35,17 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private IFrameworkSystem _frameworkSystem;
     private readonly ILogger<FrameworkDataProvider> _logger;
     private readonly Lock _syncLock = new();
-    private readonly RetainedSnapshotStream<FrameworkSystemStatus> _systemStatus = new(MaximumHistoryWindow, TelemetryScheduler);
-    private readonly RetainedSnapshotStream<FrameworkEcFlashSnapshot> _flashSnapshots = new(MaximumHistoryWindow, TelemetryScheduler);
-    private readonly RetainedSnapshotStream<FrameworkFanCapabilitiesSnapshot> _fanCapabilitiesSnapshots = new(MaximumHistoryWindow, TelemetryScheduler);
-    private readonly RetainedSnapshotStream<FrameworkPowerSnapshot> _powerSnapshots = new(MaximumHistoryWindow, TelemetryScheduler);
-    private readonly RetainedSnapshotStream<FrameworkThermalSnapshot> _thermalSnapshots = new(MaximumHistoryWindow, TelemetryScheduler);
+    private readonly RetainedSnapshotStream<FrameworkSystemStatus> _systemStatus = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
+    private readonly RetainedSnapshotStream<FrameworkEcFlashSnapshot> _flashSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
+    private readonly RetainedSnapshotStream<FrameworkFanCapabilitiesSnapshot> _fanCapabilitiesSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
+    private readonly RetainedSnapshotStream<FrameworkPowerSnapshot> _powerSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
+    private readonly RetainedSnapshotStream<FrameworkThermalSnapshot> _thermalSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
     private readonly SourceCache<FanCapabilityState, int> _fanCapabilities = new(capability => capability.FanIndex);
     private readonly SourceCache<FanStateSnapshot, int> _fanStates = new(fanState => fanState.FanIndex);
     private readonly SourceCache<TelemetryChannel, TelemetryChannelId> _telemetryChannels = new(channel => channel.Id);
     private readonly SourceCache<CurrentTelemetryValue, TelemetryChannelId> _currentTelemetryValues = new(value => value.ChannelId);
     private readonly SourceCache<TelemetryPoint, long> _telemetryPoints = new(point => point.SampleId);
-    private readonly RetainedSnapshotStream<HardwareInfoSnapshot> _hardwareInfoSnapshots = new(MaximumHistoryWindow, TelemetryScheduler);
+    private readonly RetainedSnapshotStream<HardwareInfoSnapshot> _hardwareInfoSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
     private readonly CompositeDisposable _subscriptions = [];
     private readonly FrameworkFanControlSafetyTracker _fanControlSafetyTracker;
     private HardwareInfoSnapshot _latestHardwareInfoSnapshot = new()
@@ -89,7 +88,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         ThermalSnapshots = _thermalSnapshots;
         HardwareInfoSnapshots = _hardwareInfoSnapshots;
         _telemetryPoints
-            .ExpireAfter(_ => MaximumHistoryWindow, scheduler: TelemetryScheduler)
+            .ExpireAfter(_ => TelemetryHistoryLimits.MaximumHistoryWindow, scheduler: TelemetryScheduler)
             .Subscribe()
             .DisposeWith(_subscriptions);
     }
@@ -197,14 +196,24 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         return _telemetryPoints
             .Connect()
             .Filter(point => point.ChannelId == channelId)
-            .ExpireAfter(point => GetRemainingHistory(point.ObservedAt, validatedHistoryWindow), scheduler: TelemetryScheduler);
+            .ExpireAfter(
+                point =>
+                {
+                    var remainingLifetime = (point.ObservedAt + validatedHistoryWindow) - TelemetryScheduler.Now;
+                    return remainingLifetime > TimeSpan.Zero ? remainingLifetime : TimeSpan.Zero;
+                },
+                scheduler: TelemetryScheduler);
     }
 
     public IObservable<IChangeSet<TelemetryPoint, long>> ConnectTemperatureSeries(int sensorIndex, TimeSpan historyWindow)
-        => ConnectTelemetrySeries(CreateTemperatureChannelId(sensorIndex), historyWindow);
+        => ConnectTelemetrySeries(
+            new TelemetryChannelId(TelemetryArea.Thermal, TelemetryEntityKind.TemperatureSensor, sensorIndex, TelemetryMetric.TemperatureCelsius),
+            historyWindow);
 
     public IObservable<IChangeSet<TelemetryPoint, long>> ConnectFanSpeedSeries(int fanIndex, TimeSpan historyWindow)
-        => ConnectTelemetrySeries(CreateFanSpeedChannelId(fanIndex), historyWindow);
+        => ConnectTelemetrySeries(
+            new TelemetryChannelId(TelemetryArea.Thermal, TelemetryEntityKind.Fan, fanIndex, TelemetryMetric.FanSpeedRpm),
+            historyWindow);
 
     public IObservable<IChangeSet<TelemetryPoint, long>> ConnectBatteryChargeSeries(int batteryIndex, TimeSpan historyWindow)
         => ConnectTelemetrySeries(CreateBatteryChannelId(batteryIndex, TelemetryMetric.BatteryChargePercent), historyWindow);
@@ -842,7 +851,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         {
             _logger.LogDebug("Publishing fan capability snapshot for {FanCount} fan(s) at {ObservedAt}.", fanCapabilitiesSnapshot!.FanCount, observedAt);
             _fanCapabilitiesSnapshots.Publish(fanCapabilitiesSnapshot!, observedAt);
-            PublishFanCapabilities(fanCapabilitiesSnapshot!, observedAt);
+            PublishFanCapabilities(fanCapabilitiesSnapshot!, connectedStatus.Platform, connectedStatus.PlatformFamily, observedAt);
             successfulReads += 1;
         }
 
@@ -1230,9 +1239,10 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             observedAt: observedAt);
     }
 
-    private void PublishFanCapabilities(FrameworkFanCapabilitiesSnapshot fanCapabilitiesSnapshot, DateTimeOffset observedAt)
+    private void PublishFanCapabilities(FrameworkFanCapabilitiesSnapshot fanCapabilitiesSnapshot, FrameworkPlatform? platform, FrameworkPlatformFamily? platformFamily, DateTimeOffset observedAt)
     {
         var observedFanIndices = new HashSet<int>();
+        var coolingMetadata = FrameworkCoolingMetadataResolver.Resolve(platform, platformFamily);
 
         for (var fanIndex = 0; fanIndex < fanCapabilitiesSnapshot.FanCount; fanIndex++)
         {
@@ -1244,6 +1254,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 Features = fanCapabilitiesSnapshot.Features,
                 SupportsFanControl = fanCapabilitiesSnapshot.Features.HasFlag(FrameworkFanFeaturesState.FanControl),
                 SupportsThermalReporting = fanCapabilitiesSnapshot.Features.HasFlag(FrameworkFanFeaturesState.ThermalReporting),
+                MaximumSpeedRpm = coolingMetadata.MaximumSpeedRpm,
+                CoolingDetails = coolingMetadata.CoolingDetails,
                 ObservedAt = observedAt,
                 IsAvailable = true,
             });
@@ -1648,25 +1660,13 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     private static TimeSpan ValidateHistoryWindow(TimeSpan historyWindow)
     {
-        if (historyWindow <= TimeSpan.Zero || historyWindow > MaximumHistoryWindow)
+        if (historyWindow <= TimeSpan.Zero || historyWindow > TelemetryHistoryLimits.MaximumHistoryWindow)
         {
-            throw new ArgumentOutOfRangeException(nameof(historyWindow), $"History window must be between {TimeSpan.Zero} and {MaximumHistoryWindow}.");
+            throw new ArgumentOutOfRangeException(nameof(historyWindow), $"History window must be between {TimeSpan.Zero} and {TelemetryHistoryLimits.MaximumHistoryWindow}.");
         }
 
         return historyWindow;
     }
-
-    private static TimeSpan? GetRemainingHistory(DateTimeOffset observedAt, TimeSpan historyWindow)
-    {
-        var remainingLifetime = (observedAt + historyWindow) - TelemetryScheduler.Now;
-        return remainingLifetime > TimeSpan.Zero ? remainingLifetime : TimeSpan.Zero;
-    }
-
-    private static TelemetryChannelId CreateTemperatureChannelId(int sensorIndex)
-        => new(TelemetryArea.Thermal, TelemetryEntityKind.TemperatureSensor, sensorIndex, TelemetryMetric.TemperatureCelsius);
-
-    private static TelemetryChannelId CreateFanSpeedChannelId(int fanIndex)
-        => new(TelemetryArea.Thermal, TelemetryEntityKind.Fan, fanIndex, TelemetryMetric.FanSpeedRpm);
 
     private static TelemetryChannelId CreateBatteryChannelId(int batteryIndex, TelemetryMetric metric)
         => new(TelemetryArea.Power, TelemetryEntityKind.Battery, batteryIndex, metric);

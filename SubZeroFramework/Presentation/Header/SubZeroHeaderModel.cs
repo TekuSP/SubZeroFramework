@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.WinUI;
 
-using Microsoft.UI.Dispatching;
+using FrameworkDotnet.Enums;
 
 using SubZeroFramework.Models;
 using SubZeroFramework.Services;
@@ -59,10 +59,8 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string EndpointValidationMessage { get; set; }
 
-    private IServiceProvider? _serviceProvider = null;
     private IFrameworkStatusClient? _frameworkStatusClient = null;
     private IHardwareInfoClient? _hardwareInfoClient = null;
-    private DispatcherQueue? _dispatcherQueue = null;
     private SynchronizationContext? _synchronizationContext = null;
     private readonly CompositeDisposable _subscriptions = [];
     private readonly SerialDisposable _runningSubscription = new();
@@ -71,12 +69,9 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
 
     public void IServiceProviderChanged(IServiceProvider serviceProvider)
     {
-        _serviceProvider = serviceProvider;
-
         //Get new providers
         _frameworkStatusClient = serviceProvider.GetRequiredService<IFrameworkStatusClient>();
         _hardwareInfoClient = serviceProvider.GetRequiredService<IHardwareInfoClient>();
-        _dispatcherQueue = serviceProvider.GetRequiredService<DispatcherQueue>();
         _synchronizationContext = serviceProvider.GetRequiredService<SynchronizationContext>();
         EndpointValidationMessage = _frameworkStatusClient.EndpointValidation.Message;
 
@@ -203,14 +198,9 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
         ECDriver = $"Driver: {status.ActiveDriver.ToString() ?? "Unknown driver"} {status.EcBuildInfo?.Split(' ', StringSplitOptions.TrimEntries).FirstOrDefault() ?? string.Empty}";
         ProductName = $"Model: {status.DeviceModel ?? "Unknown device"}";
 
-        if (status.PlatformFamily == FrameworkDotnet.Enums.FrameworkPlatformFamily.FrameworkDesktop)
-        {
-            ProductIcon = MaterialIconKind.DesktopTower;
-        }
-        else
-        {
-            ProductIcon = MaterialIconKind.Laptop;
-        }
+        ProductIcon = status.PlatformFamily == FrameworkPlatformFamily.FrameworkDesktop
+            ? MaterialIconKind.DesktopTower
+            : MaterialIconKind.Laptop;
     }
 
     protected virtual void Dispose(bool disposing)
@@ -222,8 +212,6 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
                 _subscriptions.Dispose();
                 _frameworkStatusClient = null;
                 _hardwareInfoClient = null;
-                _serviceProvider = null;
-                _dispatcherQueue = null;
                 _synchronizationContext = null;
             }
             

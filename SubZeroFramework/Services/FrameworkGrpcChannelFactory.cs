@@ -24,8 +24,8 @@ public sealed class FrameworkGrpcChannelFactory : IDisposable
         {
             ConnectCallback = connectionFactory.ConnectAsync,
             PooledConnectionIdleTimeout = Timeout.InfiniteTimeSpan,
-            KeepAlivePingDelay = TimeSpan.FromSeconds(60),
-            KeepAlivePingTimeout = TimeSpan.FromSeconds(30),
+            KeepAlivePingDelay = GrpcTransportDefaults.ChannelKeepAlivePingDelay,
+            KeepAlivePingTimeout = GrpcTransportDefaults.ChannelKeepAlivePingTimeout,
             EnableMultipleHttp2Connections = true,
         };
 
@@ -42,7 +42,7 @@ public sealed class FrameworkGrpcChannelFactory : IDisposable
     public CancellationTokenSource CreateTimeoutCancellationSource(CancellationToken cancellationToken)
     {
         var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutSource.CancelAfter(TimeSpan.FromSeconds(10));
+        timeoutSource.CancelAfter(GrpcTransportDefaults.UnaryRequestTimeout);
         return timeoutSource;
     }
 

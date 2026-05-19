@@ -75,4 +75,31 @@ internal static class SubZeroDiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Current telemetry entities should stay in caches and flip IsAvailable to false instead of being removed on ChangeReason.Remove.");
+
+    internal static readonly DiagnosticDescriptor AvoidDirectPropertyChangedEventInvocation = new(
+        id: "SZF0009",
+        title: "Avoid direct PropertyChanged event invocation",
+        messageFormat: "Avoid invoking PropertyChanged directly; prefer ObservableProperty/NotifyPropertyChangedFor or another non-manual notification mechanism",
+        category: "SubZeroFramework.Mvvm",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "SubZeroFramework UI state should prefer CommunityToolkit attributes and generated property-notification flows over direct PropertyChanged event invocation.");
+
+    internal static readonly DiagnosticDescriptor DisposableRegistryMustDisposeRemainingValues = new(
+        id: "SZF0010",
+        title: "Disposable registry values must be disposed in Dispose",
+        messageFormat: "Disposable registry '{0}' stores IDisposable values and must dispose remaining values in Dispose()",
+        category: "SubZeroFramework.Reactive",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Keyed IDisposable registries should dispose their remaining values during type disposal to avoid leaking subscriptions or handles.");
+
+    internal static readonly DiagnosticDescriptor DisposableRegistryRemoveMustDisposeValue = new(
+        id: "SZF0011",
+        title: "Removed disposable registry values must be disposed",
+        messageFormat: "Removed disposable value from registry '{0}' must be disposed when it is removed",
+        category: "SubZeroFramework.Reactive",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Removing an IDisposable from a keyed registry should dispose the removed value immediately to avoid leaks when subscriptions are replaced or removed incrementally.");
 }

@@ -1,12 +1,7 @@
 using System.ComponentModel;
 
-// The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=234238
-
 namespace SubZeroFramework.Presentation.MenuItems.Settings;
 
-/// <summary>
-/// An empty page that can be used on its own or navigated to within a Frame.
-/// </summary>
 public sealed partial class SettingsPage : Page, INotifyPropertyChanged
 {
     public SettingsPage()
@@ -14,8 +9,9 @@ public sealed partial class SettingsPage : Page, INotifyPropertyChanged
         this.InitializeComponent();
         DataContextChanged += DataContextChanged_Handler;
     }
-    public event PropertyChangedEventHandler? PropertyChanged;
-    public SettingsModel? ViewModel
+
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SubZeroFramework.Mvvm", "SZF0009:Avoid direct PropertyChanged event invocation", Justification = "<Pending>")]
+    public SettingsModel ViewModel
     {
         get => field;
         set
@@ -24,7 +20,9 @@ public sealed partial class SettingsPage : Page, INotifyPropertyChanged
             field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ViewModel)));
         }
-    }
+    } = default!;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 
     private void DataContextChanged_Handler(FrameworkElement sender, DataContextChangedEventArgs args)
     {

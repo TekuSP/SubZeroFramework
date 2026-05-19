@@ -2,9 +2,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using DynamicData;
 using FrameworkDotnet.Enums;
 using LiveChartsCore.Defaults;
-using Microsoft.UI;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
+using SubZeroFramework.Controls.Fans.Models;
 using SubZeroFramework.Models;
 using SubZeroFramework.Services;
 using System;
@@ -15,6 +14,9 @@ using System.Reactive.Disposables;
 using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
 using System.Threading;
+using Microsoft.UI.Dispatching;
+using CommunityToolkit.WinUI;
+using SubZeroFramework.Controls.DeviceCapabilities.Models;
 
 namespace SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 
@@ -23,12 +25,15 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     private readonly IHardwareInfoClient _hardwareInfoClient;
     private readonly IFanStateClient _fanStateClient;
     private readonly IFanTelemetryClient _fanTelemetryClient;
+    private readonly IFanCapabilityClient _fanCapabilityClient;
+    private readonly DispatcherQueue _dispatcherQueue;
     private readonly ITemperatureTelemetryClient _temperatureTelemetryClient;
     private readonly IBatteryTelemetryClient _batteryTelemetryClient;
     private readonly IFrameworkStatusClient _frameworkStatusClient;
     private readonly SynchronizationContext _synchronizationContext;
     private readonly CompositeDisposable _subscriptions = new();
     private readonly Dictionary<int, TemperatureTelemetrySnapshot> _temperatureSnapshots = [];
+    private readonly Dictionary<int, FanCapabilityState> _fanCapabilities = [];
     private readonly Dictionary<int, FanTelemetrySnapshot> _fanSnapshots = [];
     private readonly Dictionary<int, FanStateSnapshot> _fanStateSnapshots = [];
     private readonly Dictionary<int, BatteryTelemetrySnapshot> _batterySnapshots = [];
@@ -42,7 +47,6 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     private readonly ObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> _temperatureStatusItems = [];
     private readonly ObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> _fanStatusItems = [];
     private readonly ObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> _batteryStatusItems = [];
-    private static readonly TimeSpan CpuClockHistoryWindow = TimeSpan.FromHours(1);
     private HistoricalRecord<HardwareInfoSnapshot>[] _cpuHistoryRecords = [];
 
     [ObservableProperty]
@@ -79,7 +83,10 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         nameof(AvailablePhysicalMemory),
         nameof(PhysicalMemoryUsagePercent),
         nameof(PhysicalMemoryUsageDisplay),
-        nameof(PhysicalMemoryUsageBrush),
+        nameof(PhysicalMemoryUsageTone),
+        nameof(PhysicalMemoryUsageSuccessVisibility),
+        nameof(PhysicalMemoryUsageWarningVisibility),
+        nameof(PhysicalMemoryUsageErrorVisibility),
         nameof(TotalPageFileMemory),
         nameof(AvailablePageFileMemory),
         nameof(TotalVirtualMemory),
@@ -105,6 +112,24 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     public ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> FanStatusItems { get; }
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> BatteryStatusItems { get; }
+
+    public DeviceCapabilitiesOnboardStatusSectionModel OnboardStatusSection { get; }
+
+    public DeviceCapabilitiesSystemProfileSectionModel SystemProfileSection { get; }
+
+    public DeviceCapabilitiesCoolingSectionModel CoolingSection { get; }
+
+    public DeviceCapabilitiesCpuSectionModel CpuSection { get; }
+
+    public DeviceCapabilitiesStorageSectionModel StorageSection { get; }
+
+    public DeviceCapabilitiesMemorySectionModel MemorySection { get; }
+
+    public DeviceCapabilitiesPlatformFirmwareSectionModel PlatformFirmwareSection { get; }
+
+    public DeviceCapabilitiesGraphicsSectionModel GraphicsSection { get; }
+
+    public DeviceCapabilitiesNetworkSectionModel NetworkSection { get; }
 
     public int CpuCount => Snapshot?.Runtime.Cpus.Length ?? 0;
 
@@ -233,12 +258,24 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         }
     }
 
-    public Brush PhysicalMemoryUsageBrush => PhysicalMemoryUsagePercent switch
+    public DeviceCapabilitiesStatusTone PhysicalMemoryUsageTone => PhysicalMemoryUsagePercent switch
     {
-        >= 90d => GetBrush("StatusErrorBrush", ColorHelper.FromArgb(255, 68, 39, 38)),
-        >= 75d => GetBrush("StatusWarningBrush", ColorHelper.FromArgb(255, 197, 153, 78)),
-        _ => GetBrush("StatusSuccessBrush", ColorHelper.FromArgb(255, 108, 203, 95)),
+        >= PresentationDefaults.ErrorUsagePercent => DeviceCapabilitiesStatusTone.Error,
+        >= PresentationDefaults.WarningUsagePercent => DeviceCapabilitiesStatusTone.Warning,
+        _ => DeviceCapabilitiesStatusTone.Success,
     };
+
+    public Visibility PhysicalMemoryUsageSuccessVisibility => PhysicalMemoryUsageTone == DeviceCapabilitiesStatusTone.Success
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public Visibility PhysicalMemoryUsageWarningVisibility => PhysicalMemoryUsageTone == DeviceCapabilitiesStatusTone.Warning
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public Visibility PhysicalMemoryUsageErrorVisibility => PhysicalMemoryUsageTone == DeviceCapabilitiesStatusTone.Error
+        ? Visibility.Visible
+        : Visibility.Collapsed;
 
     public string TotalPageFileMemory => Snapshot?.Runtime.MemoryStatus is null
         ? "Unknown"
@@ -274,16 +311,26 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(SystemProfileModel), nameof(SystemProfileProductName), nameof(SystemProfileEcBuildInfo))]
     public partial FrameworkSystemStatus? FrameworkStatus { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CoolingHardwareVisibility))]
+    public partial FanAdvancedInfoCardModel? FanAdvancedInfo { get; set; }
+
+    public Visibility CoolingHardwareVisibility => FanAdvancedInfo is null
+        ? Visibility.Collapsed
+        : Visibility.Visible;
+
     public DeviceCapabilitiesModel(
         IStringLocalizer localizer,
         IOptions<AppConfig> appInfo,
         IHardwareInfoClient hardwareInfoClient,
+        IFanCapabilityClient fanCapabilityClient,
         IFanStateClient fanStateClient,
         IFanTelemetryClient fanTelemetryClient,
         ITemperatureTelemetryClient temperatureTelemetryClient,
         IBatteryTelemetryClient batteryTelemetryClient,
         IFrameworkStatusClient frameworkStatusClient,
-        SynchronizationContext synchronizationContext)
+        SynchronizationContext synchronizationContext,
+        DispatcherQueue dispatcherQueue)
     {
         _hardwareInfoClient = hardwareInfoClient;
         _fanStateClient = fanStateClient;
@@ -292,6 +339,9 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         _batteryTelemetryClient = batteryTelemetryClient;
         _frameworkStatusClient = frameworkStatusClient;
         _synchronizationContext = synchronizationContext;
+        _fanCapabilityClient = fanCapabilityClient;
+        _dispatcherQueue = dispatcherQueue;
+
         CpuPackageCards = new ReadOnlyObservableCollection<DeviceCapabilitiesCpuPackageCardModel>(_cpuPackageCards);
         MemoryModuleCards = new ReadOnlyObservableCollection<DeviceCapabilitiesMemoryModuleCardModel>(_memoryModuleCards);
         StorageDriveCards = new ReadOnlyObservableCollection<DeviceCapabilitiesStorageDriveCardModel>(_storageDriveCards);
@@ -303,58 +353,90 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         FanStatusItems = new ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel>(_fanStatusItems);
         BatteryStatusItems = new ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel>(_batteryStatusItems);
 
+        OnboardStatusSection = new DeviceCapabilitiesOnboardStatusSectionModel(this);
+        SystemProfileSection = new DeviceCapabilitiesSystemProfileSectionModel(this);
+        CoolingSection = new DeviceCapabilitiesCoolingSectionModel(this);
+        CpuSection = new DeviceCapabilitiesCpuSectionModel(this);
+        StorageSection = new DeviceCapabilitiesStorageSectionModel(this);
+        MemorySection = new DeviceCapabilitiesMemorySectionModel(this);
+        PlatformFirmwareSection = new DeviceCapabilitiesPlatformFirmwareSectionModel(this);
+        GraphicsSection = new DeviceCapabilitiesGraphicsSectionModel(this);
+        NetworkSection = new DeviceCapabilitiesNetworkSectionModel(this);
+
         _hardwareInfoClient
             .WatchHardwareInfo()
             .ObserveOn(_synchronizationContext)
-            .Subscribe(UpdateSnapshot)
+            .Select(snapshot => Observable.FromAsync(() => UpdateSnapshotAsync(snapshot)))
+            .Concat()
+            .Subscribe(_ => { })
             .DisposeWith(_subscriptions);
 
         _hardwareInfoClient
-            .WatchHardwareInfoHistory(CpuClockHistoryWindow)
+            .WatchHardwareInfoHistory(TelemetryHistoryLimits.MaximumHistoryWindow)
             .ObserveOn(_synchronizationContext)
             .ToCollection()
-            .Subscribe(UpdateCpuClockHistory)
+            .Select(history => Observable.FromAsync(() => UpdateCpuClockHistoryAsync(history)))
+            .Concat()
+            .Subscribe(_ => { })
             .DisposeWith(_subscriptions);
 
         _frameworkStatusClient
             .WatchStatus()
             .ObserveOn(_synchronizationContext)
-            .Subscribe(UpdateFrameworkStatus)
+            .Select(status => Observable.FromAsync(() => UpdateFrameworkStatusAsync(status)))
+            .Concat()
+            .Subscribe(_ => { })
             .DisposeWith(_subscriptions);
 
         _temperatureTelemetryClient
             .WatchTemperatures()
             .ObserveOn(_synchronizationContext)
-            .Subscribe(ApplyTemperatureChanges)
+            .Select(set => Observable.FromAsync(() => ApplyTemperatureChangesAsync(set)))
+            .Concat()
+            .Subscribe(_ => { })
+            .DisposeWith(_subscriptions);
+
+        _fanCapabilityClient
+            .WatchFanCapabilities()
+            .ObserveOn(_synchronizationContext)
+            .Select(set => Observable.FromAsync(() => ApplyFanCapabilityChangesAsync(set)))
+            .Concat()
+            .Subscribe(_ => { })
             .DisposeWith(_subscriptions);
 
         _fanTelemetryClient
             .WatchFans()
             .ObserveOn(_synchronizationContext)
-            .Subscribe(ApplyFanTelemetryChanges)
+            .Select(set => Observable.FromAsync(() => ApplyFanTelemetryChangesAsync(set)))
+            .Concat()
+            .Subscribe(_ => { })
             .DisposeWith(_subscriptions);
 
         _fanStateClient
             .WatchFanStates()
             .ObserveOn(_synchronizationContext)
-            .Subscribe(ApplyFanStateChanges)
+            .Select(set => Observable.FromAsync(() => ApplyFanStateChangesAsync(set)))
+            .Concat()
+            .Subscribe(_ => { })
             .DisposeWith(_subscriptions);
 
         _batteryTelemetryClient
             .WatchBatteries()
             .ObserveOn(_synchronizationContext)
-            .Subscribe(ApplyBatteryChanges)
+            .Select(set => Observable.FromAsync(() => ApplyBatteryChangesAsync(set)))
+            .Concat()
+            .Subscribe(_ => { })
             .DisposeWith(_subscriptions);
     }
 
-    private void UpdateSnapshot(HardwareInfoSnapshot snapshot)
+    private async Task UpdateSnapshotAsync(HardwareInfoSnapshot snapshot)
     {
-        Snapshot = snapshot;
-        RefreshSnapshotCards();
-        RefreshCpuVisuals();
+        await _dispatcherQueue.EnqueueAsync(() => Snapshot = snapshot);
+        await RefreshSnapshotCardsAsync();
+        await RefreshCpuVisualsAsync();
     }
 
-    private void UpdateCpuClockHistory(IReadOnlyCollection<HistoricalRecord<HardwareInfoSnapshot>> history)
+    private async Task UpdateCpuClockHistoryAsync(IReadOnlyCollection<HistoricalRecord<HardwareInfoSnapshot>> history)
     {
         _cpuHistoryRecords = [
             .. history
@@ -362,50 +444,131 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                 .ThenBy(record => record.SampleId)
         ];
 
-        RefreshCpuVisuals();
+        await RefreshCpuVisualsAsync();
     }
 
-    private void UpdateFrameworkStatus(FrameworkSystemStatus status) => FrameworkStatus = status;
+    private Task UpdateFrameworkStatusAsync(FrameworkSystemStatus status)
+        => _dispatcherQueue.EnqueueAsync(() => FrameworkStatus = status);
 
-    private void ApplyTemperatureChanges(IChangeSet<TemperatureTelemetrySnapshot, int> set)
+    private async Task ApplyTemperatureChangesAsync(IChangeSet<TemperatureTelemetrySnapshot, int> set)
     {
         ApplySnapshotChanges(_temperatureSnapshots, set);
-        RefreshTemperatureStatusItems();
+        await RefreshTemperatureStatusItemsAsync();
     }
 
-    private void ApplyFanTelemetryChanges(IChangeSet<FanTelemetrySnapshot, int> set)
+    private async Task ApplyFanCapabilityChangesAsync(IChangeSet<FanCapabilityState, int> set)
+    {
+        ApplySnapshotChanges(_fanCapabilities, set);
+        await RefreshFanAdvancedInfoCardAsync();
+    }
+
+    private async Task ApplyFanTelemetryChangesAsync(IChangeSet<FanTelemetrySnapshot, int> set)
     {
         ApplySnapshotChanges(_fanSnapshots, set);
-        RefreshFanStatusItems();
+        await RefreshFanStatusItemsAsync();
     }
 
-    private void ApplyFanStateChanges(IChangeSet<FanStateSnapshot, int> set)
+    private async Task ApplyFanStateChangesAsync(IChangeSet<FanStateSnapshot, int> set)
     {
         ApplySnapshotChanges(_fanStateSnapshots, set);
-        RefreshFanStatusItems();
+        await RefreshFanStatusItemsAsync();
     }
 
-    private void ApplyBatteryChanges(IChangeSet<BatteryTelemetrySnapshot, int> set)
+    private async Task ApplyBatteryChangesAsync(IChangeSet<BatteryTelemetrySnapshot, int> set)
     {
         ApplySnapshotChanges(_batterySnapshots, set);
-        RefreshBatteryStatusItems();
+        await RefreshBatteryStatusItemsAsync();
     }
 
-    private void RefreshCpuVisuals()
+    private async Task RefreshCpuVisualsAsync()
     {
-        CpuClockHistory = BuildCpuClockHistory();
-        UpdateCpuClockHistoryAxis();
+        var cpuClockHistory = BuildCpuClockHistory();
+        var (axisStartTicks, axisEndTicks, separators) = BuildCpuClockHistoryAxis(cpuClockHistory);
+
+        await _dispatcherQueue.EnqueueAsync(() =>
+        {
+            CpuClockHistory = cpuClockHistory;
+            CpuClockHistoryMinLimit = axisStartTicks;
+            CpuClockHistoryMaxLimit = axisEndTicks;
+            CpuClockHistorySeparators = separators;
+        });
     }
 
-    private void RefreshSnapshotCards()
+    private Task RefreshFanAdvancedInfoCardAsync()
     {
-        SynchronizeCpuPackageCards(Snapshot?.Runtime.Cpus ?? []);
-        SynchronizeMemoryModuleCards(Snapshot?.Inventory.MemoryModules ?? []);
-        SynchronizeStorageDriveCards(Snapshot?.Inventory.Drives ?? []);
-        SynchronizeNetworkAdapterCards(Snapshot?.Inventory.NetworkAdapters ?? []);
-        SynchronizeVideoControllerCards(Snapshot?.Runtime.VideoControllers ?? []);
-        SynchronizeMonitorCards(Snapshot?.Runtime.Monitors ?? []);
-        SynchronizeMonitorResolutionCards(BuildMonitorResolutionCardData());
+        var coolingDetails = _fanCapabilities.Values
+            .OrderByDescending(capability => capability.IsAvailable)
+            .ThenBy(capability => capability.FanIndex)
+            .Select(capability => capability.CoolingDetails)
+            .FirstOrDefault(details => details is not null);
+
+        return _dispatcherQueue.EnqueueAsync(() =>
+        {
+            switch (coolingDetails)
+            {
+                case null:
+                    FanAdvancedInfo = null;
+                    return;
+                case FrameworkLaptop12CoolingDetails details:
+                {
+                    if (FanAdvancedInfo is not FrameworkLaptop12FanAdvancedInfoCardModel model)
+                    {
+                        model = new FrameworkLaptop12FanAdvancedInfoCardModel();
+                        FanAdvancedInfo = model;
+                    }
+
+                    model.UpdateFrom(details);
+                    return;
+                }
+                case FrameworkLaptop13CoolingDetails details:
+                {
+                    if (FanAdvancedInfo is not FrameworkLaptop13FanAdvancedInfoCardModel model)
+                    {
+                        model = new FrameworkLaptop13FanAdvancedInfoCardModel();
+                        FanAdvancedInfo = model;
+                    }
+
+                    model.UpdateFrom(details);
+                    return;
+                }
+                case FrameworkLaptop16CoolingDetails details:
+                {
+                    if (FanAdvancedInfo is not FrameworkLaptop16FanAdvancedInfoCardModel model)
+                    {
+                        model = new FrameworkLaptop16FanAdvancedInfoCardModel();
+                        FanAdvancedInfo = model;
+                    }
+
+                    model.UpdateFrom(details);
+                    return;
+                }
+                case FrameworkDesktopCoolingDetails details:
+                {
+                    if (FanAdvancedInfo is not FrameworkDesktopFanAdvancedInfoCardModel model)
+                    {
+                        model = new FrameworkDesktopFanAdvancedInfoCardModel();
+                        FanAdvancedInfo = model;
+                    }
+
+                    model.UpdateFrom(details);
+                    return;
+                }
+                default:
+                    FanAdvancedInfo = null;
+                    return;
+            }
+        });
+    }
+
+    private async Task RefreshSnapshotCardsAsync()
+    {
+        await SynchronizeCpuPackageCardsAsync(Snapshot?.Runtime.Cpus ?? []);
+        await SynchronizeMemoryModuleCardsAsync(Snapshot?.Inventory.MemoryModules ?? []);
+        await SynchronizeStorageDriveCardsAsync(Snapshot?.Inventory.Drives ?? []);
+        await SynchronizeNetworkAdapterCardsAsync(Snapshot?.Inventory.NetworkAdapters ?? []);
+        await SynchronizeVideoControllerCardsAsync(Snapshot?.Runtime.VideoControllers ?? []);
+        await SynchronizeMonitorCardsAsync(Snapshot?.Runtime.Monitors ?? []);
+        await SynchronizeMonitorResolutionCardsAsync(BuildMonitorResolutionCardData());
     }
 
     private DateTimePoint[] BuildCpuClockHistory()
@@ -432,67 +595,19 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return [.. points];
     }
 
-    private void UpdateCpuClockHistoryAxis()
+    private (double? AxisStartTicks, double? AxisEndTicks, double[] Separators) BuildCpuClockHistoryAxis(DateTimePoint[] cpuClockHistory)
     {
-        var historyPoints = CpuClockHistory
+        var historyPoints = cpuClockHistory
             .Select(point => point.DateTime)
             .OrderBy(point => point)
             .ToArray();
 
-        var axisEnd = historyPoints.Length == 0
-            ? DateTime.Now
-            : historyPoints[^1] > DateTime.Now ? historyPoints[^1] : DateTime.Now;
+        var (axisStart, axisEnd, separators) = TimeChartAxisHelper.BuildAxis(
+            historyPoints,
+            TelemetryHistoryLimits.MaximumHistoryWindow,
+            TimeChartAxisHelper.CpuLongSpanSeparatorStep);
 
-        var earliestPoint = historyPoints.Length == 0
-            ? axisEnd - CpuClockHistoryWindow
-            : historyPoints[0];
-
-        var axisStart = earliestPoint < axisEnd - CpuClockHistoryWindow
-            ? axisEnd - CpuClockHistoryWindow
-            : earliestPoint;
-
-        var separatorStep = GetCpuHistorySeparatorStep(axisEnd - axisStart);
-
-        CpuClockHistoryMinLimit = axisStart.Ticks;
-        CpuClockHistoryMaxLimit = axisEnd.Ticks;
-
-        List<double> separators = [axisStart.Ticks];
-        for (var tick = axisStart + separatorStep; tick < axisEnd; tick += separatorStep)
-        {
-            separators.Add(tick.Ticks);
-        }
-
-        if (separators.Count == 0 || separators[^1] != axisEnd.Ticks)
-        {
-            separators.Add(axisEnd.Ticks);
-        }
-
-        CpuClockHistorySeparators = [.. separators];
-    }
-
-    private TimeSpan GetCpuHistorySeparatorStep(TimeSpan visibleSpan)
-    {
-        if (visibleSpan <= TimeSpan.FromMinutes(1))
-        {
-            return TimeSpan.FromSeconds(5);
-        }
-
-        if (visibleSpan <= TimeSpan.FromMinutes(5))
-        {
-            return TimeSpan.FromSeconds(30);
-        }
-
-        if (visibleSpan <= TimeSpan.FromMinutes(15))
-        {
-            return TimeSpan.FromMinutes(1);
-        }
-
-        if (visibleSpan <= TimeSpan.FromMinutes(30))
-        {
-            return TimeSpan.FromMinutes(5);
-        }
-
-        return TimeSpan.FromMinutes(10);
+        return (axisStart.Ticks, axisEnd.Ticks, separators);
     }
 
     private string FormatCpuClockLabel(DateTime date)
@@ -528,9 +643,9 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             : $"{hours} h {minutes} m ago";
     }
 
-    private void SynchronizeCpuPackageCards(IReadOnlyList<HardwareInfoCpu> cpus)
+    private Task SynchronizeCpuPackageCardsAsync(IReadOnlyList<HardwareInfoCpu> cpus)
     {
-        SynchronizeCards(
+        return SynchronizeCards(
             _cpuPackageCards,
             cpus,
             static (index, cpu) => new DeviceCapabilitiesCpuPackageCardModel(index, cpu),
@@ -541,45 +656,45 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             });
     }
 
-    private void SynchronizeMemoryModuleCards(IReadOnlyList<HardwareInfoMemoryModule> memoryModules)
+    private Task SynchronizeMemoryModuleCardsAsync(IReadOnlyList<HardwareInfoMemoryModule> memoryModules)
     {
-        SynchronizeCards(
+        return SynchronizeCards(
             _memoryModuleCards,
             memoryModules,
             static (_, memoryModule) => new DeviceCapabilitiesMemoryModuleCardModel(memoryModule),
             static (card, _, memoryModule) => card.Snapshot = memoryModule);
     }
 
-    private void SynchronizeStorageDriveCards(IReadOnlyList<HardwareInfoDrive> drives)
+    private Task SynchronizeStorageDriveCardsAsync(IReadOnlyList<HardwareInfoDrive> drives)
     {
-        SynchronizeCards(
+        return SynchronizeCards(
             _storageDriveCards,
             drives,
             static (_, drive) => new DeviceCapabilitiesStorageDriveCardModel(drive),
             static (card, _, drive) => card.Snapshot = drive);
     }
 
-    private void SynchronizeNetworkAdapterCards(IReadOnlyList<HardwareInfoNetworkAdapter> networkAdapters)
+    private Task SynchronizeNetworkAdapterCardsAsync(IReadOnlyList<HardwareInfoNetworkAdapter> networkAdapters)
     {
-        SynchronizeCards(
+        return SynchronizeCards(
             _networkAdapterCards,
             networkAdapters,
             static (_, networkAdapter) => new DeviceCapabilitiesNetworkAdapterCardModel(networkAdapter),
             static (card, _, networkAdapter) => card.Snapshot = networkAdapter);
     }
 
-    private void SynchronizeVideoControllerCards(IReadOnlyList<HardwareInfoVideoController> videoControllers)
+    private Task SynchronizeVideoControllerCardsAsync(IReadOnlyList<HardwareInfoVideoController> videoControllers)
     {
-        SynchronizeCards(
+        return SynchronizeCards(
             _videoControllerCards,
             videoControllers,
             static (_, videoController) => new DeviceCapabilitiesVideoControllerCardModel(videoController),
             static (card, _, videoController) => card.Snapshot = videoController);
     }
 
-    private void SynchronizeMonitorCards(IReadOnlyList<HardwareInfoMonitor> monitors)
+    private Task SynchronizeMonitorCardsAsync(IReadOnlyList<HardwareInfoMonitor> monitors)
     {
-        SynchronizeCards(
+        return SynchronizeCards(
             _monitorCards,
             monitors,
             static (_, monitor) => new DeviceCapabilitiesMonitorCardModel(monitor),
@@ -605,9 +720,9 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             : $"{bytes / 1024d / 1024d:0.##} MB";
     }
 
-    private void SynchronizeMonitorResolutionCards((string Title, string ResolutionTier)[] cards)
+    private Task SynchronizeMonitorResolutionCardsAsync((string Title, string ResolutionTier)[] cards)
     {
-        SynchronizeCards(
+        return SynchronizeCards(
             _monitorResolutionCards,
             cards,
             static (_, card) => new DeviceCapabilitiesMonitorResolutionCard(card.Title, card.ResolutionTier),
@@ -618,28 +733,28 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             });
     }
 
-    private void RefreshTemperatureStatusItems()
+    private Task RefreshTemperatureStatusItemsAsync()
     {
         var sensors = _temperatureSnapshots.Values
             .OrderBy(snapshot => snapshot.SensorIndex)
             .ToArray();
 
-        SynchronizeCards(
+        return SynchronizeCards(
             _temperatureStatusItems,
             sensors,
             (_, snapshot) => new DeviceCapabilitiesRuntimeStatusItemModel(
                 $"Sensor {snapshot.SensorIndex}",
                 GetTemperatureStatus(snapshot),
-                GetStatusForegroundBrush(GetTemperatureStatus(snapshot))),
+                GetStatusTone(GetTemperatureStatus(snapshot))),
             (card, _, snapshot) =>
             {
                 card.Name = $"Sensor {snapshot.SensorIndex}";
                 card.Status = GetTemperatureStatus(snapshot);
-                card.StatusForegroundBrush = GetStatusForegroundBrush(card.Status);
+                card.StatusTone = GetStatusTone(card.Status);
             });
     }
 
-    private void RefreshFanStatusItems()
+    private Task RefreshFanStatusItemsAsync()
     {
         var fanEntries = _fanSnapshots.Keys
             .Union(_fanStateSnapshots.Keys)
@@ -650,39 +765,39 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                 State: _fanStateSnapshots.GetValueOrDefault(index)))
             .ToArray();
 
-        SynchronizeCards(
+        return SynchronizeCards(
             _fanStatusItems,
             fanEntries,
             (_, fan) => new DeviceCapabilitiesRuntimeStatusItemModel(
                 $"Fan {fan.Index}",
                 GetFanStatus(fan.Snapshot, fan.State),
-                GetStatusForegroundBrush(GetFanStatus(fan.Snapshot, fan.State))),
+                GetStatusTone(GetFanStatus(fan.Snapshot, fan.State))),
             (card, _, fan) =>
             {
                 card.Name = $"Fan {fan.Index}";
                 card.Status = GetFanStatus(fan.Snapshot, fan.State);
-                card.StatusForegroundBrush = GetStatusForegroundBrush(card.Status);
+                card.StatusTone = GetStatusTone(card.Status);
             });
     }
 
-    private void RefreshBatteryStatusItems()
+    private Task RefreshBatteryStatusItemsAsync()
     {
         var batteries = _batterySnapshots.Values
             .OrderBy(snapshot => snapshot.BatteryIndex)
             .ToArray();
 
-        SynchronizeCards(
+        return SynchronizeCards(
             _batteryStatusItems,
             batteries,
             (_, snapshot) => new DeviceCapabilitiesRuntimeStatusItemModel(
                 $"Battery {snapshot.BatteryIndex}",
                 GetBatteryStatus(snapshot),
-                GetStatusForegroundBrush(GetBatteryStatus(snapshot))),
+                GetStatusTone(GetBatteryStatus(snapshot))),
             (card, _, snapshot) =>
             {
                 card.Name = $"Battery {snapshot.BatteryIndex}";
                 card.Status = GetBatteryStatus(snapshot);
-                card.StatusForegroundBrush = GetStatusForegroundBrush(card.Status);
+                card.StatusTone = GetStatusTone(card.Status);
             });
     }
 
@@ -890,13 +1005,13 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         };
     }
 
-    private Brush GetStatusForegroundBrush(string status)
+    private DeviceCapabilitiesStatusTone GetStatusTone(string status)
     {
         if (status.Contains("Error", StringComparison.OrdinalIgnoreCase)
             || status.Contains("Unavailable", StringComparison.OrdinalIgnoreCase)
             || status.Contains("Stalled", StringComparison.OrdinalIgnoreCase))
         {
-            return GetBrush("StatusErrorBrush", ColorHelper.FromArgb(255, 68, 39, 38));
+            return DeviceCapabilitiesStatusTone.Error;
         }
 
         if (status.Contains("Not Present", StringComparison.OrdinalIgnoreCase)
@@ -905,13 +1020,13 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             || status.Contains("Checking", StringComparison.OrdinalIgnoreCase)
             || status.Contains("Unknown", StringComparison.OrdinalIgnoreCase))
         {
-            return GetBrush("StatusWarningBrush", ColorHelper.FromArgb(255, 197, 153, 78));
+            return DeviceCapabilitiesStatusTone.Warning;
         }
 
-        return GetBrush("StatusSuccessBrush", ColorHelper.FromArgb(255, 108, 203, 95));
+        return DeviceCapabilitiesStatusTone.Success;
     }
 
-    private void SynchronizeCards<TCard, TSource>(
+    private async Task SynchronizeCards<TCard, TSource>(
         ObservableCollection<TCard> target,
         IReadOnlyList<TSource> source,
         Func<int, TSource, TCard> create,
@@ -922,29 +1037,28 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             var item = source[index];
             if (index < target.Count)
             {
-                update(target[index], index, item);
+                await _dispatcherQueue.EnqueueAsync(() => update(target[index], index, item));
                 continue;
             }
 
-            target.Add(create(index, item));
+            await _dispatcherQueue.EnqueueAsync(() => target.Add(create(index, item)));
         }
 
         while (target.Count > source.Count)
         {
-            target.RemoveAt(target.Count - 1);
+            await _dispatcherQueue.EnqueueAsync(() => target.RemoveAt(target.Count - 1));
         }
     }
 
     public void Dispose()
     {
+        CpuSection.Dispose();
+        StorageSection.Dispose();
+        MemorySection.Dispose();
+        PlatformFirmwareSection.Dispose();
+        GraphicsSection.Dispose();
+        SystemProfileSection.Dispose();
+        CoolingSection.Dispose();
         _subscriptions.Dispose();
-    }
-
-    private Brush GetBrush(string resourceKey, Windows.UI.Color fallbackColor)
-    {
-        return Application.Current?.Resources.TryGetValue(resourceKey, out var resource) == true
-            && resource is Brush brush
-                ? brush
-                : new SolidColorBrush(fallbackColor);
     }
 }

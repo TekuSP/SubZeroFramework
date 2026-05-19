@@ -43,7 +43,7 @@ internal static class TelemetryGrpcMapper
 
     public static FanCapabilityChangeReply MapFanCapabilityChange(Change<FanCapabilityState, int> change)
     {
-        return new FanCapabilityChangeReply
+        var reply = new FanCapabilityChangeReply
         {
             ChangeKind = MapChangeReason(change.Reason),
             FanIndex = change.Key,
@@ -51,8 +51,104 @@ internal static class TelemetryGrpcMapper
             Features = (uint)change.Current.Features,
             SupportsFanControl = change.Current.SupportsFanControl,
             SupportsThermalReporting = change.Current.SupportsThermalReporting,
+            MaximumSpeedRpm = change.Current.MaximumSpeedRpm,
             ObservedAtUnixTimeMilliseconds = change.Current.ObservedAt.ToUnixTimeMilliseconds(),
             IsAvailable = change.Current.IsAvailable,
+        };
+
+        if (change.Current.CoolingDetails is { } coolingDetails)
+        {
+            reply.CoolingDetails = MapCoolingDetails(coolingDetails);
+        }
+
+        return reply;
+    }
+
+    private static FrameworkCoolingDetailsReply MapCoolingDetails(FrameworkCoolingDetails coolingDetails)
+    {
+        return coolingDetails switch
+        {
+            FrameworkLaptop12CoolingDetails details => new FrameworkCoolingDetailsReply
+            {
+                FrameworkLaptop12 = new FrameworkLaptop12CoolingDetailsReply
+                {
+                    ProcessorSupport = details.ProcessorSupport,
+                    ThermalCapacity = details.ThermalCapacity,
+                    HeatPipeConfiguration = details.HeatPipeConfiguration,
+                    FanDimensions = MapCoolingFanDimensions(details.FanDimensions),
+                    ThermalInterfaceMaterial = details.ThermalInterfaceMaterial,
+                    FirmwareOperatingRangeRpm = MapFanSpeedRange(details.FirmwareOperatingRangeRpm),
+                    MaximumPhysicalLimitRpm = details.MaximumPhysicalLimitRpm,
+                },
+            },
+            FrameworkLaptop13CoolingDetails details => new FrameworkCoolingDetailsReply
+            {
+                FrameworkLaptop13 = new FrameworkLaptop13CoolingDetailsReply
+                {
+                    ProcessorSupport = details.ProcessorSupport,
+                    ChassisMaterial = details.ChassisMaterial,
+                    ApproximateFirmwareIdleSpeedRpm = details.ApproximateFirmwareIdleSpeedRpm,
+                    ApproximateUserTunedIdleSpeedRpm = details.ApproximateUserTunedIdleSpeedRpm,
+                    MaximumFirmwareLimitRpm = details.MaximumFirmwareLimitRpm,
+                    ApproximatePhysicalMaximumRpm = details.ApproximatePhysicalMaximumRpm,
+                },
+            },
+            FrameworkLaptop16CoolingDetails details => new FrameworkCoolingDetailsReply
+            {
+                FrameworkLaptop16 = new FrameworkLaptop16CoolingDetailsReply
+                {
+                    ProcessorSupport = details.ProcessorSupport,
+                    PrimaryCpuThermalInterfaceMaterial = details.PrimaryCpuThermalInterfaceMaterial,
+                    ShellFanDimensions = MapCoolingFanDimensions(details.ShellFanDimensions),
+                    GraphicsFanDimensions = MapCoolingFanDimensions(details.GraphicsFanDimensions),
+                    ExpansionBayPowerLimitWatts = details.ExpansionBayPowerLimitWatts,
+                    StandardFirmwareMaximumRpm = details.StandardFirmwareMaximumRpm,
+                    ApproximateThermalStressMaximumRpm = details.ApproximateThermalStressMaximumRpm,
+                },
+            },
+            FrameworkDesktopCoolingDetails details => new FrameworkCoolingDetailsReply
+            {
+                FrameworkDesktop = new FrameworkDesktopCoolingDetailsReply
+                {
+                    Platform = details.Platform,
+                    SupportedFanOptions = { details.SupportedFanOptions.Select(MapDesktopFanOption) },
+                },
+            },
+            _ => throw new ArgumentOutOfRangeException(nameof(coolingDetails), coolingDetails.GetType().FullName, "Unsupported cooling details type."),
+        };
+    }
+
+    private static CoolingFanDimensionsReply MapCoolingFanDimensions(CoolingFanDimensions dimensions)
+    {
+        return new CoolingFanDimensionsReply
+        {
+            WidthMillimeters = dimensions.WidthMillimeters,
+            HeightMillimeters = dimensions.HeightMillimeters,
+            ThicknessMillimeters = dimensions.ThicknessMillimeters,
+            IsCircular = dimensions.IsCircular,
+        };
+    }
+
+    private static FanSpeedRangeReply MapFanSpeedRange(FanSpeedRange range)
+    {
+        return new FanSpeedRangeReply
+        {
+            MinimumRpm = range.MinimumRpm,
+            MaximumRpm = range.MaximumRpm,
+        };
+    }
+
+    private static FrameworkDesktopFanOptionReply MapDesktopFanOption(FrameworkDesktopFanOption option)
+    {
+        return new FrameworkDesktopFanOptionReply
+        {
+            ModelName = option.ModelName,
+            FanDimensions = MapCoolingFanDimensions(option.FanDimensions),
+            ConnectorType = option.ConnectorType,
+            MaximumAirflowCfm = option.MaximumAirflowCfm,
+            AlternateAirflowDisplay = option.AlternateAirflowDisplay ?? string.Empty,
+            AcousticNoiseDisplay = option.AcousticNoiseDisplay,
+            MaximumFanSpeedRpm = option.MaximumFanSpeedRpm,
         };
     }
 

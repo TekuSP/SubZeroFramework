@@ -1,0 +1,182 @@
+﻿<UserControl
+    x:Class="SubZeroFramework.Controls.DeviceCapabilities.OnboardStatusSectionView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:models="using:SubZeroFramework.Controls.DeviceCapabilities.Models"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="IsTextSelectionEnabled" Value="True" />
+        </Style>
+
+        <DataTemplate x:Key="DeviceCapabilitiesRuntimeStatusDefaultTemplate" x:DataType="models:DeviceCapabilitiesRuntimeStatusItemModel">
+            <Border
+                Width="220"
+                Margin="0,0,12,12"
+                Padding="12"
+                Background="#1AFFFFFF"
+                CornerRadius="10">
+                <StackPanel Spacing="4">
+                    <TextBlock
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind Name, Mode=OneWay}" />
+                    <TextBlock
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind Status, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="DeviceCapabilitiesRuntimeStatusSuccessTemplate" x:DataType="models:DeviceCapabilitiesRuntimeStatusItemModel">
+            <Border
+                Width="220"
+                Margin="0,0,12,12"
+                Padding="12"
+                Background="#1AFFFFFF"
+                CornerRadius="10">
+                <StackPanel Spacing="4">
+                    <TextBlock
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind Name, Mode=OneWay}" />
+                    <TextBlock
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource StatusSuccessBrush}"
+                        Text="{x:Bind Status, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="DeviceCapabilitiesRuntimeStatusWarningTemplate" x:DataType="models:DeviceCapabilitiesRuntimeStatusItemModel">
+            <Border
+                Width="220"
+                Margin="0,0,12,12"
+                Padding="12"
+                Background="#1AFFFFFF"
+                CornerRadius="10">
+                <StackPanel Spacing="4">
+                    <TextBlock
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind Name, Mode=OneWay}" />
+                    <TextBlock
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource StatusWarningBrush}"
+                        Text="{x:Bind Status, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="DeviceCapabilitiesRuntimeStatusErrorTemplate" x:DataType="models:DeviceCapabilitiesRuntimeStatusItemModel">
+            <Border
+                Width="220"
+                Margin="0,0,12,12"
+                Padding="12"
+                Background="#1AFFFFFF"
+                CornerRadius="10">
+                <StackPanel Spacing="4">
+                    <TextBlock
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind Name, Mode=OneWay}" />
+                    <TextBlock
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource StatusErrorBrush}"
+                        Text="{x:Bind Status, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <deviceCapabilitiesControls:DeviceCapabilitiesRuntimeStatusItemTemplateSelector
+            x:Key="DeviceCapabilitiesRuntimeStatusItemTemplateSelector"
+            DefaultTemplate="{StaticResource DeviceCapabilitiesRuntimeStatusDefaultTemplate}"
+            ErrorTemplate="{StaticResource DeviceCapabilitiesRuntimeStatusErrorTemplate}"
+            SuccessTemplate="{StaticResource DeviceCapabilitiesRuntimeStatusSuccessTemplate}"
+            WarningTemplate="{StaticResource DeviceCapabilitiesRuntimeStatusWarningTemplate}" />
+    </UserControl.Resources>
+
+    <StackPanel Spacing="12">
+        <StackPanel Margin="10,0">
+            <controls:ElevatedCard
+                Margin="0"
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Stretch"
+                Background="{StaticResource CardBackgroundBrush}">
+                <StackPanel Padding="14">
+                    <TextBlock
+                        Margin="0,0,0,14"
+                        FontSize="22"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Onboard devices status" />
+
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="Temperature Sensors" />
+                        <GridView
+                            IsItemClickEnabled="False"
+                            ItemTemplateSelector="{StaticResource DeviceCapabilitiesRuntimeStatusItemTemplateSelector}"
+                            ItemsSource="{x:Bind ViewModel.TemperatureStatusItems, Mode=OneWay}"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            ScrollViewer.HorizontalScrollMode="Disabled"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollMode="Disabled"
+                            SelectionMode="None" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="Fans" />
+                        <GridView
+                            IsItemClickEnabled="False"
+                            ItemTemplateSelector="{StaticResource DeviceCapabilitiesRuntimeStatusItemTemplateSelector}"
+                            ItemsSource="{x:Bind ViewModel.FanStatusItems, Mode=OneWay}"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            ScrollViewer.HorizontalScrollMode="Disabled"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollMode="Disabled"
+                            SelectionMode="None" />
+                    </StackPanel>
+
+                    <StackPanel Spacing="8">
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="Batteries" />
+                        <GridView
+                            IsItemClickEnabled="False"
+                            ItemTemplateSelector="{StaticResource DeviceCapabilitiesRuntimeStatusItemTemplateSelector}"
+                            ItemsSource="{x:Bind ViewModel.BatteryStatusItems, Mode=OneWay}"
+                            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                            ScrollViewer.HorizontalScrollMode="Disabled"
+                            ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                            ScrollViewer.VerticalScrollMode="Disabled"
+                            SelectionMode="None" />
+                    </StackPanel>
+                </StackPanel>
+            </controls:ElevatedCard>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

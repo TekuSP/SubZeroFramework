@@ -14,6 +14,10 @@ public sealed record FanCapabilityState
 
     public bool SupportsThermalReporting { get; init; }
 
+    public int MaximumSpeedRpm { get; init; }
+
+    public FrameworkCoolingDetails? CoolingDetails { get; init; }
+
     public DateTimeOffset ObservedAt { get; init; }
 
     public bool IsAvailable { get; init; }

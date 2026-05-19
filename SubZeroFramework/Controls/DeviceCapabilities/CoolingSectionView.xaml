@@ -1,0 +1,623 @@
+﻿<UserControl
+    x:Class="SubZeroFramework.Controls.DeviceCapabilities.CoolingSectionView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:fanControls="using:SubZeroFramework.Controls.Fans"
+    xmlns:fanModels="using:SubZeroFramework.Controls.Fans.Models"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="IsTextSelectionEnabled" Value="True" />
+        </Style>
+
+        <DataTemplate x:Key="FrameworkLaptop12FanAdvancedInfoTemplate" x:DataType="fanModels:FrameworkLaptop12FanAdvancedInfoCardModel">
+            <Grid ColumnSpacing="12" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Processor Support" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ProcessorSupport, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Column="1"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Thermal Capacity" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ThermalCapacity, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Column="2"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Heat Pipes" />
+                        <TextBlock
+                            FontSize="18"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind HeatPipeConfiguration, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Row="1"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Fan Dimensions" />
+                        <TextBlock
+                            FontSize="18"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            TextWrapping="WrapWholeWords">
+                            <Run Text="{x:Bind FanDiameterMillimeters, Mode=OneWay}" />
+                            <Run Text=" mm diameter × " />
+                            <Run Text="{x:Bind FanThicknessMillimeters, Mode=OneWay}" />
+                            <Run Text=" mm thickness" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Thermal Interface" />
+                        <TextBlock
+                            FontSize="18"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ThermalInterfaceMaterial, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Row="2"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Firmware Range" />
+                        <TextBlock
+                            FontSize="18"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            TextWrapping="WrapWholeWords">
+                            <Run Text="{x:Bind FirmwareMinimumRpm, Mode=OneWay}" />
+                            <Run Text="–" />
+                            <Run Text="{x:Bind FirmwareMaximumRpm, Mode=OneWay}" />
+                            <Run Text=" RPM" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Row="2"
+                    Grid.Column="1"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Physical Limit" />
+                        <TextBlock
+                            FontSize="18"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            TextWrapping="WrapWholeWords">
+                            <Run Text="{x:Bind MaximumPhysicalLimitRpm, Mode=OneWay}" />
+                            <Run Text=" RPM" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="FrameworkLaptop13FanAdvancedInfoTemplate" x:DataType="fanModels:FrameworkLaptop13FanAdvancedInfoCardModel">
+            <Grid ColumnSpacing="12" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Processor Support" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ProcessorSupport, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Column="1"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Chassis Material" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ChassisMaterial, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Column="2"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Idle Speed (Firmware)" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            TextWrapping="WrapWholeWords">
+                            <Run Text="~" />
+                            <Run Text="{x:Bind ApproximateFirmwareIdleSpeedRpm, Mode=OneWay}" />
+                            <Run Text=" RPM" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Row="1"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Idle Speed (Tuned)" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            TextWrapping="WrapWholeWords">
+                            <Run Text="~" />
+                            <Run Text="{x:Bind ApproximateUserTunedIdleSpeedRpm, Mode=OneWay}" />
+                            <Run Text=" RPM" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Firmware Limit" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            TextWrapping="WrapWholeWords">
+                            <Run Text="{x:Bind MaximumFirmwareLimitRpm, Mode=OneWay}" />
+                            <Run Text=" RPM" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Row="1"
+                    Grid.Column="2"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Physical Limit" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            TextWrapping="WrapWholeWords">
+                            <Run Text="~" />
+                            <Run Text="{x:Bind ApproximatePhysicalMaximumRpm, Mode=OneWay}" />
+                            <Run Text=" RPM" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="FrameworkLaptop16FanAdvancedInfoTemplate" x:DataType="fanModels:FrameworkLaptop16FanAdvancedInfoCardModel">
+            <Grid ColumnSpacing="12" RowSpacing="12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Processor Support" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ProcessorSupport, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Column="1"
+                    Grid.ColumnSpan="2"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Primary CPU TIM" />
+                        <TextBlock
+                            FontSize="18"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind PrimaryCpuThermalInterfaceMaterial, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Row="1"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Shell Fan" />
+                        <TextBlock
+                            FontSize="18"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            TextWrapping="WrapWholeWords">
+                            <Run Text="{x:Bind ShellFanWidthMillimeters, Mode=OneWay}" />
+                            <Run Text=" × " />
+                            <Run Text="{x:Bind ShellFanHeightMillimeters, Mode=OneWay}" />
+                            <Run Text=" × " />
+                            <Run Text="{x:Bind ShellFanThicknessMillimeters, Mode=OneWay}" />
+                            <Run Text=" mm" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Graphics Fan" />
+                        <TextBlock
+                            FontSize="18"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            TextWrapping="WrapWholeWords">
+                            <Run Text="{x:Bind GraphicsFanWidthMillimeters, Mode=OneWay}" />
+                            <Run Text=" × " />
+                            <Run Text="{x:Bind GraphicsFanHeightMillimeters, Mode=OneWay}" />
+                            <Run Text=" × " />
+                            <Run Text="{x:Bind GraphicsFanThicknessMillimeters, Mode=OneWay}" />
+                            <Run Text=" mm" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Row="1"
+                    Grid.Column="2"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Expansion Bay Power" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            TextWrapping="WrapWholeWords">
+                            <Run Text="{x:Bind ExpansionBayPowerLimitWatts, Mode=OneWay}" />
+                            <Run Text=" W allocated maximum" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Row="2"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Firmware Limit" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            TextWrapping="WrapWholeWords">
+                            <Run Text="{x:Bind StandardFirmwareMaximumRpm, Mode=OneWay}" />
+                            <Run Text=" RPM" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <Border
+                    Grid.Row="2"
+                    Grid.Column="1"
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Thermal Stress Max" />
+                        <TextBlock
+                            FontSize="22"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            TextWrapping="WrapWholeWords">
+                            <Run Text="~" />
+                            <Run Text="{x:Bind ApproximateThermalStressMaximumRpm, Mode=OneWay}" />
+                            <Run Text=" RPM" />
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="FrameworkDesktopFanAdvancedInfoTemplate" x:DataType="fanModels:FrameworkDesktopFanAdvancedInfoCardModel">
+            <StackPanel Spacing="12">
+                <Grid ColumnSpacing="12" RowSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border
+                        Padding="12"
+                        Background="#1AFFFFFF"
+                        CornerRadius="10">
+                        <StackPanel>
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Platform" />
+                            <TextBlock
+                                FontSize="22"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{x:Bind Platform, Mode=OneWay}"
+                                TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                        Grid.Column="1"
+                        Padding="12"
+                        Background="#1AFFFFFF"
+                        CornerRadius="10">
+                        <StackPanel Spacing="8">
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Supported Fans" />
+                            <ItemsRepeater ItemsSource="{x:Bind SupportedFanOptions, Mode=OneWay}">
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="fanModels:FrameworkDesktopFanOptionModel">
+                                        <TextBlock
+                                            Margin="0,0,0,6"
+                                            FontSize="16"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            Text="{x:Bind ModelName, Mode=OneWay}"
+                                            TextWrapping="WrapWholeWords" />
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                        Grid.Column="2"
+                        Padding="12"
+                        Background="#1AFFFFFF"
+                        CornerRadius="10">
+                        <StackPanel Spacing="8">
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Fan Dimensions" />
+                            <ItemsRepeater ItemsSource="{x:Bind SupportedFanOptions, Mode=OneWay}">
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="fanModels:FrameworkDesktopFanOptionModel">
+                                        <TextBlock
+                                            Margin="0,0,0,6"
+                                            FontSize="16"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            TextWrapping="WrapWholeWords">
+                                            <Run Text="{x:Bind ModelName, Mode=OneWay}" />
+                                            <Run Text=": " />
+                                            <Run Text="{x:Bind WidthMillimeters, Mode=OneWay}" />
+                                            <Run Text=" × " />
+                                            <Run Text="{x:Bind HeightMillimeters, Mode=OneWay}" />
+                                            <Run Text=" × " />
+                                            <Run Text="{x:Bind ThicknessMillimeters, Mode=OneWay}" />
+                                            <Run Text=" mm" />
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Grid ColumnSpacing="12" RowSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border
+                        Padding="12"
+                        Background="#1AFFFFFF"
+                        CornerRadius="10">
+                        <StackPanel Spacing="8">
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Connectors" />
+                            <ItemsRepeater ItemsSource="{x:Bind SupportedFanOptions, Mode=OneWay}">
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="fanModels:FrameworkDesktopFanOptionModel">
+                                        <TextBlock
+                                            Margin="0,0,0,6"
+                                            FontSize="16"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            TextWrapping="WrapWholeWords">
+                                            <Run Text="{x:Bind ModelName, Mode=OneWay}" />
+                                            <Run Text=": " />
+                                            <Run Text="{x:Bind ConnectorType, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                        Grid.Column="1"
+                        Padding="12"
+                        Background="#1AFFFFFF"
+                        CornerRadius="10">
+                        <StackPanel Spacing="8">
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Max Airflow" />
+                            <ItemsRepeater ItemsSource="{x:Bind SupportedFanOptions, Mode=OneWay}">
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="fanModels:FrameworkDesktopFanOptionModel">
+                                        <TextBlock
+                                            Margin="0,0,0,6"
+                                            FontSize="16"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            TextWrapping="WrapWholeWords">
+                                            <Run Text="{x:Bind ModelName, Mode=OneWay}" />
+                                            <Run Text=": " />
+                                            <Run Text="{x:Bind MaximumAirflowDisplay, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </StackPanel>
+                    </Border>
+
+                    <Border
+                        Grid.Column="2"
+                        Padding="12"
+                        Background="#1AFFFFFF"
+                        CornerRadius="10">
+                        <StackPanel Spacing="8">
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Noise" />
+                            <ItemsRepeater ItemsSource="{x:Bind SupportedFanOptions, Mode=OneWay}">
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="fanModels:FrameworkDesktopFanOptionModel">
+                                        <TextBlock
+                                            Margin="0,0,0,6"
+                                            FontSize="16"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            TextWrapping="WrapWholeWords">
+                                            <Run Text="{x:Bind ModelName, Mode=OneWay}" />
+                                            <Run Text=": " />
+                                            <Run Text="{x:Bind AcousticNoiseDisplay, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Border
+                    Padding="12"
+                    Background="#1AFFFFFF"
+                    CornerRadius="10">
+                    <StackPanel Spacing="8">
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Maximum Fan Speed" />
+                        <ItemsRepeater ItemsSource="{x:Bind SupportedFanOptions, Mode=OneWay}">
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="fanModels:FrameworkDesktopFanOptionModel">
+                                    <TextBlock
+                                        Margin="0,0,0,6"
+                                        FontSize="16"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        TextWrapping="WrapWholeWords">
+                                        <Run Text="{x:Bind ModelName, Mode=OneWay}" />
+                                        <Run Text=": " />
+                                        <Run Text="{x:Bind MaximumFanSpeedRpm, Mode=OneWay}" />
+                                        <Run Text=" RPM" />
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </DataTemplate>
+
+        <fanControls:FanAdvancedInfoCardTemplateSelector
+            x:Key="FanAdvancedInfoCardTemplateSelector"
+            FrameworkDesktopTemplate="{StaticResource FrameworkDesktopFanAdvancedInfoTemplate}"
+            FrameworkLaptop12Template="{StaticResource FrameworkLaptop12FanAdvancedInfoTemplate}"
+            FrameworkLaptop13Template="{StaticResource FrameworkLaptop13FanAdvancedInfoTemplate}"
+            FrameworkLaptop16Template="{StaticResource FrameworkLaptop16FanAdvancedInfoTemplate}" />
+    </UserControl.Resources>
+
+    <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.CoolingHardwareVisibility, Mode=OneWay}">
+        <TextBlock
+            Margin="15,0"
+            FontSize="28"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource TextPrimaryBrush}"
+            Text="Cooling" />
+        <StackPanel Margin="10,0">
+            <controls:ElevatedCard
+                HorizontalContentAlignment="Stretch"
+                VerticalContentAlignment="Stretch"
+                Background="{StaticResource CardBackgroundBrush}">
+                <StackPanel Padding="14" Spacing="14">
+                    <TextBlock
+                        FontSize="22"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Cooling Hardware &amp; Firmware" />
+                    <ContentControl Content="{x:Bind ViewModel.FanAdvancedInfo, Mode=OneWay}" ContentTemplateSelector="{StaticResource FanAdvancedInfoCardTemplateSelector}" />
+                </StackPanel>
+            </controls:ElevatedCard>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

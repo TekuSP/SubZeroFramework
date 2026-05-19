@@ -8,8 +8,6 @@ namespace SubZeroFramework.Service.Services;
 
 public sealed class HardwareInfoGrpcService : HardwareInfoService.HardwareInfoServiceBase
 {
-    private static readonly TimeSpan MaximumHistoryWindow = TimeSpan.FromHours(1);
-
     private readonly IFrameworkDataProvider _frameworkDataProvider;
     private readonly ILogger<HardwareInfoGrpcService> _logger;
 
@@ -51,7 +49,7 @@ public sealed class HardwareInfoGrpcService : HardwareInfoService.HardwareInfoSe
     public override Task WatchHardwareInfoHistory(WatchHardwareInfoHistoryRequest request, IServerStreamWriter<HardwareInfoHistoryChangeBatchReply> responseStream, ServerCallContext context)
     {
         var requestedHistoryWindow = TimeSpan.FromSeconds(request.HistoryWindowSeconds);
-        if (requestedHistoryWindow <= TimeSpan.Zero || requestedHistoryWindow > MaximumHistoryWindow)
+        if (requestedHistoryWindow <= TimeSpan.Zero || requestedHistoryWindow > TelemetryHistoryLimits.MaximumHistoryWindow)
         {
             _logger.LogWarning("Rejected hardware info history request because the requested history window {HistoryWindowSeconds}s is outside the supported range.", request.HistoryWindowSeconds);
             throw new RpcException(new Status(StatusCode.InvalidArgument, "The hardware info history window must be between 1 second and 1 hour."));

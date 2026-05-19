@@ -1,0 +1,198 @@
+﻿<UserControl
+    x:Class="SubZeroFramework.Controls.Fans.FanCardView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="250"
+    d:DesignWidth="300"
+    mc:Ignorable="d">
+
+    <controls:ElevatedCard
+        Width="300"
+        Height="250"
+        HorizontalContentAlignment="Stretch"
+        VerticalContentAlignment="Stretch"
+        Background="{StaticResource CardBackgroundBrush}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock
+                Grid.Row="0"
+                Margin="15,15,15,0"
+                FontSize="20"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="{x:Bind ViewModel.Snapshot.DisplayName, Mode=OneWay}" />
+
+            <Grid Grid.Row="1" Margin="-110,5,0,0">
+                <lvc:PieChart
+                    Background="Transparent"
+                    CornerRadius="0"
+                    InitialRotation="-225"
+                    LegendPosition="Hidden"
+                    MaxAngle="200"
+                    MaxValue="{x:Bind ViewModel.MaximumFanSpeedRpm, Mode=OneWay}"
+                    MinValue="0"
+                    TooltipPosition="Hidden">
+                    <lvc:PieChart.Series>
+                        <lvc:SeriesCollection>
+                            <lvc:XamlPieSeries
+                                CornerRadius="0"
+                                DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
+                                Fill="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                HoverPushout="0"
+                                IsHoverable="False"
+                                MaxRadialColumnWidth="15"
+                                Values="{x:Bind ViewModel.FanSpeedGaugeValues, Mode=OneWay}" />
+                            <lvc:XamlPieSeries
+                                DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
+                                Fill="{lvc:SolidColorPaint Color='#FF5D5E73'}"
+                                HoverPushout="0"
+                                IsHoverable="False"
+                                MaxRadialColumnWidth="15"
+                                Values="{x:Bind ViewModel.FanSpeedRemainingGaugeValues, Mode=OneWay}" />
+                        </lvc:SeriesCollection>
+                    </lvc:PieChart.Series>
+                </lvc:PieChart>
+            </Grid>
+
+            <StackPanel
+                Grid.Row="1"
+                Margin="-55,0,0,0"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Orientation="Horizontal">
+                <TextBlock
+                    FontSize="36"
+                    FontWeight="Bold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{x:Bind ViewModel.Snapshot.SpeedRpm, Mode=OneWay}" />
+                <TextBlock
+                    Margin="4,0,0,6"
+                    VerticalAlignment="Bottom"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="RPM" />
+            </StackPanel>
+
+            <StackPanel
+                Grid.Row="0"
+                Margin="0,15,15,0"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top">
+                <StackPanel
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal"
+                    Spacing="6">
+                    <material:MaterialIcon
+                        Width="14"
+                        Height="14"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Kind="Target" />
+                    <TextBlock
+                        FontSize="14"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.TargetModeDisplay, Mode=OneWay}" />
+                </StackPanel>
+                <StackPanel
+                    Margin="0,2,0,0"
+                    HorizontalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="6">
+                    <material:MaterialIcon
+                        Width="14"
+                        Height="14"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Kind="Thermometer" />
+                    <TextBlock
+                        FontSize="14"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.DrivingTemperatureDisplay, Mode=OneWay}" />
+                </StackPanel>
+                <TextBlock
+                    Margin="0,4,0,0"
+                    HorizontalAlignment="Right"
+                    FontSize="13"
+                    FontWeight="SemiBold"
+                    Foreground="{x:Bind ViewModel.OverrideStateBrush, Mode=OneWay}"
+                    Text="{x:Bind ViewModel.OverrideStateText, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.OverrideStateVisibility, Mode=OneWay}" />
+            </StackPanel>
+
+            <lvc:CartesianChart
+                Grid.Row="1"
+                Grid.RowSpan="2"
+                Width="210"
+                Height="90"
+                Margin="0,0,-20,0"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                AutoUpdateEnabled="True"
+                Background="Transparent"
+                TooltipPosition="Hidden">
+                <lvc:CartesianChart.Series>
+                    <lvc:SeriesCollection>
+                        <lvc:XamlLineSeries
+                            Fill="{x:Null}"
+                            GeometryFill="{x:Null}"
+                            GeometryStroke="{x:Null}"
+                            Stroke="{lvc:SolidColorPaint Color='#FFD7D8FF', StrokeWidth='2'}"
+                            Values="{x:Bind ViewModel.FanSpeedHistory, Mode=OneWay}" />
+                    </lvc:SeriesCollection>
+                </lvc:CartesianChart.Series>
+                <lvc:CartesianChart.XAxes>
+                    <lvc:AxesCollection>
+                        <lvc:XamlDateTimeAxis
+                            AnimationsSpeed="0"
+                            CustomSeparators="{x:Bind ViewModel.Separators, Mode=OneWay}"
+                            DateFormatter="{x:Bind ViewModel.LabelsFormatter, Mode=OneWay}"
+                            Interval="0:0:1"
+                            LabelsPaint="{lvc:SolidColorPaint Color='D85D5E73'}"
+                            SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                            TextSize="8" />
+                    </lvc:AxesCollection>
+                </lvc:CartesianChart.XAxes>
+                <lvc:CartesianChart.YAxes>
+                    <lvc:AxesCollection>
+                        <lvc:XamlAxis
+                            Padding="{lvc:Padding Value='0,0'}"
+                            LabelsPaint="{lvc:SolidColorPaint Color='FFD7D8FF'}"
+                            MaxLimit="{x:Bind ViewModel.MaximumFanSpeedRpm, Mode=OneWay}"
+                            MinLimit="0"
+                            SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                            ShowSeparatorLines="True"
+                            TextSize="8" />
+                    </lvc:AxesCollection>
+                </lvc:CartesianChart.YAxes>
+            </lvc:CartesianChart>
+
+            <Grid
+                Grid.Row="2"
+                Height="50"
+                Margin="0,0,0,5">
+                <StackPanel
+                    Margin="15,0,0,10"
+                    VerticalAlignment="Bottom"
+                    Orientation="Horizontal"
+                    Spacing="6">
+                    <material:MaterialIcon
+                        Width="14"
+                        Height="14"
+                        Foreground="{x:Bind ViewModel.StatusBrush, Mode=OneWay}"
+                        Kind="Circle" />
+                    <TextBlock
+                        FontSize="14"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </controls:ElevatedCard>
+</UserControl>

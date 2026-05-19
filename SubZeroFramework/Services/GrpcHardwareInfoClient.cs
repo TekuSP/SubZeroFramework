@@ -11,9 +11,6 @@ namespace SubZeroFramework.Services;
 
 public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
 {
-    private static readonly TimeSpan MaximumHistoryWindow = TimeSpan.FromHours(1);
-    private static readonly TimeSpan ReconnectDelay = TimeSpan.FromSeconds(2);
-
     private readonly FrameworkGrpcChannelFactory _channelFactory;
     private readonly HardwareInfoService.HardwareInfoServiceClient _client;
     private readonly IObservable<HardwareInfoSnapshot> _sharedHardwareInfoStream;
@@ -47,9 +44,9 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
     {
         ThrowIfDisposed();
 
-        if (historyWindow <= TimeSpan.Zero || historyWindow > MaximumHistoryWindow)
+        if (historyWindow <= TimeSpan.Zero || historyWindow > TelemetryHistoryLimits.MaximumHistoryWindow)
         {
-            throw new ArgumentOutOfRangeException(nameof(historyWindow), $"History window must be between {TimeSpan.Zero} and {MaximumHistoryWindow}.");
+            throw new ArgumentOutOfRangeException(nameof(historyWindow), $"History window must be between {TimeSpan.Zero} and {TelemetryHistoryLimits.MaximumHistoryWindow}.");
         }
 
         return _historyStreams.GetOrAdd(historyWindow, () => CreateHardwareInfoHistoryStream(historyWindow));
@@ -104,7 +101,7 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
 
                     try
                     {
-                        await Task.Delay(ReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
+                        await Task.Delay(GrpcTransportDefaults.StreamReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
                     {
@@ -170,7 +167,7 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
 
                     try
                     {
-                        await Task.Delay(ReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
+                        await Task.Delay(GrpcTransportDefaults.StreamReconnectDelay, cancellationSource.Token).ConfigureAwait(false);
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
                     {

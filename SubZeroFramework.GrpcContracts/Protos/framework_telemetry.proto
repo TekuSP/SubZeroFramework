@@ -367,6 +367,71 @@ message TelemetryChannelChangeBatchReply {
   repeated TelemetryChannelChangeReply changes = 1;
 }
 
+message CoolingFanDimensionsReply {
+  double width_millimeters = 1;
+  double height_millimeters = 2;
+  double thickness_millimeters = 3;
+  bool is_circular = 4;
+}
+
+message FanSpeedRangeReply {
+  int32 minimum_rpm = 1;
+  int32 maximum_rpm = 2;
+}
+
+message FrameworkLaptop12CoolingDetailsReply {
+  string processor_support = 1;
+  string thermal_capacity = 2;
+  string heat_pipe_configuration = 3;
+  CoolingFanDimensionsReply fan_dimensions = 4;
+  string thermal_interface_material = 5;
+  FanSpeedRangeReply firmware_operating_range_rpm = 6;
+  int32 maximum_physical_limit_rpm = 7;
+}
+
+message FrameworkLaptop13CoolingDetailsReply {
+  string processor_support = 1;
+  string chassis_material = 2;
+  int32 approximate_firmware_idle_speed_rpm = 3;
+  int32 approximate_user_tuned_idle_speed_rpm = 4;
+  int32 maximum_firmware_limit_rpm = 5;
+  int32 approximate_physical_maximum_rpm = 6;
+}
+
+message FrameworkLaptop16CoolingDetailsReply {
+  string processor_support = 1;
+  string primary_cpu_thermal_interface_material = 2;
+  CoolingFanDimensionsReply shell_fan_dimensions = 3;
+  CoolingFanDimensionsReply graphics_fan_dimensions = 4;
+  double expansion_bay_power_limit_watts = 5;
+  int32 standard_firmware_maximum_rpm = 6;
+  int32 approximate_thermal_stress_maximum_rpm = 7;
+}
+
+message FrameworkDesktopFanOptionReply {
+  string model_name = 1;
+  CoolingFanDimensionsReply fan_dimensions = 2;
+  string connector_type = 3;
+  double maximum_airflow_cfm = 4;
+  string alternate_airflow_display = 5;
+  string acoustic_noise_display = 6;
+  int32 maximum_fan_speed_rpm = 7;
+}
+
+message FrameworkDesktopCoolingDetailsReply {
+  string platform = 1;
+  repeated FrameworkDesktopFanOptionReply supported_fan_options = 2;
+}
+
+message FrameworkCoolingDetailsReply {
+  oneof details {
+    FrameworkLaptop12CoolingDetailsReply framework_laptop_12 = 1;
+    FrameworkLaptop13CoolingDetailsReply framework_laptop_13 = 2;
+    FrameworkLaptop16CoolingDetailsReply framework_laptop_16 = 3;
+    FrameworkDesktopCoolingDetailsReply framework_desktop = 4;
+  }
+}
+
 message FanCapabilityChangeReply {
   TelemetryChangeKind change_kind = 1;
   int32 fan_index = 2;
@@ -376,6 +441,8 @@ message FanCapabilityChangeReply {
   bool supports_thermal_reporting = 6;
   int64 observed_at_unix_time_milliseconds = 7;
   bool is_available = 8;
+  int32 maximum_speed_rpm = 9;
+  FrameworkCoolingDetailsReply cooling_details = 10;
 }
 
 message FanCapabilityChangeBatchReply {
