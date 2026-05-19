@@ -19,8 +19,10 @@ Use `Architecture.md` as the source of truth for the service/client split, privi
 - When modifying service or core service-boundary code, prefer structured DI-backed logging with `ILogger<T>` at lifecycle boundaries, mutating commands, direct stream writes, publish points, authorization rejections, and exceptional shutdown/restore paths.
 - If you need source codes, preferably use the GitHub web interface to navigate and search the codebase, as it provides better context and understanding of the code structure. Use the file paths and class names mentioned in this document to locate relevant code sections.
 If possible use ObservableProperty with ObservableObject, leveraging C# partial classes to reduce boilerplate and ensure change notifications are properly raised for UI updates. This is especially important for view models and any state that the UI binds to.
+- Prefer `[NotifyPropertyChangedFor]` and `[NotifyCanExecuteChangedFor]` on `[ObservableProperty]` dependencies instead of manual `OnPropertyChanged(...)` or `NotifyCanExecuteChanged()` calls; repo analyzers `SZF0001` and `SZF0002` enforce this.
 - For inventory surfaces, prefer FrameworkDotnet data first and only use Hardware.Info to fill gaps, keeping that fallback flow behind the existing service/gRPC/client boundary.
 - For service lifecycle work, keep install/update/shutdown/restart/autorun management out of gRPC. Prefer the packaged service executable and `FrameworkServiceManagementCli` so the client stays unelevated and the action still works when the service is offline.
+- For service-owned runtime settings such as polling cadence or writable fan-command authorization, prefer `FrameworkServiceConfigurationGrpcService` / `IFrameworkServiceConfigurationClient` plus the persistent service-owned configuration overlay instead of client-local settings. Keep lifecycle operations out of that gRPC surface.
 - Preserve stable item identity in GridView/ListView card layouts. Prefer persistent mutable card/view-model instances exposed via `ReadOnlyObservableCollection<T>` over rebinding fresh arrays every refresh, otherwise cards blink and pointer/layout state resets.
 - Re-read any existing XAML page immediately before editing it. The user often makes small manual visual tweaks between turns, and those should be preserved.
 - When working on telemetry streams, ensure that you are properly marshalling back to the UI thread using `ObserveOn(SynchronizationContext.Current)` or `ObserveOn(DispatcherQueue.Current)` as appropriate for the platform. This will prevent threading issues and ensure that UI updates happen smoothly.
@@ -44,6 +46,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - There is a strong contract assembly in `SubZeroFramework.GrpcContracts`.
 - `FrameworkGrpcSocketSecurity` validates socket location, path, symlinks, and Linux permissions.
 - `FrameworkStatusGrpcService` exposes status and service health.
+- `FrameworkServiceConfigurationGrpcService` exposes service-owned runtime configuration (currently polling cadence and fan-command authorization) with read/watch/update semantics.
 - `FrameworkTelemetryGrpcService` exposes telemetry and fan control state streams.
 - `FrameworkFanControlGrpcService` exposes explicit write commands and enforces authorization.
 
@@ -65,6 +68,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - The dashboard and header surface service health and telemetry state.
 - `MainModel`, `HeaderModel`, and dashboard view models are the primary reactive consumers.
 - Prefer `IFrameworkStatusClient`, `IFrameworkTelemetryClient`, `IFanCapabilityClient`, `IFanControlStateClient`, and higher-level telemetry clients instead of raw data providers.
+- `SettingsModel` should combine lifecycle state from `IFrameworkServiceControlClient` with service-owned runtime configuration from `IFrameworkServiceConfigurationClient`. Autorun is lifecycle state; polling cadence and writable fan-command authorization are service-owned config.
 - Left navigation is icon-led and supports a compact app-shell visual style.
 - Pages should emphasize summary cards, status badges, and nested telemetry cards rather than dense tables.
 - Use a visually distinct fallback/error card for unsupported hardware and safe-mode states.
@@ -122,7 +126,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - Fan Curve Profiles: per-fan editor and profile manager, allowing sensor-to-fan associations, aggregation mode choices, delta/CPU/GPU usage options, and profile save/restore controls.
 - Device Capabilities: dashboard-aligned inventory page with device identity, EC version/build, BIOS release date, CPU identity plus frequency history, memory/storage/network/graphics/display inventory, runtime sensor/fan/battery status cards, copyable value text, and drive-level usage summaries. Prefer Framework data first, then Hardware.Info through IPC.
 - Warnings / Issues: error and warning surface with quick remediation buttons—restart service, install/update/uninstall service when a packaged bundle is available, privilege-prompt guidance, and other corrective actions.
-- Settings: service health, service-manager identity, shutdown/restart/autorun/install/update/uninstall controls, privilege guidance, plus user preferences and app behavior options.
+- Settings: service health, service-manager identity, shutdown/restart/autorun/install/update/reinstall/uninstall controls, privilege guidance, and service-owned runtime configuration (polling cadence and fan-command authorization) over gRPC. Keep client-only preferences separate from this service-owned config surface.
 
 ### 4. UI/UX design guidance
 - Preserve the existing dark, flattened Fluent-inspired dashboard style with layered panels and subtle depth.
@@ -170,13 +174,14 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 
 ### UI integration
 - Replace any remaining direct `IFrameworkDataProvider` usage with IPC clients.
-- Visible service-health and installation/elevation guidance now exist in header/settings/warnings; logs and copy-diagnostics actions are still missing.
+- Visible service-health and installation/elevation guidance now exist in header/settings/warnings, and Settings now owns the service-backed polling/auth configuration flow; logs and copy-diagnostics actions are still missing.
 - Decide which views use distinct status transitions versus live telemetry cadence.
 - Treat Device Capabilities as substantially complete for inventory/status work; the next preferred UI slice is the first dedicated Thermal Telemetry page over `IFrameworkTelemetryClient`.
 
 ### Testing
 - Expand integration coverage for gRPC contract validation and reconnect behaviors.
 - Add tests for telemetry history window validation, stream startup, cancellation, and long-lived stream semantics.
+- Service configuration store/manager and autorun parsing now have regression coverage; remaining gaps are broader startup/binding, watch-stream reconnect, and cross-platform deployment tests.
 - Add Windows/Linux deployment and service startup tests where feasible.
 
 ## Known weak points and review focus
@@ -188,7 +193,7 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - The service needs better shutdown/recovery semantics and fan safety failure handling.
 - Telemetry UI is still partially wired; getting the first end-to-end thermal surface is a near-term goal.
 - Device Capabilities CPU load/core views are intentionally omitted because the current Windows Hardware.Info values were not trustworthy.
-- Configuration binding and option response coverage need broader tests.
+- Configuration watch/reconnect coverage and broader startup/binding coverage still need more tests.
 
 ## Priorities for future copilots
 1. IPC hardening first
@@ -220,13 +225,19 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 ## Useful files and classes
 - `SubZeroFramework.Service/Program.cs`
 - `SubZeroFramework.Service/FrameworkServiceManagementCli.cs`
+- `SubZeroFramework.Service/Services/FrameworkServiceConfigurationGrpcService.cs`
+- `SubZeroFramework.Service/Services/FrameworkServiceConfigurationManager.cs`
+- `SubZeroFramework.Service/Services/FrameworkServiceConfigurationStore.cs`
 - `SubZeroFramework.Service/Services/FrameworkTelemetryGrpcService.cs`
 - `SubZeroFramework.Service/Services/FrameworkFanControlGrpcService.cs`
 - `SubZeroFramework.Service/Services/FrameworkFanControlStateStore.cs`
 - `SubZeroFramework.Core/Services/FrameworkDataProvider.cs`
+- `SubZeroFramework.Core/Services/FrameworkServiceAutorunStateParser.cs`
 - `SubZeroFramework.Service/Services/HardwareInfoGrpcMapper.cs`
 - `SubZeroFramework.Services/FrameworkGrpcChannelFactory.cs`
 - `SubZeroFramework.Services/FrameworkGrpcSocketSecurity.cs`
+- `SubZeroFramework/Services/IFrameworkServiceConfigurationClient.cs`
+- `SubZeroFramework/Services/GrpcFrameworkServiceConfigurationClient.cs`
 - `SubZeroFramework/Services/LocalFrameworkServiceControlClient.cs`
 - `SubZeroFramework/Services/GrpcHardwareInfoClient.cs`
 - `SubZeroFramework.Services/RefCountedObservableCache.cs`

@@ -22,6 +22,7 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 - ✅ Use gRPC over Unix domain sockets as the initial IPC transport baseline for Windows 10/11 and Linux.
 - ✅ Add a strongly typed contract assembly for service requests, responses, snapshots, and command acknowledgements in `SubZeroFramework.GrpcContracts`.
 - ✅ Implement a request/response channel for status reads and fan commands.
+- ✅ Add a service-owned configuration IPC surface for runtime settings such as polling cadence and fan-command authorization. Settings now reads, watches, updates, and persists those values through typed gRPC contracts with explicit apply acknowledgements.
 - 🟡 Implement a streaming/subscription channel for telemetry snapshots and state changes. Service status streaming and telemetry channel/current-value/series streaming are done; the remaining work is end-to-end telemetry UI consumption and any additional snapshot-specific IPC surfaces you still want.
 - 🟡 Integrate Rx-friendly adapters over gRPC streams with explicit buffering, throttling, and backpressure strategy for UI subscriptions. Shared status stream reuse, telemetry sharing, non-dropping batched delivery, and bounded overload handling are done; the remaining work is any explicit throttling policy and broader integration coverage.
 - ✅ Add reconnect behavior when the service restarts for status and telemetry streams.
@@ -60,6 +61,7 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 
 - 🟡 Replace direct `IFrameworkDataProvider` usage in the UNO app with an IPC client abstraction. Status-side integration is done; telemetry surfaces should continue moving to IPC-only usage.
 - ✅ Update warning and settings pages to show service installation, update, elevation, and connection guidance using WinUI or Uno `InfoBar` surfaces for readiness, privilege prompts, and action results.
+- ✅ Move service-owned polling/auth configuration into the Settings page through the new gRPC configuration surface instead of treating those values as client-local preferences.
 - 🟡 Add a visible service-health indicator in the UI. Header, settings, and warning/status handling are now in place; logs and deeper diagnostics actions still need work.
 - ✅ Decide which UI surfaces should react only to state transitions versus live telemetry cadence. Header receives distinct system-status changes, with heartbeat/last-observed data kept separate.
 - ⏳ Add user actions to open logs or copy diagnostics.
@@ -76,7 +78,9 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 
 - ✅ Add shutdown coordination hooks across host-stopping, process-exit, unhandled-exception, and unobserved-task paths so the service can attempt orderly fan restore and emit lifecycle logs during controlled teardown.
 - ✅ Add broader structured logging around lifecycle boundaries, fan commands, publish points, and authorization rejections using DI-backed logging.
-- ✅ Add client-facing lifecycle actions in Settings and Warnings and Issues for shutdown, restart, autorun, install, update, and uninstall.
+- ✅ Add client-facing lifecycle actions in Settings and Warnings and Issues for shutdown, restart, autorun, install, update, reinstall, and uninstall.
+- ✅ Add service-owned configuration management for polling cadence and fan-command authorization through gRPC-backed read/watch/update flow, persistent overlay storage, and live apply in the service.
+- ✅ Expand Settings to match the newer remediation/lifecycle UX with autorun state, reinstall, service identity/readiness guidance, and editable service-owned runtime configuration.
 - ✅ Keep install and update out of the privileged client path by launching the packaged service executable elevated with `--service-management` instead of relying on a permanently elevated UI or self-destructive gRPC operations.
 - ✅ Package the service alongside CI app artifacts under `service-package/windows` and `service-package/linux` so install and update have a deterministic source bundle.
 - ✅ Validate the current integrated state with `build-windows`, `build-linux`, and `test-service`.
@@ -84,7 +88,7 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 ## Testing and validation
 
 - ✅ Add tests for Linux root detection behavior.
-- 🟡 Add tests for service startup configuration and option binding. Fan-command authorization/service-option behavior is now covered through `FrameworkFanControlAuthorizationServiceTests`, but broader startup/config binding coverage is still pending.
+- 🟡 Add tests for service startup configuration and option binding. Fan-command authorization/service-option behavior, autorun parsing, and the service configuration store/manager live-apply flows are now covered, but broader startup/config binding coverage is still pending.
 - 🟡 Add integration tests for IPC contracts. IPC validation failure coverage now exists through `FrameworkGrpcSocketSecurityTests`, but status reconnect coverage and telemetry stream contract coverage are still needed.
 - ⏳ Add a manual deployment checklist for Windows and Linux.
 
