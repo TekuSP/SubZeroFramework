@@ -32,15 +32,21 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
         if (OperatingSystem.IsWindows())
         {
             var executablePath = ResolveWindowsServiceExecutablePath();
+            var packagedHelperAvailable = executablePath is not null;
             var isElevated = IsRunningAsAdministrator();
             var isInstalled = IsWindowsServiceInstalled();
+            var isAutorunEnabled = isInstalled ? QueryWindowsAutorunEnabled() : null;
 
             return new FrameworkServiceControlInfo
             {
                 IsSupported = true,
                 IsInstalled = isInstalled,
-                CanInstall = executablePath is not null && !isInstalled,
-                CanUpdate = executablePath is not null && isInstalled,
+                CanUninstall = isInstalled,
+                CanInstall = packagedHelperAvailable && !isInstalled,
+                CanUpdate = packagedHelperAvailable && isInstalled,
+                PackagedHelperAvailable = packagedHelperAvailable,
+                IsElevatedSession = isElevated,
+                IsAutorunEnabled = isAutorunEnabled,
                 PlatformServiceManager = WindowsServiceManagerName,
                 ServiceIdentity = _options.WindowsServiceName,
                 InstallSourceSummary = executablePath is null
@@ -67,13 +73,18 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
             var canInstall = executablePath is not null;
             var isRoot = ClientLinuxPrivilegeDetector.IsRunningAsRoot();
             var isInstalled = IsLinuxServiceInstalled();
+            var isAutorunEnabled = isInstalled ? QueryLinuxAutorunEnabled() : null;
 
             return new FrameworkServiceControlInfo
             {
                 IsSupported = true,
                 IsInstalled = isInstalled,
+                CanUninstall = isInstalled,
                 CanInstall = canInstall && !isInstalled,
                 CanUpdate = canInstall && isInstalled,
+                PackagedHelperAvailable = canInstall,
+                IsElevatedSession = isRoot,
+                IsAutorunEnabled = isAutorunEnabled,
                 PlatformServiceManager = LinuxServiceManagerName,
                 ServiceIdentity = _options.LinuxUnitName,
                 InstallSourceSummary = canInstall
@@ -98,8 +109,12 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
         {
             IsSupported = false,
             IsInstalled = false,
+            CanUninstall = false,
             CanInstall = false,
             CanUpdate = false,
+            PackagedHelperAvailable = false,
+            IsElevatedSession = false,
+            IsAutorunEnabled = null,
             PlatformServiceManager = "Unsupported platform",
             ServiceIdentity = "Unsupported platform",
             InstallSourceSummary = "Service lifecycle requests are only implemented for Windows services and Linux systemd.",
@@ -156,6 +171,30 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
             CreateUninstallCommands,
             "Requested service uninstallation.",
             cancellationToken);
+
+    public async Task<FrameworkServiceCommandResult> ReinstallAsync(CancellationToken cancellationToken = default)
+    {
+        var uninstallResult = await UninstallAsync(cancellationToken).ConfigureAwait(false);
+        if (!uninstallResult.Succeeded)
+        {
+            return uninstallResult with
+            {
+                OperationName = "Reinstall service",
+                Message = $"Reinstall stopped during the uninstall step. {uninstallResult.Message}",
+            };
+        }
+
+        var installResult = await InstallAsync(cancellationToken).ConfigureAwait(false);
+        return new FrameworkServiceCommandResult
+        {
+            OperationName = "Reinstall service",
+            Succeeded = installResult.Succeeded,
+            Kind = installResult.Kind,
+            Message = installResult.Succeeded
+                ? "Requested service reinstall."
+                : $"Reinstall stopped during the install step. {installResult.Message}",
+        };
+    }
 
     private async Task<FrameworkServiceCommandResult> ExecuteOperationAsync(string operationName, Func<IReadOnlyList<ProcessStartInfo>> commandFactory, string successMessage, CancellationToken cancellationToken)
     {
@@ -496,6 +535,39 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
         }
     }
 
+    private bool? QueryWindowsAutorunEnabled()
+    {
+        try
+        {
+            var probe = RunProbeProcessDetailed(CreateDirectProcess("sc.exe", "qc", _options.WindowsServiceName));
+            if (probe.ExitCode != 0)
+            {
+                return null;
+            }
+
+            return FrameworkServiceAutorunStateParser.ParseWindowsScQcOutput(probe.StandardOutput);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Unable to determine whether Windows service {ServiceName} autorun is enabled.", _options.WindowsServiceName);
+            return null;
+        }
+    }
+
+    private bool? QueryLinuxAutorunEnabled()
+    {
+        try
+        {
+            var probe = RunProbeProcessDetailed(CreateDirectProcess("systemctl", "is-enabled", _options.LinuxUnitName));
+            return FrameworkServiceAutorunStateParser.ParseLinuxSystemctlIsEnabledOutput(probe.StandardOutput, probe.ExitCode);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Unable to determine whether Linux service unit {UnitName} autorun is enabled.", _options.LinuxUnitName);
+            return null;
+        }
+    }
+
     private static string? ResolveExistingFile(params string?[] candidates)
         => candidates
             .Where(candidate => !string.IsNullOrWhiteSpace(candidate))
@@ -573,6 +645,22 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
         _ = standardErrorTask.GetAwaiter().GetResult();
 
         return process.ExitCode;
+    }
+
+    private static (int ExitCode, string StandardOutput, string StandardError) RunProbeProcessDetailed(ProcessStartInfo startInfo)
+    {
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException($"Unable to start {startInfo.FileName} while probing local service state.");
+
+        var standardOutputTask = process.StandardOutput.ReadToEndAsync();
+        var standardErrorTask = process.StandardError.ReadToEndAsync();
+
+        process.WaitForExit();
+
+        return (
+            process.ExitCode,
+            standardOutputTask.GetAwaiter().GetResult(),
+            standardErrorTask.GetAwaiter().GetResult());
     }
 
     private static string QuoteWindowsArgument(string value)

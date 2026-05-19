@@ -4,223 +4,453 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:local="using:SubZeroFramework.Presentation.MenuItems.Settings"
     xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:uen="using:Uno.Extensions.Navigation.UI"
     xmlns:utu="using:Uno.Toolkit.UI"
     Background="{StaticResource AppBackgroundBrush}"
     NavigationCacheMode="Required"
     mc:Ignorable="d">
 
+    <Page.Resources>
+        <Style x:Key="SettingsCardTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        </Style>
+
+        <Style x:Key="SettingsLabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="TextWrapping" Value="WrapWholeWords" />
+        </Style>
+
+        <Style x:Key="SettingsValueStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="WrapWholeWords" />
+        </Style>
+
+        <Style x:Key="SettingsBodyStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="TextWrapping" Value="WrapWholeWords" />
+        </Style>
+
+        <Style x:Key="SettingsActionButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+    </Page.Resources>
+
     <Grid utu:SafeArea.Insets="VisibleBounds">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel Padding="0,0,0,24" Spacing="18">
-                <StackPanel>
+            <StackPanel Padding="0,0,0,20">
+                <StackPanel Margin="10,0,0,12">
                     <TextBlock
-                        Margin="15,0"
                         FontSize="28"
                         FontWeight="SemiBold"
                         Foreground="{StaticResource TextPrimaryBrush}"
                         Text="Settings" />
                     <TextBlock
-                        Margin="15,4,15,0"
+                        Margin="0,6,12,0"
                         Foreground="{StaticResource TextSecondaryBrush}"
-                        Text="Manage SubZeroFramework.Service lifecycle requests, startup behavior, and local diagnostics from the client."
+                        Text="Manage the packaged service lifecycle, review current operating state, and adjust service-owned runtime configuration over local gRPC."
                         TextWrapping="WrapWholeWords" />
-                    <InfoBar
-                        Margin="15,12,15,0"
-                        IsClosable="False"
-                        IsOpen="{x:Bind ViewModel.IsServiceControlSupported, Mode=OneWay}"
-                        Message="{x:Bind ViewModel.PrivilegePromptMessage, Mode=OneWay}"
-                        Severity="Informational"
-                        Title="Admin and root prompts" />
                 </StackPanel>
 
-                <Grid Margin="10,0" ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
+                <controls:ElevatedCard
+                    Margin="5,0,0,10"
+                    Padding="0"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch"
+                    Background="{StaticResource CardBackgroundBrush}"
+                    CornerRadius="16">
+                    <Grid MinHeight="220">
+                        <Border
+                            Background="{StaticResource StatusErrorBrush}"
+                            CornerRadius="16"
+                            Visibility="{x:Bind ViewModel.ServiceErrorHeroVisibility, Mode=OneWay}" />
+                        <Border
+                            Background="{StaticResource StatusWarningBrush}"
+                            CornerRadius="16"
+                            Visibility="{x:Bind ViewModel.ServiceWarningHeroVisibility, Mode=OneWay}" />
+                        <Border
+                            Background="{StaticResource StatusSuccessBrush}"
+                            CornerRadius="16"
+                            Visibility="{x:Bind ViewModel.ServiceSuccessHeroVisibility, Mode=OneWay}" />
+                        <Border
+                            Background="{StaticResource BrandPrimaryBrush}"
+                            CornerRadius="16"
+                            Visibility="{x:Bind ViewModel.ServiceInformationalHeroVisibility, Mode=OneWay}" />
 
-                    <controls:ElevatedCard
-                        Grid.Column="0"
-                        Background="{StaticResource CardBackgroundBrush}"
-                        Padding="18">
-                        <StackPanel Spacing="10">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <material:MaterialIcon
-                                    Width="18"
-                                    Height="18"
-                                    Foreground="{StaticResource BrandPrimaryBrush}"
-                                    Kind="LanConnect" />
+                        <Grid
+                            Padding="22,20"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            ColumnSpacing="18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="132" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Grid
+                                Width="112"
+                                Height="112"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center">
+                                <Border
+                                    Width="96"
+                                    Height="96"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Top"
+                                    Background="#14000000"
+                                    BorderBrush="{StaticResource BrandPrimaryBrush}"
+                                    BorderThickness="5"
+                                    CornerRadius="48">
+                                    <material:MaterialIcon
+                                        Width="46"
+                                        Height="46"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Kind="CogOutline" />
+                                </Border>
+
+                                <Border
+                                    Width="52"
+                                    Height="52"
+                                    Margin="0,0,4,8"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Bottom"
+                                    Background="#16000000"
+                                    BorderBrush="{StaticResource BrandPrimaryBrush}"
+                                    BorderThickness="4"
+                                    CornerRadius="26">
+                                    <material:MaterialIcon
+                                        Width="28"
+                                        Height="28"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Kind="LanConnect" />
+                                </Border>
+                            </Grid>
+
+                            <StackPanel
+                                Grid.Column="1"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Spacing="8">
+                                <TextBlock
+                                    FontSize="36"
+                                    FontWeight="Bold"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.ServiceStateTitle, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
                                 <TextBlock
                                     FontSize="18"
-                                    FontWeight="SemiBold"
                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="Service health" />
+                                    Text="{x:Bind ViewModel.ServiceStateMessage, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                                <TextBlock
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.LastStatusObservedAt, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+                </controls:ElevatedCard>
+
+                <Grid Margin="5,0" RowSpacing="12" ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <controls:ElevatedCard
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch">
+                        <StackPanel Margin="15" Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <material:MaterialIcon
+                                    Width="24"
+                                    Height="24"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Kind="LanConnect" />
+                                <TextBlock Style="{StaticResource SettingsCardTitleStyle}" Text="Service connectivity" />
                             </StackPanel>
 
-                            <TextBlock
-                                FontSize="16"
-                                FontWeight="SemiBold"
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.ServiceStateTitle, Mode=OneWay}" />
-                            <TextBlock
-                                Foreground="{StaticResource TextSecondaryBrush}"
-                                Text="{x:Bind ViewModel.ServiceStateMessage, Mode=OneWay}"
-                                TextWrapping="WrapWholeWords" />
-
-                            <TextBlock
-                                Foreground="{StaticResource TextSecondaryBrush}"
-                                Text="{x:Bind ViewModel.LastStatusObservedAt, Mode=OneWay}"
-                                TextWrapping="WrapWholeWords" />
-
+                            <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="{x:Bind ViewModel.ServiceStateMessage, Mode=OneWay}" />
                             <Border
                                 Padding="12"
                                 Background="#1CFFFFFF"
                                 CornerRadius="8">
-                                <TextBlock
-                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                    Text="{x:Bind ViewModel.EndpointValidationMessage, Mode=OneWay}"
-                                    TextWrapping="WrapWholeWords" />
+                                <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="{x:Bind ViewModel.EndpointValidationMessage, Mode=OneWay}" />
                             </Border>
                         </StackPanel>
                     </controls:ElevatedCard>
 
                     <controls:ElevatedCard
+                        Grid.Row="0"
                         Grid.Column="1"
                         Background="{StaticResource CardBackgroundBrush}"
-                        Padding="18">
-                        <StackPanel Spacing="10">
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch">
+                        <StackPanel Margin="15" Spacing="14">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <material:MaterialIcon
-                                    Width="18"
-                                    Height="18"
-                                    Foreground="{StaticResource BrandPrimaryBrush}"
-                                    Kind="CogOutline" />
-                                <TextBlock
-                                    FontSize="18"
-                                    FontWeight="SemiBold"
+                                    Width="24"
+                                    Height="24"
                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="Service manager" />
+                                    Kind="CogOutline" />
+                                <TextBlock Style="{StaticResource SettingsCardTitleStyle}" Text="Service identity" />
                             </StackPanel>
 
-                            <TextBlock
-                                FontWeight="SemiBold"
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.PlatformServiceManager, Mode=OneWay}" />
-                            <TextBlock
-                                Foreground="{StaticResource TextSecondaryBrush}"
-                                Text="{x:Bind ViewModel.ServiceIdentity, Mode=OneWay}"
-                                TextWrapping="WrapWholeWords" />
-                            <TextBlock
-                                Foreground="{StaticResource TextSecondaryBrush}"
-                                Text="{x:Bind ViewModel.InstallSourceSummary, Mode=OneWay}"
-                                TextWrapping="WrapWholeWords" />
+                            <TextBlock Style="{StaticResource SettingsValueStyle}" Text="{x:Bind ViewModel.PlatformServiceManager, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="{x:Bind ViewModel.ServiceIdentity, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="{x:Bind ViewModel.InstallSourceSummary, Mode=OneWay}" />
                             <Border
                                 Padding="12"
                                 Background="#1CFFFFFF"
                                 CornerRadius="8">
-                                <TextBlock
-                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                    Text="{x:Bind ViewModel.InstallReadinessMessage, Mode=OneWay}"
-                                    TextWrapping="WrapWholeWords" />
+                                <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="{x:Bind ViewModel.InstallReadinessMessage, Mode=OneWay}" />
                             </Border>
+                            <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="{x:Bind ViewModel.PrivilegePromptMessage, Mode=OneWay}" />
+                        </StackPanel>
+                    </controls:ElevatedCard>
+
+                    <controls:ElevatedCard
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch">
+                        <StackPanel Margin="15" Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <material:MaterialIcon
+                                    Width="24"
+                                    Height="24"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Kind="WrenchOutline" />
+                                <TextBlock Style="{StaticResource SettingsCardTitleStyle}" Text="Service lifecycle" />
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="Install, update, restart, and recover the packaged service without elevating the client app itself." />
+
+                            <Grid ColumnSpacing="10" RowSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Button
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Command="{x:Bind ViewModel.RestartServiceCommand, Mode=OneWay}"
+                                    Content="Restart service"
+                                    IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+                                <Button
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    Command="{x:Bind ViewModel.ShutdownServiceCommand, Mode=OneWay}"
+                                    Content="Shutdown service"
+                                    IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+
+                                <Button
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Command="{x:Bind ViewModel.InstallServiceCommand, Mode=OneWay}"
+                                    Content="Install service"
+                                    IsEnabled="{x:Bind ViewModel.CanInstallService, Mode=OneWay}"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+                                <Button
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Command="{x:Bind ViewModel.UpdateServiceCommand, Mode=OneWay}"
+                                    Content="Update service"
+                                    IsEnabled="{x:Bind ViewModel.CanUpdateService, Mode=OneWay}"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+
+                                <Button
+                                    Grid.Row="2"
+                                    Grid.Column="0"
+                                    Command="{x:Bind ViewModel.ReinstallServiceCommand, Mode=OneWay}"
+                                    Content="Reinstall service"
+                                    IsEnabled="{x:Bind ViewModel.CanReinstallService, Mode=OneWay}"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+                                <Button
+                                    Grid.Row="2"
+                                    Grid.Column="1"
+                                    Command="{x:Bind ViewModel.UninstallServiceCommand, Mode=OneWay}"
+                                    Content="Uninstall service"
+                                    IsEnabled="{x:Bind ViewModel.CanUninstallService, Mode=OneWay}"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+                            </Grid>
+                        </StackPanel>
+                    </controls:ElevatedCard>
+
+                    <controls:ElevatedCard
+                        Grid.Row="1"
+                        Grid.Column="1"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch">
+                        <StackPanel Margin="15" Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <material:MaterialIcon
+                                    Width="24"
+                                    Height="24"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Kind="PowerSettings" />
+                                <TextBlock Style="{StaticResource SettingsCardTitleStyle}" Text="Startup behavior" />
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SettingsValueStyle}" Text="{x:Bind ViewModel.AutorunStateTitle, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="{x:Bind ViewModel.AutorunStateDescription, Mode=OneWay}" />
+
+                            <ToggleButton
+                                MinHeight="48"
+                                Command="{x:Bind ViewModel.ToggleAutorunCommand, Mode=OneWay}"
+                                IsChecked="{x:Bind ViewModel.IsAutorunEnabled, Mode=OneWay}"
+                                IsEnabled="{x:Bind ViewModel.CanToggleAutorun, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <material:MaterialIcon
+                                        Width="18"
+                                        Height="18"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Kind="PowerSettings" />
+                                    <TextBlock
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Text="Toggle service autorun" />
+                                </StackPanel>
+                            </ToggleButton>
+
+                            <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="The toggle queries the live service-manager state and then issues either the enable-autorun or disable-autorun lifecycle action." />
+                        </StackPanel>
+                    </controls:ElevatedCard>
+
+                    <controls:ElevatedCard
+                        Grid.Row="2"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="2"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch">
+                        <StackPanel Margin="15" Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <material:MaterialIcon
+                                    Width="24"
+                                    Height="24"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Kind="TextBoxOutline" />
+                                <TextBlock Style="{StaticResource SettingsCardTitleStyle}" Text="Advanced service configuration" />
+                            </StackPanel>
+
+                            <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="These values come from the service over gRPC, apply live without a full service restart, and are persisted into the service-owned configuration overlay." />
+
+                            <Border
+                                Padding="12"
+                                Background="#1CFFFFFF"
+                                CornerRadius="8">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Style="{StaticResource SettingsLabelStyle}" Text="Persistent configuration path" />
+                                    <TextBlock Style="{StaticResource SettingsValueStyle}" Text="{x:Bind ViewModel.ConfigurationSourcePath, Mode=OneWay}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Grid ColumnSpacing="12" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0" Grid.Column="0" Spacing="6">
+                                    <TextBlock Style="{StaticResource SettingsLabelStyle}" Text="Telemetry polling interval (ms)" />
+                                    <TextBox
+                                        Header="Main EC / telemetry cadence"
+                                        InputScope="Number"
+                                        IsEnabled="{x:Bind ViewModel.IsConfigurationLoaded, Mode=OneWay}"
+                                        Text="{x:Bind ViewModel.TelemetryPollingIntervalMillisecondsText, Mode=TwoWay}" />
+                                    <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="{x:Bind ViewModel.TelemetryPollingSamplesPerSecondDisplay, Mode=OneWay}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="0" Grid.Column="1" Spacing="6">
+                                    <TextBlock Style="{StaticResource SettingsLabelStyle}" Text="Hardware info polling interval (ms)" />
+                                    <TextBox
+                                        Header="Inventory / slower fallback cadence"
+                                        InputScope="Number"
+                                        IsEnabled="{x:Bind ViewModel.IsConfigurationLoaded, Mode=OneWay}"
+                                        Text="{x:Bind ViewModel.HardwareInfoPollingIntervalMillisecondsText, Mode=TwoWay}" />
+                                    <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="{x:Bind ViewModel.HardwareInfoPollingSamplesPerSecondDisplay, Mode=OneWay}" />
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2" Spacing="8">
+                                    <TextBlock Style="{StaticResource SettingsLabelStyle}" Text="Fan-control command authorization" />
+                                    <ToggleSwitch
+                                        Header="Allow fan-control commands over gRPC"
+                                        IsEnabled="{x:Bind ViewModel.IsConfigurationLoaded, Mode=OneWay}"
+                                        IsOn="{x:Bind ViewModel.AllowFanControlCommandsDraft, Mode=TwoWay}" />
+                                    <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="{x:Bind ViewModel.RuntimeAuthorizationMessage, Mode=OneWay}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <InfoBar
+                                IsClosable="False"
+                                IsOpen="{x:Bind ViewModel.HasConfigurationValidationError, Mode=OneWay}"
+                                Message="{x:Bind ViewModel.ConfigurationValidationMessage, Mode=OneWay}"
+                                Severity="Error"
+                                Title="Configuration validation" />
+
+                            <InfoBar
+                                IsClosable="False"
+                                IsOpen="{x:Bind ViewModel.AllowFanControlCommandsDraft, Mode=OneWay}"
+                                Message="{x:Bind ViewModel.FanControlConfigurationWarning, Mode=OneWay}"
+                                Severity="Warning"
+                                Title="Fan-control authorization" />
+
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                                <Button
+                                    Command="{x:Bind ViewModel.ResetConfigurationCommand, Mode=OneWay}"
+                                    Content="Reset draft"
+                                    IsEnabled="{x:Bind ViewModel.CanResetConfiguration, Mode=OneWay}"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+                                <Button
+                                    Command="{x:Bind ViewModel.ApplyConfigurationCommand, Mode=OneWay}"
+                                    Content="Save and apply"
+                                    IsEnabled="{x:Bind ViewModel.CanApplyConfiguration, Mode=OneWay}"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+                            </StackPanel>
+
+                            <InfoBar
+                                Title="{x:Bind ViewModel.LastActionTitle, Mode=OneWay}"
+                                IsClosable="True"
+                                IsOpen="{x:Bind ViewModel.IsLastActionVisible, Mode=TwoWay}"
+                                Message="{x:Bind ViewModel.LastActionMessage, Mode=OneWay}"
+                                Severity="{x:Bind ViewModel.LastActionSeverity, Mode=OneWay}" />
                         </StackPanel>
                     </controls:ElevatedCard>
                 </Grid>
-
-                <controls:ElevatedCard
-                    Margin="10,0"
-                    Background="{StaticResource CardBackgroundBrush}"
-                    Padding="18">
-                    <StackPanel Spacing="14">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <material:MaterialIcon
-                                Width="18"
-                                Height="18"
-                                Foreground="{StaticResource BrandPrimaryBrush}"
-                                Kind="PowerSettings" />
-                            <TextBlock
-                                FontSize="18"
-                                FontWeight="SemiBold"
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="Service lifecycle" />
-                        </StackPanel>
-
-                        <TextBlock
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Text="These requests go through the local OS service manager, so they can still work when the service itself is offline or shutting down."
-                            TextWrapping="WrapWholeWords" />
-
-                        <Grid ColumnSpacing="10" RowSpacing="10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <Button
-                                Grid.Row="0"
-                                Grid.Column="0"
-                                Command="{x:Bind ViewModel.ShutdownServiceCommand, Mode=OneWay}"
-                                Content="Shutdown service"
-                                IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}" />
-                            <Button
-                                Grid.Row="0"
-                                Grid.Column="1"
-                                Command="{x:Bind ViewModel.RestartServiceCommand, Mode=OneWay}"
-                                Content="Restart service"
-                                IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}" />
-
-                            <Button
-                                Grid.Row="1"
-                                Grid.Column="0"
-                                Command="{x:Bind ViewModel.EnableAutorunCommand, Mode=OneWay}"
-                                Content="Enable autorun"
-                                IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}" />
-                            <Button
-                                Grid.Row="1"
-                                Grid.Column="1"
-                                Command="{x:Bind ViewModel.DisableAutorunCommand, Mode=OneWay}"
-                                Content="Disable autorun"
-                                IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}" />
-
-                            <Button
-                                Grid.Row="2"
-                                Grid.Column="0"
-                                Command="{x:Bind ViewModel.InstallServiceCommand, Mode=OneWay}"
-                                Content="Install service"
-                                IsEnabled="{x:Bind ViewModel.CanInstallService, Mode=OneWay}" />
-                            <Button
-                                Grid.Row="2"
-                                Grid.Column="1"
-                                Command="{x:Bind ViewModel.UpdateServiceCommand, Mode=OneWay}"
-                                Content="Update service"
-                                IsEnabled="{x:Bind ViewModel.CanUpdateService, Mode=OneWay}" />
-
-                            <Button
-                                Grid.Row="3"
-                                Grid.Column="0"
-                                Command="{x:Bind ViewModel.UninstallServiceCommand, Mode=OneWay}"
-                                Content="Uninstall service"
-                                IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}"
-                                Grid.ColumnSpan="2" />
-                        </Grid>
-
-                        <InfoBar
-                            IsClosable="True"
-                            IsOpen="{x:Bind ViewModel.IsLastActionVisible, Mode=TwoWay}"
-                            Message="{x:Bind ViewModel.LastActionMessage, Mode=OneWay}"
-                            Severity="{x:Bind ViewModel.LastActionSeverity, Mode=OneWay}"
-                            Title="{x:Bind ViewModel.LastActionTitle, Mode=OneWay}" />
-                    </StackPanel>
-                </controls:ElevatedCard>
             </StackPanel>
         </ScrollViewer>
     </Grid>

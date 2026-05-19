@@ -6,9 +6,17 @@ public sealed record FrameworkServiceControlInfo
 
     public required bool IsInstalled { get; init; }
 
+    public required bool CanUninstall { get; init; }
+
     public required bool CanInstall { get; init; }
 
     public required bool CanUpdate { get; init; }
+
+    public required bool PackagedHelperAvailable { get; init; }
+
+    public required bool IsElevatedSession { get; init; }
+
+    public required bool? IsAutorunEnabled { get; init; }
 
     public required string PlatformServiceManager { get; init; }
 

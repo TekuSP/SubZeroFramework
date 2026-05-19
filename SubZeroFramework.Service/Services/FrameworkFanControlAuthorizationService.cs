@@ -33,8 +33,14 @@ public sealed class FrameworkFanControlAuthorizationService
     /// Gets the current authorization message for mutating fan-control commands.
     /// </summary>
     public string GetAuthorizationMessage()
+        => GetAuthorizationMessage(IsFanControlEnabled);
+
+    /// <summary>
+    /// Gets the authorization message for a supplied fan-control enabled value.
+    /// </summary>
+    public string GetAuthorizationMessage(bool isFanControlEnabled)
     {
-        if (!IsFanControlEnabled)
+        if (!isFanControlEnabled)
         {
             return "Fan-control RPCs are disabled by service configuration until local caller identity validation is available for this IPC transport.";
         }

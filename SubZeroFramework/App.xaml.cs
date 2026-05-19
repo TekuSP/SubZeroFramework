@@ -95,6 +95,7 @@ public partial class App : Application
                         .Bind(context.Configuration.GetSection("ServiceControl"));
                     services.AddSingleton<FrameworkGrpcChannelFactory>();
                     services.AddSingleton<IFrameworkStatusClient, GrpcFrameworkStatusClient>();
+                    services.AddSingleton<IFrameworkServiceConfigurationClient, GrpcFrameworkServiceConfigurationClient>();
                     services.AddSingleton<IFrameworkTelemetryClient, GrpcFrameworkTelemetryClient>();
                     services.AddSingleton<IFanCapabilityClient, GrpcFanCapabilityClient>();
                     services.AddSingleton<IFanControlStateClient, GrpcFanControlStateClient>();

@@ -17,4 +17,6 @@ public interface IFrameworkServiceControlClient
     Task<FrameworkServiceCommandResult> UpdateAsync(CancellationToken cancellationToken = default);
 
     Task<FrameworkServiceCommandResult> UninstallAsync(CancellationToken cancellationToken = default);
+
+    Task<FrameworkServiceCommandResult> ReinstallAsync(CancellationToken cancellationToken = default);
 }

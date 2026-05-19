@@ -9,6 +9,12 @@ service FrameworkStatusService {
   rpc WatchStatus (WatchStatusRequest) returns (stream FrameworkStatusReply);
 }
 
+service FrameworkServiceConfigurationService {
+  rpc GetServiceConfiguration (GetServiceConfigurationRequest) returns (FrameworkServiceConfigurationReply);
+  rpc WatchServiceConfiguration (WatchServiceConfigurationRequest) returns (stream FrameworkServiceConfigurationReply);
+  rpc UpdateServiceConfiguration (UpdateServiceConfigurationRequest) returns (UpdateServiceConfigurationReply);
+}
+
 service FrameworkTelemetryService {
   rpc WatchFanCapabilities (WatchFanCapabilitiesRequest) returns (stream FanCapabilityChangeBatchReply);
   rpc WatchFanControlStates (WatchFanControlStatesRequest) returns (stream FanControlStateChangeBatchReply);
@@ -34,6 +40,31 @@ message GetStatusRequest {
 }
 
 message WatchStatusRequest {
+}
+
+message GetServiceConfigurationRequest {
+}
+
+message WatchServiceConfigurationRequest {
+}
+
+message UpdateServiceConfigurationRequest {
+  int64 polling_interval_milliseconds = 1;
+  int64 hardware_info_polling_interval_milliseconds = 2;
+  bool allow_fan_control_commands = 3;
+}
+
+message FrameworkServiceConfigurationReply {
+  int64 polling_interval_milliseconds = 1;
+  int64 hardware_info_polling_interval_milliseconds = 2;
+  bool allow_fan_control_commands = 3;
+  string persistent_configuration_path = 4;
+}
+
+message UpdateServiceConfigurationReply {
+  bool succeeded = 1;
+  string message = 2;
+  FrameworkServiceConfigurationReply configuration = 3;
 }
 
 message WatchTelemetryChannelsRequest {

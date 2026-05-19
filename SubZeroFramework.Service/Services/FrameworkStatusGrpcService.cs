@@ -55,6 +55,9 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
                     status.LastTelemetryObservedAt,
                     status.RequiresElevation,
                     status.LastError,
+                    status.IsFanControlEnabled,
+                    status.HasCallerIdentityValidation,
+                    status.FanControlAuthorizationMessage,
                 });
 
             var reader = ObservableChannelBridge.CreateBoundedReader(statusStream.Skip(1), context.CancellationToken, _logger, "status stream");

@@ -25,6 +25,9 @@ public static class Program
 
         var builder = WebApplication.CreateBuilder(args);
         var socketPath = SubZeroFramework.Service.Services.FrameworkGrpcSocketPath.GetPath();
+        var persistentConfigurationPath = FrameworkServiceConfigurationPaths.GetPersistentConfigurationPath();
+
+        builder.Configuration.AddJsonFile(persistentConfigurationPath, optional: true, reloadOnChange: true);
 
         builder.Services.AddWindowsService(options =>
         {
@@ -59,6 +62,8 @@ public static class Program
         builder.Services.AddSingleton<FrameworkShutdownCoordinator>();
         builder.Services.AddSingleton<FrameworkFanControlStateStore>();
         builder.Services.AddSingleton<FrameworkFanControlAuthorizationService>();
+        builder.Services.AddSingleton<FrameworkServiceConfigurationStore>();
+        builder.Services.AddSingleton<FrameworkServiceConfigurationManager>();
         builder.Services.AddHostedService(static services => services.GetRequiredService<FrameworkShutdownCoordinator>());
         builder.Services.AddHostedService<FrameworkTelemetryWorker>();
 
@@ -67,10 +72,11 @@ public static class Program
 
         app.Logger.LogInformation("Starting SubZeroFramework service on socket {SocketPath}. FanControlCommandsEnabled={FanControlCommandsEnabled}.", socketPath, serviceOptions.AllowFanControlCommands);
         app.MapGrpcService<FrameworkStatusGrpcService>();
+        app.MapGrpcService<FrameworkServiceConfigurationGrpcService>();
         app.MapGrpcService<FrameworkTelemetryGrpcService>();
         app.MapGrpcService<HardwareInfoGrpcService>();
         app.MapGrpcService<FrameworkFanControlGrpcService>();
-        app.Logger.LogInformation("Mapped gRPC services for status, telemetry, hardware info, and fan control.");
+        app.Logger.LogInformation("Mapped gRPC services for status, service configuration, telemetry, hardware info, and fan control.");
 
         try
         {
