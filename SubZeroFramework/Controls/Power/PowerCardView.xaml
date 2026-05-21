@@ -67,7 +67,7 @@
                     <Border
                         Grid.Column="0"
                         Padding="10"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery State" />
@@ -81,21 +81,21 @@
                     <Border
                         Grid.Column="1"
                         Padding="10"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Power State" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{x:Bind ViewModel.PowerBrush, Mode=OneWay}"
-                                Text="{x:Bind ViewModel.PowerDisplay, Mode=OneWay}" />
+                                    Text="{x:Bind ViewModel.PowerDisplay, Mode=OneWay}" />
                         </StackPanel>
                     </Border>
 
                     <Border
                         Grid.Column="2"
                         Padding="10"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.RateKind, Mode=OneWay}" />
@@ -109,28 +109,28 @@
                     <Border
                         Grid.Column="3"
                         Padding="10"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Voltage (V)" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.VoltageDisplay, Mode=OneWay}" />
+                                    Text="{x:Bind ViewModel.VoltageDisplay, Mode=OneWay}" />
                         </StackPanel>
                     </Border>
 
                     <Border
                         Grid.Column="4"
                         Padding="10"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Cycles" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.CyclesDisplay, Mode=OneWay}" />
+                                    Text="{x:Bind ViewModel.CyclesDisplay, Mode=OneWay}" />
                         </StackPanel>
                     </Border>
 
@@ -138,14 +138,14 @@
                         Grid.Row="1"
                         Grid.Column="0"
                         Padding="10"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Nominal Voltage (V)" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.DesignVoltage, Mode=OneWay}" />
+                                    Text="{x:Bind ViewModel.DesignVoltage, Mode=OneWay}" />
                         </StackPanel>
                     </Border>
 
@@ -153,14 +153,14 @@
                         Grid.Row="1"
                         Grid.Column="1"
                         Padding="10"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Design Capacity (Ah)" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.DesignCapacityAmpereHours, Mode=OneWay}" />
+                                    Text="{x:Bind ViewModel.DesignCapacityAmpereHours, Mode=OneWay}" />
                         </StackPanel>
                     </Border>
 
@@ -168,14 +168,14 @@
                         Grid.Row="1"
                         Grid.Column="2"
                         Padding="10"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Remaining Capacity (Ah)" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.RemainingCapacityAmpereHours, Mode=OneWay}" />
+                                    Text="{x:Bind ViewModel.RemainingCapacityAmpereHours, Mode=OneWay}" />
                         </StackPanel>
                     </Border>
 
@@ -183,14 +183,14 @@
                         Grid.Row="1"
                         Grid.Column="3"
                         Padding="10"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Last Full Charge (Ah)" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.LastFullChargeCapacityAmpereHours, Mode=OneWay}" />
+                                    Text="{x:Bind ViewModel.LastFullChargeCapacityAmpereHours, Mode=OneWay}" />
                         </StackPanel>
                     </Border>
 
@@ -198,14 +198,14 @@
                         Grid.Row="1"
                         Grid.Column="4"
                         Padding="10"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Health" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.BatteryLife, Mode=OneWay}" />
+                                    Text="{x:Bind ViewModel.BatteryLife, Mode=OneWay}" />
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -225,7 +225,7 @@
                     <Border
                         Grid.Column="0"
                         Padding="8"
-                        Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="12">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -250,7 +250,7 @@
                                             Fill="{x:Null}"
                                             GeometryFill="{x:Null}"
                                             GeometryStroke="{x:Null}"
-                                            Stroke="{lvc:SolidColorPaint Color='#FF8AB7E8', StrokeWidth='2'}"
+                                            Stroke="{lvc:SolidColorPaint Color={StaticResource ChartAccentColor}, StrokeWidth='2'}"
                                             Values="{x:Bind ViewModel.ChargeHistory, Mode=OneWay}" />
                                     </lvc:SeriesCollection>
                                 </lvc:CartesianChart.Series>
@@ -261,10 +261,10 @@
                                             CustomSeparators="{x:Bind ViewModel.ChargeSeparators, Mode=OneWay}"
                                             DateFormatter="{x:Bind ViewModel.LabelsFormatter, Mode=OneWay}"
                                             Interval="0:10:0"
-                                            LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
                                             MaxLimit="{x:Bind ViewModel.ChargeMax, Mode=OneWay}"
                                             MinLimit="{x:Bind ViewModel.ChargeMin, Mode=OneWay}"
-                                            SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                             ShowSeparatorLines="True"
                                             TextSize="12" />
                                     </lvc:AxesCollection>
@@ -273,10 +273,10 @@
                                     <lvc:AxesCollection>
                                         <lvc:XamlAxis
                                             AnimationsSpeed="0"
-                                            LabelsPaint="{lvc:SolidColorPaint Color='FFD7D8FF'}"
+                                                LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
                                             MaxLimit="100"
                                             MinLimit="0"
-                                            SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                             ShowSeparatorLines="True"
                                             TextSize="9" />
                                     </lvc:AxesCollection>
@@ -288,7 +288,7 @@
                     <Border
                         Grid.Column="1"
                         Padding="8"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="12">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -313,7 +313,7 @@
                                             Fill="{x:Null}"
                                             GeometryFill="{x:Null}"
                                             GeometryStroke="{x:Null}"
-                                            Stroke="{lvc:SolidColorPaint Color='#FFC5994E', StrokeWidth='2'}"
+                                                Stroke="{lvc:SolidColorPaint Color={StaticResource ChartWarningColor}, StrokeWidth='2'}"
                                             Values="{x:Bind ViewModel.CurrentHistory, Mode=OneWay}" />
                                     </lvc:SeriesCollection>
                                 </lvc:CartesianChart.Series>
@@ -324,10 +324,10 @@
                                             CustomSeparators="{x:Bind ViewModel.CurrentSeparators, Mode=OneWay}"
                                             DateFormatter="{x:Bind ViewModel.LabelsFormatter, Mode=OneWay}"
                                             Interval="0:10:0"
-                                            LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
                                             MaxLimit="{x:Bind ViewModel.CurrentMax, Mode=OneWay}"
                                             MinLimit="{x:Bind ViewModel.CurrentMin, Mode=OneWay}"
-                                            SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                             ShowSeparatorLines="True"
                                             TextSize="12" />
                                     </lvc:AxesCollection>
@@ -336,8 +336,8 @@
                                     <lvc:AxesCollection>
                                         <lvc:XamlAxis
                                             AnimationsSpeed="0"
-                                            LabelsPaint="{lvc:SolidColorPaint Color='FFD7D8FF'}"
-                                            SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
+                                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                             ShowSeparatorLines="True"
                                             TextSize="9" />
                                     </lvc:AxesCollection>
@@ -349,7 +349,7 @@
                     <Border
                         Grid.Column="2"
                         Padding="8"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="12">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -374,7 +374,7 @@
                                             Fill="{x:Null}"
                                             GeometryFill="{x:Null}"
                                             GeometryStroke="{x:Null}"
-                                            Stroke="{lvc:SolidColorPaint Color='#FFD7D8FF', StrokeWidth='2'}"
+                                                Stroke="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}, StrokeWidth='2'}"
                                             Values="{x:Bind ViewModel.VoltageHistory, Mode=OneWay}" />
                                     </lvc:SeriesCollection>
                                 </lvc:CartesianChart.Series>
@@ -385,10 +385,10 @@
                                             CustomSeparators="{x:Bind ViewModel.VoltageSeparators, Mode=OneWay}"
                                             DateFormatter="{x:Bind ViewModel.LabelsFormatter, Mode=OneWay}"
                                             Interval="0:10:0"
-                                            LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
                                             MaxLimit="{x:Bind ViewModel.VoltageMax, Mode=OneWay}"
                                             MinLimit="{x:Bind ViewModel.VoltageMin, Mode=OneWay}"
-                                            SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                             ShowSeparatorLines="True"
                                             TextSize="12" />
                                     </lvc:AxesCollection>
@@ -400,7 +400,7 @@
                                             LabelsPaint="{lvc:SolidColorPaint Color='FFD7D8FF'}"
                                             MaxLimit="18"
                                             MinLimit="10"
-                                            SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                             ShowSeparatorLines="True"
                                             TextSize="9" />
                                     </lvc:AxesCollection>

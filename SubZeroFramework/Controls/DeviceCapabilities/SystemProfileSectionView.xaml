@@ -45,7 +45,7 @@
 
                         <Border
                             Padding="12"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Operating system" />
@@ -60,7 +60,7 @@
                         <Border
                             Grid.Column="1"
                             Padding="12"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Vendor" />
@@ -75,7 +75,7 @@
                         <Border
                             Grid.Column="2"
                             Padding="12"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Model" />
@@ -90,7 +90,7 @@
                         <Border
                             Grid.Row="1"
                             Padding="12"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="OS version" />
@@ -106,7 +106,7 @@
                             Grid.Row="1"
                             Grid.Column="1"
                             Padding="12"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Product / SKU" />
@@ -122,7 +122,7 @@
                             Grid.Row="1"
                             Grid.Column="2"
                             Padding="12"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="System revision" />
@@ -144,7 +144,7 @@
 
                         <Border
                             Padding="12"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="12">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="EC build" />
@@ -159,7 +159,7 @@
                         <Border
                             Grid.Column="1"
                             Padding="12"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="12">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="BIOS version" />
@@ -174,7 +174,7 @@
                         <Border
                             Grid.Column="2"
                             Padding="12"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="12">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="BIOS release date" />

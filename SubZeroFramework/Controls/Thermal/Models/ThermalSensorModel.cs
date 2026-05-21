@@ -16,7 +16,7 @@ public partial class ThermalSensorModel : ObservableObject
 {
 	private static readonly string[] HistoryStrokePalette =
 	[
-		"#FF8AB7E8",
+		AppThemeBrushes.ChartAccentColorHex,
 		"#FF6CB0FF",
 		"#FF9A8CFF",
 		"#FF78C6A3",

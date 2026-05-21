@@ -39,7 +39,7 @@
                         </Grid.ColumnDefinitions>
                         <Border
                             Padding="12"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
@@ -53,7 +53,7 @@
                         <Border
                             Grid.Column="1"
                             Padding="12"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Product" />
@@ -67,7 +67,7 @@
                         <Border
                             Grid.Column="2"
                             Padding="12"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Serial" />

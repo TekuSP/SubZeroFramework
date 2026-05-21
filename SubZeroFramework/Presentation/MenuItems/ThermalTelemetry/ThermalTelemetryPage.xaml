@@ -53,7 +53,7 @@
                                 <Border
                                     Grid.Column="0"
                                     Padding="12"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Device" />
@@ -68,7 +68,7 @@
                                 <Border
                                     Grid.Column="1"
                                     Padding="12"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Platform" />
@@ -83,7 +83,7 @@
                                 <Border
                                     Grid.Column="2"
                                     Padding="12"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Driver" />
@@ -98,7 +98,7 @@
                                 <Border
                                     Grid.Column="3"
                                     Padding="12"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="EC Build" />
@@ -113,7 +113,7 @@
                                 <Border
                                     Grid.Column="4"
                                     Padding="12"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Telemetry Last Seen" />
@@ -135,7 +135,7 @@
                                 <Border
                                     Grid.Column="0"
                                     Padding="12"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Service state" />
@@ -150,7 +150,7 @@
                                 <Border
                                     Grid.Column="1"
                                     Padding="12"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Last error" />
@@ -258,10 +258,10 @@
                                                     CustomSeparators="{x:Bind ViewModel.ThermalHistorySeparators, Mode=OneWay}"
                                                     DateFormatter="{x:Bind ViewModel.ThermalHistoryDateFormatter, Mode=OneWay}"
                                                     Interval="0:10:0"
-                                                    LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                    LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
                                                     MaxLimit="{x:Bind ViewModel.ThermalHistoryMaxLimit, Mode=OneWay}"
                                                     MinLimit="{x:Bind ViewModel.ThermalHistoryMinLimit, Mode=OneWay}"
-                                                    SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                    SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                                     ShowSeparatorLines="True"
                                                     TextSize="12" />
                                             </lvc:AxesCollection>
@@ -270,10 +270,10 @@
                                             <lvc:AxesCollection>
                                                 <lvc:XamlAxis
                                                     Labeler="{x:Bind ViewModel.ThermalLabelFormatter, Mode=OneWay}"
-                                                    LabelsPaint="{lvc:SolidColorPaint Color='#FFD7D8FF'}"
+                                                    LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
                                                     MaxLimit="100"
                                                     MinLimit="0"
-                                                    SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                                                    SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                                     ShowSeparatorLines="True"
                                                     TextSize="12" />
                                             </lvc:AxesCollection>

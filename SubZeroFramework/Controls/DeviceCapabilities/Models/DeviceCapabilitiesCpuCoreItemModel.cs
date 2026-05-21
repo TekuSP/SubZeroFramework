@@ -110,20 +110,20 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
     {
         if (usagePercent < 45d)
         {
-            return "#FF8AB7E8";
+            return AppThemeBrushes.ChartAccentColorHex;
         }
 
         if (usagePercent < PresentationDefaults.WarningUsagePercent)
         {
-            return "#FFD7D8FF";
+            return AppThemeBrushes.ChartPrimaryColorHex;
         }
 
         if (usagePercent < PresentationDefaults.ErrorUsagePercent)
         {
-            return "#FFC5994E";
+            return AppThemeBrushes.ChartWarningColorHex;
         }
 
-        return "#FF8A5C5B";
+        return AppThemeBrushes.ChartErrorColorHex;
     }
 
     private static string Formatter(DateTime date)

@@ -11,7 +11,7 @@
         Width="190"
         Height="170"
         Padding="12"
-        Background="#1AFFFFFF"
+        Background="{StaticResource CardMetricBackgroundBrush}"
         CornerRadius="12">
         <Grid>
             <Grid.RowDefinitions>
@@ -61,10 +61,10 @@
                             CustomSeparators="{x:Bind ViewModel.UsageSeparators, Mode=OneWay}"
                             DateFormatter="{x:Bind ViewModel.LabelsFormatter, Mode=OneWay}"
                             Interval="0:0:5"
-                            LabelsPaint="{lvc:SolidColorPaint Color='C8D7D8FF'}"
+                            LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartDimAxisLabelColor}}"
                             MaxLimit="{x:Bind ViewModel.UsageMaxLimit, Mode=OneWay}"
                             MinLimit="{x:Bind ViewModel.UsageMinLimit, Mode=OneWay}"
-                            SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                             ShowSeparatorLines="True"
                             TextSize="7" />
                     </lvc:AxesCollection>
@@ -73,10 +73,10 @@
                     <lvc:AxesCollection>
                         <lvc:XamlAxis
                             AnimationsSpeed="0"
-                            LabelsPaint="{lvc:SolidColorPaint Color='C8D7D8FF'}"
+                            LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartDimAxisLabelColor}}"
                             MaxLimit="100"
                             MinLimit="0"
-                            SeparatorsPaint="{lvc:SolidColorPaint Color='485D5E73'}"
+                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                             ShowSeparatorLines="True"
                             TextSize="7" />
                     </lvc:AxesCollection>

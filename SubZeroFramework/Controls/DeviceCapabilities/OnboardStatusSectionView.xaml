@@ -19,7 +19,7 @@
                 Width="220"
                 Margin="0,0,12,12"
                 Padding="12"
-                Background="#1AFFFFFF"
+                Background="{StaticResource CardMetricBackgroundBrush}"
                 CornerRadius="10">
                 <StackPanel Spacing="4">
                     <TextBlock
@@ -41,7 +41,7 @@
                 Width="220"
                 Margin="0,0,12,12"
                 Padding="12"
-                Background="#1AFFFFFF"
+                Background="{StaticResource CardMetricBackgroundBrush}"
                 CornerRadius="10">
                 <StackPanel Spacing="4">
                     <TextBlock
@@ -63,7 +63,7 @@
                 Width="220"
                 Margin="0,0,12,12"
                 Padding="12"
-                Background="#1AFFFFFF"
+                Background="{StaticResource CardMetricBackgroundBrush}"
                 CornerRadius="10">
                 <StackPanel Spacing="4">
                     <TextBlock
@@ -85,7 +85,7 @@
                 Width="220"
                 Margin="0,0,12,12"
                 Padding="12"
-                Background="#1AFFFFFF"
+                Background="{StaticResource CardMetricBackgroundBrush}"
                 CornerRadius="10">
                 <StackPanel Spacing="4">
                     <TextBlock

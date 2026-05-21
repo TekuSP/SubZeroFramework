@@ -72,7 +72,7 @@
 
                                 <Border
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Product" />
@@ -86,7 +86,7 @@
                                 <Border
                                     Grid.Column="1"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Adapter Type" />
@@ -100,7 +100,7 @@
                                 <Border
                                     Grid.Row="1"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
@@ -115,7 +115,7 @@
                                     Grid.Row="1"
                                     Grid.Column="1"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Link Speed" />
@@ -130,7 +130,7 @@
                                     Grid.Row="2"
                                     Grid.ColumnSpan="2"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="MAC Address" />
@@ -145,7 +145,7 @@
                                     Grid.Row="3"
                                     Grid.ColumnSpan="2"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="IP Addresses" />
@@ -160,7 +160,7 @@
                                     Grid.Row="4"
                                     Grid.ColumnSpan="2"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Gateways" />

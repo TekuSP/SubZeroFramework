@@ -40,6 +40,7 @@
             <SolidColorBrush x:Key="CardBorderBrush" Color="#2b2e2d" />
             <SolidColorBrush x:Key="CardSecondaryBackgroundBrush" Color="#1f1f1f" />
             <SolidColorBrush x:Key="CardSecondaryBorderBrush" Color="#1f1f1f" />
+            <SolidColorBrush x:Key="CardMetricBackgroundBrush" Color="#1AFFFFFF" />
 
             <SolidColorBrush x:Key="TextPrimaryBrush" Color="#fffffa" />
             <SolidColorBrush x:Key="TextSecondaryBrush" Color="#D7D8FF" />
@@ -55,8 +56,16 @@
 
             <!--  Graph brushes  -->
             <x:String x:Key="PrimaryGraphBrush">#FF0078D7</x:String>
-            <x:String x:Key="SecondaryGraphBrush">#FFD7D8FF</x:String>
-            <x:String x:Key="BackgroundGraphBrush">#FF5d5e73</x:String>
+            <x:String x:Key="ChartAccentColor">#FF8AB7E8</x:String>
+            <x:String x:Key="ChartPrimaryColor">#FFD7D8FF</x:String>
+            <x:String x:Key="ChartWarningColor">#FFC5994E</x:String>
+            <x:String x:Key="ChartErrorColor">#FF8A5C5B</x:String>
+            <x:String x:Key="ChartMutedColor">#FF5D5E73</x:String>
+            <x:String x:Key="ChartSeparatorColor">#485D5E73</x:String>
+            <x:String x:Key="ChartSubtleAxisLabelColor">#D85D5E73</x:String>
+            <x:String x:Key="ChartDimAxisLabelColor">#C8D7D8FF</x:String>
+            <StaticResource x:Key="SecondaryGraphBrush" ResourceKey="ChartPrimaryColor" />
+            <StaticResource x:Key="BackgroundGraphBrush" ResourceKey="ChartMutedColor" />
 
             <!--  App Main Icon Scheme  -->
 

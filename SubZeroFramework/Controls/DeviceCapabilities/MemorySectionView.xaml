@@ -45,7 +45,7 @@
 
                         <Border
                             Padding="10"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Memory modules" />
@@ -59,7 +59,7 @@
                         <Border
                             Grid.Column="1"
                             Padding="10"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Total capacity" />
@@ -73,7 +73,7 @@
                         <Border
                             Grid.Column="2"
                             Padding="10"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Physical total" />
@@ -87,7 +87,7 @@
                         <Border
                             Grid.Row="1"
                             Padding="10"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Physical available" />
@@ -102,7 +102,7 @@
                             Grid.Row="1"
                             Grid.Column="1"
                             Padding="10"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Swap / page file total" />
@@ -117,7 +117,7 @@
                             Grid.Row="1"
                             Grid.Column="2"
                             Padding="10"
-                            Background="#1AFFFFFF"
+                            Background="{StaticResource CardMetricBackgroundBrush}"
                             CornerRadius="10">
                             <StackPanel>
                                 <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Swap / page file free" />
@@ -220,7 +220,7 @@
 
                                 <Border
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Capacity" />
@@ -234,7 +234,7 @@
                                 <Border
                                     Grid.Column="1"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Memory Type" />
@@ -248,7 +248,7 @@
                                 <Border
                                     Grid.Row="1"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Speed" />
@@ -263,7 +263,7 @@
                                     Grid.Row="1"
                                     Grid.Column="1"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Data Width" />
@@ -277,7 +277,7 @@
                                 <Border
                                     Grid.Row="2"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
@@ -292,7 +292,7 @@
                                     Grid.Row="2"
                                     Grid.Column="1"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Form Factor" />
@@ -307,7 +307,7 @@
                                     Grid.Row="3"
                                     Grid.ColumnSpan="2"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Part Number" />
@@ -322,7 +322,7 @@
                                     Grid.Row="4"
                                     Grid.ColumnSpan="2"
                                     Padding="10"
-                                    Background="#1AFFFFFF"
+                                    Background="{StaticResource CardMetricBackgroundBrush}"
                                     CornerRadius="10">
                                     <StackPanel>
                                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Serial Number" />

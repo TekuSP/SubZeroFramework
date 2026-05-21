@@ -1,7 +1,7 @@
-# New Rules
+### New Rules
 
 Rule ID | Category | Severity | Notes
--------- | ---------- | ---------- | --------------------
+--------|----------|----------|--------------------
 SZF0001 | SubZeroFramework.Mvvm | Warning | Use NotifyPropertyChangedFor instead of direct OnPropertyChanged.
 SZF0002 | SubZeroFramework.Mvvm | Warning | Use NotifyCanExecuteChangedFor instead of direct NotifyCanExecuteChanged.
 SZF0003 | SubZeroFramework.Mvvm | Warning | Require ObservableProperty on partial properties only.

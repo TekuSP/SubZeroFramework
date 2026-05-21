@@ -29,7 +29,7 @@
 
                 <Border
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Processor Support" />
@@ -44,7 +44,7 @@
                 <Border
                     Grid.Column="1"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Thermal Capacity" />
@@ -59,7 +59,7 @@
                 <Border
                     Grid.Column="2"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Heat Pipes" />
@@ -74,7 +74,7 @@
                 <Border
                     Grid.Row="1"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Fan Dimensions" />
@@ -95,7 +95,7 @@
                     Grid.Column="1"
                     Grid.ColumnSpan="2"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Thermal Interface" />
@@ -110,7 +110,7 @@
                 <Border
                     Grid.Row="2"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Firmware Range" />
@@ -130,7 +130,7 @@
                     Grid.Row="2"
                     Grid.Column="1"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Physical Limit" />
@@ -160,7 +160,7 @@
 
                 <Border
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Processor Support" />
@@ -175,7 +175,7 @@
                 <Border
                     Grid.Column="1"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Chassis Material" />
@@ -190,7 +190,7 @@
                 <Border
                     Grid.Column="2"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Idle Speed (Firmware)" />
@@ -208,7 +208,7 @@
                 <Border
                     Grid.Row="1"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Idle Speed (Tuned)" />
@@ -227,7 +227,7 @@
                     Grid.Row="1"
                     Grid.Column="1"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Firmware Limit" />
@@ -245,7 +245,7 @@
                     Grid.Row="1"
                     Grid.Column="2"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Physical Limit" />
@@ -277,7 +277,7 @@
 
                 <Border
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Processor Support" />
@@ -293,7 +293,7 @@
                     Grid.Column="1"
                     Grid.ColumnSpan="2"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Primary CPU TIM" />
@@ -308,7 +308,7 @@
                 <Border
                     Grid.Row="1"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Shell Fan" />
@@ -330,7 +330,7 @@
                     Grid.Row="1"
                     Grid.Column="1"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Graphics Fan" />
@@ -352,7 +352,7 @@
                     Grid.Row="1"
                     Grid.Column="2"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Expansion Bay Power" />
@@ -369,7 +369,7 @@
                 <Border
                     Grid.Row="2"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Firmware Limit" />
@@ -387,7 +387,7 @@
                     Grid.Row="2"
                     Grid.Column="1"
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel>
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Thermal Stress Max" />
@@ -415,7 +415,7 @@
 
                     <Border
                         Padding="12"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Platform" />
@@ -430,7 +430,7 @@
                     <Border
                         Grid.Column="1"
                         Padding="12"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel Spacing="8">
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Supported Fans" />
@@ -452,7 +452,7 @@
                     <Border
                         Grid.Column="2"
                         Padding="12"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel Spacing="8">
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Fan Dimensions" />
@@ -489,7 +489,7 @@
 
                     <Border
                         Padding="12"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel Spacing="8">
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Connectors" />
@@ -514,7 +514,7 @@
                     <Border
                         Grid.Column="1"
                         Padding="12"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel Spacing="8">
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Max Airflow" />
@@ -539,7 +539,7 @@
                     <Border
                         Grid.Column="2"
                         Padding="12"
-                        Background="#1AFFFFFF"
+                        Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel Spacing="8">
                             <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Noise" />
@@ -564,7 +564,7 @@
 
                 <Border
                     Padding="12"
-                    Background="#1AFFFFFF"
+                    Background="{StaticResource CardMetricBackgroundBrush}"
                     CornerRadius="10">
                     <StackPanel Spacing="8">
                         <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Maximum Fan Speed" />

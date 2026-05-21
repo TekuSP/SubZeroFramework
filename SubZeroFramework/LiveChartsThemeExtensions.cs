@@ -3,6 +3,8 @@ using LiveChartsCore.Kernel;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.Themes;
 
+using SubZeroFramework.Themes;
+
 namespace SubZeroFramework;
 
 public static class LiveChartsThemeExtensions
@@ -14,8 +16,8 @@ public static class LiveChartsThemeExtensions
                 theme.AnimationsSpeed = TimeSpan.FromMilliseconds(500);
                 theme.EasingFunction = EasingFunctions.Lineal;
                 theme.Colors = [
-                    new(215, 216, 255), // SecondaryGraphBrush mapped
-                    new(93, 94, 115),   // BackgroundGraphBrush
+                    new(AppThemeBrushes.ChartPrimaryColor.R, AppThemeBrushes.ChartPrimaryColor.G, AppThemeBrushes.ChartPrimaryColor.B),
+                    new(AppThemeBrushes.ChartMutedColor.R, AppThemeBrushes.ChartMutedColor.G, AppThemeBrushes.ChartMutedColor.B),
                     new(0, 120, 215)    // PrimaryGraphBrush
                 ];
             })
