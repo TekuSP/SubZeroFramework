@@ -4,8 +4,15 @@ using System.Collections.Generic;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 using LiveChartsCore.Defaults;
+using LiveChartsCore.SkiaSharpView.Painting;
+
+using Microsoft.UI.Xaml.Media;
+
+using SkiaSharp;
 
 using SubZeroFramework.Models;
+using SubZeroFramework.Presentation;
+using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
@@ -19,6 +26,9 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DisplayName))]
     [NotifyPropertyChangedFor(nameof(DisplayLoad))]
+    [NotifyPropertyChangedFor(nameof(UsageBrush))]
+    [NotifyPropertyChangedFor(nameof(UsageStrokePaint))]
+    [NotifyPropertyChangedFor(nameof(UsageStrokeHex))]
     public partial HardwareInfoCpuCore Snapshot { get; set; } = default!;
 
     [ObservableProperty]
@@ -38,6 +48,12 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
     public string DisplayName => NormalizeCoreDisplayName(Snapshot.Name);
 
     public string DisplayLoad => Snapshot.DisplayLoad;
+
+    public Brush UsageBrush => GetUsageBrush(Snapshot.PercentProcessorTime);
+
+    public SolidColorPaint UsageStrokePaint => new(SKColor.Parse(UsageStrokeHex), 2);
+
+    public string UsageStrokeHex => GetUsageStrokeHex(Snapshot.PercentProcessorTime);
 
     public void UpdateHistory(IReadOnlyList<DateTimePoint> usageHistory, double? minLimit, double? maxLimit, IReadOnlyList<double> separators)
     {
@@ -68,6 +84,46 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
         return candidate.Contains("core", StringComparison.OrdinalIgnoreCase)
             ? candidate
             : $"Core {candidate}";
+    }
+
+    private static Brush GetUsageBrush(double usagePercent)
+    {
+        if (usagePercent < 45d)
+        {
+            return AppThemeBrushes.Get("BrandPrimaryBrush", AppThemeBrushes.TemperatureAccentColor);
+        }
+
+        if (usagePercent < PresentationDefaults.WarningUsagePercent)
+        {
+            return AppThemeBrushes.Get("TextPrimaryBrush", AppThemeBrushes.TextPrimaryColor);
+        }
+
+        if (usagePercent < PresentationDefaults.ErrorUsagePercent)
+        {
+            return AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor);
+        }
+
+        return AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
+    }
+
+    private static string GetUsageStrokeHex(double usagePercent)
+    {
+        if (usagePercent < 45d)
+        {
+            return "#FF8AB7E8";
+        }
+
+        if (usagePercent < PresentationDefaults.WarningUsagePercent)
+        {
+            return "#FFD7D8FF";
+        }
+
+        if (usagePercent < PresentationDefaults.ErrorUsagePercent)
+        {
+            return "#FFC5994E";
+        }
+
+        return "#FF8A5C5B";
     }
 
     private static string Formatter(DateTime date)

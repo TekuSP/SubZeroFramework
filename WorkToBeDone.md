@@ -15,7 +15,7 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 - ✅ Move fan write operations fully behind `SubZeroFramework.Service` so the UNO UI never talks to Framework EC directly.
 - ✅ Design a clear separation between read-only telemetry APIs and fan-control command APIs.
 - ✅ Add a service status surface that reports connection state, driver, elevation status, and last error through IPC, including `IsGrpcActive` transport state.
-- ⏳ Decide whether the UNO app should fall back to in-process provider usage during development only.
+- ✅ Keep the UNO app on the service boundary and do not fall back to in-process provider usage in normal UI flows.
 
 ## IPC
 
@@ -59,7 +59,7 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 
 ## UI integration
 
-- 🟡 Replace direct `IFrameworkDataProvider` usage in the UNO app with an IPC client abstraction. Status-side integration is done; telemetry surfaces should continue moving to IPC-only usage.
+- ✅ Replace direct `IFrameworkDataProvider` usage in the UNO app with typed IPC client abstractions. Current UI surfaces now stay on the service-backed status, telemetry, inventory, and lifecycle client path.
 - ✅ Update warning and settings pages to show service installation, update, elevation, and connection guidance using WinUI or Uno `InfoBar` surfaces for readiness, privilege prompts, and action results.
 - ✅ Move service-owned polling/auth configuration into the Settings page through the new gRPC configuration surface instead of treating those values as client-local preferences.
 - 🟡 Add a visible service-health indicator in the UI. Header, settings, and warning/status handling are now in place; logs and deeper diagnostics actions still need work.
@@ -71,7 +71,10 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 - ✅ Align Device Capabilities with the Dashboard visual language and stabilize refresh behavior using persistent card/view-model collections instead of rebinding fresh item arrays.
 - ✅ Prefer Framework-provided runtime/device data when available, then fill remaining inventory gaps with Hardware.Info through the service, gRPC contract, and IPC client path.
 - ✅ Expand Device Capabilities with cleaned-up device identity, EC version/build, BIOS release date, runtime sensor/fan/battery status cards, drive-level storage usage summaries, and detected network adapter inventory.
-- ✅ Update Device Capabilities CPU and graphics inventory to use the newer dependency capabilities: explicit GPU ↔ monitor associations, monitor current resolution/refresh details, and card-level per-core CPU detail when `Hardware.Info.Aot` reports `CpuCoreList`, while still avoiding a separate CPU load graph.
+- ✅ Refactor Device Capabilities CPU and graphics inventory into modular package and graphics-card group controls: each CPU package now owns recent average-usage and frequency charts plus per-core usage cards, and monitors are grouped under detected graphics cards with an explicit Unknown graphics card bucket for unlinked displays.
+- ✅ Keep the new CPU usage visuals scoped to the service-backed Hardware.Info snapshot/history path inside Device Capabilities; a separate top-level CPU telemetry/dashboard surface is still out of scope without another revalidation pass.
+- ✅ Fix Power Telemetry battery health calculation, current unit/display consistency, and the `DesignCapacityAmpereHours` naming typo.
+- ✅ Complete a Controls/MVVM cleanup pass: replace in-repo `SetProperty` wrappers with `[ObservableProperty]` public partial properties under new analyzer `SZF0012`, centralize recent-chart labels and separator-step defaults in `PresentationDefaults`, and replace placeholder `SZF0009` suppression justifications in lightweight UserControl code-behinds with real rationale.
 - ✅ Keep Dashboard fan and thermal gauge rings visually stable by disabling hover pushout and hover highlighting.
 
 ## Recent completed service lifecycle and packaging work

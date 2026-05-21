@@ -1,7 +1,7 @@
-### New Rules
+# New Rules
 
 Rule ID | Category | Severity | Notes
---------|----------|----------|--------------------
+-------- | ---------- | ---------- | --------------------
 SZF0001 | SubZeroFramework.Mvvm | Warning | Use NotifyPropertyChangedFor instead of direct OnPropertyChanged.
 SZF0002 | SubZeroFramework.Mvvm | Warning | Use NotifyCanExecuteChangedFor instead of direct NotifyCanExecuteChanged.
 SZF0003 | SubZeroFramework.Mvvm | Warning | Require ObservableProperty on partial properties only.
@@ -13,3 +13,4 @@ SZF0008 | SubZeroFramework.DynamicData | Warning | Preserve current-telemetry id
 SZF0009 | SubZeroFramework.Mvvm | Warning | Avoid direct PropertyChanged event invocation.
 SZF0010 | SubZeroFramework.Reactive | Warning | Disposable registry values must be disposed in Dispose().
 SZF0011 | SubZeroFramework.Reactive | Warning | Removed disposable registry values must be disposed.
+SZF0012 | SubZeroFramework.Mvvm | Warning | Use ObservableProperty public partial properties instead of SetProperty.

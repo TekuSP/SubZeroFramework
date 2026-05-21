@@ -102,4 +102,13 @@ internal static class SubZeroDiagnosticDescriptors
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description: "Removing an IDisposable from a keyed registry should dispose the removed value immediately to avoid leaks when subscriptions are replaced or removed incrementally.");
+
+    internal static readonly DiagnosticDescriptor AvoidSetProperty = new(
+        id: "SZF0012",
+        title: "Use ObservableProperty partial properties",
+        messageFormat: "Use [ObservableProperty] on a public partial property instead of SetProperty",
+        category: "SubZeroFramework.Mvvm",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "SubZeroFramework view models should use CommunityToolkit.Mvvm [ObservableProperty] public partial properties instead of manual SetProperty wrappers.");
 }

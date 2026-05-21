@@ -4,9 +4,9 @@ This project contains the Uno Platform client application. It is intentionally n
 
 ## Current UI status
 
-- Dashboard and Device Capabilities are the strongest reference pages for the current card-based visual language, stable item identity, and Framework-first inventory flow, including explicit GPU ↔ monitor linking, monitor current mode details, and additive card-level per-core CPU detail when the updated Hardware.Info path reports it.
+- Dashboard and Device Capabilities are the strongest reference pages for the current card-based visual language, stable item identity, and Framework-first inventory flow, including CPU package cards with recent average-usage and frequency charts, usage-colored per-core cards, explicit GPU ↔ monitor linking, monitor current mode details, and an Unknown graphics card bucket for unlinked monitors.
 - Settings and Warnings and Issues now expose service health, package readiness, privilege-prompt guidance, and quick lifecycle actions for restart, install, update, uninstall, and autorun changes.
-- The preferred next major UI slice remains the first dedicated Thermal Telemetry page wired end to end through `IFrameworkTelemetryClient`.
+- Thermal Telemetry is now the first end-to-end dedicated telemetry page over the typed IPC clients; the larger remaining UI slices are Power Telemetry and Fan Curve Profiles.
 
 ## Related docs
 
@@ -18,6 +18,6 @@ This project contains the Uno Platform client application. It is intentionally n
 
 ## Uno references
 
-To discover how to get started with Uno Platform: https://aka.platform.uno/get-started
+To discover how to get started with Uno Platform: [https://aka.platform.uno/get-started](https://aka.platform.uno/get-started)
 
-For more information on how to use the Uno.Sdk or upgrade Uno Platform packages in this solution: https://aka.platform.uno/using-uno-sdk
+For more information on how to use the Uno.Sdk or upgrade Uno Platform packages in this solution: [https://aka.platform.uno/using-uno-sdk](https://aka.platform.uno/using-uno-sdk)

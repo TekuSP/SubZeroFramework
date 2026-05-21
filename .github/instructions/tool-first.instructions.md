@@ -31,8 +31,8 @@ description: "Use when planning, researching, debugging, implementing, validatin
 - Hardware.Info: `https://github.com/Jinjinov/Hardware.Info`
   - Use `IHardwareInfo`, call `RefreshAll()` or targeted methods like `RefreshCPUList`, `RefreshMemoryList`, `RefreshBatteryList`, `RefreshMotherboardList`.
   - For storage/network inventory, use `RefreshDriveList()` and `RefreshNetworkAdapterList(includeBytesPerSec: false, includeNetworkAdapterConfiguration: true, millisecondsDelayBetweenTwoMeasurements: 0)`.
-  - Avoid Windows WMI startup delay by excluding heavy queries; use `includePercentProcessorTime=false` or `includeBytesPersec=false` where applicable.
-  - Do not surface CPU load/core data from the current Windows Hardware.Info polling path unless it has been revalidated; prior values were misleading and often read as `0%`.
+  - Avoid Windows WMI startup delay by excluding heavy queries where the page does not need them; reserve `includePercentProcessorTime=true` for the service-backed Device Capabilities CPU snapshot/history path, and prefer `includeBytesPersec=false` for network inventory.
+  - The current service-backed Hardware.Info CPU path has been revalidated for Device Capabilities CPU package usage charts and per-core cards. Keep those CPU usage visuals scoped to the stable Device Capabilities cards, and do not promote them into a separate top-level CPU dashboard without another revalidation pass.
   - Prefer `Hardware.Info.Aot` in Uno/WASM/AOT contexts when available.
 - LiveCharts UNO WinUI: `https://livecharts.dev/docs/unowinui/2.0.0/Overview.Installation`
   - Install `LiveChartsCore.SkiaSharpView.Uno.WinUI` and configure `LiveCharts.Configure(c => c.AddSkiaSharp().AddDefaultMappers().AddDefaultTheme().UseDefaults())`.

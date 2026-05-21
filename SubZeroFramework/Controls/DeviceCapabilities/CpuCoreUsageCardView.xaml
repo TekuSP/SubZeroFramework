@@ -27,7 +27,7 @@
                 <TextBlock
                     FontSize="30"
                     FontWeight="SemiBold"
-                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Foreground="{x:Bind ViewModel.UsageBrush, Mode=OneWay}"
                     Text="{x:Bind ViewModel.DisplayLoad, Mode=OneWay}"
                     TextWrapping="NoWrap" />
             </StackPanel>
@@ -50,7 +50,7 @@
                             Fill="{x:Null}"
                             GeometryFill="{x:Null}"
                             GeometryStroke="{x:Null}"
-                            Stroke="{lvc:SolidColorPaint Color='#FFD7D8FF', StrokeWidth='2'}"
+                            Stroke="{x:Bind ViewModel.UsageStrokePaint, Mode=OneWay}"
                             Values="{x:Bind ViewModel.UsageHistory, Mode=OneWay}" />
                     </lvc:SeriesCollection>
                 </lvc:CartesianChart.Series>

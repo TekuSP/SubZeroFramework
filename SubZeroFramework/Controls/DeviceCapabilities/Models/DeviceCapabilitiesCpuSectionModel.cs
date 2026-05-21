@@ -44,9 +44,7 @@ public sealed partial class DeviceCapabilitiesCpuSectionModel : ObservableObject
 
     public string AverageCpuUsageDisplay => _parent.AverageCpuUsageDisplay;
 
-    public string RecentTelemetryHistoryWindowDisplay => PresentationDefaults.RecentTelemetryHistoryWindow.TotalMinutes >= 1d
-        ? $"Last {PresentationDefaults.RecentTelemetryHistoryWindow.TotalMinutes:0} minutes"
-        : $"Last {PresentationDefaults.RecentTelemetryHistoryWindow.TotalSeconds:0} seconds";
+    public string RecentTelemetryHistoryWindowDisplay => PresentationDefaults.RecentTelemetryHistoryWindowLabel;
 
     public DateTimePoint[] CpuUsageHistory => _parent.CpuUsageHistory;
 

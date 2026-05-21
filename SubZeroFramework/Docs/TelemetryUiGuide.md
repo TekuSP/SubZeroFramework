@@ -1,284 +1,263 @@
 # Telemetry UI Guide
 
-This document is the handoff point between the telemetry backend and your UI layer.
+This document is the handoff point between the service-backed IPC clients and your UI layer.
 
-The backend is ready. You can now design screens, charts, controls, and interactions on top of `IFrameworkDataProvider` without adding more plumbing first.
+The backend and client abstractions are ready. New UI should compose status, telemetry, inventory, and configuration surfaces on top of typed clients such as `IFrameworkStatusClient`, `IFrameworkTelemetryClient`, `ITemperatureTelemetryClient`, `IFanTelemetryClient`, `IBatteryTelemetryClient`, `IFanCapabilityClient`, `IFanControlStateClient`, `IHardwareInfoClient`, and `IFrameworkServiceConfigurationClient`.
 
-## What Exists Now
+Do not reintroduce direct `IFrameworkDataProvider` usage into the Uno client.
 
-The main backend contract is `IFrameworkDataProvider`.
+## Current client surface
 
-- Live system/device state via `SystemStatus`
-- Latest raw snapshots via `FlashSnapshots`, `FanCapabilitiesSnapshots`, `PowerSnapshots`, `ThermalSnapshots`
-- Retained raw history for the last hour via `Connect*History(...)`
-- Current normalized readings via `ConnectCurrentTelemetryValues()`
-- Current fan capability state via `ConnectFanCapabilities()`
-- Rolling chart feeds via `ConnectTelemetrySeries(...)`
-- Friendlier chart helpers for common UI cases:
-  - `ConnectTemperatureSeries(...)`
-  - `ConnectFanSpeedSeries(...)`
-  - `ConnectBatteryChargeSeries(...)`
-  - `ConnectBatteryPresentRateSeries(...)`
-  - `ConnectBatteryPresentVoltageSeries(...)`
-- Explicit polling lifecycle via `SetPolling(...)`, `StartPolling()`, `StopPolling()`, and `RefreshAsync()`
+### `IFrameworkStatusClient`
 
-## Data Shapes You Bind To
+Use this for header, transport health, device eligibility, and last-observed state.
+
+- `GetStatusAsync()`
+- `WatchStatus()`
+- `LastObservedAt`
+- `EndpointValidation`
+
+### `IFrameworkTelemetryClient`
+
+Use this for picker-driven or generic telemetry UI.
+
+- `WatchTelemetryChannels()`
+- `WatchCurrentTelemetryValues()`
+- `WatchTelemetrySeries(channelId, historyWindow)`
+
+### Specialized telemetry clients
+
+Use these when the page already knows its domain.
+
+- `ITemperatureTelemetryClient`: `WatchTemperatures()`, `WatchTemperatureHistory(...)`
+- `IFanTelemetryClient`: `WatchFans()`, `WatchFanHistory(...)`
+- `IBatteryTelemetryClient`: `WatchBatteries()`, `WatchBatteryHistory(...)`
+- `IFanCapabilityClient`: `WatchFanCapabilities()`
+- `IFanControlStateClient`: `WatchFanControlStates()`
+
+### Inventory and service-owned configuration
+
+- `IHardwareInfoClient`: `GetHardwareInfoAsync()`, `WatchHardwareInfo()`, `WatchHardwareInfoHistory(...)`
+- `IFrameworkServiceConfigurationClient`: read, watch, and update service-owned polling cadence and fan-command authorization
+
+## Data shapes you bind to
 
 ### `FrameworkSystemStatus`
 
 Use this for header and diagnostic state.
 
-- Device model
-- Platform and platform family
-- Library version and informational version
-- Supported drivers
-- Active driver
-- EC build info
-- Polling enabled/open state
-- Last error
+- device model and platform
+- active driver and EC build info
+- transport and connection state
+- last telemetry observed time
+- authorization and availability messaging
+- last error
 
 ### `CurrentTelemetryValue`
 
-Use this for current-value cards, rows, tiles, and summary lists.
+Use this for current-value cards, rows, summary tiles, and picker-driven lists.
 
-- `ChannelId`: stable logical identity for a metric
-- `DisplayName`: UI-ready name such as `Sensor 0 Temperature`
-- `UnitSymbol`: unit string such as `C`, `RPM`, `V`
-- `ObservedAt`: timestamp of latest reading
-- `NumericValue`: latest numeric value or `null`
-- `IsAvailable`: availability flag
-- `DisplayValue`: formatted string for simple UI surfaces
-
-### `FanCapabilityState`
-
-Use this for fan settings UI, capability badges, or conditional command enablement.
-
-- `FanIndex`
+- `ChannelId`
 - `DisplayName`
-- `Features`
-- `SupportsFanControl`
-- `SupportsThermalReporting`
-- `MaximumSpeedRpm`
-- `CoolingDetails`
+- `UnitSymbol`
 - `ObservedAt`
+- `NumericValue`
 - `IsAvailable`
+- `DisplayValue`
+
+### Domain snapshots
+
+Use specialized snapshots when the page already knows what it is rendering.
+
+- `TemperatureTelemetrySnapshot`
+- `FanTelemetrySnapshot`
+- `BatteryTelemetrySnapshot`
+- `FanCapabilityState`
+- `FanControlStateSnapshot`
 
 ### `TelemetryPoint`
 
-Use this for charts.
+Use this for retained charts.
 
 - `ChannelId`
 - `ObservedAt`
 - `NumericValue`
+- `SampleId`
 
-The series APIs already roll over time and expire old points automatically.
+### `HardwareInfoSnapshot`
 
-## Polling Rules
+Use this for inventory and inventory-backed history surfaces, including Device Capabilities CPU package charts, per-core usage cards, grouped graphics cards, and monitor associations.
 
-Polling is intentionally explicit and UI-controlled.
+## Service-owned cadence and configuration
 
-- Call `SetPolling(interval)` before polling starts
-- `SetPolling(...)` returns `false` if polling is already running
-- Call `StopPolling()` before changing interval
-- Call `StartPolling()` when your UI is ready to begin live telemetry
-- Call `RefreshAsync()` for a manual one-shot refresh path
+Polling is no longer a UI-controlled start or stop concern.
 
-Recommended flow:
+- the service owns background polling
+- Settings updates the polling cadence through `IFrameworkServiceConfigurationClient`
+- UI surfaces should treat `FrameworkSystemStatus.LastTelemetryObservedAt` or `IFrameworkStatusClient.LastObservedAt` as heartbeat indicators, not as a signal to start polling themselves
+- fan-command authorization is also service-owned configuration and should not be mirrored as a client-local toggle
 
-1. User picks an interval.
-2. View model calls `SetPolling(interval)`.
-3. View model calls `StartPolling()`.
-4. UI subscribes to the current-value caches and selected chart series.
-5. When interval changes, stop polling first, set a new interval, then start again.
+## Chart defaults and retained history
 
-## Recommended UI Composition
+When you build charts:
 
-```text
-+----------------------------------------------------------------------------------+
-| Device Header                                                                    |
-| Model | Platform | Active Driver | EC Build | Polling Interval | Last Error      |
-+--------------------------------------+-------------------------------------------+
-| Current Readings                     | Live Chart                                |
-| Temperature sensors                  | Selected channel                          |
-| Fan RPM                              | Window: 5m / 15m / 1h                     |
-| Battery charge / rate / voltage      |                                           |
-+--------------------------------------+-------------------------------------------+
-| Fan Capabilities                                                                  |
-| Fan 0: control yes/no, reporting yes/no                                           |
-| Fan 1: control yes/no, reporting yes/no                                           |
-+----------------------------------------------------------------------------------+
-| Diagnostics / Raw Snapshot Panels (optional)                                     |
-+----------------------------------------------------------------------------------+
-```
+- keep window labels and separator-step defaults in `PresentationDefaults`
+- call `TimeChartAxisHelper.BuildAxis(historyPoints, historyWindow, PresentationDefaults.StandardTelemetryHistorySeparatorStep)` to compute axis limits and separators
+- sort retained point collections by `ObservedAt` and `SampleId` before binding so lines stay chronological
+- keep long-lived `ObservableCollection<T>`, `ISeries[]`, `Axis[]`, and card models instead of recreating them on every update
+- expose bound item collections as `ReadOnlyObservableCollection<T>` when a list, grid, or repeater needs stable item identity
 
-## Architecture Sketch
+For overview-style recent-history cards, `PresentationDefaults.RecentTelemetryHistoryWindow` and `PresentationDefaults.RecentTelemetryHistoryWindowLabel` are the shared defaults.
+
+## Architecture sketch
 
 ```mermaid
 flowchart TD
-    Provider[IFrameworkDataProvider]
-    Status[SystemStatus]
-    Current[ConnectCurrentTelemetryValues]
-    Fans[ConnectFanCapabilities]
-    Series[ConnectTemperatureSeries / ConnectFanSpeedSeries / Battery Series]
-    Header[Header / Status Bar]
-    Cards[Cards / Grid / List of Current Values]
-    FanPanel[Fan Capability Panel]
-    Charts[Charts]
+    Status[IFrameworkStatusClient]
+    Generic[IFrameworkTelemetryClient]
+    Temp[ITemperatureTelemetryClient]
+    Fan[IFanTelemetryClient / IFanCapabilityClient / IFanControlStateClient]
+    Battery[IBatteryTelemetryClient]
+    Hardware[IHardwareInfoClient]
+    Config[IFrameworkServiceConfigurationClient]
 
-    Provider --> Status
-    Provider --> Current
-    Provider --> Fans
-    Provider --> Series
+    Header[Header / Status Bar]
+    Thermal[Thermal Telemetry]
+    Power[Power Telemetry]
+    FanUi[Fan Capability / Control UI]
+    DeviceCaps[Device Capabilities]
+    Settings[Settings]
 
     Status --> Header
-    Current --> Cards
-    Fans --> FanPanel
-    Series --> Charts
+    Status --> Thermal
+    Status --> Power
+    Status --> Settings
+    Generic --> Thermal
+    Temp --> Thermal
+    Fan --> FanUi
+    Battery --> Power
+    Hardware --> DeviceCaps
+    Config --> Settings
 ```
 
-## Recommended View Model Split
+## Recommended view-model split
 
 Do not force everything into `MainModel`.
 
-Prefer a dedicated telemetry-facing model or feature model, for example:
+Prefer feature-facing models such as:
 
-- `TelemetryDashboardModel`
-- `TelemetryChartModel`
+- `HeaderModel` or a shell health model
+- `ThermalTelemetryModel`
+- `PowerTelemetryModel`
+- `DeviceCapabilitiesModel`
 - `FanControlModel`
-- `DiagnosticsModel`
+- `SettingsModel`
 
-That keeps screen composition flexible and avoids hardcoding one chart or one polling behavior into the template model.
+That keeps composition flexible and avoids hardcoding one chart or one cadence decision into a template model.
 
-## DynamicData Usage Pattern
-
-When consuming the caches in Uno MVVM, bind them into `ReadOnlyObservableCollection<T>` in the view model.
+## Example subscription pattern
 
 ```csharp
-using System.Collections.ObjectModel;
-using System.Reactive.Disposables;
-using System.Reactive.Linq;
-using System.Threading;
-
-using DynamicData.Binding;
-
-using SubZeroFramework.Models;
-using SubZeroFramework.Services;
-
-public sealed class TelemetryDashboardModel : IDisposable
+public sealed class ThermalTelemetryPanelModel : IDisposable
 {
-    private readonly CompositeDisposable _subscriptions = new();
-    private readonly SynchronizationContext? _uiContext = SynchronizationContext.Current;
+    private readonly CompositeDisposable _subscriptions = [];
 
-    public TelemetryDashboardModel(IFrameworkDataProvider frameworkDataProvider)
+    public ThermalTelemetryPanelModel(
+        IFrameworkStatusClient statusClient,
+        ITemperatureTelemetryClient temperatureClient,
+        SynchronizationContext uiContext)
     {
-        ObserveOnUi(frameworkDataProvider.ConnectCurrentTelemetryValues())
-            .Bind(out ReadOnlyObservableCollection<CurrentTelemetryValue> currentValues)
-            .Subscribe()
+        statusClient
+            .WatchStatus()
+            .ObserveOn(uiContext)
+            .Subscribe(status => LastStatus = status)
             .DisposeWith(_subscriptions);
 
-        ObserveOnUi(frameworkDataProvider.ConnectFanCapabilities())
-            .Bind(out ReadOnlyObservableCollection<FanCapabilityState> fanCapabilities)
-            .Subscribe()
+        temperatureClient
+            .WatchTemperatures()
+            .ObserveOn(uiContext)
+            .Subscribe(ApplyTemperatureChanges)
             .DisposeWith(_subscriptions);
-
-        ObserveOnUi(frameworkDataProvider.ConnectTemperatureSeries(0, TimeSpan.FromMinutes(5)))
-            .Bind(out ReadOnlyObservableCollection<TelemetryPoint> temperatureSeries)
-            .Subscribe()
-            .DisposeWith(_subscriptions);
-
-        CurrentValues = currentValues;
-        FanCapabilities = fanCapabilities;
-        TemperatureSeries = temperatureSeries;
     }
 
-    public ReadOnlyObservableCollection<CurrentTelemetryValue> CurrentValues { get; }
+    public FrameworkSystemStatus? LastStatus { get; private set; }
 
-    public ReadOnlyObservableCollection<FanCapabilityState> FanCapabilities { get; }
-
-    public ReadOnlyObservableCollection<TelemetryPoint> TemperatureSeries { get; }
+    private void ApplyTemperatureChanges(IChangeSet<TemperatureTelemetrySnapshot, int> set)
+    {
+        // Update stable card models in place.
+    }
 
     public void Dispose() => _subscriptions.Dispose();
-
-    private IObservable<T> ObserveOnUi<T>(IObservable<T> source)
-        => _uiContext is null ? source : source.ObserveOn(_uiContext);
 }
 ```
 
-## Choosing Between Generic and Friendly APIs
+When a history stream uses `ToCollection()`, sort it before converting to chart points:
 
-Use the friendly APIs when your UI already knows the metric type.
+```csharp
+_temperatureTelemetryClient
+    .WatchTemperatureHistory(sensorIndex, historyWindow)
+    .ToCollection()
+    .ObserveOn(uiContext)
+    .Subscribe(points =>
+    {
+        HistoryPoints =
+        [
+            .. points
+                .OrderBy(point => point.ObservedAt)
+                .ThenBy(point => point.SampleId)
+        ];
+    });
+```
 
-- `ConnectTemperatureSeries(sensorIndex, window)`
-- `ConnectFanSpeedSeries(fanIndex, window)`
-- `ConnectBatteryChargeSeries(batteryIndex, window)`
+## Choosing between generic and specialized clients
 
-Use the generic APIs when the UI is picker-driven or channel-driven.
+Use `IFrameworkTelemetryClient` when the UI is channel-picker driven or otherwise generic.
 
-- `ConnectTelemetryChannels()` to show what exists
-- `ConnectTelemetrySeries(channelId, window)` to render the selected channel
+Use specialized clients when the page already knows the metric family.
 
-`TelemetryChannelId` is the stable key for a metric.
+- thermal pages: `ITemperatureTelemetryClient`
+- fan pages and capability surfaces: `IFanTelemetryClient`, `IFanCapabilityClient`, `IFanControlStateClient`
+- battery and power pages: `IBatteryTelemetryClient`
+- inventory and inventory-backed history cards: `IHardwareInfoClient`
 
-## Suggested Screen-Level Responsibilities
+## Suggested screen-level responsibilities
 
 ### Header / shell area
 
-Drive from `SystemStatus`.
+Drive from `IFrameworkStatusClient.WatchStatus()`.
 
-- Device name
-- Platform
-- Active driver
-- Polling state
-- Error text
+- service reachability
+- library and device eligibility
+- telemetry heartbeat
+- last error
 
-### Current readings surface
+### Current readings and charts
 
-Drive from `ConnectCurrentTelemetryValues()`.
+Drive from specialized telemetry clients or `IFrameworkTelemetryClient`.
 
-- good for lists, tiles, grouped cards, and compact dashboards
-- if order matters, sort in the view model or view layer
+- thermal current cards and history
+- fan RPM cards and history
+- battery and power current cards and history
 
-### Fan settings / info surface
+### Device Capabilities and overview cards
 
-Drive from `ConnectFanCapabilities()`.
+Drive from `IHardwareInfoClient.WatchHardwareInfo()` and `WatchHardwareInfoHistory(...)`.
 
-- enable or disable fan-control commands from `SupportsFanControl`
-- show reporting support from `SupportsThermalReporting`
+- CPU package cards with recent usage and frequency history
+- per-core usage cards
+- graphics-card groups and monitor cards
+- storage, network, memory, and firmware inventory
 
-### Charts
+### Settings and lifecycle
 
-Start with the friendly series methods.
+Drive from `IFrameworkServiceConfigurationClient` plus status and lifecycle clients.
 
-- temperature chart: `ConnectTemperatureSeries(...)`
-- fan RPM chart: `ConnectFanSpeedSeries(...)`
-- battery chart: `ConnectBatteryChargeSeries(...)`, `ConnectBatteryPresentRateSeries(...)`, `ConnectBatteryPresentVoltageSeries(...)`
+- polling cadence and fan-command authorization
+- readiness messaging and service state
+- install/update/restart/shutdown action context
 
-Move to `ConnectTelemetryChannels()` plus `ConnectTelemetrySeries(...)` when the user can pick any channel dynamically.
+## Current status
 
-## Why `MainModel` Was Trimmed
+The service-backed status, telemetry, inventory, and configuration clients are ready for UI work.
 
-The app template model should not silently decide telemetry behavior.
-
-The previous version of `MainModel` did three things that are too opinionated for a real UI:
-
-- it auto-started polling
-- it forced a default 10 second interval
-- it hardcoded one five-minute temperature series for sensor `0`
-
-That behavior is now intentionally out of `MainModel` so your real UI models can decide how and when to poll, what charts to show, and how to structure the screen.
-
-## Suggested First Build-Out
-
-1. Create a dedicated telemetry dashboard view model.
-2. Add polling controls to that model.
-3. Bind `SystemStatus` to your header.
-4. Bind `ConnectCurrentTelemetryValues()` to your current-value surface.
-5. Bind `ConnectFanCapabilities()` to fan capability UI.
-6. Bind one of the friendly series methods to your first chart.
-7. If you add a metric picker later, switch to `ConnectTelemetryChannels()` plus `ConnectTelemetrySeries(...)`.
-
-## Current Status
-
-The backend telemetry layer is ready for UI work.
-
-You do not need more provider plumbing before building the dashboard, charts, or control surfaces.
+You do not need more provider plumbing before building or extending telemetry surfaces. New pages and controls should stay on the typed IPC client path, preserve stable item identity, and reuse `PresentationDefaults` plus `TimeChartAxisHelper` for chart timing policy instead of rebuilding that logic ad hoc.

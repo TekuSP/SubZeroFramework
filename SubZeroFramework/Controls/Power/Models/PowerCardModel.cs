@@ -29,7 +29,7 @@ public partial class PowerCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowBatteryState))]
     [NotifyPropertyChangedFor(nameof(RateKind))]
     [NotifyPropertyChangedFor(nameof(DesignVoltage))]
-    [NotifyPropertyChangedFor(nameof(DesignCapacityAmepereHours))]
+    [NotifyPropertyChangedFor(nameof(DesignCapacityAmpereHours))]
     [NotifyPropertyChangedFor(nameof(LastFullChargeCapacityAmpereHours))]
     [NotifyPropertyChangedFor(nameof(RemainingCapacityAmpereHours))]
     [NotifyPropertyChangedFor(nameof(BatteryLife))]
@@ -76,7 +76,7 @@ public partial class PowerCardModel : ObservableObject
     public string ChargeAndStateDisplay => $"{ChargePercentDisplay} ({StateDisplay})";
 
     public string RateDisplay => BatterySnapshot.Amperage is double value
-        ? $"{value * 1000d:N0} mA"
+        ? $"{value:N2} A"
         : "--";
 
     public string RateKind => BatterySnapshot.BatteryState == FrameworkBatteryState.Charging ? "Charging current (A)" : "Discharging current (A)";
@@ -91,13 +91,15 @@ public partial class PowerCardModel : ObservableObject
 
     public string RemainingCapacityAmpereHours => BatterySnapshot.RemainingCapacityAmpereHours is double value ? $"{value:N1} Ah" : "--";
 
-    public string DesignCapacityAmepereHours => BatterySnapshot.DesignCapacityAmpereHours is double value ? $"{value:N1} Ah" : "--";
+    public string DesignCapacityAmpereHours => BatterySnapshot.DesignCapacityAmpereHours is double value ? $"{value:N1} Ah" : "--";
 
     public string LastFullChargeCapacityAmpereHours => BatterySnapshot.LastFullChargeCapacityAmpereHours is double value ? $"{value:N1} Ah" : "--";
 
     public string DesignVoltage => BatterySnapshot.DesignVoltageVolts is double value ? $"{value:N1} V" : "--";
 
-    public string BatteryLife => BatterySnapshot.LastFullChargeCapacityAmpereHours is double lastFullVal && BatterySnapshot.DesignCapacityAmpereHours is double designFullVal ? $"{(designFullVal / lastFullVal) * 100:N1} %" : "--";
+    public string BatteryLife => FormatBatteryHealth(
+        BatterySnapshot.LastFullChargeCapacityAmpereHours,
+        BatterySnapshot.DesignCapacityAmpereHours);
 
     public Brush StateBrush => GetStateBrush(BatterySnapshot.BatteryState);
 
@@ -210,7 +212,7 @@ public partial class PowerCardModel : ObservableObject
         return TimeChartAxisHelper.BuildAxis(
             [.. historyPoints.Select(point => point.DateTime).OrderBy(point => point)],
             TelemetryHistoryLimits.MaximumHistoryWindow,
-            TimeChartAxisHelper.StandardLongSpanSeparatorStep);
+            PresentationDefaults.StandardTelemetryHistorySeparatorStep);
     }
 
     public static string Formatter(DateTime date)
@@ -299,5 +301,19 @@ public partial class PowerCardModel : ObservableObject
             FrameworkPowerSourceState.BatteryOnly => AppThemeBrushes.Get("BrandPrimaryBrush", AppThemeBrushes.StatusSuccessColor),
             _ => AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor),
         };
+    }
+
+    private static string FormatBatteryHealth(double? lastFullCapacityAmpereHours, double? designCapacityAmpereHours)
+    {
+        if (lastFullCapacityAmpereHours is not double lastFullCapacity
+            || designCapacityAmpereHours is not double designCapacity
+            || lastFullCapacity < 0d
+            || designCapacity <= 0d)
+        {
+            return "--";
+        }
+
+        var healthPercent = Math.Clamp(lastFullCapacity / designCapacity * 100d, 0d, 100d);
+        return $"{healthPercent:N1} %";
     }
 }

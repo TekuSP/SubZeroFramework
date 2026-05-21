@@ -641,7 +641,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
         var (axisStart, axisEnd, separators) = TimeChartAxisHelper.BuildAxis(
             historyPoints,
             TelemetryHistoryLimits.MaximumHistoryWindow,
-            TimeChartAxisHelper.StandardLongSpanSeparatorStep);
+            PresentationDefaults.StandardTelemetryHistorySeparatorStep);
 
         ThermalHistoryMinLimit = axisStart.Ticks;
         ThermalHistoryMaxLimit = axisEnd.Ticks;

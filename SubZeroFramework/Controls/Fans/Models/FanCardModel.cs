@@ -109,7 +109,7 @@ public partial class FanCardModel : ObservableObject
         return TimeChartAxisHelper.BuildSeparators(
             now - PresentationDefaults.RecentTelemetryHistoryWindow,
             now,
-            TimeChartAxisHelper.RecentSeparatorStep);
+            PresentationDefaults.RecentTelemetrySeparatorStep);
     }
 
     private void UpdateCapabilityPresentation()

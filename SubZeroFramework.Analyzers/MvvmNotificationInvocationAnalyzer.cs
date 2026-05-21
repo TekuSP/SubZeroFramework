@@ -15,6 +15,7 @@ public sealed class MvvmNotificationInvocationAnalyzer : DiagnosticAnalyzer
         SubZeroDiagnosticDescriptors.AvoidDirectOnPropertyChanged,
         SubZeroDiagnosticDescriptors.AvoidDirectPropertyChangedEventInvocation,
         SubZeroDiagnosticDescriptors.AvoidDirectNotifyCanExecuteChanged,
+        SubZeroDiagnosticDescriptors.AvoidSetProperty,
     ];
 
     public override void Initialize(AnalysisContext context)
@@ -27,6 +28,13 @@ public sealed class MvvmNotificationInvocationAnalyzer : DiagnosticAnalyzer
     private static void AnalyzeInvocation(OperationAnalysisContext context)
     {
         var invocation = (IInvocationOperation)context.Operation;
+
+        if (string.Equals(invocation.TargetMethod.Name, "SetProperty", StringComparison.Ordinal)
+            && IsObservableObjectSetPropertyInvocation(invocation, context))
+        {
+            context.ReportDiagnostic(Diagnostic.Create(SubZeroDiagnosticDescriptors.AvoidSetProperty, invocation.Syntax.GetLocation()));
+            return;
+        }
 
         if (string.Equals(invocation.TargetMethod.Name, "OnPropertyChanged", StringComparison.Ordinal)
             && AnalyzerSymbolHelpers.DerivesFromOrEquals(context.ContainingSymbol?.ContainingType, context.Compilation, AnalyzerSymbolHelpers.ObservableObjectMetadataName))
@@ -46,6 +54,12 @@ public sealed class MvvmNotificationInvocationAnalyzer : DiagnosticAnalyzer
         {
             context.ReportDiagnostic(Diagnostic.Create(SubZeroDiagnosticDescriptors.AvoidDirectNotifyCanExecuteChanged, invocation.Syntax.GetLocation()));
         }
+    }
+
+    private static bool IsObservableObjectSetPropertyInvocation(IInvocationOperation invocation, OperationAnalysisContext context)
+    {
+        return AnalyzerSymbolHelpers.DerivesFromOrEquals(context.ContainingSymbol?.ContainingType, context.Compilation, AnalyzerSymbolHelpers.ObservableObjectMetadataName)
+            || AnalyzerSymbolHelpers.DerivesFromOrEquals(invocation.TargetMethod.ContainingType, context.Compilation, AnalyzerSymbolHelpers.ObservableObjectMetadataName);
     }
 
     private static bool IsDirectPropertyChangedEventInvocation(IInvocationOperation invocation)

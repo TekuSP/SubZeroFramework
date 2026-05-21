@@ -2,9 +2,6 @@ namespace SubZeroFramework.Presentation;
 
 public static class TimeChartAxisHelper
 {
-    public static readonly TimeSpan RecentSeparatorStep = TimeSpan.FromSeconds(5);
-    public static readonly TimeSpan StandardLongSpanSeparatorStep = TimeSpan.FromMinutes(15);
-
     public static (DateTime AxisStart, DateTime AxisEnd, double[] Separators) BuildAxis(
         IReadOnlyList<DateTime> historyPoints,
         TimeSpan historyWindow,
@@ -46,22 +43,22 @@ public static class TimeChartAxisHelper
     {
         if (visibleSpan <= TimeSpan.FromMinutes(1))
         {
-            return RecentSeparatorStep;
+            return PresentationDefaults.RecentTelemetrySeparatorStep;
         }
 
         if (visibleSpan <= TimeSpan.FromMinutes(5))
         {
-            return TimeSpan.FromSeconds(30);
+            return PresentationDefaults.ShortTelemetryHistorySeparatorStep;
         }
 
         if (visibleSpan <= TimeSpan.FromMinutes(15))
         {
-            return TimeSpan.FromMinutes(1);
+            return PresentationDefaults.MediumTelemetryHistorySeparatorStep;
         }
 
         if (visibleSpan <= TimeSpan.FromMinutes(30))
         {
-            return TimeSpan.FromMinutes(5);
+            return PresentationDefaults.LongTelemetryHistorySeparatorStep;
         }
 
         return longSpanSeparatorStep;

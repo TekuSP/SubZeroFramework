@@ -274,7 +274,7 @@ public partial class ThermalSensorModel : ObservableObject
 		return TimeChartAxisHelper.BuildSeparators(
 			now - PresentationDefaults.RecentTelemetryHistoryWindow,
 			now,
-			TimeChartAxisHelper.RecentSeparatorStep);
+			PresentationDefaults.RecentTelemetrySeparatorStep);
 	}
 
 	public static string Formatter(DateTime date)

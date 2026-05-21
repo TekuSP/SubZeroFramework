@@ -99,13 +99,13 @@ Thermal Telemetry is the dedicated deep-dive temperature page.
 
 ### Thermal Telemetry data expectations
 
-- This page should be driven end to end by `IFrameworkTelemetryClient`.
+- This page should be driven end to end by typed temperature telemetry clients such as `ITemperatureTelemetryClient`, with status context from `IFrameworkStatusClient`.
 - It should consume current values and at least one DynamicData-backed history stream.
 - It should not fall back to direct `IFrameworkDataProvider` usage.
 
 ### Thermal Telemetry priority
 
-- This is the preferred next major telemetry page to complete.
+- This is the first dedicated telemetry page already wired end to end and the reference surface for future telemetry-page behavior.
 
 ## Power Telemetry
 
@@ -169,23 +169,23 @@ Device Capabilities is the inventory and reference page for the machine and expo
 - Device identity and platform information.
 - EC version and build information.
 - BIOS version and BIOS release date.
-- CPU identity plus CPU frequency history.
+- CPU package cards with CPU identity, recent average-usage and frequency history, and package-level hardware details.
 - Card-level per-core CPU detail when the updated Hardware.Info source reports trustworthy core snapshots.
 - Memory inventory.
 - Storage inventory.
 - Network inventory.
-- Graphics and display inventory, including explicit monitor-to-GPU associations and current monitor mode details when available.
+- Graphics and display inventory, including explicit monitor-to-GPU associations, grouped graphics-card sections, and current monitor mode details when available.
 - Runtime status cards for sensors, fans, and batteries.
 
 ### Device Capabilities content rules
 
-- The CPU section should always show CPU identity and frequency history.
-- Card-level per-core CPU detail may be shown when the Hardware.Info path reports `CpuCoreList`; do not add a separate CPU load history chart from this source without a fresh revalidation pass.
+- The CPU section should always show CPU identity and frequency history, organized by CPU package card where multiple packages exist.
+- Recent average CPU usage history and per-core usage cards may be shown when the service-backed Hardware.Info path reports trustworthy `PercentProcessorTime` / `CpuCoreList` data; do not promote this into a separate top-level CPU telemetry page without a fresh revalidation pass.
 - Storage should stay at drive level rather than partition level.
 - Storage should include total capacity, used space, free space, and progress-bar style summaries.
 - Network should show detected adapters without a redundant adapter summary block unless explicitly requested.
 - Values that users may want to copy should remain selectable.
-- Graphics and monitor cards should show explicit GPU ↔ monitor relationships when the fallback source reports them, and monitor cards should prefer the monitor-reported current resolution and refresh rate over adapter-only inference.
+- Graphics and monitor cards should show explicit GPU ↔ monitor relationships when the fallback source reports them, group monitors under detected graphics cards, place unlinked monitors into an explicit Unknown graphics card bucket instead of guessing, and prefer the monitor-reported current resolution and refresh rate over adapter-only inference.
 
 ### Device Capabilities data rules
 
@@ -289,5 +289,5 @@ The design boards currently suggest these broad visual intentions:
 - Dashboard and Device Capabilities already contain the most mature UI direction.
 - Settings now includes service-health, package-readiness, privilege-prompt, and lifecycle-action functionality; the broader app-preferences surface still needs more work.
 - Warnings and Issues now acts as the unhealthy-state remediation surface with top-level status messaging, package readiness, privilege guidance, and quick service lifecycle actions.
-- Thermal Telemetry, Power Telemetry, and Fan Curve Profiles still need more of the intended functionality implemented.
+- Thermal Telemetry now has the first end-to-end dedicated telemetry slice, while Power Telemetry and Fan Curve Profiles still need more of the intended functionality implemented.
 - The old broader design idea of a single generic Telemetry or Diagnostics area has effectively been split into Thermal Telemetry, Power Telemetry, Fan Curve Profiles, Device Capabilities, and Warnings and Issues.

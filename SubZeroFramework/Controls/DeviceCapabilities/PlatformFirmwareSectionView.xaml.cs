@@ -13,7 +13,7 @@ public sealed partial class PlatformFirmwareSectionView : UserControl, INotifyPr
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("SubZeroFramework.Mvvm", "SZF0009:Avoid direct PropertyChanged event invocation", Justification = "<Pending>")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SubZeroFramework.Mvvm", "SZF0009:Avoid direct PropertyChanged event invocation", Justification = "Lightweight UserControl ViewModel CLR property updates compiled x:Bind state without making ViewModel a dependency property.")]
     public DeviceCapabilitiesPlatformFirmwareSectionModel ViewModel
     {
         get => field;

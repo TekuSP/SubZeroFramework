@@ -766,7 +766,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         var (axisStart, axisEnd, separators) = TimeChartAxisHelper.BuildAxis(
             historyPoints,
             PresentationDefaults.RecentTelemetryHistoryWindow,
-            TimeChartAxisHelper.StandardLongSpanSeparatorStep);
+            PresentationDefaults.StandardTelemetryHistorySeparatorStep);
 
         return (axisStart.Ticks, axisEnd.Ticks, separators);
     }
@@ -781,7 +781,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         var (axisStart, axisEnd, separators) = TimeChartAxisHelper.BuildAxis(
             historyPoints,
             PresentationDefaults.RecentTelemetryHistoryWindow,
-            TimeChartAxisHelper.StandardLongSpanSeparatorStep);
+            PresentationDefaults.StandardTelemetryHistorySeparatorStep);
 
         return (axisStart.Ticks, axisEnd.Ticks, separators);
     }

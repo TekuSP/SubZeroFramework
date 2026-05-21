@@ -338,7 +338,7 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
         var (axisStart, axisEnd, separators) = TimeChartAxisHelper.BuildAxis(
             historyPoints,
             SelectedHistoryWindow,
-            TimeChartAxisHelper.StandardLongSpanSeparatorStep);
+            PresentationDefaults.StandardTelemetryHistorySeparatorStep);
 
         ThermalHistoryMinLimit = axisStart.Ticks;
         ThermalHistoryMaxLimit = axisEnd.Ticks;

@@ -4,7 +4,7 @@ SubZeroFramework is a cross-platform Framework laptop companion split between an
 
 ## Current progress
 
-- Dashboard and Device Capabilities are the most mature UI surfaces. Device Capabilities now follows the dashboard card language, keeps stable card identity during refresh, uses Framework-first inventory data, and fills remaining gaps through Hardware.Info behind the service boundary, including explicit GPU ↔ monitor linking, monitor current mode details, and additive card-level per-core CPU detail from the updated Hardware.Info path.
+- Dashboard and Device Capabilities are the most mature UI surfaces. Device Capabilities now follows the dashboard card language, keeps stable card identity during refresh, uses Framework-first inventory data, and fills remaining gaps through Hardware.Info behind the service boundary, including CPU package cards with recent average-usage and frequency history, usage-colored per-core cards, explicit GPU ↔ monitor linking, current monitor mode details, and graphics-card groupings that keep unlinked monitors in an explicit Unknown graphics card bucket.
 - The service boundary is in place for status, telemetry, inventory, and fan-control commands. Socket/path hardening, reconnect handling, shared DynamicData-backed streams, and fan-command authorization gating are implemented.
 - Settings and Warnings and Issues now surface service health, install readiness, privilege prompts, and lifecycle actions for shutdown, restart, autorun, install, update, and uninstall.
 - Install and update no longer require an elevated client UI. The packaged service executable supports `--service-management` operations and can register or refresh itself when launched with administrator or root privileges.

@@ -38,7 +38,7 @@ Use this skill when a UI surface is correct at first render but becomes jittery,
 - Device Capabilities drives and network adapters flow through `HardwareInfoSnapshot.Inventory`.
 - `FrameworkDataProvider.ReadHardwareInfoSnapshot()` uses `RefreshDriveList()` and `RefreshNetworkAdapterList(includeBytesPerSec: false, includeNetworkAdapterConfiguration: true, millisecondsDelayBetweenTwoMeasurements: 0)` to avoid expensive bytes-per-second queries.
 - `HardwareInfoReply` includes `drives` and `network_adapters` fields.
-- CPU load and core-count UI should stay disabled here; present CPU identity and clock data only until a trustworthy cross-platform source exists.
+- Device Capabilities CPU usage visuals may use the service-backed `HardwareInfoSnapshot` / `WatchHardwareInfoHistory(...)` path when the snapshot reports trustworthy `PercentProcessorTime` / `CpuCoreList` data, but keep that scoped to stable CPU package cards and per-core cards rather than a separate top-level CPU dashboard.
 
 ### 3. Keep charts long-lived under telemetry updates
 - Reuse long-lived `ObservableValue`, `ObservableCollection<DateTimePoint>`, `ISeries[]`, and `Axis[]` instances where the page already follows that pattern.

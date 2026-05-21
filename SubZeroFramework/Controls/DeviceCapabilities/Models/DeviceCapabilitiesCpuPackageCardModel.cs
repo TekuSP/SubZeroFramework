@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using LiveChartsCore.Defaults;
 using Microsoft.UI.Xaml;
 using SubZeroFramework.Models;
+using SubZeroFramework.Presentation;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
 
@@ -85,82 +86,35 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
         ? Visibility.Visible
         : Visibility.Collapsed;
 
-    private DateTimePoint[] _cpuUsageHistory = [];
+    [ObservableProperty]
+    public partial DateTimePoint[] CpuUsageHistory { get; set; } = [];
 
-    public DateTimePoint[] CpuUsageHistory
-    {
-        get => _cpuUsageHistory;
-        set => SetProperty(ref _cpuUsageHistory, value);
-    }
+    [ObservableProperty]
+    public partial double[] CpuUsageHistorySeparators { get; set; } = [];
 
-    private double[] _cpuUsageHistorySeparators = [];
+    [ObservableProperty]
+    public partial double? CpuUsageHistoryMinLimit { get; set; }
 
-    public double[] CpuUsageHistorySeparators
-    {
-        get => _cpuUsageHistorySeparators;
-        set => SetProperty(ref _cpuUsageHistorySeparators, value);
-    }
+    [ObservableProperty]
+    public partial double? CpuUsageHistoryMaxLimit { get; set; }
 
-    private double? _cpuUsageHistoryMinLimit;
+    [ObservableProperty]
+    public partial DateTimePoint[] CpuClockHistory { get; set; } = [];
 
-    public double? CpuUsageHistoryMinLimit
-    {
-        get => _cpuUsageHistoryMinLimit;
-        set => SetProperty(ref _cpuUsageHistoryMinLimit, value);
-    }
+    [ObservableProperty]
+    public partial double[] CpuClockHistorySeparators { get; set; } = [];
 
-    private double? _cpuUsageHistoryMaxLimit;
+    [ObservableProperty]
+    public partial double? CpuClockHistoryMinLimit { get; set; }
 
-    public double? CpuUsageHistoryMaxLimit
-    {
-        get => _cpuUsageHistoryMaxLimit;
-        set => SetProperty(ref _cpuUsageHistoryMaxLimit, value);
-    }
-
-    private DateTimePoint[] _cpuClockHistory = [];
-
-    public DateTimePoint[] CpuClockHistory
-    {
-        get => _cpuClockHistory;
-        set => SetProperty(ref _cpuClockHistory, value);
-    }
-
-    private double[] _cpuClockHistorySeparators = [];
-
-    public double[] CpuClockHistorySeparators
-    {
-        get => _cpuClockHistorySeparators;
-        set => SetProperty(ref _cpuClockHistorySeparators, value);
-    }
-
-    private double? _cpuClockHistoryMinLimit;
-
-    public double? CpuClockHistoryMinLimit
-    {
-        get => _cpuClockHistoryMinLimit;
-        set => SetProperty(ref _cpuClockHistoryMinLimit, value);
-    }
-
-    private double? _cpuClockHistoryMaxLimit;
-
-    public double? CpuClockHistoryMaxLimit
-    {
-        get => _cpuClockHistoryMaxLimit;
-        set => SetProperty(ref _cpuClockHistoryMaxLimit, value);
-    }
+    [ObservableProperty]
+    public partial double? CpuClockHistoryMaxLimit { get; set; }
 
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
 
-    public string RecentTelemetryHistoryWindowDisplay => Presentation.PresentationDefaults.RecentTelemetryHistoryWindow.TotalMinutes >= 1d
-        ? $"Last {Presentation.PresentationDefaults.RecentTelemetryHistoryWindow.TotalMinutes:0} minutes"
-        : $"Last {Presentation.PresentationDefaults.RecentTelemetryHistoryWindow.TotalSeconds:0} seconds";
+    public string RecentTelemetryHistoryWindowDisplay => PresentationDefaults.RecentTelemetryHistoryWindowLabel;
 
-
-
-    public string CpuClockHistoryWindowDisplay => Presentation.PresentationDefaults.RecentTelemetryHistoryWindow.TotalMinutes >= 1d
-        ? $"Last {Presentation.PresentationDefaults.RecentTelemetryHistoryWindow.TotalMinutes:0} minutes"
-        : $"Last {Presentation.PresentationDefaults.RecentTelemetryHistoryWindow.TotalSeconds:0} seconds";
-
+    public string CpuClockHistoryWindowDisplay => PresentationDefaults.RecentTelemetryHistoryWindowLabel;
 
     partial void OnSnapshotChanged(HardwareInfoCpu value)
     {
@@ -276,35 +230,6 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
         CpuClockHistoryMinLimit = clockMinLimit;
         CpuClockHistoryMaxLimit = clockMaxLimit;
         CpuClockHistorySeparators = [.. clockSeparators];
-    }
-
-    private static string FormatHistoryWindowDisplay(IReadOnlyList<DateTimePoint> history)
-    {
-        if (history.Count < 2)
-        {
-            return "Recent retained history";
-        }
-
-        var span = history[^1].DateTime - history[0].DateTime;
-        if (span.TotalSeconds < 1d)
-        {
-            return "Current sample";
-        }
-
-        if (span.TotalMinutes < 1d)
-        {
-            var seconds = Math.Max(1, (int)Math.Round(span.TotalSeconds, MidpointRounding.AwayFromZero));
-            return $"Last {seconds} second{(seconds == 1 ? string.Empty : "s")}";
-        }
-
-        if (span.TotalHours < 1d)
-        {
-            var minutes = Math.Max(1, (int)Math.Round(span.TotalMinutes, MidpointRounding.AwayFromZero));
-            return $"Last {minutes} minute{(minutes == 1 ? string.Empty : "s")}";
-        }
-
-        var hours = Math.Max(1, (int)Math.Round(span.TotalHours, MidpointRounding.AwayFromZero));
-        return $"Last {hours} hour{(hours == 1 ? string.Empty : "s")}";
     }
 
     private static string Formatter(DateTime date)

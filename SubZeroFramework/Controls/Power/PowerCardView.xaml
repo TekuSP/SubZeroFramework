@@ -160,7 +160,7 @@
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.DesignCapacityAmepereHours, Mode=OneWay}" />
+                                Text="{x:Bind ViewModel.DesignCapacityAmpereHours, Mode=OneWay}" />
                         </StackPanel>
                     </Border>
 
