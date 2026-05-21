@@ -42,6 +42,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     private readonly ObservableCollection<DeviceCapabilitiesStorageDriveCardModel> _storageDriveCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesNetworkAdapterCardModel> _networkAdapterCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesVideoControllerCardModel> _videoControllerCards = [];
+    private readonly ObservableCollection<DeviceCapabilitiesGraphicsCardGroupModel> _graphicsCardGroups = [];
     private readonly ObservableCollection<DeviceCapabilitiesMonitorCardModel> _monitorCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesMonitorResolutionCard> _monitorResolutionCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> _temperatureStatusItems = [];
@@ -56,6 +57,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         nameof(TotalLogicalProcessorCount),
         nameof(AverageClockSpeed),
         nameof(AverageMaxClockSpeed),
+        nameof(AverageCpuUsageDisplay),
         nameof(GraphicsAdapterCount),
         nameof(MonitorCount),
         nameof(ActiveMonitorCount),
@@ -103,6 +105,8 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesVideoControllerCardModel> VideoControllerCards { get; }
 
+    public ReadOnlyObservableCollection<DeviceCapabilitiesGraphicsCardGroupModel> GraphicsCardGroups { get; }
+
     public ReadOnlyObservableCollection<DeviceCapabilitiesMonitorCardModel> MonitorCards { get; }
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesMonitorResolutionCard> MonitorResolutionCards { get; }
@@ -144,6 +148,17 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     public string AverageMaxClockSpeed => Snapshot?.Runtime.Cpus.Length > 0
         ? $"{Snapshot.Runtime.Cpus.Average(cpu => cpu.MaxClockSpeedMHz):0} MHz"
         : "Unknown";
+
+    public string AverageCpuUsageDisplay
+    {
+        get
+        {
+            var averageUsage = GetAverageCpuUsagePercent(Snapshot);
+            return averageUsage is double value
+                ? $"{Math.Clamp(value, 0d, 100d):0.#} %"
+                : "Unknown";
+        }
+    }
 
     public int GraphicsAdapterCount => Snapshot?.Runtime.VideoControllers.Length ?? 0;
 
@@ -294,6 +309,20 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         : FormatBytes(Snapshot.Runtime.MemoryStatus.AvailableVirtual);
 
     [ObservableProperty]
+    public partial DateTimePoint[] CpuUsageHistory { get; set; } = [];
+
+    [ObservableProperty]
+    public partial double[] CpuUsageHistorySeparators { get; set; } = [];
+
+    [ObservableProperty]
+    public partial double? CpuUsageHistoryMinLimit { get; set; }
+
+    [ObservableProperty]
+    public partial double? CpuUsageHistoryMaxLimit { get; set; }
+
+    public Func<DateTime, string> CpuUsageLabelsFormatter => FormatCpuClockLabel;
+
+    [ObservableProperty]
     public partial DateTimePoint[] CpuClockHistory { get; set; } = [];
 
     [ObservableProperty]
@@ -347,6 +376,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         StorageDriveCards = new ReadOnlyObservableCollection<DeviceCapabilitiesStorageDriveCardModel>(_storageDriveCards);
         NetworkAdapterCards = new ReadOnlyObservableCollection<DeviceCapabilitiesNetworkAdapterCardModel>(_networkAdapterCards);
         VideoControllerCards = new ReadOnlyObservableCollection<DeviceCapabilitiesVideoControllerCardModel>(_videoControllerCards);
+        GraphicsCardGroups = new ReadOnlyObservableCollection<DeviceCapabilitiesGraphicsCardGroupModel>(_graphicsCardGroups);
         MonitorCards = new ReadOnlyObservableCollection<DeviceCapabilitiesMonitorCardModel>(_monitorCards);
         MonitorResolutionCards = new ReadOnlyObservableCollection<DeviceCapabilitiesMonitorResolutionCard>(_monitorResolutionCards);
         TemperatureStatusItems = new ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel>(_temperatureStatusItems);
@@ -482,15 +512,54 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     private async Task RefreshCpuVisualsAsync()
     {
+        var cpuUsageHistory = BuildCpuUsageHistory();
+        var (usageAxisStartTicks, usageAxisEndTicks, usageSeparators) = BuildCpuUsageHistoryAxis(cpuUsageHistory);
         var cpuClockHistory = BuildCpuClockHistory();
         var (axisStartTicks, axisEndTicks, separators) = BuildCpuClockHistoryAxis(cpuClockHistory);
+        var cpuPackageUsageHistories = BuildCpuPackageUsageHistories();
+        var cpuPackageClockHistories = BuildCpuPackageClockHistories();
+        var cpuCoreUsageHistories = BuildCpuCoreUsageHistories();
 
         await _dispatcherQueue.EnqueueAsync(() =>
         {
+            CpuUsageHistory = cpuUsageHistory;
+            CpuUsageHistoryMinLimit = usageAxisStartTicks;
+            CpuUsageHistoryMaxLimit = usageAxisEndTicks;
+            CpuUsageHistorySeparators = usageSeparators;
             CpuClockHistory = cpuClockHistory;
             CpuClockHistoryMinLimit = axisStartTicks;
             CpuClockHistoryMaxLimit = axisEndTicks;
             CpuClockHistorySeparators = separators;
+
+            for (var packageIndex = 0; packageIndex < _cpuPackageCards.Count; packageIndex++)
+            {
+                var packageCard = _cpuPackageCards[packageIndex];
+                var packageUsageHistory = cpuPackageUsageHistories.GetValueOrDefault(packageIndex) ?? [];
+                var (packageUsageMinLimit, packageUsageMaxLimit, packageUsageSeparators) = BuildCpuUsageHistoryAxis(packageUsageHistory);
+                packageCard.UpdateCpuUsageHistory(
+                    packageUsageHistory,
+                    packageUsageMinLimit,
+                    packageUsageMaxLimit,
+                    packageUsageSeparators);
+
+                var packageClockHistory = cpuPackageClockHistories.GetValueOrDefault(packageIndex) ?? [];
+                var (packageClockMinLimit, packageClockMaxLimit, packageClockSeparators) = BuildCpuClockHistoryAxis(packageClockHistory);
+                packageCard.UpdateCpuClockHistory(
+                    packageClockHistory,
+                    packageClockMinLimit,
+                    packageClockMaxLimit,
+                    packageClockSeparators);
+
+                for (var coreIndex = 0; coreIndex < packageCard.CpuCoreItems.Count; coreIndex++)
+                {
+                    packageCard.UpdateCpuCoreUsageHistory(
+                        coreIndex,
+                        cpuCoreUsageHistories.GetValueOrDefault((packageIndex, coreIndex)) ?? [],
+                        usageAxisStartTicks,
+                        usageAxisEndTicks,
+                        usageSeparators);
+                }
+            }
         });
     }
 
@@ -568,6 +637,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         await SynchronizeNetworkAdapterCardsAsync(Snapshot?.Inventory.NetworkAdapters ?? []);
         await SynchronizeVideoControllerCardsAsync(Snapshot?.Runtime.VideoControllers ?? []);
         await SynchronizeMonitorCardsAsync(Snapshot?.Runtime.Monitors ?? []);
+        await SynchronizeGraphicsCardGroupsAsync();
         await SynchronizeMonitorResolutionCardsAsync(BuildMonitorResolutionCardData());
     }
 
@@ -595,6 +665,97 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return [.. points];
     }
 
+    private DateTimePoint[] BuildCpuUsageHistory()
+    {
+        List<DateTimePoint> points = [
+            .. _cpuHistoryRecords
+                .Where(record => record.Value.IsAvailable && record.Value.Runtime.Cpus.Length > 0)
+                .Select(record => new DateTimePoint(
+                    record.ObservedAt.LocalDateTime,
+                    GetAverageCpuUsagePercent(record.Value)))
+        ];
+
+        if (Snapshot?.IsAvailable == true && Snapshot.Runtime.Cpus.Length > 0)
+        {
+            var observedAt = Snapshot.ObservedAt.LocalDateTime;
+            if (points.Count == 0 || observedAt > points[^1].DateTime)
+            {
+                points.Add(new DateTimePoint(observedAt, GetAverageCpuUsagePercent(Snapshot)));
+            }
+        }
+
+        return TrimHistoryToRecentWindow(points);
+    }
+
+    private Dictionary<(int PackageIndex, int CoreIndex), DateTimePoint[]> BuildCpuCoreUsageHistories()
+    {
+        Dictionary<(int PackageIndex, int CoreIndex), List<DateTimePoint>> pointsByCore = [];
+
+        foreach (var record in _cpuHistoryRecords.Where(record => record.Value.IsAvailable))
+        {
+            AppendCpuCoreHistoryPoints(pointsByCore, record.Value, record.ObservedAt.LocalDateTime);
+        }
+
+        if (Snapshot?.IsAvailable == true)
+        {
+            var observedAt = Snapshot.ObservedAt.LocalDateTime;
+            if (_cpuHistoryRecords.Length == 0 || observedAt > _cpuHistoryRecords[^1].ObservedAt.LocalDateTime)
+            {
+                AppendCpuCoreHistoryPoints(pointsByCore, Snapshot, observedAt);
+            }
+        }
+
+        return pointsByCore.ToDictionary(
+            pair => pair.Key,
+            pair => TrimHistoryToRecentWindow(pair.Value));
+    }
+
+    private Dictionary<int, DateTimePoint[]> BuildCpuPackageUsageHistories()
+    {
+        Dictionary<int, List<DateTimePoint>> pointsByPackage = [];
+
+        foreach (var record in _cpuHistoryRecords.Where(record => record.Value.IsAvailable))
+        {
+            AppendCpuPackageUsageHistoryPoints(pointsByPackage, record.Value, record.ObservedAt.LocalDateTime);
+        }
+
+        if (Snapshot?.IsAvailable == true)
+        {
+            var observedAt = Snapshot.ObservedAt.LocalDateTime;
+            if (_cpuHistoryRecords.Length == 0 || observedAt > _cpuHistoryRecords[^1].ObservedAt.LocalDateTime)
+            {
+                AppendCpuPackageUsageHistoryPoints(pointsByPackage, Snapshot, observedAt);
+            }
+        }
+
+        return pointsByPackage.ToDictionary(
+            pair => pair.Key,
+            pair => TrimHistoryToRecentWindow(pair.Value));
+    }
+
+    private Dictionary<int, DateTimePoint[]> BuildCpuPackageClockHistories()
+    {
+        Dictionary<int, List<DateTimePoint>> pointsByPackage = [];
+
+        foreach (var record in _cpuHistoryRecords.Where(record => record.Value.IsAvailable))
+        {
+            AppendCpuPackageClockHistoryPoints(pointsByPackage, record.Value, record.ObservedAt.LocalDateTime);
+        }
+
+        if (Snapshot?.IsAvailable == true)
+        {
+            var observedAt = Snapshot.ObservedAt.LocalDateTime;
+            if (_cpuHistoryRecords.Length == 0 || observedAt > _cpuHistoryRecords[^1].ObservedAt.LocalDateTime)
+            {
+                AppendCpuPackageClockHistoryPoints(pointsByPackage, Snapshot, observedAt);
+            }
+        }
+
+        return pointsByPackage.ToDictionary(
+            pair => pair.Key,
+            pair => (DateTimePoint[])[.. pair.Value]);
+    }
+
     private (double? AxisStartTicks, double? AxisEndTicks, double[] Separators) BuildCpuClockHistoryAxis(DateTimePoint[] cpuClockHistory)
     {
         var historyPoints = cpuClockHistory
@@ -604,10 +765,122 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         var (axisStart, axisEnd, separators) = TimeChartAxisHelper.BuildAxis(
             historyPoints,
-            TelemetryHistoryLimits.MaximumHistoryWindow,
-            TimeChartAxisHelper.CpuLongSpanSeparatorStep);
+            PresentationDefaults.RecentTelemetryHistoryWindow,
+            TimeChartAxisHelper.StandardLongSpanSeparatorStep);
 
         return (axisStart.Ticks, axisEnd.Ticks, separators);
+    }
+
+    private (double? AxisStartTicks, double? AxisEndTicks, double[] Separators) BuildCpuUsageHistoryAxis(DateTimePoint[] cpuUsageHistory)
+    {
+        var historyPoints = cpuUsageHistory
+            .Select(point => point.DateTime)
+            .OrderBy(point => point)
+            .ToArray();
+
+        var (axisStart, axisEnd, separators) = TimeChartAxisHelper.BuildAxis(
+            historyPoints,
+            PresentationDefaults.RecentTelemetryHistoryWindow,
+            TimeChartAxisHelper.StandardLongSpanSeparatorStep);
+
+        return (axisStart.Ticks, axisEnd.Ticks, separators);
+    }
+
+    private static double? GetAverageCpuUsagePercent(HardwareInfoSnapshot? snapshot)
+    {
+        if (snapshot?.IsAvailable != true || snapshot.Runtime.Cpus.Length == 0)
+        {
+            return null;
+        }
+
+        var cpuUsageValues = snapshot.Runtime.Cpus
+            .Select(cpu => cpu.EffectivePercentProcessorTime)
+            .Where(value => value is not null)
+            .Select(value => Math.Clamp(value!.Value, 0d, 100d))
+            .ToArray();
+
+        return cpuUsageValues.Length == 0
+            ? null
+            : cpuUsageValues.Average();
+    }
+
+    private static DateTimePoint[] TrimHistoryToRecentWindow(IReadOnlyList<DateTimePoint> points)
+    {
+        if (points.Count == 0)
+        {
+            return [];
+        }
+
+        var windowEnd = points[^1].DateTime;
+        var windowStart = windowEnd - PresentationDefaults.RecentTelemetryHistoryWindow;
+
+        return [
+            .. points
+                .Where(point => point.DateTime >= windowStart)
+        ];
+    }
+
+    private static void AppendCpuCoreHistoryPoints(
+        IDictionary<(int PackageIndex, int CoreIndex), List<DateTimePoint>> pointsByCore,
+        HardwareInfoSnapshot snapshot,
+        DateTime observedAt)
+    {
+        for (var packageIndex = 0; packageIndex < snapshot.Runtime.Cpus.Length; packageIndex++)
+        {
+            var cpu = snapshot.Runtime.Cpus[packageIndex];
+            for (var coreIndex = 0; coreIndex < cpu.CpuCores.Length; coreIndex++)
+            {
+                var key = (packageIndex, coreIndex);
+                if (!pointsByCore.TryGetValue(key, out var history))
+                {
+                    history = [];
+                    pointsByCore[key] = history;
+                }
+
+                history.Add(new DateTimePoint(
+                    observedAt,
+                    Math.Clamp(cpu.CpuCores[coreIndex].PercentProcessorTime, 0d, 100d)));
+            }
+        }
+    }
+
+    private static void AppendCpuPackageUsageHistoryPoints(
+        IDictionary<int, List<DateTimePoint>> pointsByPackage,
+        HardwareInfoSnapshot snapshot,
+        DateTime observedAt)
+    {
+        for (var packageIndex = 0; packageIndex < snapshot.Runtime.Cpus.Length; packageIndex++)
+        {
+            var usageValue = snapshot.Runtime.Cpus[packageIndex].EffectivePercentProcessorTime;
+            if (!pointsByPackage.TryGetValue(packageIndex, out var history))
+            {
+                history = [];
+                pointsByPackage[packageIndex] = history;
+            }
+
+            history.Add(new DateTimePoint(
+                observedAt,
+                usageValue is null ? null : Math.Clamp(usageValue.Value, 0d, 100d)));
+        }
+    }
+
+    private static void AppendCpuPackageClockHistoryPoints(
+        IDictionary<int, List<DateTimePoint>> pointsByPackage,
+        HardwareInfoSnapshot snapshot,
+        DateTime observedAt)
+    {
+        for (var packageIndex = 0; packageIndex < snapshot.Runtime.Cpus.Length; packageIndex++)
+        {
+            if (!pointsByPackage.TryGetValue(packageIndex, out var history))
+            {
+                history = [];
+                pointsByPackage[packageIndex] = history;
+            }
+
+            history.Add(new DateTimePoint(
+                observedAt,
+                snapshot.Runtime.Cpus[packageIndex].CurrentClockSpeedMHz));
+        }
     }
 
     private string FormatCpuClockLabel(DateTime date)
@@ -699,6 +972,69 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             monitors,
             static (_, monitor) => new DeviceCapabilitiesMonitorCardModel(monitor),
             static (card, _, monitor) => card.Snapshot = monitor);
+    }
+
+    private async Task SynchronizeGraphicsCardGroupsAsync()
+    {
+        Dictionary<int, List<DeviceCapabilitiesMonitorCardModel>> monitorCardsByControllerIndex = [];
+        for (var controllerIndex = 0; controllerIndex < _videoControllerCards.Count; controllerIndex++)
+        {
+            monitorCardsByControllerIndex[controllerIndex] = [];
+        }
+
+        List<DeviceCapabilitiesMonitorCardModel> unknownMonitorCards = [];
+        foreach (var monitorCard in _monitorCards)
+        {
+            var linkedControllerIndex = FindLinkedVideoControllerCardIndex(monitorCard.Snapshot);
+            if (linkedControllerIndex is int controllerIndex)
+            {
+                monitorCardsByControllerIndex[controllerIndex].Add(monitorCard);
+                continue;
+            }
+
+            unknownMonitorCards.Add(monitorCard);
+        }
+
+        List<(DeviceCapabilitiesVideoControllerCardModel? VideoController, bool IsUnknownGraphicsCard, IReadOnlyList<DeviceCapabilitiesMonitorCardModel> MonitorCards)> groups = [];
+
+        for (var controllerIndex = 0; controllerIndex < _videoControllerCards.Count; controllerIndex++)
+        {
+            var controllerCard = _videoControllerCards[controllerIndex];
+            groups.Add((controllerCard, false, monitorCardsByControllerIndex[controllerIndex]));
+        }
+
+        if (unknownMonitorCards.Count > 0)
+        {
+            groups.Add((null, true, unknownMonitorCards));
+        }
+
+        for (var index = 0; index < groups.Count; index++)
+        {
+            var group = groups[index];
+            if (index < _graphicsCardGroups.Count)
+            {
+                await _dispatcherQueue.EnqueueAsync(() =>
+                {
+                    _graphicsCardGroups[index].IsUnknownGraphicsCard = group.IsUnknownGraphicsCard;
+                    _graphicsCardGroups[index].VideoController = group.VideoController;
+                    _graphicsCardGroups[index].SynchronizeMonitorCards(group.MonitorCards);
+                });
+
+                continue;
+            }
+
+            await _dispatcherQueue.EnqueueAsync(() =>
+            {
+                var graphicsCardGroup = new DeviceCapabilitiesGraphicsCardGroupModel(group.IsUnknownGraphicsCard, group.VideoController);
+                graphicsCardGroup.SynchronizeMonitorCards(group.MonitorCards);
+                _graphicsCardGroups.Add(graphicsCardGroup);
+            });
+        }
+
+        while (_graphicsCardGroups.Count > groups.Count)
+        {
+            await _dispatcherQueue.EnqueueAsync(() => _graphicsCardGroups.RemoveAt(_graphicsCardGroups.Count - 1));
+        }
     }
 
     public string FormatBytes(ulong bytes)
@@ -803,44 +1139,26 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     private (string Title, string ResolutionTier)[] BuildMonitorResolutionCardData()
     {
-        var activeControllers = Snapshot?.Runtime.VideoControllers
-            .Where(HasActiveDisplay)
-            .ToArray()
-            ?? [];
-
         var monitors = Snapshot?.Runtime.Monitors ?? [];
         if (monitors.Length == 0)
         {
+            var activeControllers = Snapshot?.Runtime.VideoControllers
+                .Where(HasActiveDisplay)
+                .ToArray()
+                ?? [];
+
             return [
                 .. activeControllers.Select((controller, index) => (
-                    Title: $"Monitor {index}",
+                    Title: FirstNonEmpty(controller.Name, controller.Caption, controller.Description) ?? $"Adapter {index}",
                     ResolutionTier: GetDisplayTierLabel(controller)))
             ];
         }
 
-        var cards = new List<(string Title, string ResolutionTier)>(Math.Max(monitors.Length, activeControllers.Length));
-        var nextActiveControllerIndex = 0;
-
-        for (var monitorIndex = 0; monitorIndex < monitors.Length; monitorIndex++)
-        {
-            var monitor = monitors[monitorIndex];
-            var resolutionTier = monitor.Active
-                ? nextActiveControllerIndex < activeControllers.Length
-                    ? GetDisplayTierLabel(activeControllers[nextActiveControllerIndex++])
-                    : "Unknown"
-                : "Inactive";
-
-            cards.Add(($"Monitor {monitorIndex}", resolutionTier));
-        }
-
-        while (nextActiveControllerIndex < activeControllers.Length)
-        {
-            cards.Add((
-                $"Monitor {cards.Count}",
-                GetDisplayTierLabel(activeControllers[nextActiveControllerIndex++])));
-        }
-
-        return [.. cards];
+        return [
+            .. monitors.Select(monitor => (
+                Title: monitor.DisplayName,
+                ResolutionTier: BuildMonitorModeSummary(monitor)))
+        ];
     }
 
     private bool HasActiveDisplay(HardwareInfoVideoController controller)
@@ -876,6 +1194,153 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return maxDimension >= 1280 || minDimension >= 720
             ? "HD"
             : "SD";
+    }
+
+    private string BuildMonitorModeSummary(HardwareInfoMonitor monitor)
+    {
+        var resolutionTier = GetDisplayTierLabel(monitor);
+        return monitor.Active && monitor.CurrentRefreshRate > 0 && !string.Equals(resolutionTier, "Unknown", StringComparison.OrdinalIgnoreCase)
+            ? $"{resolutionTier} · {monitor.DisplayCurrentRefreshRate}"
+            : resolutionTier;
+    }
+
+    private string GetDisplayTierLabel(HardwareInfoMonitor monitor)
+    {
+        if (!monitor.Active)
+        {
+            return "Inactive";
+        }
+
+        var horizontalResolution = monitor.CurrentHorizontalResolution;
+        var verticalResolution = monitor.CurrentVerticalResolution;
+
+        if ((horizontalResolution == 0 || verticalResolution == 0)
+            && FindLinkedVideoController(monitor) is { } linkedController)
+        {
+            horizontalResolution = linkedController.CurrentHorizontalResolution;
+            verticalResolution = linkedController.CurrentVerticalResolution;
+        }
+
+        if (horizontalResolution == 0 && verticalResolution == 0)
+        {
+            return "Unknown";
+        }
+
+        var maxDimension = Math.Max(horizontalResolution, verticalResolution);
+        var minDimension = Math.Min(horizontalResolution, verticalResolution);
+
+        if (maxDimension >= 3840 || minDimension >= 2160)
+        {
+            return "4K+";
+        }
+
+        if (maxDimension >= 2560 || minDimension >= 1440)
+        {
+            return "QHD";
+        }
+
+        if (maxDimension >= 1920 || minDimension >= 1080)
+        {
+            return "Full HD";
+        }
+
+        return maxDimension >= 1280 || minDimension >= 720
+            ? "HD"
+            : "SD";
+    }
+
+    private HardwareInfoVideoController? FindLinkedVideoController(HardwareInfoMonitor monitor)
+    {
+        return Snapshot?.Runtime.VideoControllers.FirstOrDefault(controller => IsMonitorLinkedToController(monitor, controller));
+    }
+
+    private int? FindLinkedVideoControllerCardIndex(HardwareInfoMonitor monitor)
+    {
+        for (var index = 0; index < _videoControllerCards.Count; index++)
+        {
+            if (IsMonitorLinkedToController(monitor, _videoControllerCards[index].Snapshot))
+            {
+                return index;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsMonitorLinkedToController(HardwareInfoMonitor monitor, HardwareInfoVideoController controller)
+    {
+        if (monitor.LinkedVideoControllerDisplayNames.Any())
+        {
+            var controllerCandidates = GetControllerLinkCandidates(controller);
+            if (monitor.LinkedVideoControllerDisplayNames.Any(linkedDisplayName =>
+                controllerCandidates.Any(candidate => string.Equals(candidate, linkedDisplayName, StringComparison.OrdinalIgnoreCase))))
+            {
+                return true;
+            }
+        }
+
+        if (controller.LinkedMonitorDisplayNames.Any())
+        {
+            var monitorCandidates = GetMonitorLinkCandidates(monitor);
+            if (controller.LinkedMonitorDisplayNames.Any(linkedMonitorName =>
+                monitorCandidates.Any(candidate => string.Equals(candidate, linkedMonitorName, StringComparison.OrdinalIgnoreCase))))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<string> GetControllerLinkCandidates(HardwareInfoVideoController controller)
+    {
+        if (!string.IsNullOrWhiteSpace(controller.Name))
+        {
+            yield return controller.Name;
+        }
+
+        if (!string.IsNullOrWhiteSpace(controller.Caption))
+        {
+            yield return controller.Caption;
+        }
+
+        if (!string.IsNullOrWhiteSpace(controller.Description))
+        {
+            yield return controller.Description;
+        }
+
+        if (!string.IsNullOrWhiteSpace(controller.VideoProcessor))
+        {
+            yield return controller.VideoProcessor;
+        }
+    }
+
+    private static IEnumerable<string> GetMonitorLinkCandidates(HardwareInfoMonitor monitor)
+    {
+        if (!string.IsNullOrWhiteSpace(monitor.DisplayName))
+        {
+            yield return monitor.DisplayName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(monitor.UserFriendlyName))
+        {
+            yield return monitor.UserFriendlyName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(monitor.Name))
+        {
+            yield return monitor.Name;
+        }
+
+        if (!string.IsNullOrWhiteSpace(monitor.Caption))
+        {
+            yield return monitor.Caption;
+        }
+
+        if (!string.IsNullOrWhiteSpace(monitor.Description))
+        {
+            yield return monitor.Description;
+        }
     }
 
     private string? FirstNonEmpty(params string?[] values)
@@ -1052,11 +1517,13 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        OnboardStatusSection.Dispose();
         CpuSection.Dispose();
         StorageSection.Dispose();
         MemorySection.Dispose();
         PlatformFirmwareSection.Dispose();
         GraphicsSection.Dispose();
+        NetworkSection.Dispose();
         SystemProfileSection.Dispose();
         CoolingSection.Dispose();
         _subscriptions.Dispose();

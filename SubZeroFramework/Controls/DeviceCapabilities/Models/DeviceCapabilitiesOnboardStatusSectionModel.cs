@@ -6,7 +6,7 @@ using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
-public sealed class DeviceCapabilitiesOnboardStatusSectionModel : ObservableObject
+public sealed class DeviceCapabilitiesOnboardStatusSectionModel : ObservableObject, IDisposable
 {
     private readonly DeviceCapabilitiesModel _parent;
 
@@ -20,4 +20,8 @@ public sealed class DeviceCapabilitiesOnboardStatusSectionModel : ObservableObje
     public ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> FanStatusItems => _parent.FanStatusItems;
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> BatteryStatusItems => _parent.BatteryStatusItems;
+
+    public void Dispose()
+    {
+    }
 }

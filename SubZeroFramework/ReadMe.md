@@ -4,7 +4,7 @@ This project contains the Uno Platform client application. It is intentionally n
 
 ## Current UI status
 
-- Dashboard and Device Capabilities are the strongest reference pages for the current card-based visual language, stable item identity, and Framework-first inventory flow.
+- Dashboard and Device Capabilities are the strongest reference pages for the current card-based visual language, stable item identity, and Framework-first inventory flow, including explicit GPU ↔ monitor linking, monitor current mode details, and additive card-level per-core CPU detail when the updated Hardware.Info path reports it.
 - Settings and Warnings and Issues now expose service health, package readiness, privilege-prompt guidance, and quick lifecycle actions for restart, install, update, uninstall, and autorun changes.
 - The preferred next major UI slice remains the first dedicated Thermal Telemetry page wired end to end through `IFrameworkTelemetryClient`.
 

@@ -6,7 +6,7 @@ using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
-public sealed class DeviceCapabilitiesNetworkSectionModel : ObservableObject
+public sealed class DeviceCapabilitiesNetworkSectionModel : ObservableObject, IDisposable
 {
     private readonly DeviceCapabilitiesModel _parent;
 
@@ -16,4 +16,8 @@ public sealed class DeviceCapabilitiesNetworkSectionModel : ObservableObject
     }
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesNetworkAdapterCardModel> NetworkAdapterCards => _parent.NetworkAdapterCards;
+
+    public void Dispose()
+    {
+    }
 }

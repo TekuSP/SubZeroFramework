@@ -390,7 +390,8 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
             reply.MinRefreshRate,
             reply.Name,
             reply.VideoModeDescription,
-            reply.VideoProcessor);
+            reply.VideoProcessor,
+            reply.LinkedMonitorDisplayNames.ToImmutableArray());
     }
 
     private static HardwareInfoMonitor MapMonitor(HardwareInfoMonitorReply reply)
@@ -409,7 +410,11 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
             reply.SerialNumberId,
             reply.UserFriendlyName,
             checked((ushort)reply.WeekOfManufacture),
-            checked((ushort)reply.YearOfManufacture));
+                checked((ushort)reply.YearOfManufacture),
+                reply.CurrentHorizontalResolution,
+                reply.CurrentVerticalResolution,
+                reply.CurrentRefreshRate,
+                reply.LinkedVideoControllerDisplayNames.ToImmutableArray());
     }
 
     private void ThrowIfDisposed()

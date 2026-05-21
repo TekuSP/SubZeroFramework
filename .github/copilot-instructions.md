@@ -77,7 +77,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - Dashboard gauge rings are intentionally non-hoverable. Preserve `HoverPushout="0"` and `IsHoverable="False"` on comparable LiveCharts pie gauges so they do not jump or darken on hover.
 - Provide a consistent interaction pattern for fan-curve editing: per-fan mode buttons, chart point manipulation, and clear instructions.
 - Fan curve pages should allow associating sensors to each fan, selecting aggregation mode (average, max, min), and enabling delta/CPU/GPU usage inputs for decision logic.
-- Device Capabilities CPU should currently show CPU identity plus frequency history only. Do not reintroduce CPU load/core-count UI from current Hardware.Info polling unless the data source is verified trustworthy.
+- Device Capabilities CPU should always show CPU identity plus frequency history. Card-level per-core CPU detail may be surfaced when `Hardware.Info.Aot` reports `CpuCoreList`, but do not add a separate CPU load history chart or broader CPU load dashboard from that source without a fresh revalidation pass.
 - Storage inventory should stay at drive level, not partition level, with total and per-drive used/free summaries and progress bars.
 - Network inventory should show detected adapter cards without a redundant adapter summary block unless explicitly requested.
 - Telemetry pages should support multi-series chart legend toggles and clearly labeled axis/context.
@@ -87,7 +87,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - `System.Reactive`: provides the reactive primitives and scheduling used by telemetry streams, `ObserveOn`, and stream sharing across the UI.
 - `DynamicData`: powers the dynamic change-set model for telemetry caches, fan state collections, current values, and history series.
 - `FrameworkDotnet`: is our native Framework EC/firmware wrapper library used in the service and core provider for device snapshots, fan commands, thermal/power telemetry, and EC control. Its source lives in `C:\Users\richa\source\repos\framework-dotnet`, so missing features can be added there.
-- `Hardware.Info.Aot`: supplies hardware inventory details in the UNO app for the Device Capabilities page, including RAM modules, manufacturers, serial numbers, and system component metadata.
+- `Hardware.Info.Aot`: supplies hardware inventory details in the UNO app for the Device Capabilities page, including RAM modules, manufacturers, serial numbers, monitor current mode details, GPU ↔ monitor associations through `VideoController.MonitorList`, and per-core CPU detail through `CpuCoreList` when enabled.
 - For current inventory surfaces, prefer targeted refreshes over `RefreshAll()` and keep storage/network inventory flowing through the service snapshot rather than direct UI reads.
 - `LiveChartsCore.SkiaSharpView.Uno.WinUI`: used for rendering line charts and telemetry graphs in the UNO UI.
 - `Material.Icons`: provides icon glyphs for UI chrome, status, and navigation.
@@ -101,8 +101,9 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - Hardware.Info: `https://github.com/Jinjinov/Hardware.Info`
   - Use `IHardwareInfo`, call `RefreshAll()` or targeted methods like `RefreshCPUList`, `RefreshMemoryList`, `RefreshBatteryList`, `RefreshMotherboardList`.
   - For storage/network inventory, use `RefreshDriveList()` and `RefreshNetworkAdapterList(includeBytesPerSec: false, includeNetworkAdapterConfiguration: true, millisecondsDelayBetweenTwoMeasurements: 0)`.
-  - Avoid Windows WMI startup delay by excluding heavy queries; use `includePercentProcessorTime=false` or `includeBytesPersec=false` where applicable.
-  - Do not surface CPU load/core data from the current Windows Hardware.Info polling path unless it has been revalidated; prior values were misleading and often read as `0%`.
+  - Prefer `RefreshVideoControllerList(refreshMonitorList: true)` when you need explicit monitor ↔ GPU associations via `VideoController.MonitorList` and monitor current mode data.
+  - Avoid Windows WMI startup delay by excluding heavy queries where the page does not need them; `includePercentProcessorTime=true` is now reserved for the Device Capabilities CPU snapshot path that drives per-core cards, and `includeBytesPersec=false` remains preferred for network inventory.
+  - Do not surface Hardware.Info CPU data as a separate load graph or broad utilization dashboard without a fresh revalidation pass; the current approved scope is additive card-level per-core detail only.
   - Prefer `Hardware.Info.Aot` in Uno/WASM/AOT contexts when available.
 - LiveCharts UNO WinUI: `https://livecharts.dev/docs/unowinui/2.0.0/Overview.Installation`
   - Install `LiveChartsCore.SkiaSharpView.Uno.WinUI` and configure `LiveCharts.Configure(c => c.AddSkiaSharp().AddDefaultMappers().AddDefaultTheme().UseDefaults())`.
@@ -124,7 +125,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - Thermal Telemetry: detailed temperature history with sensor selection, series toggles, legends, and comparison across multiple sensors.
 - Power Telemetry: battery and power system diagnostics, including charge, voltage, current, power source state, cycles, and history charts.
 - Fan Curve Profiles: per-fan editor and profile manager, allowing sensor-to-fan associations, aggregation mode choices, delta/CPU/GPU usage options, and profile save/restore controls.
-- Device Capabilities: dashboard-aligned inventory page with device identity, EC version/build, BIOS release date, CPU identity plus frequency history, memory/storage/network/graphics/display inventory, runtime sensor/fan/battery status cards, copyable value text, and drive-level usage summaries. Prefer Framework data first, then Hardware.Info through IPC.
+- Device Capabilities: dashboard-aligned inventory page with device identity, EC version/build, BIOS release date, CPU identity plus frequency history with additive per-core cards when available, memory/storage/network/graphics/display inventory, explicit GPU ↔ monitor associations, runtime sensor/fan/battery status cards, copyable value text, and drive-level usage summaries. Prefer Framework data first, then Hardware.Info through IPC.
 - Warnings / Issues: error and warning surface with quick remediation buttons—restart service, install/update/uninstall service when a packaged bundle is available, privilege-prompt guidance, and other corrective actions.
 - Settings: service health, service-manager identity, shutdown/restart/autorun/install/update/reinstall/uninstall controls, privilege guidance, and service-owned runtime configuration (polling cadence and fan-command authorization) over gRPC. Keep client-only preferences separate from this service-owned config surface.
 
@@ -192,7 +193,7 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - Custom fan curve command support is not fully implemented end-to-end.
 - The service needs better shutdown/recovery semantics and fan safety failure handling.
 - Telemetry UI is still partially wired; getting the first end-to-end thermal surface is a near-term goal.
-- Device Capabilities CPU load/core views are intentionally omitted because the current Windows Hardware.Info values were not trustworthy.
+- Device Capabilities now allows additive card-level per-core CPU detail when the updated Hardware.Info path reports `CpuCoreList`, but CPU load history graphs and broader utilization views remain intentionally omitted until a future revalidation pass.
 - Configuration watch/reconnect coverage and broader startup/binding coverage still need more tests.
 
 ## Priorities for future copilots

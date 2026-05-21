@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Globalization;
 
 namespace SubZeroFramework.Models;
@@ -18,7 +19,8 @@ public sealed record HardwareInfoVideoController(
     uint MinRefreshRate,
     string? Name,
     string? VideoModeDescription,
-    string? VideoProcessor)
+    string? VideoProcessor,
+    ImmutableArray<string> LinkedMonitorDisplayNames)
 {
     public string DisplayAdapterRam => AdapterRAM == 0
         ? "Unknown"
@@ -69,6 +71,10 @@ public sealed record HardwareInfoVideoController(
     public string DisplayRefreshRate => CurrentRefreshRate > 0
         ? $"{CurrentRefreshRate:N0} Hz"
         : "Unknown";
+
+    public string DisplayLinkedMonitorSummary => LinkedMonitorDisplayNames.Length == 0
+        ? "No linked monitors reported"
+        : string.Join(", ", LinkedMonitorDisplayNames);
 
     private static string FormatBytes(ulong bytes)
     {

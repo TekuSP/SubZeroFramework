@@ -20,6 +20,9 @@ public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(SerialNumberId))]
     [NotifyPropertyChangedFor(nameof(MonitorManufacturer))]
     [NotifyPropertyChangedFor(nameof(DisplayManufactured))]
+    [NotifyPropertyChangedFor(nameof(DisplayCurrentResolution))]
+    [NotifyPropertyChangedFor(nameof(DisplayCurrentRefreshRate))]
+    [NotifyPropertyChangedFor(nameof(LinkedVideoControllersDisplay))]
     [NotifyPropertyChangedFor(nameof(Description))]
     public partial HardwareInfoMonitor Snapshot { get; set; } = default!;
 
@@ -40,6 +43,12 @@ public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
     public string MonitorManufacturer => FirstNonEmpty(Snapshot.MonitorManufacturer) ?? "Unknown";
 
     public string DisplayManufactured => Snapshot.DisplayManufactured;
+
+    public string DisplayCurrentResolution => Snapshot.DisplayCurrentResolution;
+
+    public string DisplayCurrentRefreshRate => Snapshot.DisplayCurrentRefreshRate;
+
+    public string LinkedVideoControllersDisplay => Snapshot.DisplayLinkedVideoControllerSummary;
 
     public string Description => FirstNonEmpty(Snapshot.Description) ?? "Unknown";
 

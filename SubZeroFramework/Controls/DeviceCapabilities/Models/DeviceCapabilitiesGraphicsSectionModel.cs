@@ -32,6 +32,8 @@ public sealed partial class DeviceCapabilitiesGraphicsSectionModel : ObservableO
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesMonitorResolutionCard> MonitorResolutionCards => _parent.MonitorResolutionCards;
 
+    public ReadOnlyObservableCollection<DeviceCapabilitiesGraphicsCardGroupModel> GraphicsCardGroups => _parent.GraphicsCardGroups;
+
     public ReadOnlyObservableCollection<DeviceCapabilitiesVideoControllerCardModel> VideoControllerCards => _parent.VideoControllerCards;
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesMonitorCardModel> MonitorCards => _parent.MonitorCards;

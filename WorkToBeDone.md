@@ -71,7 +71,7 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 - ✅ Align Device Capabilities with the Dashboard visual language and stabilize refresh behavior using persistent card/view-model collections instead of rebinding fresh item arrays.
 - ✅ Prefer Framework-provided runtime/device data when available, then fill remaining inventory gaps with Hardware.Info through the service, gRPC contract, and IPC client path.
 - ✅ Expand Device Capabilities with cleaned-up device identity, EC version/build, BIOS release date, runtime sensor/fan/battery status cards, drive-level storage usage summaries, and detected network adapter inventory.
-- ✅ Keep the Device Capabilities CPU section honest by showing CPU identity and frequency history only; do not report the previously unreliable load/core values.
+- ✅ Update Device Capabilities CPU and graphics inventory to use the newer dependency capabilities: explicit GPU ↔ monitor associations, monitor current resolution/refresh details, and card-level per-core CPU detail when `Hardware.Info.Aot` reports `CpuCoreList`, while still avoiding a separate CPU load graph.
 - ✅ Keep Dashboard fan and thermal gauge rings visually stable by disabling hover pushout and hover highlighting.
 
 ## Recent completed service lifecycle and packaging work

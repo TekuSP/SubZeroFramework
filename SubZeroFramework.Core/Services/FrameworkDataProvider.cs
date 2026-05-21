@@ -13,6 +13,8 @@ using FrameworkDotnet.Interfaces;
 using FrameworkDotnet.Responses;
 using FrameworkDotnet.Snapshots;
 using Hardware.Info;
+using HardwareMonitor = Hardware.Info.Monitor;
+using HardwareVideoController = Hardware.Info.VideoController;
 using UnitsNet;
 
 namespace SubZeroFramework.Services;
@@ -459,7 +461,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         try
         {
-            _hardwareInfo.RefreshCPUList(false, 500, true);
+            _hardwareInfo.RefreshCPUList(true, 500, true);
             _hardwareInfo.RefreshMemoryList();
             _hardwareInfo.RefreshDriveList();
             _hardwareInfo.RefreshMotherboardList();
@@ -470,8 +472,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 includeBytesPerSec: false,
                 includeNetworkAdapterConfiguration: true,
                 millisecondsDelayBetweenTwoMeasurements: 0);
-            _hardwareInfo.RefreshMonitorList();
-            _hardwareInfo.RefreshVideoControllerList();
+            _hardwareInfo.RefreshVideoControllerList(refreshMonitorList: true);
             _hardwareInfo.RefreshMemoryStatus();
         }
         catch (Exception exception)
@@ -568,10 +569,82 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         try
         {
-            if (_hardwareInfo.MonitorList.Count > 0)
+            var rawMonitors = _hardwareInfo.MonitorList.ToArray();
+            var rawVideoControllers = _hardwareInfo.VideoControllerList.ToArray();
+            var linkedVideoControllerDisplayNamesByMonitor = Enumerable.Range(0, rawMonitors.Length)
+                .Select(_ => new HashSet<string>(StringComparer.OrdinalIgnoreCase))
+                .ToArray();
+            var monitorIndexByReference = new Dictionary<HardwareMonitor, int>(ReferenceEqualityComparer.Instance);
+
+            for (var monitorIndex = 0; monitorIndex < rawMonitors.Length; monitorIndex++)
             {
-                monitors = _hardwareInfo.MonitorList
-                    .Select(monitor => new HardwareInfoMonitor(
+                monitorIndexByReference[rawMonitors[monitorIndex]] = monitorIndex;
+            }
+
+            int FindMonitorIndex(HardwareMonitor monitor)
+            {
+                if (monitorIndexByReference.TryGetValue(monitor, out var directIndex))
+                {
+                    return directIndex;
+                }
+
+                for (var monitorIndex = 0; monitorIndex < rawMonitors.Length; monitorIndex++)
+                {
+                    if (MatchesMonitorIdentity(rawMonitors[monitorIndex], monitor))
+                    {
+                        return monitorIndex;
+                    }
+                }
+
+                return -1;
+            }
+
+            if (rawVideoControllers.Length > 0)
+            {
+                videoControllers = rawVideoControllers
+                    .Select(video =>
+                    {
+                        var videoControllerDisplayName = GetVideoControllerDisplayName(video);
+                        var linkedMonitorDisplayNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+                        foreach (var linkedMonitor in video.MonitorList)
+                        {
+                            var linkedMonitorDisplayName = GetMonitorDisplayName(linkedMonitor);
+                            linkedMonitorDisplayNames.Add(linkedMonitorDisplayName);
+
+                            var monitorIndex = FindMonitorIndex(linkedMonitor);
+                            if (monitorIndex >= 0)
+                            {
+                                linkedVideoControllerDisplayNamesByMonitor[monitorIndex].Add(videoControllerDisplayName);
+                            }
+                        }
+
+                        return new HardwareInfoVideoController(
+                            AdapterRAM: video.AdapterRAM,
+                            Caption: video.Caption,
+                            CurrentBitsPerPixel: video.CurrentBitsPerPixel,
+                            CurrentHorizontalResolution: video.CurrentHorizontalResolution,
+                            CurrentNumberOfColors: video.CurrentNumberOfColors,
+                            CurrentRefreshRate: video.CurrentRefreshRate,
+                            CurrentVerticalResolution: video.CurrentVerticalResolution,
+                            Description: video.Description,
+                            DriverDate: video.DriverDate,
+                            DriverVersion: video.DriverVersion,
+                            Manufacturer: video.Manufacturer,
+                            MaxRefreshRate: video.MaxRefreshRate,
+                            MinRefreshRate: video.MinRefreshRate,
+                            Name: video.Name,
+                            VideoModeDescription: video.VideoModeDescription,
+                            VideoProcessor: video.VideoProcessor,
+                            LinkedMonitorDisplayNames: [.. linkedMonitorDisplayNames]);
+                    })
+                    .ToImmutableArray();
+            }
+
+            if (rawMonitors.Length > 0)
+            {
+                monitors = rawMonitors
+                    .Select((monitor, monitorIndex) => new HardwareInfoMonitor(
                         Active: monitor.Active,
                         Caption: monitor.Caption,
                         Description: monitor.Description,
@@ -585,43 +658,17 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                         SerialNumberId: monitor.SerialNumberID,
                         UserFriendlyName: monitor.UserFriendlyName,
                         WeekOfManufacture: monitor.WeekOfManufacture,
-                        YearOfManufacture: monitor.YearOfManufacture))
+                        YearOfManufacture: monitor.YearOfManufacture,
+                        CurrentHorizontalResolution: monitor.CurrentHorizontalResolution,
+                        CurrentVerticalResolution: monitor.CurrentVerticalResolution,
+                        CurrentRefreshRate: monitor.CurrentRefreshRate,
+                        LinkedVideoControllerDisplayNames: [.. linkedVideoControllerDisplayNamesByMonitor[monitorIndex]]))
                     .ToImmutableArray();
             }
         }
         catch (Exception exception)
         {
-            CaptureFailure(exception, "read monitor data");
-        }
-
-        try
-        {
-            if (_hardwareInfo.VideoControllerList.Count > 0)
-            {
-                videoControllers = _hardwareInfo.VideoControllerList
-                    .Select(video => new HardwareInfoVideoController(
-                        AdapterRAM: video.AdapterRAM,
-                        Caption: video.Caption,
-                        CurrentBitsPerPixel: video.CurrentBitsPerPixel,
-                        CurrentHorizontalResolution: video.CurrentHorizontalResolution,
-                        CurrentNumberOfColors: video.CurrentNumberOfColors,
-                        CurrentRefreshRate: video.CurrentRefreshRate,
-                        CurrentVerticalResolution: video.CurrentVerticalResolution,
-                        Description: video.Description,
-                        DriverDate: video.DriverDate,
-                        DriverVersion: video.DriverVersion,
-                        Manufacturer: video.Manufacturer,
-                        MaxRefreshRate: video.MaxRefreshRate,
-                        MinRefreshRate: video.MinRefreshRate,
-                        Name: video.Name,
-                        VideoModeDescription: video.VideoModeDescription,
-                        VideoProcessor: video.VideoProcessor))
-                    .ToImmutableArray();
-            }
-        }
-        catch (Exception exception)
-        {
-            CaptureFailure(exception, "read video controller data");
+            CaptureFailure(exception, "read graphics and monitor data");
         }
 
         try
@@ -629,25 +676,37 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             if (_hardwareInfo.CpuList.Count > 0)
             {
                 cpus = _hardwareInfo.CpuList
-                    .Select(cpu => new HardwareInfoCpu(
-                        Name: cpu.Name ?? cpu.Caption,
-                        Caption: cpu.Caption,
-                        Description: cpu.Description,
-                        Manufacturer: cpu.Manufacturer,
-                        Cores: checked((int)cpu.NumberOfCores),
-                        LogicalProcessors: checked((int)cpu.NumberOfLogicalProcessors),
-                        CurrentClockSpeedMHz: checked((int)cpu.CurrentClockSpeed),
-                        MaxClockSpeedMHz: checked((int)cpu.MaxClockSpeed),
-                        ProcessorId: cpu.ProcessorId,
-                        SocketDesignation: cpu.SocketDesignation,
-                        L1CacheSizeKb: checked((int)cpu.L1InstructionCacheSize),
-                        L2CacheSizeKb: checked((int)cpu.L2CacheSize),
-                        L3CacheSizeKb: checked((int)cpu.L3CacheSize),
-                        SecondLevelAddressTranslationExtensions: cpu.SecondLevelAddressTranslationExtensions,
-                        VirtualizationFirmwareEnabled: cpu.VirtualizationFirmwareEnabled,
-                        VMMonitorModeExtensions: cpu.VMMonitorModeExtensions,
-                        PercentProcessorTime: null,
-                        CpuCores: []))
+                    .Select(cpu =>
+                    {
+                        var mappedCpuCores = cpu.CpuCoreList
+                            .Where(core => !string.IsNullOrWhiteSpace(core.Name))
+                            .Select(core => new HardwareInfoCpuCore(
+                                Name: core.Name,
+                                PercentProcessorTime: Math.Clamp((double)core.PercentProcessorTime, 0d, 100d)))
+                            .ToImmutableArray();
+
+                        return new HardwareInfoCpu(
+                            Name: cpu.Name ?? cpu.Caption,
+                            Caption: cpu.Caption,
+                            Description: cpu.Description,
+                            Manufacturer: cpu.Manufacturer,
+                            Cores: checked((int)cpu.NumberOfCores),
+                            LogicalProcessors: checked((int)cpu.NumberOfLogicalProcessors),
+                            CurrentClockSpeedMHz: checked((int)cpu.CurrentClockSpeed),
+                            MaxClockSpeedMHz: checked((int)cpu.MaxClockSpeed),
+                            ProcessorId: cpu.ProcessorId,
+                            SocketDesignation: cpu.SocketDesignation,
+                            L1CacheSizeKb: checked((int)cpu.L1InstructionCacheSize),
+                            L2CacheSizeKb: checked((int)cpu.L2CacheSize),
+                            L3CacheSizeKb: checked((int)cpu.L3CacheSize),
+                            SecondLevelAddressTranslationExtensions: cpu.SecondLevelAddressTranslationExtensions,
+                            VirtualizationFirmwareEnabled: cpu.VirtualizationFirmwareEnabled,
+                            VMMonitorModeExtensions: cpu.VMMonitorModeExtensions,
+                            PercentProcessorTime: mappedCpuCores.Length > 0 || cpu.PercentProcessorTime > 0
+                                ? Math.Clamp((double)cpu.PercentProcessorTime, 0d, 100d)
+                                : null,
+                            CpuCores: mappedCpuCores);
+                    })
                     .ToImmutableArray();
             }
         }
@@ -1667,6 +1726,34 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         return historyWindow;
     }
+
+    private static string GetMonitorDisplayName(HardwareMonitor monitor)
+        => FirstNonEmpty(monitor.UserFriendlyName, monitor.Name, monitor.Caption, monitor.Description) ?? "Unknown monitor";
+
+    private static string GetVideoControllerDisplayName(HardwareVideoController videoController)
+        => FirstNonEmpty(videoController.Name, videoController.Caption, videoController.Description, videoController.VideoProcessor) ?? "Unknown adapter";
+
+    private static bool MatchesMonitorIdentity(HardwareMonitor left, HardwareMonitor right)
+    {
+        if (!string.IsNullOrWhiteSpace(left.ProductCodeID)
+            && !string.IsNullOrWhiteSpace(left.SerialNumberID)
+            && string.Equals(left.ProductCodeID, right.ProductCodeID, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(left.SerialNumberID, right.SerialNumberID, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals(GetMonitorDisplayName(left), GetMonitorDisplayName(right), StringComparison.OrdinalIgnoreCase)
+            && string.Equals(
+                FirstNonEmpty(left.ManufacturerName, left.MonitorManufacturer),
+                FirstNonEmpty(right.ManufacturerName, right.MonitorManufacturer),
+                StringComparison.OrdinalIgnoreCase)
+            && left.CurrentHorizontalResolution == right.CurrentHorizontalResolution
+            && left.CurrentVerticalResolution == right.CurrentVerticalResolution;
+    }
+
+    private static string? FirstNonEmpty(params string?[] values)
+        => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 
     private static TelemetryChannelId CreateBatteryChannelId(int batteryIndex, TelemetryMetric metric)
         => new(TelemetryArea.Power, TelemetryEntityKind.Battery, batteryIndex, metric);

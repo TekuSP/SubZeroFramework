@@ -55,7 +55,7 @@ public static class Program
             .Bind(builder.Configuration.GetSection("FrameworkService"));
 
         builder.Services.AddGrpc();
-        builder.Services.AddSingleton<IHardwareInfo, HardwareInfo>();
+        builder.Services.AddSingleton<IHardwareInfo, HardwareInfo>(x => new HardwareInfo(logger: x.GetService<ILogger<HardwareInfo>>()));
         builder.Services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
         builder.Services.AddSingleton<FrameworkFanControlSafetyTracker>();
         builder.Services.AddSingleton<IFrameworkDataProvider, FrameworkDataProvider>();

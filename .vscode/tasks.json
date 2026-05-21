@@ -13,7 +13,11 @@
         "/v:minimal",
         "/consoleloggerparameters:NoSummary"
       ],
-      "problemMatcher": "$msCompile"
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
     },
     {
       "label": "publish-linux",
@@ -27,6 +31,10 @@
         "/v:minimal",
         "/consoleloggerparameters:NoSummary"
       ],
+      "group": {
+        "kind": "none",
+        "isDefault": false
+      },
       "problemMatcher": "$msCompile"
     },
     {
@@ -41,6 +49,10 @@
         "/v:minimal",
         "/consoleloggerparameters:NoSummary"
       ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
       "problemMatcher": "$msCompile"
     },
     {
@@ -55,6 +67,10 @@
         "/v:minimal",
         "/consoleloggerparameters:NoSummary"
       ],
+      "group": {
+        "kind": "none",
+        "isDefault": false
+      },
       "problemMatcher": "$msCompile"
     },
     {
@@ -68,6 +84,10 @@
         "/v:minimal",
         "/consoleloggerparameters:NoSummary"
       ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
       "problemMatcher": "$msCompile"
     },
     {
@@ -81,7 +101,11 @@
         "/v:minimal",
         "/consoleloggerparameters:NoSummary"
       ],
-      "problemMatcher": "$msCompile"
+      "problemMatcher": "$msCompile",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
     },
     {
       "label": "build-all",
@@ -90,7 +114,11 @@
         "build-linux",
         "build-windows"
       ],
-      "dependsOrder": "sequence"
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
     },
     {
       "label": "build-all-windows",
@@ -101,7 +129,11 @@
       "dependsOrder": "sequence",
       "problemMatcher": [
         "$msCompile"
-      ]
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
     }
   ]
 }

@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 using LiveChartsCore.Defaults;
 
+using SubZeroFramework.Presentation;
 using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
@@ -24,6 +25,11 @@ public sealed partial class DeviceCapabilitiesCpuSectionModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CpuCount))]
     [NotifyPropertyChangedFor(nameof(AverageClockSpeed))]
     [NotifyPropertyChangedFor(nameof(AverageMaxClockSpeed))]
+    [NotifyPropertyChangedFor(nameof(AverageCpuUsageDisplay))]
+    [NotifyPropertyChangedFor(nameof(CpuUsageHistory))]
+    [NotifyPropertyChangedFor(nameof(CpuUsageHistorySeparators))]
+    [NotifyPropertyChangedFor(nameof(CpuUsageHistoryMinLimit))]
+    [NotifyPropertyChangedFor(nameof(CpuUsageHistoryMaxLimit))]
     [NotifyPropertyChangedFor(nameof(CpuClockHistory))]
     [NotifyPropertyChangedFor(nameof(CpuClockHistorySeparators))]
     [NotifyPropertyChangedFor(nameof(CpuClockHistoryMinLimit))]
@@ -35,6 +41,22 @@ public sealed partial class DeviceCapabilitiesCpuSectionModel : ObservableObject
     public string AverageClockSpeed => _parent.AverageClockSpeed;
 
     public string AverageMaxClockSpeed => _parent.AverageMaxClockSpeed;
+
+    public string AverageCpuUsageDisplay => _parent.AverageCpuUsageDisplay;
+
+    public string RecentTelemetryHistoryWindowDisplay => PresentationDefaults.RecentTelemetryHistoryWindow.TotalMinutes >= 1d
+        ? $"Last {PresentationDefaults.RecentTelemetryHistoryWindow.TotalMinutes:0} minutes"
+        : $"Last {PresentationDefaults.RecentTelemetryHistoryWindow.TotalSeconds:0} seconds";
+
+    public DateTimePoint[] CpuUsageHistory => _parent.CpuUsageHistory;
+
+    public double[] CpuUsageHistorySeparators => _parent.CpuUsageHistorySeparators;
+
+    public double? CpuUsageHistoryMinLimit => _parent.CpuUsageHistoryMinLimit;
+
+    public double? CpuUsageHistoryMaxLimit => _parent.CpuUsageHistoryMaxLimit;
+
+    public Func<DateTime, string> CpuUsageLabelsFormatter => _parent.CpuUsageLabelsFormatter;
 
     public DateTimePoint[] CpuClockHistory => _parent.CpuClockHistory;
 
@@ -58,6 +80,10 @@ public sealed partial class DeviceCapabilitiesCpuSectionModel : ObservableObject
         switch (e.PropertyName)
         {
             case nameof(DeviceCapabilitiesModel.Snapshot):
+            case nameof(DeviceCapabilitiesModel.CpuUsageHistory):
+            case nameof(DeviceCapabilitiesModel.CpuUsageHistorySeparators):
+            case nameof(DeviceCapabilitiesModel.CpuUsageHistoryMinLimit):
+            case nameof(DeviceCapabilitiesModel.CpuUsageHistoryMaxLimit):
             case nameof(DeviceCapabilitiesModel.CpuClockHistory):
             case nameof(DeviceCapabilitiesModel.CpuClockHistorySeparators):
             case nameof(DeviceCapabilitiesModel.CpuClockHistoryMinLimit):

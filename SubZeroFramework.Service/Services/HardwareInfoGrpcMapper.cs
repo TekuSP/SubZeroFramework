@@ -169,7 +169,7 @@ internal static class HardwareInfoGrpcMapper
 
     private static HardwareInfoMonitorReply MapHardwareInfoMonitor(HardwareInfoMonitor monitor)
     {
-        return new HardwareInfoMonitorReply
+        var reply = new HardwareInfoMonitorReply
         {
             Active = monitor.Active,
             Caption = monitor.Caption ?? string.Empty,
@@ -185,7 +185,14 @@ internal static class HardwareInfoGrpcMapper
             UserFriendlyName = monitor.UserFriendlyName ?? string.Empty,
             WeekOfManufacture = monitor.WeekOfManufacture,
             YearOfManufacture = monitor.YearOfManufacture,
+            CurrentHorizontalResolution = monitor.CurrentHorizontalResolution,
+            CurrentVerticalResolution = monitor.CurrentVerticalResolution,
+            CurrentRefreshRate = monitor.CurrentRefreshRate,
         };
+
+        reply.LinkedVideoControllerDisplayNames.AddRange(monitor.LinkedVideoControllerDisplayNames);
+
+        return reply;
     }
 
     private static HardwareInfoDriveReply MapHardwareInfoDrive(HardwareInfoDrive drive)
@@ -229,7 +236,7 @@ internal static class HardwareInfoGrpcMapper
 
     private static HardwareInfoVideoControllerReply MapHardwareInfoVideoController(HardwareInfoVideoController videoController)
     {
-        return new HardwareInfoVideoControllerReply
+        var reply = new HardwareInfoVideoControllerReply
         {
             Name = videoController.Name ?? string.Empty,
             AdapterRam = videoController.AdapterRAM,
@@ -248,5 +255,9 @@ internal static class HardwareInfoGrpcMapper
             VideoModeDescription = videoController.VideoModeDescription ?? string.Empty,
             VideoProcessor = videoController.VideoProcessor ?? string.Empty,
         };
+
+        reply.LinkedMonitorDisplayNames.AddRange(videoController.LinkedMonitorDisplayNames);
+
+        return reply;
     }
 }

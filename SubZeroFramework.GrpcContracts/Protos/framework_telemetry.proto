@@ -195,6 +195,10 @@ message HardwareInfoMonitorReply {
   string user_friendly_name = 12;
   uint32 week_of_manufacture = 13;
   uint32 year_of_manufacture = 14;
+  uint32 current_horizontal_resolution = 15;
+  uint32 current_vertical_resolution = 16;
+  uint32 current_refresh_rate = 17;
+  repeated string linked_video_controller_display_names = 18;
 }
 
 message HardwareInfoVideoControllerReply {
@@ -214,6 +218,7 @@ message HardwareInfoVideoControllerReply {
   uint32 min_refresh_rate = 14;
   string video_mode_description = 15;
   string video_processor = 16;
+  repeated string linked_monitor_display_names = 17;
 }
 
 message HardwareInfoDriveReply {

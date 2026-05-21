@@ -4,7 +4,6 @@ public static class TimeChartAxisHelper
 {
     public static readonly TimeSpan RecentSeparatorStep = TimeSpan.FromSeconds(5);
     public static readonly TimeSpan StandardLongSpanSeparatorStep = TimeSpan.FromMinutes(15);
-    public static readonly TimeSpan CpuLongSpanSeparatorStep = TimeSpan.FromMinutes(10);
 
     public static (DateTime AxisStart, DateTime AxisEnd, double[] Separators) BuildAxis(
         IReadOnlyList<DateTime> historyPoints,

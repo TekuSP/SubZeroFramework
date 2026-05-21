@@ -170,20 +170,22 @@ Device Capabilities is the inventory and reference page for the machine and expo
 - EC version and build information.
 - BIOS version and BIOS release date.
 - CPU identity plus CPU frequency history.
+- Card-level per-core CPU detail when the updated Hardware.Info source reports trustworthy core snapshots.
 - Memory inventory.
 - Storage inventory.
 - Network inventory.
-- Graphics and display inventory.
+- Graphics and display inventory, including explicit monitor-to-GPU associations and current monitor mode details when available.
 - Runtime status cards for sensors, fans, and batteries.
 
 ### Device Capabilities content rules
 
-- The CPU section should show CPU identity and frequency history only.
-- CPU load and core-count views should stay out of this page unless the underlying source is revalidated.
+- The CPU section should always show CPU identity and frequency history.
+- Card-level per-core CPU detail may be shown when the Hardware.Info path reports `CpuCoreList`; do not add a separate CPU load history chart from this source without a fresh revalidation pass.
 - Storage should stay at drive level rather than partition level.
 - Storage should include total capacity, used space, free space, and progress-bar style summaries.
 - Network should show detected adapters without a redundant adapter summary block unless explicitly requested.
 - Values that users may want to copy should remain selectable.
+- Graphics and monitor cards should show explicit GPU ↔ monitor relationships when the fallback source reports them, and monitor cards should prefer the monitor-reported current resolution and refresh rate over adapter-only inference.
 
 ### Device Capabilities data rules
 

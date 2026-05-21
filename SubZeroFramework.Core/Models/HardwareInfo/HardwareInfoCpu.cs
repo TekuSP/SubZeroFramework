@@ -31,6 +31,8 @@ public sealed record HardwareInfoCpu(
         ? $"{MaxClockSpeedMHz:N0} MHz"
         : "Unknown";
 
+    public bool HasCpuCoreDetails => CpuCores.Length > 0;
+
     public double? EffectivePercentProcessorTime => PercentProcessorTime
         ?? (CpuCores.Length > 0
             ? CpuCores.Average(core => core.PercentProcessorTime)

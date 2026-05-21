@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+
 namespace SubZeroFramework.Models;
 
 public sealed record HardwareInfoMonitor(
@@ -14,7 +16,11 @@ public sealed record HardwareInfoMonitor(
     string? SerialNumberId,
     string? UserFriendlyName,
     ushort WeekOfManufacture,
-    ushort YearOfManufacture)
+    ushort YearOfManufacture,
+    uint CurrentHorizontalResolution,
+    uint CurrentVerticalResolution,
+    uint CurrentRefreshRate,
+    ImmutableArray<string> LinkedVideoControllerDisplayNames)
 {
     public string DisplayName => FirstNonEmpty(UserFriendlyName, Name, Caption, Description) ?? "Unknown monitor";
 
@@ -48,6 +54,34 @@ public sealed record HardwareInfoMonitor(
         : WeekOfManufacture > 0
             ? $"{YearOfManufacture}-W{WeekOfManufacture:D2}"
             : $"{YearOfManufacture}";
+
+    public string DisplayCurrentResolution
+    {
+        get
+        {
+            if (CurrentHorizontalResolution == 0 && CurrentVerticalResolution == 0)
+            {
+                return "Unknown";
+            }
+
+            if (CurrentHorizontalResolution > 0 && CurrentVerticalResolution > 0)
+            {
+                return $"{CurrentHorizontalResolution:N0} x {CurrentVerticalResolution:N0}";
+            }
+
+            return CurrentHorizontalResolution > 0
+                ? CurrentHorizontalResolution.ToString("N0")
+                : CurrentVerticalResolution.ToString("N0");
+        }
+    }
+
+    public string DisplayCurrentRefreshRate => CurrentRefreshRate > 0
+        ? $"{CurrentRefreshRate:N0} Hz"
+        : "Unknown";
+
+    public string DisplayLinkedVideoControllerSummary => LinkedVideoControllerDisplayNames.Length == 0
+        ? "No linked graphics adapter reported"
+        : string.Join(", ", LinkedVideoControllerDisplayNames);
 
     private static string? FirstNonEmpty(params string?[] values)
     {

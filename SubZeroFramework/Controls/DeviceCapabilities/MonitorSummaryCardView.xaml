@@ -1,0 +1,76 @@
+﻿<UserControl
+    x:Class="SubZeroFramework.Controls.DeviceCapabilities.MonitorSummaryCardView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Border
+        Width="260"
+        Margin="0,0,12,12"
+        Padding="12"
+        Background="#1AFFFFFF"
+        CornerRadius="12">
+        <StackPanel Spacing="10">
+            <TextBlock
+                FontSize="16"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="{x:Bind ViewModel.DisplayName, Mode=OneWay}"
+                TextWrapping="WrapWholeWords" />
+
+            <Grid ColumnSpacing="8" RowSpacing="8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel>
+                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Status" />
+                    <TextBlock
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.DisplayStatus, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1">
+                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Type" />
+                    <TextBlock
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.MonitorType, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1">
+                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Resolution" />
+                    <TextBlock
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.DisplayCurrentResolution, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" Grid.Column="1">
+                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Refresh" />
+                    <TextBlock
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.DisplayCurrentRefreshRate, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Grid.ColumnSpan="2">
+                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
+                    <TextBlock
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.DisplayManufacturer, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

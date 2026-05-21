@@ -20,6 +20,8 @@ public partial class DeviceCapabilitiesVideoControllerCardModel : ObservableObje
     [NotifyPropertyChangedFor(nameof(DisplayResolution))]
     [NotifyPropertyChangedFor(nameof(DisplayRefreshRate))]
     [NotifyPropertyChangedFor(nameof(DisplayAdapterRam))]
+    [NotifyPropertyChangedFor(nameof(ConnectedMonitorCountDisplay))]
+    [NotifyPropertyChangedFor(nameof(ConnectedMonitorsDisplay))]
     public partial HardwareInfoVideoController Snapshot { get; set; } = default!;
 
     public string Name => FirstNonEmpty(Snapshot.Name, Snapshot.Caption, Snapshot.Description) ?? "Unknown";
@@ -39,6 +41,10 @@ public partial class DeviceCapabilitiesVideoControllerCardModel : ObservableObje
     public string DisplayRefreshRate => Snapshot.DisplayRefreshRate;
 
     public string DisplayAdapterRam => Snapshot.DisplayAdapterRam;
+
+    public string ConnectedMonitorCountDisplay => Snapshot.LinkedMonitorDisplayNames.Length.ToString("N0");
+
+    public string ConnectedMonitorsDisplay => Snapshot.DisplayLinkedMonitorSummary;
 
     private string? FirstNonEmpty(params string?[] values)
     {
