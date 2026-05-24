@@ -1,14 +1,23 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using SubZeroFramework.Models;
+using SubZeroFramework.Presentation.Units;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
 public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
 {
-    public DeviceCapabilitiesMonitorCardModel(HardwareInfoMonitor snapshot)
+    private readonly IUnitFormattingService _unitFormattingService;
+
+    public DeviceCapabilitiesMonitorCardModel(int index, HardwareInfoMonitor snapshot, IUnitFormattingService unitFormattingService)
     {
+        _unitFormattingService = unitFormattingService;
+        Index = index;
         Snapshot = snapshot;
     }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MonitorLabel))]
+    public partial int Index { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DisplayName))]
@@ -25,6 +34,8 @@ public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(LinkedVideoControllersDisplay))]
     [NotifyPropertyChangedFor(nameof(Description))]
     public partial HardwareInfoMonitor Snapshot { get; set; } = default!;
+
+    public string MonitorLabel => $"Monitor {Index}";
 
     public string DisplayName => Snapshot.DisplayName;
 
@@ -46,11 +57,22 @@ public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
 
     public string DisplayCurrentResolution => Snapshot.DisplayCurrentResolution;
 
-    public string DisplayCurrentRefreshRate => Snapshot.DisplayCurrentRefreshRate;
+    public string DisplayCurrentRefreshRate => Snapshot.CurrentRefreshRate > 0
+        ? _unitFormattingService.FormatRefreshRateHertz(Snapshot.CurrentRefreshRate)
+        : "Unknown";
 
     public string LinkedVideoControllersDisplay => Snapshot.DisplayLinkedVideoControllerSummary;
 
     public string Description => FirstNonEmpty(Snapshot.Description) ?? "Unknown";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayCurrentRefreshRate))]
+    private partial int UnitFormattingRevision { get; set; }
+
+    public void RefreshUnitFormatting()
+    {
+        UnitFormattingRevision++;
+    }
 
     private string? FirstNonEmpty(params string?[] values)
     {

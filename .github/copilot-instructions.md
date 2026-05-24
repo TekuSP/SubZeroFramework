@@ -24,6 +24,8 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - For inventory surfaces, prefer FrameworkDotnet data first and only use Hardware.Info to fill gaps, keeping that fallback flow behind the existing service/gRPC/client boundary.
 - For service lifecycle work, keep install/update/shutdown/restart/autorun management out of gRPC. Prefer the packaged service executable and `FrameworkServiceManagementCli` so the client stays unelevated and the action still works when the service is offline.
 - For service-owned runtime settings such as polling cadence or writable fan-command authorization, prefer `FrameworkServiceConfigurationGrpcService` / `IFrameworkServiceConfigurationClient` plus the persistent service-owned configuration overlay instead of client-local settings. Keep lifecycle operations out of that gRPC surface.
+- Keep service and gRPC payloads in canonical units. When the UI needs alternate display units, persist the choice locally through `IUserUnitPreferencesClient` and format values, suffixes, and axis labels through `IUnitFormattingService`.
+- When a bindable display value depends on other observable properties, prefer analyzer-friendly dependency patterns such as `[NotifyPropertyChangedFor]` over manual `OnPropertyChanged(...)` refresh calls so the solution stays warning-clean.
 - Preserve stable item identity in GridView/ListView card layouts. Prefer persistent mutable card/view-model instances exposed via `ReadOnlyObservableCollection<T>` over rebinding fresh arrays every refresh, otherwise cards blink and pointer/layout state resets.
 - Keep shared recent-history window labels and separator-step defaults in `PresentationDefaults`; `TimeChartAxisHelper` should only translate those policies into axis limits and separators.
 - Re-read any existing XAML page immediately before editing it. The user often makes small manual visual tweaks between turns, and those should be preserved.
@@ -71,6 +73,8 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - `MainModel`, `HeaderModel`, and dashboard view models are the primary reactive consumers.
 - Prefer `IFrameworkStatusClient`, `IFrameworkTelemetryClient`, `IFanCapabilityClient`, `IFanControlStateClient`, and higher-level telemetry clients instead of raw data providers.
 - `SettingsModel` should combine lifecycle state from `IFrameworkServiceControlClient` with service-owned runtime configuration from `IFrameworkServiceConfigurationClient`. Autorun is lifecycle state; polling cadence and writable fan-command authorization are service-owned config.
+- `SettingsModel` should also expose client-local display-unit preferences through `IUserUnitPreferencesClient`; keep those preferences separate from service-owned configuration.
+- Route UI-facing numeric formatting, suffixes, copyable inventory values, and chart axis labelers through `IUnitFormattingService` instead of per-page ad hoc conversion logic.
 - Left navigation is icon-led and supports a compact app-shell visual style.
 - Pages should emphasize summary cards, status badges, and nested telemetry cards rather than dense tables.
 - Use a visually distinct fallback/error card for unsupported hardware and safe-mode states.
@@ -124,12 +128,13 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 
 ### Page/tab behavior
 - Dashboard: full landing page with system identity, active cooling cards, thermal snapshot cards, history charts, power/battery summary, and service/health status. Fan and thermal gauge rings should remain visually stable on hover.
+- Dashboard fan mini-charts should keep exact gauge maximums while allowing modest history-axis headroom so peak lines do not clip.
 - Thermal Telemetry: detailed temperature history with sensor selection, series toggles, legends, and comparison across multiple sensors.
 - Power Telemetry: battery and power system diagnostics, including charge, voltage, current, power source state, cycles, and history charts.
 - Fan Curve Profiles: per-fan editor and profile manager, allowing sensor-to-fan associations, aggregation mode choices, delta/CPU/GPU usage options, and profile save/restore controls.
-- Device Capabilities: dashboard-aligned inventory page with device identity, EC version/build, BIOS release date, CPU package cards with recent average-usage and frequency history plus per-core usage cards when available, memory/storage/network/graphics/display inventory, grouped graphics-card sections with explicit GPU ↔ monitor associations and an Unknown graphics card bucket for unlinked displays, runtime sensor/fan/battery status cards, copyable value text, and drive-level usage summaries. Prefer Framework data first, then Hardware.Info through IPC.
+- Device Capabilities: dashboard-aligned inventory page with device identity, EC version/build, BIOS release date, CPU package cards with recent average-usage and frequency history plus per-core usage cards when available, memory/storage/network/graphics/display inventory, grouped graphics-card sections with explicit Adapter labels and numbered monitor subcards, an Unknown graphics card bucket for unlinked displays, runtime sensor/fan/battery status cards, copyable value text, drive-level usage summaries, and Unknown rendering for sentinel network link speeds. Prefer Framework data first, then Hardware.Info through IPC.
 - Warnings / Issues: error and warning surface with quick remediation buttons—restart service, install/update/uninstall service when a packaged bundle is available, privilege-prompt guidance, and other corrective actions.
-- Settings: service health, service-manager identity, shutdown/restart/autorun/install/update/reinstall/uninstall controls, privilege guidance, and service-owned runtime configuration (polling cadence and fan-command authorization) over gRPC. Keep client-only preferences separate from this service-owned config surface.
+- Settings: service health, service-manager identity, shutdown/restart/autorun/install/update/reinstall/uninstall controls, privilege guidance, a local Units section with save or reset or restore-default flows, and service-owned runtime configuration (polling cadence and fan-command authorization) over gRPC. Keep client-only preferences separate from this service-owned config surface.
 
 ### 4. UI/UX design guidance
 - Preserve the existing dark, flattened Fluent-inspired dashboard style with layered panels and subtle depth.
@@ -256,8 +261,14 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - `SubZeroFramework/Controls/DeviceCapabilities/Models/DeviceCapabilitiesGraphicsCardGroupModel.cs`
 - `SubZeroFramework/Presentation/MenuItems/Settings/SettingsModel.cs`
 - `SubZeroFramework/Presentation/MenuItems/WarningsIssues/WarningIssuesModel.cs`
+- `SubZeroFramework/Presentation/Units/IUnitFormattingService.cs`
+- `SubZeroFramework/Presentation/Units/UnitsNetUnitFormattingService.cs`
+- `SubZeroFramework/Presentation/Units/UnitPreferenceCatalog.cs`
 - `SubZeroFramework/Presentation/PresentationDefaults.cs`
 - `SubZeroFramework/Presentation/TimeChartAxisHelper.cs`
+- `SubZeroFramework/Services/IUserUnitPreferencesClient.cs`
+- `SubZeroFramework/Services/LocalUserUnitPreferencesClient.cs`
+- `SubZeroFramework/Controls/AutoWrapPanel.cs`
 - `SubZeroFramework/Presentation/MenuItems/DeviceCapabilities/DeviceCapabilitiesPage.xaml`
 - `SubZeroFramework/Presentation/MenuItems/Dashboard/DashboardPage.xaml`
 - `SubZeroFramework.Service/Scripts/package-windows-service.ps1`

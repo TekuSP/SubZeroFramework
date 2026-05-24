@@ -78,6 +78,9 @@ public sealed partial class DeviceCapabilitiesCpuSectionModel : ObservableObject
         switch (e.PropertyName)
         {
             case nameof(DeviceCapabilitiesModel.Snapshot):
+            case nameof(DeviceCapabilitiesModel.AverageClockSpeed):
+            case nameof(DeviceCapabilitiesModel.AverageMaxClockSpeed):
+            case nameof(DeviceCapabilitiesModel.AverageCpuUsageDisplay):
             case nameof(DeviceCapabilitiesModel.CpuUsageHistory):
             case nameof(DeviceCapabilitiesModel.CpuUsageHistorySeparators):
             case nameof(DeviceCapabilitiesModel.CpuUsageHistoryMinLimit):

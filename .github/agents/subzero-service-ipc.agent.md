@@ -2,7 +2,6 @@
 name: "SubZero Service and IPC Engineer"
 description: "Use when working on the SubZeroFramework service, gRPC IPC, socket hardening, fan-control authorization, shutdown safety, packaged service operations, telemetry stream resilience, or service-side regression tests."
 argument-hint: "Describe the service, IPC, safety, or packaging work you need done."
-model: "GPT-5.4 (copilot)"
 handoffs:
   - label: "Switch to UI Builder"
     agent: "SubZero UI Builder"

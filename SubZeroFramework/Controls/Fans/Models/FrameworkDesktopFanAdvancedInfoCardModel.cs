@@ -2,14 +2,18 @@ using System.Collections.ObjectModel;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
+using SubZeroFramework.Presentation.Units;
+
 namespace SubZeroFramework.Controls.Fans.Models;
 
 public partial class FrameworkDesktopFanAdvancedInfoCardModel : FanAdvancedInfoCardModel
 {
     private readonly ObservableCollection<FrameworkDesktopFanOptionModel> _supportedFanOptions = [];
+    private readonly IUnitFormattingService _unitFormattingService;
 
-    public FrameworkDesktopFanAdvancedInfoCardModel()
+    public FrameworkDesktopFanAdvancedInfoCardModel(IUnitFormattingService unitFormattingService)
     {
+        _unitFormattingService = unitFormattingService;
         SupportedFanOptions = new ReadOnlyObservableCollection<FrameworkDesktopFanOptionModel>(_supportedFanOptions);
     }
 
@@ -32,7 +36,7 @@ public partial class FrameworkDesktopFanAdvancedInfoCardModel : FanAdvancedInfoC
                 continue;
             }
 
-            var optionModel = new FrameworkDesktopFanOptionModel();
+            var optionModel = new FrameworkDesktopFanOptionModel(_unitFormattingService);
             optionModel.UpdateFrom(option);
             _supportedFanOptions.Add(optionModel);
         }
@@ -40,6 +44,14 @@ public partial class FrameworkDesktopFanAdvancedInfoCardModel : FanAdvancedInfoC
         while (_supportedFanOptions.Count > details.SupportedFanOptions.Length)
         {
             _supportedFanOptions.RemoveAt(_supportedFanOptions.Count - 1);
+        }
+    }
+
+    public override void RefreshUnitFormatting()
+    {
+        foreach (var option in _supportedFanOptions)
+        {
+            option.RefreshUnitFormatting();
         }
     }
 }

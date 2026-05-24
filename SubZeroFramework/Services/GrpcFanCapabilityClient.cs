@@ -212,6 +212,8 @@ public sealed class GrpcFanCapabilityClient : IFanCapabilityClient, IDisposable
             MaximumAirflowCfm = reply.MaximumAirflowCfm,
             AlternateAirflowDisplay = string.IsNullOrWhiteSpace(reply.AlternateAirflowDisplay) ? null : reply.AlternateAirflowDisplay,
             AcousticNoiseDisplay = reply.AcousticNoiseDisplay,
+            AcousticNoiseDecibels = reply.HasAcousticNoiseDecibels ? reply.AcousticNoiseDecibels : null,
+            MaximumAcousticNoiseDecibels = reply.HasMaximumAcousticNoiseDecibels ? reply.MaximumAcousticNoiseDecibels : null,
             MaximumFanSpeedRpm = reply.MaximumFanSpeedRpm,
         };
     }

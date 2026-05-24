@@ -12,14 +12,18 @@ using SkiaSharp;
 
 using SubZeroFramework.Models;
 using SubZeroFramework.Presentation;
+using SubZeroFramework.Presentation.Units;
 using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
 public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
 {
-    public DeviceCapabilitiesCpuCoreItemModel(HardwareInfoCpuCore snapshot)
+    private readonly IUnitFormattingService _unitFormattingService;
+
+    public DeviceCapabilitiesCpuCoreItemModel(HardwareInfoCpuCore snapshot, IUnitFormattingService unitFormattingService)
     {
+        _unitFormattingService = unitFormattingService;
         Snapshot = snapshot;
     }
 
@@ -45,9 +49,13 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
 
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
 
+    public Func<double, string> UsageLabelFormatter => _unitFormattingService.FormatRatioAxisLabel;
+
     public string DisplayName => NormalizeCoreDisplayName(Snapshot.Name);
 
-    public string DisplayLoad => Snapshot.DisplayLoad;
+    public string DisplayLoad => _unitFormattingService.FormatRatio(Snapshot.PercentProcessorTime, decimals: 1);
+
+    public double UsageAxisMaxLimit => _unitFormattingService.RatioAxisMaximum;
 
     public Brush UsageBrush => GetUsageBrush(Snapshot.PercentProcessorTime);
 
@@ -55,12 +63,23 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
 
     public string UsageStrokeHex => GetUsageStrokeHex(Snapshot.PercentProcessorTime);
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayLoad))]
+    [NotifyPropertyChangedFor(nameof(UsageLabelFormatter))]
+    [NotifyPropertyChangedFor(nameof(UsageAxisMaxLimit))]
+    private partial int UnitFormattingRevision { get; set; }
+
     public void UpdateHistory(IReadOnlyList<DateTimePoint> usageHistory, double? minLimit, double? maxLimit, IReadOnlyList<double> separators)
     {
         UsageHistory = [.. usageHistory];
         UsageMinLimit = minLimit;
         UsageMaxLimit = maxLimit;
         UsageSeparators = [.. separators];
+    }
+
+    public void RefreshUnitFormatting()
+    {
+        UnitFormattingRevision++;
     }
 
     public static string NormalizeCoreDisplayName(string? rawName)

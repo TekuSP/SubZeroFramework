@@ -452,6 +452,8 @@ message FrameworkDesktopFanOptionReply {
   string alternate_airflow_display = 5;
   string acoustic_noise_display = 6;
   int32 maximum_fan_speed_rpm = 7;
+  optional double acoustic_noise_decibels = 8;
+  optional double maximum_acoustic_noise_decibels = 9;
 }
 
 message FrameworkDesktopCoolingDetailsReply {

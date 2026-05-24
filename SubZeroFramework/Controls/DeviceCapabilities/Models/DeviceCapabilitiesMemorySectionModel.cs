@@ -65,9 +65,17 @@ public sealed partial class DeviceCapabilitiesMemorySectionModel : ObservableObj
 
     private void ParentPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(DeviceCapabilitiesModel.Snapshot))
+        switch (e.PropertyName)
         {
-            SnapshotVersion++;
+            case nameof(DeviceCapabilitiesModel.Snapshot):
+            case nameof(DeviceCapabilitiesModel.MemoryTotalCapacity):
+            case nameof(DeviceCapabilitiesModel.TotalPhysicalMemory):
+            case nameof(DeviceCapabilitiesModel.AvailablePhysicalMemory):
+            case nameof(DeviceCapabilitiesModel.TotalPageFileMemory):
+            case nameof(DeviceCapabilitiesModel.AvailablePageFileMemory):
+            case nameof(DeviceCapabilitiesModel.PhysicalMemoryUsageDisplay):
+                SnapshotVersion++;
+                break;
         }
     }
 }

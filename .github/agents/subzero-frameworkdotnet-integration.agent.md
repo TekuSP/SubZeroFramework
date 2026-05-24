@@ -2,7 +2,6 @@
 name: "SubZero FrameworkDotnet Integrator"
 description: "Use when updating FrameworkDotnet integration, planning companion changes for the local framework-dotnet repo, adding EC, telemetry, or inventory data, expanding service mappings, or coordinating model and contract changes between FrameworkDotnet, the service, and the UI."
 argument-hint: "Describe the FrameworkDotnet-facing feature, data gap, or integration change."
-model: "GPT-5.4 (copilot)"
 handoffs:
   - label: "Switch to Service and IPC Engineer"
     agent: "SubZero Service and IPC Engineer"

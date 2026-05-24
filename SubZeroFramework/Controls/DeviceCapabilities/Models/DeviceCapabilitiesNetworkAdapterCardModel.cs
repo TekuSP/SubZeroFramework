@@ -1,12 +1,16 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using SubZeroFramework.Models;
+using SubZeroFramework.Presentation.Units;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
 public partial class DeviceCapabilitiesNetworkAdapterCardModel : ObservableObject
 {
-    public DeviceCapabilitiesNetworkAdapterCardModel(HardwareInfoNetworkAdapter snapshot)
+    private readonly IUnitFormattingService _unitFormattingService;
+
+    public DeviceCapabilitiesNetworkAdapterCardModel(HardwareInfoNetworkAdapter snapshot, IUnitFormattingService unitFormattingService)
     {
+        _unitFormattingService = unitFormattingService;
         Snapshot = snapshot;
     }
 
@@ -32,13 +36,24 @@ public partial class DeviceCapabilitiesNetworkAdapterCardModel : ObservableObjec
 
     public string ManufacturerDisplay => FirstNonEmpty(Snapshot.Manufacturer) ?? "Unknown";
 
-    public string SpeedDisplay => Snapshot.DisplaySpeed;
+    public string SpeedDisplay => Snapshot.HasKnownSpeed
+        ? _unitFormattingService.FormatBitRateBitsPerSecond(Snapshot.Speed)
+        : "Unknown";
 
     public string MacAddressDisplay => FirstNonEmpty(Snapshot.MacAddress) ?? "Unknown";
 
     public string IpAddressesDisplay => Snapshot.DisplayIpAddresses;
 
     public string DefaultGatewaysDisplay => Snapshot.DisplayDefaultGateways;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SpeedDisplay))]
+    private partial int UnitFormattingRevision { get; set; }
+
+    public void RefreshUnitFormatting()
+    {
+        UnitFormattingRevision++;
+    }
 
     private static string? FirstNonEmpty(params string?[] values) => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 }

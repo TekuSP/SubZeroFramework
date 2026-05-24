@@ -65,12 +65,21 @@ The client owns:
 
 - page composition and navigation
 - view models and local DynamicData projections for presentation
+- client-local display-unit preference persistence and presentation formatting
 - subscribing to status, telemetry, and fan-control state streams from the service
 - rendering charts, cards, legends, and selection state
 - initiating user-requested commands through the service boundary
 - discovering packaged service-bundle readiness and surfacing lifecycle guidance or quick actions without becoming the privileged worker
 
 The client should treat the service as the authority for runtime hardware state.
+
+## Client-local presentation preferences
+
+Display-unit selection is owned by the client, not by the service.
+
+The client persists those preferences locally through `IUserUnitPreferencesClient` and formats UI-facing values and axis labels through `IUnitFormattingService`.
+
+Service snapshots and gRPC contracts remain in canonical units, and client-local unit preferences must stay separate from service-owned runtime configuration such as polling cadence or fan-command authorization.
 
 ## IPC model
 
@@ -86,6 +95,8 @@ The service publishes:
 - hardware inventory snapshots
 
 The client consumes these through typed client abstractions rather than through direct provider access.
+
+Telemetry, inventory, and hardware values are transported in canonical units. The client may convert them locally for presentation, chart axes, and copyable labels without changing transport or persistence semantics.
 
 ## Service management path
 

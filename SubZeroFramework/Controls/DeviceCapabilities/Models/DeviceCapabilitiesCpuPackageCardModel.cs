@@ -3,6 +3,7 @@ using LiveChartsCore.Defaults;
 using Microsoft.UI.Xaml;
 using SubZeroFramework.Models;
 using SubZeroFramework.Presentation;
+using SubZeroFramework.Presentation.Units;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
 
@@ -11,9 +12,11 @@ namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
 {
     private readonly ObservableCollection<DeviceCapabilitiesCpuCoreItemModel> _cpuCoreItems = [];
+    private readonly IUnitFormattingService _unitFormattingService;
 
-    public DeviceCapabilitiesCpuPackageCardModel(int index, HardwareInfoCpu snapshot)
+    public DeviceCapabilitiesCpuPackageCardModel(int index, HardwareInfoCpu snapshot, IUnitFormattingService unitFormattingService)
     {
+        _unitFormattingService = unitFormattingService;
         CpuCoreItems = new ReadOnlyObservableCollection<DeviceCapabilitiesCpuCoreItemModel>(_cpuCoreItems);
         Index = index;
         Snapshot = snapshot;
@@ -46,19 +49,29 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesCpuCoreItemModel> CpuCoreItems { get; }
 
+    public Func<double, string> CpuUsageLabelFormatter => _unitFormattingService.FormatRatioAxisLabel;
+
+    public Func<double, string> CpuClockLabelFormatter => _unitFormattingService.FormatClockFrequencyAxisLabel;
+
     public string Title => FirstNonEmpty(Snapshot.Name, Snapshot.Caption) ?? $"CPU {Index}";
 
     public string PackageLabel => $"CPU {Index}";
 
     public string ManufacturerDisplay => FirstNonEmpty(Snapshot.Manufacturer) ?? "Unknown";
 
-    public string CurrentClockDisplay => Snapshot.DisplayCurrentClockSpeed;
+    public string CurrentClockDisplay => Snapshot.CurrentClockSpeedMHz > 0
+        ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.CurrentClockSpeedMHz)
+        : "Unknown";
 
-    public string MaxClockDisplay => Snapshot.DisplayMaxClockSpeed;
+    public string MaxClockDisplay => Snapshot.MaxClockSpeedMHz > 0
+        ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.MaxClockSpeedMHz)
+        : "Unknown";
 
     public string AverageCpuUsageDisplay => Snapshot.EffectivePercentProcessorTime is double value
-        ? $"{Math.Clamp(value, 0d, 100d):0.#} %"
+        ? _unitFormattingService.FormatRatio(Math.Clamp(value, 0d, 100d), decimals: 1)
         : "Unknown";
+
+    public double CpuUsageAxisMaxLimit => _unitFormattingService.RatioAxisMaximum;
 
     public string PhysicalCoreCountDisplay => Snapshot.Cores > 0
         ? Snapshot.Cores.ToString("N0")
@@ -110,6 +123,18 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
     [ObservableProperty]
     public partial double? CpuClockHistoryMaxLimit { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CurrentClockDisplay))]
+    [NotifyPropertyChangedFor(nameof(MaxClockDisplay))]
+    [NotifyPropertyChangedFor(nameof(AverageCpuUsageDisplay))]
+    [NotifyPropertyChangedFor(nameof(L1CacheDisplay))]
+    [NotifyPropertyChangedFor(nameof(L2CacheDisplay))]
+    [NotifyPropertyChangedFor(nameof(L3CacheDisplay))]
+    [NotifyPropertyChangedFor(nameof(CpuUsageLabelFormatter))]
+    [NotifyPropertyChangedFor(nameof(CpuClockLabelFormatter))]
+    [NotifyPropertyChangedFor(nameof(CpuUsageAxisMaxLimit))]
+    private partial int UnitFormattingRevision { get; set; }
+
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
 
     public string RecentTelemetryHistoryWindowDisplay => PresentationDefaults.RecentTelemetryHistoryWindowLabel;
@@ -119,6 +144,16 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
     partial void OnSnapshotChanged(HardwareInfoCpu value)
     {
         SynchronizeCpuCoreItems(value.CpuCores);
+    }
+
+    public void RefreshUnitFormatting()
+    {
+        UnitFormattingRevision++;
+
+        foreach (var cpuCoreItem in _cpuCoreItems)
+        {
+            cpuCoreItem.RefreshUnitFormatting();
+        }
     }
 
     private string BuildVirtualizationDisplay()
@@ -147,17 +182,7 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
 
     private string FormatCpuCacheSize(int kilobytes)
     {
-        if (kilobytes <= 0)
-        {
-            return "Unavailable";
-        }
-
-        if (kilobytes >= 1024)
-        {
-            return $"{kilobytes / 1024d:0.##} MB";
-        }
-
-        return $"{kilobytes:N0} KB";
+        return _unitFormattingService.FormatInformationKilobytes(kilobytes);
     }
 
     private string? FirstNonEmpty(params string?[] values)
@@ -184,7 +209,7 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
                 continue;
             }
 
-            _cpuCoreItems.Add(new DeviceCapabilitiesCpuCoreItemModel(cpuCore));
+            _cpuCoreItems.Add(new DeviceCapabilitiesCpuCoreItemModel(cpuCore, _unitFormattingService));
         }
 
         while (_cpuCoreItems.Count > cpuCores.Count)

@@ -112,7 +112,7 @@
                         Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Voltage (V)" />
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.VoltageLabel, Mode=OneWay}" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
@@ -141,7 +141,7 @@
                         Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Nominal Voltage (V)" />
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.DesignVoltageLabel, Mode=OneWay}" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
@@ -156,7 +156,7 @@
                         Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Design Capacity (Ah)" />
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.DesignCapacityLabel, Mode=OneWay}" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
@@ -171,7 +171,7 @@
                         Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Remaining Capacity (Ah)" />
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.RemainingCapacityLabel, Mode=OneWay}" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
@@ -186,7 +186,7 @@
                         Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Battery Last Full Charge (Ah)" />
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.LastFullChargeCapacityLabel, Mode=OneWay}" />
                             <TextBlock
                                 FontSize="26"
                                 Foreground="{StaticResource TextPrimaryBrush}"
@@ -235,7 +235,7 @@
                             <TextBlock
                                 Margin="0,0,0,4"
                                 Foreground="{StaticResource TextSecondaryBrush}"
-                                Text="Charge (%)" />
+                                Text="{x:Bind ViewModel.ChargeHistoryTitle, Mode=OneWay}" />
                             <lvc:CartesianChart
                                 Grid.Row="1"
                                 Height="160"
@@ -273,8 +273,9 @@
                                     <lvc:AxesCollection>
                                         <lvc:XamlAxis
                                             AnimationsSpeed="0"
+                                            Labeler="{x:Bind ViewModel.ChargeLabelFormatter, Mode=OneWay}"
                                                 LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
-                                            MaxLimit="100"
+                                            MaxLimit="{x:Bind ViewModel.ChargeAxisMaxLimit, Mode=OneWay}"
                                             MinLimit="0"
                                                 SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                             ShowSeparatorLines="True"
@@ -336,6 +337,7 @@
                                     <lvc:AxesCollection>
                                         <lvc:XamlAxis
                                             AnimationsSpeed="0"
+                                                Labeler="{x:Bind ViewModel.CurrentLabelFormatter, Mode=OneWay}"
                                                 LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
                                             SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                             ShowSeparatorLines="True"
@@ -359,7 +361,7 @@
                             <TextBlock
                                 Margin="0,0,0,4"
                                 Foreground="{StaticResource TextSecondaryBrush}"
-                                Text="Battery Voltage (V)" />
+                                Text="{x:Bind ViewModel.VoltageHistoryTitle, Mode=OneWay}" />
                             <lvc:CartesianChart
                                 Grid.Row="1"
                                 Height="160"
@@ -397,9 +399,10 @@
                                     <lvc:AxesCollection>
                                         <lvc:XamlAxis
                                             AnimationsSpeed="0"
+                                            Labeler="{x:Bind ViewModel.VoltageLabelFormatter, Mode=OneWay}"
                                             LabelsPaint="{lvc:SolidColorPaint Color='FFD7D8FF'}"
-                                            MaxLimit="18"
-                                            MinLimit="10"
+                                            MaxLimit="{x:Bind ViewModel.VoltageAxisMaxLimit, Mode=OneWay}"
+                                            MinLimit="{x:Bind ViewModel.VoltageAxisMinLimit, Mode=OneWay}"
                                             SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                             ShowSeparatorLines="True"
                                             TextSize="9" />

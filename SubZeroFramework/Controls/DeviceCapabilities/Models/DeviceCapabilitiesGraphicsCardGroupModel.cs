@@ -10,10 +10,11 @@ public partial class DeviceCapabilitiesGraphicsCardGroupModel : ObservableObject
 {
     private readonly ObservableCollection<DeviceCapabilitiesMonitorCardModel> _monitorCards = [];
 
-    public DeviceCapabilitiesGraphicsCardGroupModel(bool isUnknownGraphicsCard, DeviceCapabilitiesVideoControllerCardModel? videoController = null)
+    public DeviceCapabilitiesGraphicsCardGroupModel(bool isUnknownGraphicsCard, int adapterIndex = -1, DeviceCapabilitiesVideoControllerCardModel? videoController = null)
     {
         MonitorCards = new ReadOnlyObservableCollection<DeviceCapabilitiesMonitorCardModel>(_monitorCards);
         IsUnknownGraphicsCard = isUnknownGraphicsCard;
+        AdapterIndex = adapterIndex;
         VideoController = videoController;
     }
 
@@ -22,7 +23,12 @@ public partial class DeviceCapabilitiesGraphicsCardGroupModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(KnownGraphicsCardVisibility))]
     [NotifyPropertyChangedFor(nameof(UnknownGraphicsCardVisibility))]
     [NotifyPropertyChangedFor(nameof(EmptyMonitorMessage))]
+    [NotifyPropertyChangedFor(nameof(AdapterLabel))]
     public partial bool IsUnknownGraphicsCard { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AdapterLabel))]
+    public partial int AdapterIndex { get; set; } = -1;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DisplayName))]
@@ -30,6 +36,7 @@ public partial class DeviceCapabilitiesGraphicsCardGroupModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MonitorCountDisplay))]
+    [NotifyPropertyChangedFor(nameof(MonitorCountSummary))]
     [NotifyPropertyChangedFor(nameof(HasMonitorCardsVisibility))]
     [NotifyPropertyChangedFor(nameof(EmptyMonitorMessageVisibility))]
     private partial int MonitorRevision { get; set; }
@@ -40,7 +47,15 @@ public partial class DeviceCapabilitiesGraphicsCardGroupModel : ObservableObject
         ? "Unknown graphics card"
         : VideoController?.Name ?? "Unknown graphics card";
 
+    public string AdapterLabel => IsUnknownGraphicsCard
+        ? "Unmatched monitors"
+        : $"Adapter {Math.Max(AdapterIndex, 0)}";
+
     public string MonitorCountDisplay => MonitorCards.Count.ToString("N0");
+
+    public string MonitorCountSummary => MonitorCards.Count == 1
+        ? "1 monitor"
+        : $"{MonitorCards.Count:N0} monitors";
 
     public Visibility KnownGraphicsCardVisibility => IsUnknownGraphicsCard
         ? Visibility.Collapsed

@@ -117,8 +117,9 @@
                                     <lvc:AxesCollection>
                                         <lvc:XamlAxis
                                             AnimationsSpeed="0"
+                                            Labeler="{x:Bind ViewModel.CpuUsageLabelFormatter, Mode=OneWay}"
                                             LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
-                                            MaxLimit="100"
+                                            MaxLimit="{x:Bind ViewModel.CpuUsageAxisMaxLimit, Mode=OneWay}"
                                             MinLimit="0"
                                             SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                             ShowSeparatorLines="True"
@@ -205,6 +206,7 @@
                             <lvc:CartesianChart.YAxes>
                                 <lvc:AxesCollection>
                                     <lvc:XamlAxis
+                                        Labeler="{x:Bind ViewModel.CpuClockLabelFormatter, Mode=OneWay}"
                                         Padding="{lvc:Padding Value='0,0'}"
                                         LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
                                         SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"

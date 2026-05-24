@@ -6,6 +6,7 @@ using LiveChartsCore.Defaults;
 
 using Microsoft.UI.Xaml;
 
+using SubZeroFramework.Presentation.Units;
 using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.Fans.Models;
@@ -13,16 +14,29 @@ namespace SubZeroFramework.Controls.Fans.Models;
 public partial class FanCardModel : ObservableObject
 {
     private const double DefaultMaximumFanSpeedRpm = 7500d;
+    private const double FanSpeedHistoryAxisHeadroomMultiplier = 1.1d;
+    private readonly IUnitFormattingService _unitFormattingService;
+
+    public FanCardModel(IUnitFormattingService unitFormattingService)
+    {
+        _unitFormattingService = unitFormattingService;
+    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FanSpeedGaugeValues))]
     [NotifyPropertyChangedFor(nameof(FanSpeedRemainingGaugeValues))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedValueDisplay))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedUnitSuffix))]
+    [NotifyPropertyChangedFor(nameof(MaximumFanSpeedAxisLimit))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedHistoryAxisMaxLimit))]
     public partial FanTelemetrySnapshot Snapshot { get; set; } = default!;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MaximumFanSpeedRpm))]
     [NotifyPropertyChangedFor(nameof(FanSpeedGaugeValues))]
     [NotifyPropertyChangedFor(nameof(FanSpeedRemainingGaugeValues))]
+    [NotifyPropertyChangedFor(nameof(MaximumFanSpeedAxisLimit))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedHistoryAxisMaxLimit))]
     public partial FanCapabilityState? Capability { get; set; }
 
     [ObservableProperty]
@@ -35,6 +49,7 @@ public partial class FanCardModel : ObservableObject
     public partial FanStateSnapshot? FanState { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FanSpeedHistoryAxisMaxLimit))]
     public partial DateTimePoint[] FanSpeedHistory { get; set; } = [];
 
     [ObservableProperty]
@@ -52,7 +67,7 @@ public partial class FanCardModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DrivingTemperatureDisplay))]
-    public partial string DrivingTemperature { get; set; } = "--°C";
+    public partial string DrivingTemperature { get; set; } = "--";
 
     [ObservableProperty]
     public partial string OverrideStateText { get; set; } = string.Empty;
@@ -63,19 +78,46 @@ public partial class FanCardModel : ObservableObject
     [ObservableProperty]
     public partial Visibility OverrideStateVisibility { get; set; } = Visibility.Collapsed;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FanSpeedGaugeValues))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedRemainingGaugeValues))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedValueDisplay))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedUnitSuffix))]
+    [NotifyPropertyChangedFor(nameof(MaximumFanSpeedAxisLimit))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedHistoryAxisMaxLimit))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedLabelFormatter))]
+    [NotifyPropertyChangedFor(nameof(DrivingTemperatureDisplay))]
+    private partial int UnitFormattingRevision { get; set; }
+
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
 
     public double MaximumFanSpeedRpm => Capability is { MaximumSpeedRpm: > 0 } capability
         ? capability.MaximumSpeedRpm
         : DefaultMaximumFanSpeedRpm;
 
-    public double[] FanSpeedGaugeValues => [Math.Clamp((double)Snapshot.SpeedRpm, 0d, MaximumFanSpeedRpm)];
+    public double MaximumFanSpeedAxisLimit => _unitFormattingService.ConvertFanSpeed(MaximumFanSpeedRpm);
 
-    public double[] FanSpeedRemainingGaugeValues => [Math.Max(0d, MaximumFanSpeedRpm - Math.Clamp((double)Snapshot.SpeedRpm, 0d, MaximumFanSpeedRpm))];
+    public double FanSpeedHistoryAxisMaxLimit => Math.Max(MaximumFanSpeedAxisLimit, GetMaximumObservedFanSpeed()) * FanSpeedHistoryAxisHeadroomMultiplier;
+
+    public double[] FanSpeedGaugeValues => [Math.Clamp(_unitFormattingService.ConvertFanSpeed(Snapshot.SpeedRpm), 0d, MaximumFanSpeedAxisLimit)];
+
+    public double[] FanSpeedRemainingGaugeValues => [Math.Max(0d, MaximumFanSpeedAxisLimit - Math.Clamp(_unitFormattingService.ConvertFanSpeed(Snapshot.SpeedRpm), 0d, MaximumFanSpeedAxisLimit))];
+
+    public string FanSpeedValueDisplay => _unitFormattingService.FormatFanSpeedValue(Snapshot.SpeedRpm);
+
+    public string FanSpeedUnitSuffix => _unitFormattingService.FanSpeedUnitSuffix;
+
+    public Func<double, string> FanSpeedLabelFormatter => _unitFormattingService.FormatFanSpeedAxisLabel;
 
     public string TargetModeDisplay => $"Mode: {TargetMode}";
 
     public string DrivingTemperatureDisplay => $"Driving Temp: {DrivingTemperature}";
+
+    public void RefreshUnitFormatting()
+    {
+        UpdateControlStatePresentation();
+        UnitFormattingRevision++;
+    }
 
     partial void OnFanSpeedHistoryChanged(DateTimePoint[] value)
     {
@@ -112,6 +154,21 @@ public partial class FanCardModel : ObservableObject
             PresentationDefaults.RecentTelemetrySeparatorStep);
     }
 
+    private double GetMaximumObservedFanSpeed()
+    {
+        var maximum = Snapshot is null ? 0d : _unitFormattingService.ConvertFanSpeed(Snapshot.SpeedRpm);
+
+        foreach (var point in FanSpeedHistory)
+        {
+            if (point.Value is double value)
+            {
+                maximum = Math.Max(maximum, value);
+            }
+        }
+
+        return maximum;
+    }
+
     private void UpdateCapabilityPresentation()
     {
         UpdateControlStatePresentation();
@@ -123,7 +180,7 @@ public partial class FanCardModel : ObservableObject
         if (ControlState is null || !ControlState.IsAvailable)
         {
             TargetMode = "Auto";
-            DrivingTemperature = Capability?.SupportsThermalReporting == false ? "n/a" : "--°C";
+            DrivingTemperature = Capability?.SupportsThermalReporting == false ? "n/a" : _unitFormattingService.FormatTemperature(null);
             UpdateOverrideStatePresentation();
             return;
         }
@@ -145,7 +202,7 @@ public partial class FanCardModel : ObservableObject
 
         if (ControlState.Mode != FanControlMode.CustomCurve)
         {
-            DrivingTemperature = "--°C";
+            DrivingTemperature = _unitFormattingService.FormatTemperature(null);
             UpdateOverrideStatePresentation();
             return;
         }
@@ -221,7 +278,7 @@ public partial class FanCardModel : ObservableObject
         }
     }
 
-    private static string FormatDrivingTemperature(TemperatureAggregationMode aggregationMode, ImmutableArray<int> sensorIndices, ImmutableArray<TemperatureTelemetrySnapshot> drivingSensors)
+    private string FormatDrivingTemperature(TemperatureAggregationMode aggregationMode, ImmutableArray<int> sensorIndices, ImmutableArray<TemperatureTelemetrySnapshot> drivingSensors)
     {
         var aggregationLabel = aggregationMode switch
         {
@@ -241,8 +298,8 @@ public partial class FanCardModel : ObservableObject
             .ToArray();
 
         var temperatureDisplay = temperatures.Length == 0
-            ? "--°C"
-            : $"{ComputeAggregateTemperature(aggregationMode, temperatures):N0}°C";
+            ? _unitFormattingService.FormatTemperature(null)
+            : _unitFormattingService.FormatTemperature(ComputeAggregateTemperature(aggregationMode, temperatures), decimals: 0);
 
         if (sensorIndices.IsDefaultOrEmpty)
         {

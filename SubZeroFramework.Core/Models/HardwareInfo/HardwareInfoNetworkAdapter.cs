@@ -15,9 +15,13 @@ public sealed record HardwareInfoNetworkAdapter(
     ImmutableArray<string> IpAddresses,
     ImmutableArray<string> DefaultGateways)
 {
+    private const ulong UnknownSpeedSentinel = long.MaxValue;
+
     public bool HasAssignedAddress => !IpAddresses.IsDefaultOrEmpty;
 
-    public string DisplaySpeed => Speed == 0
+    public bool HasKnownSpeed => Speed is > 0 and < UnknownSpeedSentinel;
+
+    public string DisplaySpeed => !HasKnownSpeed
         ? "Unknown"
         : Speed >= 1_000_000_000UL
             ? $"{Speed / 1_000_000_000d:0.##} Gbps"

@@ -1,7 +1,6 @@
 ---
 name: "SubZero UI Builder"
 description: "Use when expanding or polishing the Uno and WinUI UI, adding pages or controls, refining XAML, charting, Device Capabilities, Dashboard, Thermal or Power telemetry, Settings, Warnings and Issues, navigation, or fan-curve UX in SubZeroFramework."
-model: "GPT-5.4 (copilot)"
 argument-hint: "Describe the UI surface, page, or interaction you want to add or improve."
 handoffs:
   - label: "Switch to Service and IPC Engineer"

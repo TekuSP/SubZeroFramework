@@ -97,12 +97,26 @@ Polling is no longer a UI-controlled start or stop concern.
 - UI surfaces should treat `FrameworkSystemStatus.LastTelemetryObservedAt` or `IFrameworkStatusClient.LastObservedAt` as heartbeat indicators, not as a signal to start polling themselves
 - fan-command authorization is also service-owned configuration and should not be mirrored as a client-local toggle
 
+## Client-local display units
+
+Display-unit preferences are a client concern, not a service concern.
+
+- persist selections through `IUserUnitPreferencesClient`
+- convert values, suffixes, and axis labels through `IUnitFormattingService`
+- keep service and gRPC payloads in canonical units
+- current unit groups cover temperature, fan speed, clock frequency, refresh rate, information size, voltage, current, charge capacity, ratio or fraction, length, airflow, network bitrate, and power
+- watch unit-preference changes alongside telemetry and history streams so stable card models and existing chart series refresh in place instead of being recreated
+
 ## Chart defaults and retained history
 
 When you build charts:
 
 - keep window labels and separator-step defaults in `PresentationDefaults`
 - call `TimeChartAxisHelper.BuildAxis(historyPoints, historyWindow, PresentationDefaults.StandardTelemetryHistorySeparatorStep)` to compute axis limits and separators
+- convert raw canonical values into display values before creating `DateTimePoint` instances for charts
+- bind axis label formatters from `IUnitFormattingService` instead of hardcoded suffix text
+- use `IUnitFormattingService.RatioAxisMaximum` when a usage chart can flip between percent and fraction display
+- for dashboard fan cards, keep the gauge max exact and apply headroom only to the history-axis max so peak lines do not clip
 - sort retained point collections by `ObservedAt` and `SampleId` before binding so lines stay chronological
 - keep long-lived `ObservableCollection<T>`, `ISeries[]`, `Axis[]`, and card models instead of recreating them on every update
 - expose bound item collections as `ReadOnlyObservableCollection<T>` when a list, grid, or repeater needs stable item identity

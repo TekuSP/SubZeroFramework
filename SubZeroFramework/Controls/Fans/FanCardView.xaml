@@ -39,7 +39,7 @@
                     InitialRotation="-225"
                     LegendPosition="Hidden"
                     MaxAngle="200"
-                    MaxValue="{x:Bind ViewModel.MaximumFanSpeedRpm, Mode=OneWay}"
+                    MaxValue="{x:Bind ViewModel.MaximumFanSpeedAxisLimit, Mode=OneWay}"
                     MinValue="0"
                     TooltipPosition="Hidden">
                     <lvc:PieChart.Series>
@@ -74,12 +74,12 @@
                     FontSize="36"
                     FontWeight="Bold"
                     Foreground="{StaticResource TextPrimaryBrush}"
-                    Text="{x:Bind ViewModel.Snapshot.SpeedRpm, Mode=OneWay}" />
+                    Text="{x:Bind ViewModel.FanSpeedValueDisplay, Mode=OneWay}" />
                 <TextBlock
                     Margin="4,0,0,6"
                     VerticalAlignment="Bottom"
                     Foreground="{StaticResource TextSecondaryBrush}"
-                    Text="RPM" />
+                    Text="{x:Bind ViewModel.FanSpeedUnitSuffix, Mode=OneWay}" />
             </StackPanel>
 
             <StackPanel
@@ -162,9 +162,10 @@
                 <lvc:CartesianChart.YAxes>
                     <lvc:AxesCollection>
                         <lvc:XamlAxis
+                            Labeler="{x:Bind ViewModel.FanSpeedLabelFormatter, Mode=OneWay}"
                             Padding="{lvc:Padding Value='0,0'}"
                             LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
-                            MaxLimit="{x:Bind ViewModel.MaximumFanSpeedRpm, Mode=OneWay}"
+                            MaxLimit="{x:Bind ViewModel.FanSpeedHistoryAxisMaxLimit, Mode=OneWay}"
                             MinLimit="0"
                             SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                             ShowSeparatorLines="True"

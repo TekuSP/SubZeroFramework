@@ -119,4 +119,27 @@ public class HardwareInfoDisplayModelTests
             Assert.That(cpu.EffectivePercentProcessorTime, Is.EqualTo(32d));
         });
     }
+
+    [Test]
+    public void DisplaySpeed_WhenNetworkAdapterReportsSentinelSpeed_ReturnsUnknown()
+    {
+        var adapter = new HardwareInfoNetworkAdapter(
+            Name: "Ethernet",
+            NetConnectionId: "Ethernet 10",
+            ProductName: "Realtek Gaming USB 2.5GbE Family Controller",
+            Caption: null,
+            Description: null,
+            Manufacturer: "Realtek",
+            AdapterType: "Ethernet 802.3",
+            MacAddress: "00:11:22:33:44:55",
+            Speed: long.MaxValue,
+            IpAddresses: [],
+            DefaultGateways: []);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(adapter.HasKnownSpeed, Is.False);
+            Assert.That(adapter.DisplaySpeed, Is.EqualTo("Unknown"));
+        });
+    }
 }

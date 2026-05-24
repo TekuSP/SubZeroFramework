@@ -2,6 +2,8 @@
 
 SubZeroFramework.Service is the privileged local background service. It owns Framework EC access, hardware polling, inventory fallback mapping, fan-control writes, and the authoritative status and telemetry streams consumed by the Uno client over local gRPC.
 
+Telemetry and inventory payloads remain in canonical units; display-unit conversion and persistence are handled entirely in the client through `IUserUnitPreferencesClient` and `IUnitFormattingService`.
+
 ## Packaged service bundles
 
 The preferred deployment shape is a published service bundle staged next to the app artifact.
@@ -124,34 +126,34 @@ You can seed a reported control state from configuration today:
 
 ```json
 {
-	"FrameworkService": {
-		"PollingInterval": "00:00:02",
-		"AllowFanControlCommands": true,
-		"FanControlStates": [
-			{
-				"FanIndex": 0,
-				"Mode": "CustomCurve",
-				"CustomCurvePoints": {
-					"10": 30,
-					"30": 70,
-					"80": 100
-				},
-				"DrivingTemperatureAggregation": "Average",
-				"DrivingSensorIndices": [6, 8]
-			},
-			{
-				"FanIndex": 1,
-				"Mode": "CustomCurve",
-				"CustomCurvePoints": {
-					"15": 25,
-					"45": 65,
-					"85": 100
-				},
-				"DrivingTemperatureAggregation": "Maximum",
-				"DrivingSensorIndices": [2, 3, 4]
-			}
-		]
-	}
+    "FrameworkService": {
+        "PollingInterval": "00:00:02",
+        "AllowFanControlCommands": true,
+        "FanControlStates": [
+            {
+                "FanIndex": 0,
+                "Mode": "CustomCurve",
+                "CustomCurvePoints": {
+                    "10": 30,
+                    "30": 70,
+                    "80": 100
+                },
+                "DrivingTemperatureAggregation": "Average",
+                "DrivingSensorIndices": [6, 8]
+            },
+            {
+                "FanIndex": 1,
+                "Mode": "CustomCurve",
+                "CustomCurvePoints": {
+                    "15": 25,
+                    "45": 65,
+                    "85": 100
+                },
+                "DrivingTemperatureAggregation": "Maximum",
+                "DrivingSensorIndices": [2, 3, 4]
+            }
+        ]
+    }
 }
 ```
 

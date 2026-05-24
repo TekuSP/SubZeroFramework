@@ -18,6 +18,7 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 
 using SubZeroFramework.Controls.Thermal.Models;
+using SubZeroFramework.Presentation.Units;
 using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Presentation.MenuItems.ThermalTelemetry;
@@ -33,15 +34,19 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
     private readonly Dictionary<int, ISeries> _thermalHistorySeriesBySensorIndex = [];
     private readonly ITemperatureTelemetryClient _temperatureTelemetryClient;
     private readonly SynchronizationContext _synchronizationContext;
+    private readonly IUnitFormattingService _unitFormattingService;
 
     public ThermalTelemetryModel(
         IStringLocalizer localizer,
         IOptions<AppConfig> appInfo,
         IFrameworkStatusClient frameworkStatusClient,
         ITemperatureTelemetryClient temperatureTelemetryClient,
+        IUserUnitPreferencesClient userUnitPreferencesClient,
+        IUnitFormattingService unitFormattingService,
         SynchronizationContext synchronizationContext)
     {
         _temperatureTelemetryClient = temperatureTelemetryClient;
+        _unitFormattingService = unitFormattingService;
         _synchronizationContext = synchronizationContext;
 
         Sensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_sensors);
@@ -58,6 +63,14 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
             .WatchTemperatures()
             .ObserveOn(_synchronizationContext)
             .Subscribe(ApplyTemperatureChanges)
+            .DisposeWith(_subscriptions);
+
+        userUnitPreferencesClient
+            .WatchPreferences()
+            .ObserveOn(_synchronizationContext)
+            .Select(_ => Observable.FromAsync(RefreshUnitFormattingAsync))
+            .Concat()
+            .Subscribe(_ => { })
             .DisposeWith(_subscriptions);
     }
 
@@ -86,7 +99,11 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial double? ThermalHistoryMaxLimit { get; set; }
 
-    public Func<double, string> ThermalLabelFormatter { get; } = static value => $"{value:N0}°C";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ThermalLabelFormatter))]
+    private partial int UnitFormattingRevision { get; set; }
+
+    public Func<double, string> ThermalLabelFormatter => _unitFormattingService.FormatTemperatureAxisLabel;
 
     public Func<DateTime, string> ThermalHistoryDateFormatter { get; } = ThermalSensorModel.Formatter;
 
@@ -184,7 +201,7 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
             return;
         }
 
-        var sensor = new ThermalSensorModel
+        var sensor = new ThermalSensorModel(_unitFormattingService)
         {
             Snapshot = snapshot,
             IsSelected = snapshot.IsAvailable && _sensors.Count(existing => existing.IsSelected) < 4,
@@ -379,7 +396,7 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
         };
     }
 
-    private static void UpdateSensorHistory(ThermalSensorModel sensor, IReadOnlyList<TelemetryPoint> points)
+    private void UpdateSensorHistory(ThermalSensorModel sensor, IReadOnlyList<TelemetryPoint> points)
     {
         DateTimePoint[] overviewHistory = points.Count == 0
             ? []
@@ -387,7 +404,7 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
             [
                 .. points.Select(point => new DateTimePoint(
                     point.ObservedAt.LocalDateTime,
-                    point.NumericValue == 0d ? null : point.NumericValue))
+                    point.NumericValue == 0d ? null : _unitFormattingService.ConvertTemperature(point.NumericValue)))
             ];
 
         if (ShouldAppendCurrentGap(sensor.Snapshot))
@@ -402,6 +419,19 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
         }
 
         sensor.UpdateTemperatureHistory(overviewHistory, overviewHistory);
+    }
+
+    private Task RefreshUnitFormattingAsync()
+    {
+        foreach (var sensor in _sensors)
+        {
+            sensor.RefreshUnitFormatting();
+            RefreshSensorHistory(sensor);
+        }
+
+        RefreshThermalHistoryChart();
+        UnitFormattingRevision++;
+        return Task.CompletedTask;
     }
 
     private static bool ShouldAppendCurrentGap(TemperatureTelemetrySnapshot snapshot)

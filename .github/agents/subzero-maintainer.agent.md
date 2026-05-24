@@ -2,7 +2,6 @@
 name: "SubZero Maintainer"
 description: "Use when maintaining SubZeroFramework, handling roadmap items, cross-cutting refactors, package or update workflows, build or test validation, or tasks that span the Uno client, service, contracts, and tests."
 argument-hint: "Describe the maintenance task, roadmap item, or cross-cutting change."
-model: "GPT-5.4 (copilot)"
 handoffs:
   - label: "Switch to UI Builder"
     agent: "SubZero UI Builder"

@@ -20,6 +20,8 @@ using SkiaSharp;
 using SubZeroFramework.Controls.Fans.Models;
 using SubZeroFramework.Controls.Power.Models;
 using SubZeroFramework.Controls.Thermal.Models;
+using SubZeroFramework.Models;
+using SubZeroFramework.Presentation.Units;
 using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
@@ -36,6 +38,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private readonly Dictionary<int, FanStateSnapshot> _fanStates = [];
     private readonly Dictionary<int, TemperatureTelemetrySnapshot> _temperatureSnapshots = [];
     private readonly Dictionary<int, ThermalSensorModel> _thermalSensorsByIndex = [];
+    private readonly Dictionary<int, FanTelemetrySeriesPoint[]> _fanHistoryPoints = [];
     private readonly Dictionary<int, TelemetryPoint[]> _temperatureHistoryPoints = [];
     private readonly Dictionary<int, PowerCardModel> _batteryCardsByIndex = [];
     private readonly Dictionary<(int Index, TelemetryMetric Metric), TelemetryPoint[]> _batteryHistoryPoints = [];
@@ -46,6 +49,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private readonly ITemperatureTelemetryClient _temperatureTelemetryClient;
     private readonly IBatteryTelemetryClient _batteryTelemetryClient;
     private readonly SynchronizationContext _synchronizationContext;
+    private readonly IUnitFormattingService _unitFormattingService;
     private static readonly TelemetryMetric[] BatteryHistoryMetrics =
     [
         TelemetryMetric.BatteryChargePercent,
@@ -70,6 +74,8 @@ public partial class DashboardModel : ObservableObject, IDisposable
         IFanTelemetryClient fanTelemetryClient,
         ITemperatureTelemetryClient temperatureTelemetryClient,
         IBatteryTelemetryClient batteryTelemetryClient,
+        IUserUnitPreferencesClient userUnitPreferencesClient,
+        IUnitFormattingService unitFormattingService,
         SynchronizationContext synchronizationContext)
     {
         _fanCapabilityClient = fanCapabilityClient;
@@ -78,6 +84,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
         _fanTelemetryClient = fanTelemetryClient;
         _temperatureTelemetryClient = temperatureTelemetryClient;
         _batteryTelemetryClient = batteryTelemetryClient;
+        _unitFormattingService = unitFormattingService;
         _synchronizationContext = synchronizationContext;
 
         Fans = new ReadOnlyObservableCollection<FanCardModel>(_fans);
@@ -197,7 +204,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                             continue;
                         }
 
-                        var fan = new FanCardModel
+                        var fan = new FanCardModel(_unitFormattingService)
                         {
                             Snapshot = change.Current,
                             Capability = _fanCapabilities.GetValueOrDefault(change.Current.FanIndex),
@@ -251,7 +258,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                             continue;
                         }
 
-                        var thermalSensor = new ThermalSensorModel
+                        var thermalSensor = new ThermalSensorModel(_unitFormattingService)
                         {
                             Snapshot = change.Current,
                             IsSelected = ShouldShowThermalSensorByDefault(change.Current)
@@ -310,7 +317,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
                             continue;
                         }
 
-                        var batteryCard = new PowerCardModel
+                        var batteryCard = new PowerCardModel(_unitFormattingService)
                         {
                             BatterySnapshot = change.Current
                         };
@@ -336,6 +343,14 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 }
             })
             .DisposeWith(_subscriptions);
+
+        userUnitPreferencesClient
+            .WatchPreferences()
+            .ObserveOn(_synchronizationContext)
+            .Select(_ => Observable.FromAsync(RefreshUnitFormattingAsync))
+            .Concat()
+            .Subscribe(_ => { })
+            .DisposeWith(_subscriptions);
     }
 
     [ObservableProperty]
@@ -353,7 +368,11 @@ public partial class DashboardModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial double? ThermalHistoryMaxLimit { get; set; }
 
-    public Func<double, string> ThermalLabelFormatter { get; } = static value => $"{value:N0}°C";
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ThermalLabelFormatter))]
+    private partial int UnitFormattingRevision { get; set; }
+
+    public Func<double, string> ThermalLabelFormatter => _unitFormattingService.FormatTemperatureAxisLabel;
 
     public Func<DateTime, string> ThermalHistoryDateFormatter { get; } = ThermalSensorModel.Formatter;
 
@@ -504,14 +523,14 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .ObserveOn(_synchronizationContext)
             .Subscribe(pts =>
             {
-                if (_fanCardsByIndex.TryGetValue(index, out var fan))
-                {
-                    fan.FanSpeedHistory = pts
+                _fanHistoryPoints[index] =
+                [
+                    .. pts
                         .OrderBy(x => x.ObservedAt)
                         .ThenBy(x => x.SampleId)
-                        .Select(x => new DateTimePoint(x.ObservedAt.LocalDateTime, x.SpeedRpm))
-                        .ToArray();
-                }
+                ];
+
+                RefreshFanHistory(index);
             });
 
     private void RemoveFanHistory(int index)
@@ -521,10 +540,32 @@ public partial class DashboardModel : ObservableObject, IDisposable
             sub.Dispose();
         }
 
+        _fanHistoryPoints.Remove(index);
+
         if (_fanCardsByIndex.TryGetValue(index, out var fan))
         {
             fan.FanSpeedHistory = [];
         }
+    }
+
+    private void RefreshFanHistory(int fanIndex)
+    {
+        if (_fanCardsByIndex.TryGetValue(fanIndex, out var fan))
+        {
+            UpdateFanHistory(fan, _fanHistoryPoints.TryGetValue(fanIndex, out var historyPoints) ? historyPoints : []);
+        }
+    }
+
+    private void UpdateFanHistory(FanCardModel fan, IReadOnlyList<FanTelemetrySeriesPoint> points)
+    {
+        fan.FanSpeedHistory = points.Count == 0
+            ? []
+            :
+            [
+                .. points.Select(point => new DateTimePoint(
+                    point.ObservedAt.LocalDateTime,
+                    _unitFormattingService.ConvertFanSpeed(point.SpeedRpm)))
+            ];
     }
 
     private void RefreshBatterySensorHistories(PowerCardModel sensor)
@@ -549,7 +590,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
             [
                 .. points.Select(point => new DateTimePoint(
                     point.ObservedAt.LocalDateTime,
-                    point.NumericValue == 0d ? null : point.NumericValue))
+                    point.NumericValue == 0d ? null : ConvertBatteryMetricValue(metric, point.NumericValue)))
             ];
 
         if (ShouldAppendCurrentGap(sensor.BatterySnapshot, metric))
@@ -690,7 +731,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
             [
                 .. points.Select(point => new DateTimePoint(
                     point.ObservedAt.LocalDateTime,
-                    point.NumericValue == 0d ? null : point.NumericValue))
+                    point.NumericValue == 0d ? null : _unitFormattingService.ConvertTemperature(point.NumericValue)))
             ];
 
         if (ShouldAppendCurrentGap(sensor.Snapshot))
@@ -710,6 +751,17 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .ToArray();
 
         sensor.UpdateTemperatureHistory(overviewHistory, cardHistory);
+    }
+
+    private double ConvertBatteryMetricValue(TelemetryMetric metric, double value)
+    {
+        return metric switch
+        {
+            TelemetryMetric.BatteryChargePercent => _unitFormattingService.ConvertRatio(value),
+            TelemetryMetric.BatteryPresentRateAmperes => _unitFormattingService.ConvertCurrent(value),
+            TelemetryMetric.BatteryPresentVoltageVolts => _unitFormattingService.ConvertVoltage(value),
+            _ => value,
+        };
     }
 
     private static bool ShouldAppendCurrentGap(TemperatureTelemetrySnapshot snapshot)
@@ -839,6 +891,32 @@ public partial class DashboardModel : ObservableObject, IDisposable
         {
             battery.ClearMetricHistory(metric);
         }
+    }
+
+    private Task RefreshUnitFormattingAsync()
+    {
+        foreach (var fan in _fans)
+        {
+            fan.RefreshUnitFormatting();
+            RefreshFanHistory(fan.Snapshot.FanIndex);
+        }
+
+        foreach (var sensor in _thermalSensors)
+        {
+            sensor.RefreshUnitFormatting();
+            RefreshThermalSensorHistory(sensor);
+        }
+
+        RefreshThermalHistoryChart();
+        UnitFormattingRevision++;
+
+        foreach (var battery in _batteries)
+        {
+            battery.RefreshUnitFormatting();
+            RefreshBatterySensorHistories(battery);
+        }
+
+        return Task.CompletedTask;
     }
 
     public void Dispose()

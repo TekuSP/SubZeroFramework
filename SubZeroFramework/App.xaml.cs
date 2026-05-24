@@ -7,6 +7,7 @@ using LiveChartsCore.SkiaSharpView;
 
 using Microsoft.Extensions.Options;
 
+using SubZeroFramework.Presentation.Units;
 using SubZeroFramework.Presentation.MenuItems.Dashboard;
 using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
@@ -93,6 +94,7 @@ public partial class App : Application
                 {
                     services.AddOptions<FrameworkServiceControlOptions>()
                         .Bind(context.Configuration.GetSection("ServiceControl"));
+                    services.AddSingleton<UnitPreferenceCatalog>();
                     services.AddSingleton<FrameworkGrpcChannelFactory>();
                     services.AddSingleton<IFrameworkStatusClient, GrpcFrameworkStatusClient>();
                     services.AddSingleton<IFrameworkServiceConfigurationClient, GrpcFrameworkServiceConfigurationClient>();
@@ -103,6 +105,8 @@ public partial class App : Application
                     services.AddSingleton<IFanTelemetryClient, FanTelemetryClient>();
                     services.AddSingleton<ITemperatureTelemetryClient, TemperatureTelemetryClient>();
                     services.AddSingleton<IBatteryTelemetryClient, BatteryTelemetryClient>();
+                    services.AddSingleton<IUserUnitPreferencesClient, LocalUserUnitPreferencesClient>();
+                    services.AddSingleton<IUnitFormattingService, UnitsNetUnitFormattingService>();
                     services.AddSingleton<IFrameworkFanControlClient, GrpcFrameworkFanControlClient>();
                     services.AddSingleton<IHardwareInfoClient, GrpcHardwareInfoClient>();
                     services.AddSingleton<IFrameworkServiceControlClient, LocalFrameworkServiceControlClient>();

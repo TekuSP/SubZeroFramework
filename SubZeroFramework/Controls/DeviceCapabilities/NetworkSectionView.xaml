@@ -32,20 +32,21 @@
             FontWeight="SemiBold"
             Foreground="{StaticResource TextPrimaryBrush}"
             Text="Detected Adapters" />
-        <GridView
+        <ItemsControl
             Margin="10,0"
-            IsItemClickEnabled="False"
-            ItemsSource="{x:Bind ViewModel.NetworkAdapterCards, Mode=OneWay}"
-            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-            ScrollViewer.HorizontalScrollMode="Disabled"
-            ScrollViewer.VerticalScrollBarVisibility="Disabled"
-            ScrollViewer.VerticalScrollMode="Disabled"
-            SelectionMode="None">
-            <GridView.ItemTemplate>
+            ItemsSource="{x:Bind ViewModel.NetworkAdapterCards, Mode=OneWay}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <controls:AutoWrapPanel
+                        HorizontalSpacing="24"
+                        ItemWidth="420"
+                        VerticalSpacing="24" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="models:DeviceCapabilitiesNetworkAdapterCardModel">
                     <controls:ElevatedCard
                         Width="420"
-                        Margin="0,0,12,12"
                         HorizontalContentAlignment="Stretch"
                         VerticalContentAlignment="Stretch"
                         Background="{StaticResource CardBackgroundBrush}">
@@ -174,7 +175,7 @@
                         </StackPanel>
                     </controls:ElevatedCard>
                 </DataTemplate>
-            </GridView.ItemTemplate>
-        </GridView>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
     </StackPanel>
 </UserControl>

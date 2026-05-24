@@ -7,8 +7,7 @@
     mc:Ignorable="d">
 
     <Border
-        Width="260"
-        Margin="0,0,12,12"
+        Width="360"
         Padding="12"
         Background="{StaticResource CardMetricBackgroundBrush}"
         CornerRadius="12">
@@ -17,6 +16,9 @@
                 FontSize="16"
                 FontWeight="SemiBold"
                 Foreground="{StaticResource TextPrimaryBrush}"
+                Text="{x:Bind ViewModel.MonitorLabel, Mode=OneWay}" />
+            <TextBlock
+                Foreground="{StaticResource TextSecondaryBrush}"
                 Text="{x:Bind ViewModel.DisplayName, Mode=OneWay}"
                 TextWrapping="WrapWholeWords" />
 
@@ -31,45 +33,55 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <StackPanel>
-                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Status" />
-                    <TextBlock
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="{x:Bind ViewModel.DisplayStatus, Mode=OneWay}"
-                        TextWrapping="WrapWholeWords" />
-                </StackPanel>
+                <Border Padding="10" Background="{StaticResource CardBackgroundBrush}" CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Status" />
+                        <TextBlock
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.DisplayStatus, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
 
-                <StackPanel Grid.Column="1">
-                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Type" />
-                    <TextBlock
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="{x:Bind ViewModel.MonitorType, Mode=OneWay}"
-                        TextWrapping="WrapWholeWords" />
-                </StackPanel>
+                <Border Grid.Column="1" Padding="10" Background="{StaticResource CardBackgroundBrush}" CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Type" />
+                        <TextBlock
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.MonitorType, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
 
-                <StackPanel Grid.Row="1">
-                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Resolution" />
-                    <TextBlock
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="{x:Bind ViewModel.DisplayCurrentResolution, Mode=OneWay}"
-                        TextWrapping="WrapWholeWords" />
-                </StackPanel>
+                <Border Grid.Row="1" Padding="10" Background="{StaticResource CardBackgroundBrush}" CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Resolution" />
+                        <TextBlock
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.DisplayCurrentResolution, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
 
-                <StackPanel Grid.Row="1" Grid.Column="1">
-                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Refresh" />
-                    <TextBlock
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="{x:Bind ViewModel.DisplayCurrentRefreshRate, Mode=OneWay}"
-                        TextWrapping="WrapWholeWords" />
-                </StackPanel>
+                <Border Grid.Row="1" Grid.Column="1" Padding="10" Background="{StaticResource CardBackgroundBrush}" CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Refresh" />
+                        <TextBlock
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.DisplayCurrentRefreshRate, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
 
-                <StackPanel Grid.Row="2" Grid.ColumnSpan="2">
-                    <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
-                    <TextBlock
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="{x:Bind ViewModel.DisplayManufacturer, Mode=OneWay}"
-                        TextWrapping="WrapWholeWords" />
-                </StackPanel>
+                <Border Grid.Row="2" Grid.ColumnSpan="2" Padding="10" Background="{StaticResource CardBackgroundBrush}" CornerRadius="10">
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
+                        <TextBlock
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.DisplayManufacturer, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Border>
             </Grid>
         </StackPanel>
     </Border>

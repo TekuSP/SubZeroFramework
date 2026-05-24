@@ -105,7 +105,7 @@
                     Margin="4,0,0,6"
                     VerticalAlignment="Bottom"
                     Foreground="{x:Bind ViewModel.TemperatureBrush, Mode=OneWay}"
-                    Text="°C" />
+                    Text="{x:Bind ViewModel.TemperatureUnitSuffix, Mode=OneWay}" />
             </StackPanel>
 
             <lvc:CartesianChart

@@ -8,12 +8,20 @@ using LiveChartsCore.Defaults;
 
 using Microsoft.UI.Xaml.Media;
 
+using SubZeroFramework.Presentation.Units;
 using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.Power.Models;
 
 public partial class PowerCardModel : ObservableObject
 {
+    private readonly IUnitFormattingService _unitFormattingService;
+
+    public PowerCardModel(IUnitFormattingService unitFormattingService)
+    {
+        _unitFormattingService = unitFormattingService;
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BatteryTitle))]
     [NotifyPropertyChangedFor(nameof(ChargePercentValue))]
@@ -28,14 +36,26 @@ public partial class PowerCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(PowerBrush))]
     [NotifyPropertyChangedFor(nameof(ShowBatteryState))]
     [NotifyPropertyChangedFor(nameof(RateKind))]
+    [NotifyPropertyChangedFor(nameof(CurrentHistoryTitle))]
     [NotifyPropertyChangedFor(nameof(DesignVoltage))]
+    [NotifyPropertyChangedFor(nameof(VoltageLabel))]
+    [NotifyPropertyChangedFor(nameof(DesignVoltageLabel))]
     [NotifyPropertyChangedFor(nameof(DesignCapacityAmpereHours))]
+    [NotifyPropertyChangedFor(nameof(DesignCapacityLabel))]
     [NotifyPropertyChangedFor(nameof(LastFullChargeCapacityAmpereHours))]
+    [NotifyPropertyChangedFor(nameof(LastFullChargeCapacityLabel))]
     [NotifyPropertyChangedFor(nameof(RemainingCapacityAmpereHours))]
+    [NotifyPropertyChangedFor(nameof(RemainingCapacityLabel))]
     [NotifyPropertyChangedFor(nameof(BatteryLife))]
     public partial BatteryTelemetrySnapshot BatterySnapshot { get; set; } = default!;
 
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
+
+    public Func<double, string> ChargeLabelFormatter => _unitFormattingService.FormatRatioAxisLabel;
+
+    public Func<double, string> CurrentLabelFormatter => _unitFormattingService.FormatCurrentAxisLabel;
+
+    public Func<double, string> VoltageLabelFormatter => _unitFormattingService.FormatVoltageAxisLabel;
 
     public string BatteryTitle
     {
@@ -58,9 +78,7 @@ public partial class PowerCardModel : ObservableObject
 
     public double ChargePercentValue => Math.Clamp(BatterySnapshot.ChargePercent ?? 0d, 0d, 100d);
 
-    public string ChargePercentDisplay => BatterySnapshot.ChargePercent is double value
-        ? $"{value:N0}%"
-        : "--";
+    public string ChargePercentDisplay => _unitFormattingService.FormatRatio(BatterySnapshot.ChargePercent, decimals: 0);
 
     public string StateDisplay => ShowBatteryState ? (BatterySnapshot.BatteryState?.ToString() ?? "Unknown") : "--";
 
@@ -75,31 +93,47 @@ public partial class PowerCardModel : ObservableObject
 
     public string ChargeAndStateDisplay => $"{ChargePercentDisplay} ({StateDisplay})";
 
-    public string RateDisplay => BatterySnapshot.Amperage is double value
-        ? $"{value:N2} A"
-        : "--";
+    public string RateDisplay => _unitFormattingService.FormatCurrent(BatterySnapshot.Amperage);
 
-    public string RateKind => BatterySnapshot.BatteryState == FrameworkBatteryState.Charging ? "Charging current (A)" : "Discharging current (A)";
+    public string RateKind => BatterySnapshot.BatteryState == FrameworkBatteryState.Charging
+        ? $"Charging current ({_unitFormattingService.CurrentUnitSuffix})"
+        : $"Discharging current ({_unitFormattingService.CurrentUnitSuffix})";
 
-    public string VoltageDisplay => BatterySnapshot.Voltage is double value
-        ? $"{value:N1} V"
-        : "--";
+    public string CurrentHistoryTitle => RateKind;
+
+    public string VoltageDisplay => _unitFormattingService.FormatVoltage(BatterySnapshot.Voltage);
+
+    public string VoltageLabel => $"Battery Voltage ({_unitFormattingService.VoltageUnitSuffix})";
 
     public string CyclesDisplay => BatterySnapshot.CycleCount is uint cycles
         ? cycles.ToString()
         : "--";
 
-    public string RemainingCapacityAmpereHours => BatterySnapshot.RemainingCapacityAmpereHours is double value ? $"{value:N1} Ah" : "--";
+    public string RemainingCapacityAmpereHours => _unitFormattingService.FormatChargeCapacity(BatterySnapshot.RemainingCapacityAmpereHours);
 
-    public string DesignCapacityAmpereHours => BatterySnapshot.DesignCapacityAmpereHours is double value ? $"{value:N1} Ah" : "--";
+    public string RemainingCapacityLabel => $"Battery Remaining Capacity ({_unitFormattingService.ChargeCapacityUnitSuffix})";
 
-    public string LastFullChargeCapacityAmpereHours => BatterySnapshot.LastFullChargeCapacityAmpereHours is double value ? $"{value:N1} Ah" : "--";
+    public string DesignCapacityAmpereHours => _unitFormattingService.FormatChargeCapacity(BatterySnapshot.DesignCapacityAmpereHours);
 
-    public string DesignVoltage => BatterySnapshot.DesignVoltageVolts is double value ? $"{value:N1} V" : "--";
+    public string DesignCapacityLabel => $"Battery Design Capacity ({_unitFormattingService.ChargeCapacityUnitSuffix})";
+
+    public string LastFullChargeCapacityAmpereHours => _unitFormattingService.FormatChargeCapacity(BatterySnapshot.LastFullChargeCapacityAmpereHours);
+
+    public string LastFullChargeCapacityLabel => $"Battery Last Full Charge ({_unitFormattingService.ChargeCapacityUnitSuffix})";
+
+    public string DesignVoltage => _unitFormattingService.FormatVoltage(BatterySnapshot.DesignVoltageVolts);
+
+    public string DesignVoltageLabel => $"Nominal Voltage ({_unitFormattingService.VoltageUnitSuffix})";
 
     public string BatteryLife => FormatBatteryHealth(
         BatterySnapshot.LastFullChargeCapacityAmpereHours,
         BatterySnapshot.DesignCapacityAmpereHours);
+
+    public string ChargeHistoryTitle => string.Equals(_unitFormattingService.RatioUnitSuffix, "%", StringComparison.Ordinal)
+        ? "Charge (%)"
+        : "Charge (ratio)";
+
+    public string VoltageHistoryTitle => VoltageLabel;
 
     public Brush StateBrush => GetStateBrush(BatterySnapshot.BatteryState);
 
@@ -155,6 +189,39 @@ public partial class PowerCardModel : ObservableObject
     [ObservableProperty]
     public partial double VoltageMax { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ChargePercentDisplay))]
+    [NotifyPropertyChangedFor(nameof(ChargeAndStateDisplay))]
+    [NotifyPropertyChangedFor(nameof(RateDisplay))]
+    [NotifyPropertyChangedFor(nameof(RateKind))]
+    [NotifyPropertyChangedFor(nameof(CurrentHistoryTitle))]
+    [NotifyPropertyChangedFor(nameof(VoltageDisplay))]
+    [NotifyPropertyChangedFor(nameof(VoltageLabel))]
+    [NotifyPropertyChangedFor(nameof(DesignVoltage))]
+    [NotifyPropertyChangedFor(nameof(DesignVoltageLabel))]
+    [NotifyPropertyChangedFor(nameof(DesignCapacityAmpereHours))]
+    [NotifyPropertyChangedFor(nameof(DesignCapacityLabel))]
+    [NotifyPropertyChangedFor(nameof(RemainingCapacityAmpereHours))]
+    [NotifyPropertyChangedFor(nameof(RemainingCapacityLabel))]
+    [NotifyPropertyChangedFor(nameof(LastFullChargeCapacityAmpereHours))]
+    [NotifyPropertyChangedFor(nameof(LastFullChargeCapacityLabel))]
+    [NotifyPropertyChangedFor(nameof(BatteryLife))]
+    [NotifyPropertyChangedFor(nameof(ChargeHistoryTitle))]
+    [NotifyPropertyChangedFor(nameof(VoltageHistoryTitle))]
+    [NotifyPropertyChangedFor(nameof(ChargeLabelFormatter))]
+    [NotifyPropertyChangedFor(nameof(CurrentLabelFormatter))]
+    [NotifyPropertyChangedFor(nameof(VoltageLabelFormatter))]
+    [NotifyPropertyChangedFor(nameof(ChargeAxisMaxLimit))]
+    [NotifyPropertyChangedFor(nameof(VoltageAxisMinLimit))]
+    [NotifyPropertyChangedFor(nameof(VoltageAxisMaxLimit))]
+    private partial int UnitFormattingRevision { get; set; }
+
+    public double ChargeAxisMaxLimit => _unitFormattingService.RatioAxisMaximum;
+
+    public double VoltageAxisMinLimit => _unitFormattingService.ConvertVoltage(10d);
+
+    public double VoltageAxisMaxLimit => _unitFormattingService.ConvertVoltage(18d);
+
     public void UpdateMetricHistory(TelemetryMetric metric, IReadOnlyList<DateTimePoint> overviewHistory, IReadOnlyList<DateTimePoint> cardHistory)
     {
         switch (metric)
@@ -178,6 +245,11 @@ public partial class PowerCardModel : ObservableObject
                 HistoryRevision++;
                 break;
         }
+    }
+
+    public void RefreshUnitFormatting()
+    {
+        UnitFormattingRevision++;
     }
 
     private void UpdateChargeHistory()
@@ -303,7 +375,7 @@ public partial class PowerCardModel : ObservableObject
         };
     }
 
-    private static string FormatBatteryHealth(double? lastFullCapacityAmpereHours, double? designCapacityAmpereHours)
+    private string FormatBatteryHealth(double? lastFullCapacityAmpereHours, double? designCapacityAmpereHours)
     {
         if (lastFullCapacityAmpereHours is not double lastFullCapacity
             || designCapacityAmpereHours is not double designCapacity
@@ -314,6 +386,8 @@ public partial class PowerCardModel : ObservableObject
         }
 
         var healthPercent = Math.Clamp(lastFullCapacity / designCapacity * 100d, 0d, 100d);
-        return $"{healthPercent:N1} %";
+        return _unitFormattingService.FormatRatio(
+            healthPercent,
+            decimals: string.Equals(_unitFormattingService.RatioUnitSuffix, "%", StringComparison.Ordinal) ? 1 : 2);
     }
 }

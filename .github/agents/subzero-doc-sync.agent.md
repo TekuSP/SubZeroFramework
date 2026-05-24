@@ -2,8 +2,6 @@
 name: "SubZero Documentation Sync"
 description: "Use when finishing SubZeroFramework work, reviewing completed changes, and updating WorkToBeDone.md, .github/copilot-instructions.md, README, service docs, or other markdown so repo documentation reflects what was done and what remains."
 argument-hint: "Describe the completed SubZeroFramework work and any markdown docs that should be synchronized."
-model: "GPT-5.4 (copilot)"
-tools: [read, search, edit, execute]
 user-invocable: false
 agents: []
 ---

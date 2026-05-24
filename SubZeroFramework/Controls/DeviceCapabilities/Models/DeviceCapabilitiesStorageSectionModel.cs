@@ -48,9 +48,15 @@ public sealed partial class DeviceCapabilitiesStorageSectionModel : ObservableOb
 
     private void ParentPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(DeviceCapabilitiesModel.Snapshot))
+        switch (e.PropertyName)
         {
-            SnapshotVersion++;
+            case nameof(DeviceCapabilitiesModel.Snapshot):
+            case nameof(DeviceCapabilitiesModel.TotalStorageCapacity):
+            case nameof(DeviceCapabilitiesModel.TotalStorageUsedSpace):
+            case nameof(DeviceCapabilitiesModel.TotalStorageFreeSpace):
+            case nameof(DeviceCapabilitiesModel.TotalStorageUsageSummary):
+                SnapshotVersion++;
+                break;
         }
     }
 }

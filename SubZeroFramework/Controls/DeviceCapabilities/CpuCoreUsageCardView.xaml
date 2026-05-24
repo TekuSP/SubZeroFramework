@@ -73,8 +73,9 @@
                     <lvc:AxesCollection>
                         <lvc:XamlAxis
                             AnimationsSpeed="0"
+                            Labeler="{x:Bind ViewModel.UsageLabelFormatter, Mode=OneWay}"
                             LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartDimAxisLabelColor}}"
-                            MaxLimit="100"
+                            MaxLimit="{x:Bind ViewModel.UsageAxisMaxLimit, Mode=OneWay}"
                             MinLimit="0"
                             SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                             ShowSeparatorLines="True"

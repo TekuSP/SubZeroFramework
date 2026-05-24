@@ -134,6 +134,8 @@ public static class FrameworkCoolingMetadataResolver
                     ConnectorType = "4-pin PWM",
                     MaximumAirflowCfm = 75.2d,
                     AcousticNoiseDisplay = "30 dBA (max 34 dBA)",
+                    AcousticNoiseDecibels = 30d,
+                    MaximumAcousticNoiseDecibels = 34d,
                     MaximumFanSpeedRpm = 2400,
                 },
                 new FrameworkDesktopFanOption
@@ -143,6 +145,8 @@ public static class FrameworkCoolingMetadataResolver
                     ConnectorType = "4-pin PWM + 3-pin ARGB",
                     MaximumAirflowCfm = 75.2d,
                     AcousticNoiseDisplay = "30 dBA (max 34 dBA)",
+                    AcousticNoiseDecibels = 30d,
+                    MaximumAcousticNoiseDecibels = 34d,
                     MaximumFanSpeedRpm = 2400,
                 },
                 new FrameworkDesktopFanOption
@@ -153,6 +157,7 @@ public static class FrameworkCoolingMetadataResolver
                     MaximumAirflowCfm = 69.25d,
                     AlternateAirflowDisplay = "117.6 m³/h",
                     AcousticNoiseDisplay = "28.8 dBA",
+                    AcousticNoiseDecibels = 28.8d,
                     MaximumFanSpeedRpm = 2400,
                 },
             ],

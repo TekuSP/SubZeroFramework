@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:settingsModels="using:SubZeroFramework.Presentation.MenuItems.Settings"
     xmlns:utu="using:Uno.Toolkit.UI"
     Background="{StaticResource AppBackgroundBrush}"
     NavigationCacheMode="Required"
@@ -168,6 +169,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -448,6 +450,92 @@
                                 IsOpen="{x:Bind ViewModel.IsLastActionVisible, Mode=TwoWay}"
                                 Message="{x:Bind ViewModel.LastActionMessage, Mode=OneWay}"
                                 Severity="{x:Bind ViewModel.LastActionSeverity, Mode=OneWay}" />
+                        </StackPanel>
+                    </controls:ElevatedCard>
+
+                    <controls:ElevatedCard
+                        Grid.Row="3"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="2"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch">
+                        <StackPanel Margin="15" Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <material:MaterialIcon
+                                    Width="24"
+                                    Height="24"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Kind="CogOutline" />
+                                <TextBlock Style="{StaticResource SettingsCardTitleStyle}" Text="Units" />
+                            </StackPanel>
+
+                            <TextBlock
+                                Style="{StaticResource SettingsBodyStyle}"
+                                Text="These preferences are stored locally for this client and only affect how the UI displays telemetry, inventory, and chart values. The service and gRPC contracts keep their canonical units." />
+
+                            <Border
+                                Padding="12"
+                                Background="#1CFFFFFF"
+                                CornerRadius="8">
+                                <StackPanel Spacing="6">
+                                    <TextBlock Style="{StaticResource SettingsLabelStyle}" Text="Local preferences path" />
+                                    <TextBlock Style="{StaticResource SettingsValueStyle}" Text="{x:Bind ViewModel.UserUnitPreferencesFilePath, Mode=OneWay}" />
+                                </StackPanel>
+                            </Border>
+
+                            <ItemsRepeater ItemsSource="{x:Bind ViewModel.UnitPreferences, Mode=OneWay}">
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="settingsModels:UnitPreferenceItemModel">
+                                        <Border
+                                            Margin="0,0,0,10"
+                                            Padding="12"
+                                            Background="#1CFFFFFF"
+                                            CornerRadius="10">
+                                            <Grid ColumnSpacing="14" RowSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="2*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Style="{StaticResource SettingsLabelStyle}" Text="{x:Bind GroupName, Mode=OneWay}" />
+                                                    <TextBlock Style="{StaticResource SettingsValueStyle}" Text="{x:Bind DisplayName, Mode=OneWay}" />
+                                                    <TextBlock Style="{StaticResource SettingsBodyStyle}" Text="{x:Bind Description, Mode=OneWay}" />
+                                                    <TextBlock Style="{StaticResource SettingsLabelStyle}" Text="{x:Bind StateDescription, Mode=OneWay}" />
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="1" Spacing="6">
+                                                    <TextBlock Style="{StaticResource SettingsLabelStyle}" Text="Display unit" />
+                                                    <ComboBox
+                                                        DisplayMemberPath="DisplayName"
+                                                        ItemsSource="{x:Bind Options, Mode=OneWay}"
+                                                        SelectedItem="{x:Bind SelectedOption, Mode=TwoWay}" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+
+                            <TextBlock
+                                Style="{StaticResource SettingsBodyStyle}"
+                                Text="Saving here updates the UI immediately and persists the selected display units under your local app data folder." />
+
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                                <Button
+                                    Command="{x:Bind ViewModel.ResetUnitPreferencesCommand, Mode=OneWay}"
+                                    Content="Reset draft"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+                                <Button
+                                    Command="{x:Bind ViewModel.RestoreDefaultUnitPreferencesCommand, Mode=OneWay}"
+                                    Content="Restore defaults"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+                                <Button
+                                    Command="{x:Bind ViewModel.SaveUnitPreferencesCommand, Mode=OneWay}"
+                                    Content="Save units"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+                            </StackPanel>
                         </StackPanel>
                     </controls:ElevatedCard>
                 </Grid>

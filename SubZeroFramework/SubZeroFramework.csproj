@@ -59,6 +59,7 @@
         <PackageReference Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" />
         <PackageReference Include="Material.Icons" />
         <PackageReference Include="System.Reactive" />
+        <PackageReference Include="UnitsNet" />
     </ItemGroup>
  <ItemGroup>
         <ProjectReference Include="..\SubZeroFramework.Core\SubZeroFramework.Core.csproj" />

@@ -132,9 +132,16 @@
             ScrollViewer.VerticalScrollBarVisibility="Disabled"
             ScrollViewer.VerticalScrollMode="Disabled"
             SelectionMode="None">
+            <GridView.ItemContainerStyle>
+                <Style TargetType="GridViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    <Setter Property="VerticalContentAlignment" Value="Top" />
+                </Style>
+            </GridView.ItemContainerStyle>
             <GridView.ItemTemplate>
                 <DataTemplate x:DataType="models:DeviceCapabilitiesGraphicsCardGroupModel">
                     <deviceCapabilitiesControls:GraphicsCardView
+                        Width="590"
                         Margin="0,0,0,12"
                         ViewModel="{x:Bind Mode=OneWay}" />
                 </DataTemplate>

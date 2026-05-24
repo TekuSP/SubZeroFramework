@@ -14,5 +14,9 @@ public sealed record FrameworkDesktopFanOption
 
     public required string AcousticNoiseDisplay { get; init; }
 
+    public double? AcousticNoiseDecibels { get; init; }
+
+    public double? MaximumAcousticNoiseDecibels { get; init; }
+
     public required int MaximumFanSpeedRpm { get; init; }
 }

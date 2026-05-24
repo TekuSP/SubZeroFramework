@@ -17,6 +17,7 @@ using System.Threading;
 using Microsoft.UI.Dispatching;
 using CommunityToolkit.WinUI;
 using SubZeroFramework.Controls.DeviceCapabilities.Models;
+using SubZeroFramework.Presentation.Units;
 
 namespace SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 
@@ -31,6 +32,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     private readonly IBatteryTelemetryClient _batteryTelemetryClient;
     private readonly IFrameworkStatusClient _frameworkStatusClient;
     private readonly SynchronizationContext _synchronizationContext;
+    private readonly IUnitFormattingService _unitFormattingService;
     private readonly CompositeDisposable _subscriptions = new();
     private readonly Dictionary<int, TemperatureTelemetrySnapshot> _temperatureSnapshots = [];
     private readonly Dictionary<int, FanCapabilityState> _fanCapabilities = [];
@@ -142,11 +144,11 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     public int TotalLogicalProcessorCount => Snapshot?.Runtime.Cpus.Sum(cpu => cpu.LogicalProcessors) ?? 0;
 
     public string AverageClockSpeed => Snapshot?.Runtime.Cpus.Length > 0
-        ? $"{Snapshot.Runtime.Cpus.Average(cpu => cpu.CurrentClockSpeedMHz):0} MHz"
+        ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.Runtime.Cpus.Average(cpu => cpu.CurrentClockSpeedMHz))
         : "Unknown";
 
     public string AverageMaxClockSpeed => Snapshot?.Runtime.Cpus.Length > 0
-        ? $"{Snapshot.Runtime.Cpus.Average(cpu => cpu.MaxClockSpeedMHz):0} MHz"
+        ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.Runtime.Cpus.Average(cpu => cpu.MaxClockSpeedMHz))
         : "Unknown";
 
     public string AverageCpuUsageDisplay
@@ -155,7 +157,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         {
             var averageUsage = GetAverageCpuUsagePercent(Snapshot);
             return averageUsage is double value
-                ? $"{Math.Clamp(value, 0d, 100d):0.#} %"
+                ? _unitFormattingService.FormatRatio(Math.Clamp(value, 0d, 100d), decimals: 1)
                 : "Unknown";
         }
     }
@@ -269,7 +271,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             }
 
             var usedBytes = memoryStatus.TotalPhysical - Math.Min(memoryStatus.AvailablePhysical, memoryStatus.TotalPhysical);
-            return $"{PhysicalMemoryUsagePercent:N0}% used ({FormatBytes(usedBytes)} / {FormatBytes(memoryStatus.TotalPhysical)})";
+            return $"{_unitFormattingService.FormatRatio(PhysicalMemoryUsagePercent, decimals: 0)} used ({FormatBytes(usedBytes)} / {FormatBytes(memoryStatus.TotalPhysical)})";
         }
     }
 
@@ -344,6 +346,24 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(CoolingHardwareVisibility))]
     public partial FanAdvancedInfoCardModel? FanAdvancedInfo { get; set; }
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(AverageClockSpeed))]
+    [NotifyPropertyChangedFor(nameof(AverageMaxClockSpeed))]
+    [NotifyPropertyChangedFor(nameof(AverageCpuUsageDisplay))]
+    [NotifyPropertyChangedFor(nameof(TotalStorageCapacity))]
+    [NotifyPropertyChangedFor(nameof(TotalStorageUsedSpace))]
+    [NotifyPropertyChangedFor(nameof(TotalStorageFreeSpace))]
+    [NotifyPropertyChangedFor(nameof(TotalStorageUsageSummary))]
+    [NotifyPropertyChangedFor(nameof(MemoryTotalCapacity))]
+    [NotifyPropertyChangedFor(nameof(TotalPhysicalMemory))]
+    [NotifyPropertyChangedFor(nameof(AvailablePhysicalMemory))]
+    [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsageDisplay))]
+    [NotifyPropertyChangedFor(nameof(TotalPageFileMemory))]
+    [NotifyPropertyChangedFor(nameof(AvailablePageFileMemory))]
+    [NotifyPropertyChangedFor(nameof(TotalVirtualMemory))]
+    [NotifyPropertyChangedFor(nameof(AvailableVirtualMemory))]
+    private partial int UnitFormattingRevision { get; set; }
+
     public Visibility CoolingHardwareVisibility => FanAdvancedInfo is null
         ? Visibility.Collapsed
         : Visibility.Visible;
@@ -358,6 +378,8 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         ITemperatureTelemetryClient temperatureTelemetryClient,
         IBatteryTelemetryClient batteryTelemetryClient,
         IFrameworkStatusClient frameworkStatusClient,
+        IUserUnitPreferencesClient userUnitPreferencesClient,
+        IUnitFormattingService unitFormattingService,
         SynchronizationContext synchronizationContext,
         DispatcherQueue dispatcherQueue)
     {
@@ -367,6 +389,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         _temperatureTelemetryClient = temperatureTelemetryClient;
         _batteryTelemetryClient = batteryTelemetryClient;
         _frameworkStatusClient = frameworkStatusClient;
+        _unitFormattingService = unitFormattingService;
         _synchronizationContext = synchronizationContext;
         _fanCapabilityClient = fanCapabilityClient;
         _dispatcherQueue = dispatcherQueue;
@@ -454,6 +477,14 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             .WatchBatteries()
             .ObserveOn(_synchronizationContext)
             .Select(set => Observable.FromAsync(() => ApplyBatteryChangesAsync(set)))
+            .Concat()
+            .Subscribe(_ => { })
+            .DisposeWith(_subscriptions);
+
+        userUnitPreferencesClient
+            .WatchPreferences()
+            .ObserveOn(_synchronizationContext)
+            .Select(_ => Observable.FromAsync(RefreshUnitFormattingAsync))
             .Concat()
             .Subscribe(_ => { })
             .DisposeWith(_subscriptions);
@@ -582,7 +613,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                 {
                     if (FanAdvancedInfo is not FrameworkLaptop12FanAdvancedInfoCardModel model)
                     {
-                        model = new FrameworkLaptop12FanAdvancedInfoCardModel();
+                        model = new FrameworkLaptop12FanAdvancedInfoCardModel(_unitFormattingService);
                         FanAdvancedInfo = model;
                     }
 
@@ -593,7 +624,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                 {
                     if (FanAdvancedInfo is not FrameworkLaptop13FanAdvancedInfoCardModel model)
                     {
-                        model = new FrameworkLaptop13FanAdvancedInfoCardModel();
+                        model = new FrameworkLaptop13FanAdvancedInfoCardModel(_unitFormattingService);
                         FanAdvancedInfo = model;
                     }
 
@@ -604,7 +635,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                 {
                     if (FanAdvancedInfo is not FrameworkLaptop16FanAdvancedInfoCardModel model)
                     {
-                        model = new FrameworkLaptop16FanAdvancedInfoCardModel();
+                        model = new FrameworkLaptop16FanAdvancedInfoCardModel(_unitFormattingService);
                         FanAdvancedInfo = model;
                     }
 
@@ -615,7 +646,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                 {
                     if (FanAdvancedInfo is not FrameworkDesktopFanAdvancedInfoCardModel model)
                     {
-                        model = new FrameworkDesktopFanAdvancedInfoCardModel();
+                        model = new FrameworkDesktopFanAdvancedInfoCardModel(_unitFormattingService);
                         FanAdvancedInfo = model;
                     }
 
@@ -648,7 +679,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                 .Where(record => record.Value.IsAvailable && record.Value.Runtime.Cpus.Length > 0)
                 .Select(record => new DateTimePoint(
                     record.ObservedAt.LocalDateTime,
-                    record.Value.Runtime.Cpus.Average(cpu => cpu.CurrentClockSpeedMHz)))
+                    _unitFormattingService.ConvertClockFrequencyMegahertz(record.Value.Runtime.Cpus.Average(cpu => cpu.CurrentClockSpeedMHz))))
         ];
 
         if (Snapshot?.IsAvailable == true && Snapshot.Runtime.Cpus.Length > 0)
@@ -658,7 +689,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             {
                 points.Add(new DateTimePoint(
                     observedAt,
-                    Snapshot.Runtime.Cpus.Average(cpu => cpu.CurrentClockSpeedMHz)));
+                    _unitFormattingService.ConvertClockFrequencyMegahertz(Snapshot.Runtime.Cpus.Average(cpu => cpu.CurrentClockSpeedMHz))));
             }
         }
 
@@ -672,7 +703,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                 .Where(record => record.Value.IsAvailable && record.Value.Runtime.Cpus.Length > 0)
                 .Select(record => new DateTimePoint(
                     record.ObservedAt.LocalDateTime,
-                    GetAverageCpuUsagePercent(record.Value)))
+                    ConvertRatioValue(GetAverageCpuUsagePercent(record.Value))))
         ];
 
         if (Snapshot?.IsAvailable == true && Snapshot.Runtime.Cpus.Length > 0)
@@ -680,7 +711,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             var observedAt = Snapshot.ObservedAt.LocalDateTime;
             if (points.Count == 0 || observedAt > points[^1].DateTime)
             {
-                points.Add(new DateTimePoint(observedAt, GetAverageCpuUsagePercent(Snapshot)));
+                points.Add(new DateTimePoint(observedAt, ConvertRatioValue(GetAverageCpuUsagePercent(Snapshot))));
             }
         }
 
@@ -820,7 +851,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         ];
     }
 
-    private static void AppendCpuCoreHistoryPoints(
+    private void AppendCpuCoreHistoryPoints(
         IDictionary<(int PackageIndex, int CoreIndex), List<DateTimePoint>> pointsByCore,
         HardwareInfoSnapshot snapshot,
         DateTime observedAt)
@@ -839,12 +870,12 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
                 history.Add(new DateTimePoint(
                     observedAt,
-                    Math.Clamp(cpu.CpuCores[coreIndex].PercentProcessorTime, 0d, 100d)));
+                    _unitFormattingService.ConvertRatio(Math.Clamp(cpu.CpuCores[coreIndex].PercentProcessorTime, 0d, 100d))));
             }
         }
     }
 
-    private static void AppendCpuPackageUsageHistoryPoints(
+    private void AppendCpuPackageUsageHistoryPoints(
         IDictionary<int, List<DateTimePoint>> pointsByPackage,
         HardwareInfoSnapshot snapshot,
         DateTime observedAt)
@@ -860,11 +891,11 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
             history.Add(new DateTimePoint(
                 observedAt,
-                usageValue is null ? null : Math.Clamp(usageValue.Value, 0d, 100d)));
+                usageValue is null ? null : _unitFormattingService.ConvertRatio(Math.Clamp(usageValue.Value, 0d, 100d))));
         }
     }
 
-    private static void AppendCpuPackageClockHistoryPoints(
+    private void AppendCpuPackageClockHistoryPoints(
         IDictionary<int, List<DateTimePoint>> pointsByPackage,
         HardwareInfoSnapshot snapshot,
         DateTime observedAt)
@@ -879,7 +910,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
             history.Add(new DateTimePoint(
                 observedAt,
-                snapshot.Runtime.Cpus[packageIndex].CurrentClockSpeedMHz));
+                _unitFormattingService.ConvertClockFrequencyMegahertz(snapshot.Runtime.Cpus[packageIndex].CurrentClockSpeedMHz)));
         }
     }
 
@@ -921,8 +952,8 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return SynchronizeCards(
             _cpuPackageCards,
             cpus,
-            static (index, cpu) => new DeviceCapabilitiesCpuPackageCardModel(index, cpu),
-            static (card, index, cpu) =>
+            (index, cpu) => new DeviceCapabilitiesCpuPackageCardModel(index, cpu, _unitFormattingService),
+            (card, index, cpu) =>
             {
                 card.Index = index;
                 card.Snapshot = cpu;
@@ -934,7 +965,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return SynchronizeCards(
             _memoryModuleCards,
             memoryModules,
-            static (_, memoryModule) => new DeviceCapabilitiesMemoryModuleCardModel(memoryModule),
+            (_, memoryModule) => new DeviceCapabilitiesMemoryModuleCardModel(memoryModule, _unitFormattingService),
             static (card, _, memoryModule) => card.Snapshot = memoryModule);
     }
 
@@ -943,7 +974,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return SynchronizeCards(
             _storageDriveCards,
             drives,
-            static (_, drive) => new DeviceCapabilitiesStorageDriveCardModel(drive),
+            (_, drive) => new DeviceCapabilitiesStorageDriveCardModel(drive, _unitFormattingService),
             static (card, _, drive) => card.Snapshot = drive);
     }
 
@@ -952,7 +983,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return SynchronizeCards(
             _networkAdapterCards,
             networkAdapters,
-            static (_, networkAdapter) => new DeviceCapabilitiesNetworkAdapterCardModel(networkAdapter),
+            (_, networkAdapter) => new DeviceCapabilitiesNetworkAdapterCardModel(networkAdapter, _unitFormattingService),
             static (card, _, networkAdapter) => card.Snapshot = networkAdapter);
     }
 
@@ -970,8 +1001,12 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return SynchronizeCards(
             _monitorCards,
             monitors,
-            static (_, monitor) => new DeviceCapabilitiesMonitorCardModel(monitor),
-            static (card, _, monitor) => card.Snapshot = monitor);
+            (index, monitor) => new DeviceCapabilitiesMonitorCardModel(index, monitor, _unitFormattingService),
+            static (card, index, monitor) =>
+            {
+                card.Index = index;
+                card.Snapshot = monitor;
+            });
     }
 
     private async Task SynchronizeGraphicsCardGroupsAsync()
@@ -995,17 +1030,17 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             unknownMonitorCards.Add(monitorCard);
         }
 
-        List<(DeviceCapabilitiesVideoControllerCardModel? VideoController, bool IsUnknownGraphicsCard, IReadOnlyList<DeviceCapabilitiesMonitorCardModel> MonitorCards)> groups = [];
+        List<(DeviceCapabilitiesVideoControllerCardModel? VideoController, bool IsUnknownGraphicsCard, int AdapterIndex, IReadOnlyList<DeviceCapabilitiesMonitorCardModel> MonitorCards)> groups = [];
 
         for (var controllerIndex = 0; controllerIndex < _videoControllerCards.Count; controllerIndex++)
         {
             var controllerCard = _videoControllerCards[controllerIndex];
-            groups.Add((controllerCard, false, monitorCardsByControllerIndex[controllerIndex]));
+            groups.Add((controllerCard, false, controllerIndex, monitorCardsByControllerIndex[controllerIndex]));
         }
 
         if (unknownMonitorCards.Count > 0)
         {
-            groups.Add((null, true, unknownMonitorCards));
+            groups.Add((null, true, -1, unknownMonitorCards));
         }
 
         for (var index = 0; index < groups.Count; index++)
@@ -1016,6 +1051,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                 await _dispatcherQueue.EnqueueAsync(() =>
                 {
                     _graphicsCardGroups[index].IsUnknownGraphicsCard = group.IsUnknownGraphicsCard;
+                    _graphicsCardGroups[index].AdapterIndex = group.AdapterIndex;
                     _graphicsCardGroups[index].VideoController = group.VideoController;
                     _graphicsCardGroups[index].SynchronizeMonitorCards(group.MonitorCards);
                 });
@@ -1025,7 +1061,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
             await _dispatcherQueue.EnqueueAsync(() =>
             {
-                var graphicsCardGroup = new DeviceCapabilitiesGraphicsCardGroupModel(group.IsUnknownGraphicsCard, group.VideoController);
+                var graphicsCardGroup = new DeviceCapabilitiesGraphicsCardGroupModel(group.IsUnknownGraphicsCard, group.AdapterIndex, group.VideoController);
                 graphicsCardGroup.SynchronizeMonitorCards(group.MonitorCards);
                 _graphicsCardGroups.Add(graphicsCardGroup);
             });
@@ -1039,21 +1075,45 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     public string FormatBytes(ulong bytes)
     {
-        const double OneTerabyte = 1024d * 1024d * 1024d * 1024d;
-        const double OneGigabyte = 1024d * 1024d * 1024d;
-        if (bytes == 0)
-        {
-            return "0 GB";
-        }
+        return _unitFormattingService.FormatInformationBytes(bytes);
+    }
 
-        if (bytes >= OneTerabyte)
+    private async Task RefreshUnitFormattingAsync()
+    {
+        await _dispatcherQueue.EnqueueAsync(() =>
         {
-            return $"{bytes / OneTerabyte:0.##} TB";
-        }
+            foreach (var cpuPackageCard in _cpuPackageCards)
+            {
+                cpuPackageCard.RefreshUnitFormatting();
+            }
 
-        return bytes >= OneGigabyte
-            ? $"{bytes / OneGigabyte:0.##} GB"
-            : $"{bytes / 1024d / 1024d:0.##} MB";
+            foreach (var memoryModuleCard in _memoryModuleCards)
+            {
+                memoryModuleCard.RefreshUnitFormatting();
+            }
+
+            foreach (var storageDriveCard in _storageDriveCards)
+            {
+                storageDriveCard.RefreshUnitFormatting();
+            }
+
+            foreach (var networkAdapterCard in _networkAdapterCards)
+            {
+                networkAdapterCard.RefreshUnitFormatting();
+            }
+
+            foreach (var monitorCard in _monitorCards)
+            {
+                monitorCard.RefreshUnitFormatting();
+            }
+
+            FanAdvancedInfo?.RefreshUnitFormatting();
+
+            UnitFormattingRevision++;
+        });
+
+        await RefreshCpuVisualsAsync();
+        await SynchronizeMonitorResolutionCardsAsync(BuildMonitorResolutionCardData());
     }
 
     private Task SynchronizeMonitorResolutionCardsAsync((string Title, string ResolutionTier)[] cards)
@@ -1200,8 +1260,15 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     {
         var resolutionTier = GetDisplayTierLabel(monitor);
         return monitor.Active && monitor.CurrentRefreshRate > 0 && !string.Equals(resolutionTier, "Unknown", StringComparison.OrdinalIgnoreCase)
-            ? $"{resolutionTier} · {monitor.DisplayCurrentRefreshRate}"
+            ? $"{resolutionTier} · {_unitFormattingService.FormatRefreshRateHertz(monitor.CurrentRefreshRate)}"
             : resolutionTier;
+    }
+
+    private double? ConvertRatioValue(double? value)
+    {
+        return value is double currentValue
+            ? _unitFormattingService.ConvertRatio(currentValue)
+            : null;
     }
 
     private string GetDisplayTierLabel(HardwareInfoMonitor monitor)

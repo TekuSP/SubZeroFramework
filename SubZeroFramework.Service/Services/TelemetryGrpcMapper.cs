@@ -140,7 +140,7 @@ internal static class TelemetryGrpcMapper
 
     private static FrameworkDesktopFanOptionReply MapDesktopFanOption(FrameworkDesktopFanOption option)
     {
-        return new FrameworkDesktopFanOptionReply
+        FrameworkDesktopFanOptionReply reply = new()
         {
             ModelName = option.ModelName,
             FanDimensions = MapCoolingFanDimensions(option.FanDimensions),
@@ -150,6 +150,18 @@ internal static class TelemetryGrpcMapper
             AcousticNoiseDisplay = option.AcousticNoiseDisplay,
             MaximumFanSpeedRpm = option.MaximumFanSpeedRpm,
         };
+
+        if (option.AcousticNoiseDecibels is double acousticNoiseDecibels)
+        {
+            reply.AcousticNoiseDecibels = acousticNoiseDecibels;
+        }
+
+        if (option.MaximumAcousticNoiseDecibels is double maximumAcousticNoiseDecibels)
+        {
+            reply.MaximumAcousticNoiseDecibels = maximumAcousticNoiseDecibels;
+        }
+
+        return reply;
     }
 
     public static FanControlStateChangeReply MapFanControlStateChange(Change<FanControlStateSnapshot, int> change)

@@ -8,6 +8,7 @@ using LiveChartsCore.Defaults;
 
 using Microsoft.UI.Xaml.Media;
 
+using SubZeroFramework.Presentation.Units;
 using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.Thermal.Models;
@@ -28,12 +29,24 @@ public partial class ThermalSensorModel : ObservableObject
 	private readonly ObservableValue _warmGaugeObservable = new(0d);
 	private readonly ObservableValue _hotGaugeObservable = new(0d);
 	private readonly ObservableValue _remainingGaugeObservable = new(100d);
+	private readonly IUnitFormattingService _unitFormattingService;
+
+	public ThermalSensorModel(IUnitFormattingService unitFormattingService)
+	{
+		_unitFormattingService = unitFormattingService;
+		CoolGaugeValues = [_coolGaugeObservable];
+		NormalGaugeValues = [_normalGaugeObservable];
+		WarmGaugeValues = [_warmGaugeObservable];
+		HotGaugeValues = [_hotGaugeObservable];
+		RemainingGaugeValues = [_remainingGaugeObservable];
+	}
 
 	[ObservableProperty]
 	[NotifyPropertyChangedFor(nameof(DisplayName))]
 	[NotifyPropertyChangedFor(nameof(TemperatureValueDisplay))]
 	[NotifyPropertyChangedFor(nameof(TemperatureValueWithUnit))]
 	[NotifyPropertyChangedFor(nameof(SelectionDisplay))]
+	[NotifyPropertyChangedFor(nameof(TemperatureUnitSuffix))]
 	[NotifyPropertyChangedFor(nameof(HistoryStrokeHex))]
 	public partial TemperatureTelemetrySnapshot Snapshot { get; set; } = default!;
 
@@ -61,14 +74,12 @@ public partial class ThermalSensorModel : ObservableObject
 	[ObservableProperty]
 	public partial Brush TemperatureBrush { get; set; } = AppThemeBrushes.Get("TextPrimaryBrush", AppThemeBrushes.TextPrimaryColor);
 
-	public ThermalSensorModel()
-	{
-		CoolGaugeValues = [_coolGaugeObservable];
-		NormalGaugeValues = [_normalGaugeObservable];
-		WarmGaugeValues = [_warmGaugeObservable];
-		HotGaugeValues = [_hotGaugeObservable];
-		RemainingGaugeValues = [_remainingGaugeObservable];
-	}
+	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(TemperatureValueDisplay))]
+	[NotifyPropertyChangedFor(nameof(TemperatureValueWithUnit))]
+	[NotifyPropertyChangedFor(nameof(SelectionDisplay))]
+	[NotifyPropertyChangedFor(nameof(TemperatureUnitSuffix))]
+	private partial int UnitFormattingRevision { get; set; }
 
 	public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
 
@@ -77,10 +88,14 @@ public partial class ThermalSensorModel : ObservableObject
 		: Snapshot.DisplayName;
 
 	public string TemperatureValueDisplay => ShouldDisplayMeasuredTemperature && Snapshot.TemperatureCelsius is double value
-		? $"{value:N0}"
+		? _unitFormattingService.FormatTemperatureValue(value, decimals: 0)
 		: "--";
 
-	public string TemperatureValueWithUnit => $"{TemperatureValueDisplay}°C";
+	public string TemperatureValueWithUnit => ShouldDisplayMeasuredTemperature
+		? _unitFormattingService.FormatTemperature(Snapshot.TemperatureCelsius, decimals: 0)
+		: _unitFormattingService.FormatTemperature(null);
+
+	public string TemperatureUnitSuffix => _unitFormattingService.TemperatureUnitSuffix;
 
 	public string SelectionDisplay => $"{DisplayName}: {TemperatureValueWithUnit}";
 
@@ -109,6 +124,11 @@ public partial class ThermalSensorModel : ObservableObject
 	public ObservableValue[] RemainingGaugeValues { get; }
 
 	public string HistoryStrokeHex => HistoryStrokePalette[Math.Abs(Snapshot.SensorIndex) % HistoryStrokePalette.Length];
+
+	public void RefreshUnitFormatting()
+	{
+		UnitFormattingRevision++;
+	}
 
 	partial void OnSnapshotChanged(TemperatureTelemetrySnapshot value)
 	{

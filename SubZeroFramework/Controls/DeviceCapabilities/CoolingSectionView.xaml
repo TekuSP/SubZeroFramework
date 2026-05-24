@@ -81,12 +81,8 @@
                         <TextBlock
                             FontSize="18"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            TextWrapping="WrapWholeWords">
-                            <Run Text="{x:Bind FanDiameterMillimeters, Mode=OneWay}" />
-                            <Run Text=" mm diameter × " />
-                            <Run Text="{x:Bind FanThicknessMillimeters, Mode=OneWay}" />
-                            <Run Text=" mm thickness" />
-                        </TextBlock>
+                            Text="{x:Bind FanDimensionsDisplay, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
 
@@ -117,12 +113,8 @@
                         <TextBlock
                             FontSize="18"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            TextWrapping="WrapWholeWords">
-                            <Run Text="{x:Bind FirmwareMinimumRpm, Mode=OneWay}" />
-                            <Run Text="–" />
-                            <Run Text="{x:Bind FirmwareMaximumRpm, Mode=OneWay}" />
-                            <Run Text=" RPM" />
-                        </TextBlock>
+                            Text="{x:Bind FirmwareRangeDisplay, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
 
@@ -137,10 +129,8 @@
                         <TextBlock
                             FontSize="18"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            TextWrapping="WrapWholeWords">
-                            <Run Text="{x:Bind MaximumPhysicalLimitRpm, Mode=OneWay}" />
-                            <Run Text=" RPM" />
-                        </TextBlock>
+                            Text="{x:Bind MaximumPhysicalLimitDisplay, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
             </Grid>
@@ -197,11 +187,8 @@
                         <TextBlock
                             FontSize="22"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            TextWrapping="WrapWholeWords">
-                            <Run Text="~" />
-                            <Run Text="{x:Bind ApproximateFirmwareIdleSpeedRpm, Mode=OneWay}" />
-                            <Run Text=" RPM" />
-                        </TextBlock>
+                            Text="{x:Bind ApproximateFirmwareIdleSpeedDisplay, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
 
@@ -215,11 +202,8 @@
                         <TextBlock
                             FontSize="22"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            TextWrapping="WrapWholeWords">
-                            <Run Text="~" />
-                            <Run Text="{x:Bind ApproximateUserTunedIdleSpeedRpm, Mode=OneWay}" />
-                            <Run Text=" RPM" />
-                        </TextBlock>
+                            Text="{x:Bind ApproximateUserTunedIdleSpeedDisplay, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
 
@@ -234,10 +218,8 @@
                         <TextBlock
                             FontSize="22"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            TextWrapping="WrapWholeWords">
-                            <Run Text="{x:Bind MaximumFirmwareLimitRpm, Mode=OneWay}" />
-                            <Run Text=" RPM" />
-                        </TextBlock>
+                            Text="{x:Bind MaximumFirmwareLimitDisplay, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
 
@@ -252,11 +234,8 @@
                         <TextBlock
                             FontSize="22"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            TextWrapping="WrapWholeWords">
-                            <Run Text="~" />
-                            <Run Text="{x:Bind ApproximatePhysicalMaximumRpm, Mode=OneWay}" />
-                            <Run Text=" RPM" />
-                        </TextBlock>
+                            Text="{x:Bind ApproximatePhysicalMaximumDisplay, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
             </Grid>
@@ -315,14 +294,8 @@
                         <TextBlock
                             FontSize="18"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            TextWrapping="WrapWholeWords">
-                            <Run Text="{x:Bind ShellFanWidthMillimeters, Mode=OneWay}" />
-                            <Run Text=" × " />
-                            <Run Text="{x:Bind ShellFanHeightMillimeters, Mode=OneWay}" />
-                            <Run Text=" × " />
-                            <Run Text="{x:Bind ShellFanThicknessMillimeters, Mode=OneWay}" />
-                            <Run Text=" mm" />
-                        </TextBlock>
+                            Text="{x:Bind ShellFanDimensionsDisplay, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
 
@@ -337,14 +310,8 @@
                         <TextBlock
                             FontSize="18"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            TextWrapping="WrapWholeWords">
-                            <Run Text="{x:Bind GraphicsFanWidthMillimeters, Mode=OneWay}" />
-                            <Run Text=" × " />
-                            <Run Text="{x:Bind GraphicsFanHeightMillimeters, Mode=OneWay}" />
-                            <Run Text=" × " />
-                            <Run Text="{x:Bind GraphicsFanThicknessMillimeters, Mode=OneWay}" />
-                            <Run Text=" mm" />
-                        </TextBlock>
+                            Text="{x:Bind GraphicsFanDimensionsDisplay, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
 
@@ -359,10 +326,8 @@
                         <TextBlock
                             FontSize="22"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            TextWrapping="WrapWholeWords">
-                            <Run Text="{x:Bind ExpansionBayPowerLimitWatts, Mode=OneWay}" />
-                            <Run Text=" W allocated maximum" />
-                        </TextBlock>
+                            Text="{x:Bind ExpansionBayPowerLimitDisplay, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
 
@@ -376,10 +341,8 @@
                         <TextBlock
                             FontSize="22"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            TextWrapping="WrapWholeWords">
-                            <Run Text="{x:Bind StandardFirmwareMaximumRpm, Mode=OneWay}" />
-                            <Run Text=" RPM" />
-                        </TextBlock>
+                            Text="{x:Bind StandardFirmwareMaximumDisplay, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
 
@@ -394,11 +357,8 @@
                         <TextBlock
                             FontSize="22"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            TextWrapping="WrapWholeWords">
-                            <Run Text="~" />
-                            <Run Text="{x:Bind ApproximateThermalStressMaximumRpm, Mode=OneWay}" />
-                            <Run Text=" RPM" />
-                        </TextBlock>
+                            Text="{x:Bind ApproximateThermalStressMaximumDisplay, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </Border>
             </Grid>
@@ -466,12 +426,7 @@
                                             TextWrapping="WrapWholeWords">
                                             <Run Text="{x:Bind ModelName, Mode=OneWay}" />
                                             <Run Text=": " />
-                                            <Run Text="{x:Bind WidthMillimeters, Mode=OneWay}" />
-                                            <Run Text=" × " />
-                                            <Run Text="{x:Bind HeightMillimeters, Mode=OneWay}" />
-                                            <Run Text=" × " />
-                                            <Run Text="{x:Bind ThicknessMillimeters, Mode=OneWay}" />
-                                            <Run Text=" mm" />
+                                            <Run Text="{x:Bind FanDimensionsDisplay, Mode=OneWay}" />
                                         </TextBlock>
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>
@@ -578,8 +533,7 @@
                                         TextWrapping="WrapWholeWords">
                                         <Run Text="{x:Bind ModelName, Mode=OneWay}" />
                                         <Run Text=": " />
-                                        <Run Text="{x:Bind MaximumFanSpeedRpm, Mode=OneWay}" />
-                                        <Run Text=" RPM" />
+                                        <Run Text="{x:Bind MaximumFanSpeedDisplay, Mode=OneWay}" />
                                     </TextBlock>
                                 </DataTemplate>
                             </ItemsRepeater.ItemTemplate>

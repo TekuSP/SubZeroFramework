@@ -13,16 +13,31 @@
         <controls:ElevatedCard
             HorizontalAlignment="Stretch"
             VerticalAlignment="Stretch"
+            MinHeight="320"
             HorizontalContentAlignment="Stretch"
             VerticalContentAlignment="Stretch"
             Background="{StaticResource CardBackgroundBrush}">
             <StackPanel Padding="14" Spacing="12">
-                <TextBlock
-                    FontSize="24"
-                    FontWeight="SemiBold"
-                    Foreground="{StaticResource TextPrimaryBrush}"
-                    Text="{x:Bind ViewModel.DisplayName, Mode=OneWay}"
-                    TextWrapping="WrapWholeWords" />
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        FontSize="24"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.DisplayName, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                    <TextBlock
+                        Grid.Column="1"
+                        VerticalAlignment="Top"
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.AdapterLabel, Mode=OneWay}" />
+                </Grid>
 
                 <Grid
                     Visibility="{x:Bind ViewModel.KnownGraphicsCardVisibility, Mode=OneWay}"
@@ -166,22 +181,11 @@
                 </Border>
 
                 <StackPanel Spacing="8">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock
-                            FontSize="18"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="Associated Monitors" />
-                        <TextBlock
-                            Grid.Column="1"
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Text="{x:Bind ViewModel.MonitorCountDisplay, Mode=OneWay}" />
-                    </Grid>
+                    <TextBlock
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Associated Monitors" />
 
                     <TextBlock
                         Foreground="{StaticResource TextSecondaryBrush}"
@@ -189,21 +193,23 @@
                         TextWrapping="WrapWholeWords"
                         Visibility="{x:Bind ViewModel.EmptyMonitorMessageVisibility, Mode=OneWay}" />
 
-                    <GridView
-                        IsItemClickEnabled="False"
+                    <ItemsControl
                         ItemsSource="{x:Bind ViewModel.MonitorCards, Mode=OneWay}"
-                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                        ScrollViewer.HorizontalScrollMode="Disabled"
-                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                        ScrollViewer.VerticalScrollMode="Disabled"
-                        SelectionMode="None"
                         Visibility="{x:Bind ViewModel.HasMonitorCardsVisibility, Mode=OneWay}">
-                        <GridView.ItemTemplate>
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <controls:AutoWrapPanel
+                                    HorizontalSpacing="12"
+                                    ItemWidth="360"
+                                    VerticalSpacing="12" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
                             <DataTemplate x:DataType="models:DeviceCapabilitiesMonitorCardModel">
                                 <deviceCapabilitiesControls:MonitorSummaryCardView ViewModel="{x:Bind Mode=OneWay}" />
                             </DataTemplate>
-                        </GridView.ItemTemplate>
-                    </GridView>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </StackPanel>
         </controls:ElevatedCard>

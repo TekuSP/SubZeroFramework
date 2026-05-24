@@ -57,6 +57,9 @@ public sealed class FrameworkCoolingMetadataResolverTests
         Assert.That(details, Is.Not.Null);
         Assert.That(details!.SupportedFanOptions.Any(item => item.ModelName.Contains("Noctua", StringComparison.Ordinal)), Is.True);
         Assert.That(details.SupportedFanOptions.All(item => item.MaximumFanSpeedRpm == metadata.MaximumSpeedRpm), Is.True);
+        Assert.That(details.SupportedFanOptions.All(item => item.AcousticNoiseDecibels is > 0d), Is.True);
+        Assert.That(details.SupportedFanOptions.Single(item => item.ModelName.Contains("Noctua", StringComparison.Ordinal)).MaximumAcousticNoiseDecibels, Is.Null);
+        Assert.That(details.SupportedFanOptions.Where(item => item.ModelName.Contains("Mobius", StringComparison.Ordinal)).All(item => item.MaximumAcousticNoiseDecibels == 34d), Is.True);
     }
 
     [Test]

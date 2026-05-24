@@ -24,6 +24,7 @@ The current shell navigation is intended to contain these user-facing items:
 - The app should navigate to Dashboard when the service is healthy, the Framework library is available, and the device is recognized as a supported Framework device.
 - The app should navigate to Warnings and Issues when the service is unavailable, elevation or driver requirements are not met, or the device is unsupported.
 - Healthy-state telemetry and inventory pages should be disabled when the system is not in a safe working state.
+- User-selectable display units should apply consistently across cards, copyable inventory values, legends, and chart axes. These preferences are local to the client and must not change service-owned or gRPC contract units.
 - The UI should preserve the current dark, flattened, Fluent-inspired visual style used by the dashboard and recent Device Capabilities work.
 - Pages should prefer summary cards, clear section headings, and compact visual hierarchy instead of dense tables.
 - GridView and ListView card layouts should preserve stable item identity and avoid full rebinding that causes visual blinking.
@@ -75,6 +76,7 @@ The Dashboard is the landing page and the fastest operational overview of the sy
 - Thermal snapshot as a large chart section.
 - Power and battery as a primary lower section.
 - Gauge rings should not push out or darken on hover.
+- Recent fan mini-charts should preserve exact gauge maximums while allowing a small amount of history-axis headroom so peaks do not clip.
 
 ## Thermal Telemetry
 
@@ -184,6 +186,9 @@ Device Capabilities is the inventory and reference page for the machine and expo
 - Storage should stay at drive level rather than partition level.
 - Storage should include total capacity, used space, free space, and progress-bar style summaries.
 - Network should show detected adapters without a redundant adapter summary block unless explicitly requested.
+- Graphics-card groups should show explicit Adapter labels, keep stable monitor grouping, and number monitor subcards so multi-adapter layouts stay easy to scan.
+- Network link speeds that report sentinel or bogus max-value speeds should render as Unknown rather than as a misleading converted bitrate.
+- Monitor and network card content should wrap vertically instead of clipping or forcing fixed-height overflow.
 - Values that users may want to copy should remain selectable.
 - Graphics and monitor cards should show explicit GPU ↔ monitor relationships when the fallback source reports them, group monitors under detected graphics cards, place unlinked monitors into an explicit Unknown graphics card bucket instead of guessing, and prefer the monitor-reported current resolution and refresh rate over adapter-only inference.
 
@@ -246,8 +251,11 @@ Settings is the control panel for application behavior, service lifecycle action
 
 - Application preferences such as start with Windows and start minimized.
 - Default profile selection.
+- A Units section for local client display units covering temperature, fan speed, clock frequency, refresh rate, information size, voltage, current, charge capacity, ratio or fraction, length, airflow, network link speed, and power.
+- Preference-path visibility plus Save Units, Reset Draft, and Restore Defaults flows for client-local display-unit persistence.
 - Service-manager identity, install source summary, readiness guidance, and privilege-prompt messaging.
 - Service shutdown, restart, autorun, install, update, uninstall, and reinstall actions when needed.
+- Service-owned runtime configuration for telemetry cadence, hardware-info cadence, and fan-command authorization, kept separate from client-local display preferences.
 - Feature toggles for app modules or custom fan control features.
 - Advanced configuration blocks when they are safe and meaningful.
 - Update and about information.
@@ -256,6 +264,7 @@ Settings is the control panel for application behavior, service lifecycle action
 
 - Managing startup behavior.
 - Managing profile defaults.
+- Managing local display-unit preferences without changing the service's canonical units.
 - Managing service lifecycle operations, including shutdown, restart, autorun, install, update, uninstall, and reinstall.
 - Reviewing version and build information.
 - Accessing update or project links.
@@ -287,7 +296,8 @@ The design boards currently suggest these broad visual intentions:
 ## Notes on current implementation state
 
 - Dashboard and Device Capabilities already contain the most mature UI direction.
-- Settings now includes service-health, package-readiness, privilege-prompt, and lifecycle-action functionality; the broader app-preferences surface still needs more work.
+- Settings now includes service-health, package-readiness, privilege-prompt, lifecycle-action functionality, and a working Units section backed by local client preference persistence; the broader app-preferences surface still needs more work.
 - Warnings and Issues now acts as the unhealthy-state remediation surface with top-level status messaging, package readiness, privilege guidance, and quick service lifecycle actions.
+- Dashboard, Thermal Telemetry, Power, fan cards, cooling hardware views, and Device Capabilities surfaces already honor client-local display-unit conversion and axis labeling.
 - Thermal Telemetry now has the first end-to-end dedicated telemetry slice, while Power Telemetry and Fan Curve Profiles still need more of the intended functionality implemented.
 - The old broader design idea of a single generic Telemetry or Diagnostics area has effectively been split into Thermal Telemetry, Power Telemetry, Fan Curve Profiles, Device Capabilities, and Warnings and Issues.

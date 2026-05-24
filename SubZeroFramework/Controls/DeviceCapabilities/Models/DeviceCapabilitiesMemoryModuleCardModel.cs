@@ -1,12 +1,17 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+
+using SubZeroFramework.Presentation.Units;
 using SubZeroFramework.Models;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
 public partial class DeviceCapabilitiesMemoryModuleCardModel : ObservableObject
 {
-    public DeviceCapabilitiesMemoryModuleCardModel(HardwareInfoMemoryModule snapshot)
+    private readonly IUnitFormattingService _unitFormattingService;
+
+    public DeviceCapabilitiesMemoryModuleCardModel(HardwareInfoMemoryModule snapshot, IUnitFormattingService unitFormattingService)
     {
+        _unitFormattingService = unitFormattingService;
         Snapshot = snapshot;
     }
 
@@ -24,11 +29,15 @@ public partial class DeviceCapabilitiesMemoryModuleCardModel : ObservableObject
 
     public string BankLabel => FirstNonEmpty(Snapshot.BankLabel) ?? "Unknown";
 
-    public string DisplayCapacity => Snapshot.DisplayCapacity;
+    public string DisplayCapacity => Snapshot.CapacityBytes == 0
+        ? "Unknown"
+        : _unitFormattingService.FormatInformationBytes(Snapshot.CapacityBytes);
 
     public string MemoryType => FirstNonEmpty(Snapshot.MemoryType) ?? "Unknown";
 
-    public string DisplaySpeed => Snapshot.DisplaySpeed;
+    public string DisplaySpeed => Snapshot.SpeedMHz > 0
+        ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.SpeedMHz)
+        : "Unknown";
 
     public string DisplayDataWidth => Snapshot.DisplayDataWidth;
 
@@ -39,6 +48,16 @@ public partial class DeviceCapabilitiesMemoryModuleCardModel : ObservableObject
     public string PartNumber => FirstNonEmpty(Snapshot.PartNumber) ?? "Unknown";
 
     public string SerialNumber => FirstNonEmpty(Snapshot.SerialNumber) ?? "Unknown";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisplayCapacity))]
+    [NotifyPropertyChangedFor(nameof(DisplaySpeed))]
+    private partial int UnitFormattingRevision { get; set; }
+
+    public void RefreshUnitFormatting()
+    {
+        UnitFormattingRevision++;
+    }
 
     private string? FirstNonEmpty(params string?[] values)
     {

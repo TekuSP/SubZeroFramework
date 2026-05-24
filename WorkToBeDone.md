@@ -74,7 +74,11 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 - ✅ Refactor Device Capabilities CPU and graphics inventory into modular package and graphics-card group controls: each CPU package now owns recent average-usage and frequency charts plus per-core usage cards, and monitors are grouped under detected graphics cards with an explicit Unknown graphics card bucket for unlinked displays.
 - ✅ Keep the new CPU usage visuals scoped to the service-backed Hardware.Info snapshot/history path inside Device Capabilities; a separate top-level CPU telemetry/dashboard surface is still out of scope without another revalidation pass.
 - ✅ Fix Power Telemetry battery health calculation, current unit/display consistency, and the `DesignCapacityAmpereHours` naming typo.
-- ✅ Complete a Controls/MVVM cleanup pass: replace in-repo `SetProperty` wrappers with `[ObservableProperty]` public partial properties under new analyzer `SZF0012`, centralize recent-chart labels and separator-step defaults in `PresentationDefaults`, and replace placeholder `SZF0009` suppression justifications in lightweight UserControl code-behinds with real rationale.
+- ✅ Add broad client-local display-unit preferences across the UI for temperature, fan speed, clock frequency, refresh rate, information size, voltage, current, battery charge capacity, ratio or fraction, length, airflow, network link speed, and power. Settings now includes a Units section with save, reset-draft, and restore-default flows backed by local preference persistence while service and gRPC payloads remain in canonical units.
+- ✅ Apply unit-aware formatting and axis labelers across Dashboard, Thermal Telemetry, Power cards, fan cards, Device Capabilities CPU / memory / storage / monitor / network surfaces, and cooling hardware summaries so display values update immediately when unit preferences change.
+- ✅ Refine Device Capabilities graphics and network presentation with explicit Adapter labels, numbered monitor subcards, left-aligned wrap-friendly monitor and network layouts, and Unknown rendering for sentinel link-speed values instead of bogus converted bitrates.
+- ✅ Normalize desktop cooling acoustic-noise presentation to dB(A), surface max acoustic noise when reported, and add dashboard fan mini-chart axis headroom so peak history lines do not clip while gauge maximums stay exact.
+- ✅ Complete a broader Controls/MVVM cleanup pass: replace in-repo `SetProperty` wrappers with `[ObservableProperty]` public partial properties under new analyzer `SZF0012`, centralize recent-chart labels and separator-step defaults in `PresentationDefaults`, replace placeholder `SZF0009` suppression justifications in lightweight UserControl code-behinds with real rationale, and migrate unit-format refresh paths to analyzer-friendly dependent observable-property wiring so the current solution build stays warning-clean.
 - ✅ Keep Dashboard fan and thermal gauge rings visually stable by disabling hover pushout and hover highlighting.
 
 ## Recent completed service lifecycle and packaging work
@@ -91,6 +95,7 @@ Use `FunctionalitySpecification.md` as the source of truth for intended menu-ite
 ## Testing and validation
 
 - ✅ Add tests for Linux root detection behavior.
+- ✅ Validate the current integrated state with a clean full solution build and passing regression tests after the units, presentation, and analyzer-cleanup work.
 - 🟡 Add tests for service startup configuration and option binding. Fan-command authorization/service-option behavior, autorun parsing, and the service configuration store/manager live-apply flows are now covered, but broader startup/config binding coverage is still pending.
 - 🟡 Add integration tests for IPC contracts. IPC validation failure coverage now exists through `FrameworkGrpcSocketSecurityTests`, but status reconnect coverage and telemetry stream contract coverage are still needed.
 - ⏳ Add a manual deployment checklist for Windows and Linux.

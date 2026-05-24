@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Reactive.Disposables;
 using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
@@ -11,6 +13,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
+using SubZeroFramework.Presentation.Units;
 using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Presentation.MenuItems.Settings;
@@ -20,7 +23,10 @@ public partial class SettingsModel : ObservableObject, IDisposable
     private readonly CompositeDisposable _subscriptions = [];
     private readonly IFrameworkServiceControlClient _frameworkServiceControlClient;
     private readonly IFrameworkServiceConfigurationClient _frameworkServiceConfigurationClient;
+    private readonly IUserUnitPreferencesClient _userUnitPreferencesClient;
     private readonly DispatcherQueue _dispatcherQueue;
+    private readonly ObservableCollection<UnitPreferenceItemModel> _unitPreferences = [];
+    private UserUnitPreferencesSnapshot _currentUnitPreferenceSnapshot = new();
 
     public SettingsModel(
         IStringLocalizer localizer,
@@ -28,14 +34,19 @@ public partial class SettingsModel : ObservableObject, IDisposable
         IFrameworkStatusClient frameworkStatusClient,
         IFrameworkServiceControlClient frameworkServiceControlClient,
         IFrameworkServiceConfigurationClient frameworkServiceConfigurationClient,
+        UnitPreferenceCatalog unitPreferenceCatalog,
+        IUserUnitPreferencesClient userUnitPreferencesClient,
         DispatcherQueue dispatcherQueue)
     {
         ArgumentNullException.ThrowIfNull(frameworkServiceControlClient);
         ArgumentNullException.ThrowIfNull(frameworkServiceConfigurationClient);
+        ArgumentNullException.ThrowIfNull(unitPreferenceCatalog);
+        ArgumentNullException.ThrowIfNull(userUnitPreferencesClient);
         ArgumentNullException.ThrowIfNull(dispatcherQueue);
 
         _frameworkServiceControlClient = frameworkServiceControlClient;
         _frameworkServiceConfigurationClient = frameworkServiceConfigurationClient;
+        _userUnitPreferencesClient = userUnitPreferencesClient;
         _dispatcherQueue = dispatcherQueue;
 
         EndpointValidationMessage = frameworkStatusClient.EndpointValidation.Message;
@@ -49,6 +60,11 @@ public partial class SettingsModel : ObservableObject, IDisposable
         LastActionMessage = string.Empty;
         LastActionSeverity = InfoBarSeverity.Informational;
         ConfigurationSourcePath = string.Empty;
+        UserUnitPreferencesFilePath = _userUnitPreferencesClient.PreferencesFilePath;
+
+        UnitPreferences = new ReadOnlyObservableCollection<UnitPreferenceItemModel>(_unitPreferences);
+        InitializeUnitPreferences(unitPreferenceCatalog);
+        ApplyUnitPreferenceSnapshot(unitPreferenceCatalog.Normalize(_userUnitPreferencesClient.CurrentPreferences));
 
         ShutdownServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.ShutdownAsync), CanRunInstalledServiceAction);
         RestartServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.RestartAsync), CanRunInstalledServiceAction);
@@ -59,6 +75,9 @@ public partial class SettingsModel : ObservableObject, IDisposable
         ToggleAutorunCommand = new AsyncRelayCommand(ToggleAutorunAsync, CanRunToggleAutorunAction);
         ApplyConfigurationCommand = new AsyncRelayCommand(ApplyConfigurationAsync, CanRunApplyConfigurationAction);
         ResetConfigurationCommand = new RelayCommand(ResetConfiguration, CanRunResetConfigurationAction);
+        SaveUnitPreferencesCommand = new AsyncRelayCommand(SaveUnitPreferencesAsync, CanRunSaveUnitPreferencesAction);
+        ResetUnitPreferencesCommand = new RelayCommand(ResetUnitPreferencesDraft, CanRunResetUnitPreferencesAction);
+        RestoreDefaultUnitPreferencesCommand = new AsyncRelayCommand(RestoreDefaultUnitPreferencesAsync, CanRunRestoreDefaultUnitPreferencesAction);
 
         ApplyServiceControlInfo(_frameworkServiceControlClient.GetInfo());
 
@@ -72,6 +91,13 @@ public partial class SettingsModel : ObservableObject, IDisposable
         frameworkServiceConfigurationClient
             .WatchConfiguration()
             .Select(snapshot => Observable.FromAsync(_ => UpdateConfigurationSnapshotAsync(snapshot)))
+            .Concat()
+            .Subscribe()
+            .DisposeWith(_subscriptions);
+
+        userUnitPreferencesClient
+            .WatchPreferences()
+            .Select(snapshot => Observable.FromAsync(_ => UpdateUnitPreferenceSnapshotAsync(snapshot)))
             .Concat()
             .Subscribe()
             .DisposeWith(_subscriptions);
@@ -138,6 +164,9 @@ public partial class SettingsModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(ToggleAutorunCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RestoreDefaultUnitPreferencesCommand))]
     public partial bool IsOperationInProgress { get; set; }
 
     [ObservableProperty]
@@ -155,6 +184,9 @@ public partial class SettingsModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(ToggleAutorunCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RestoreDefaultUnitPreferencesCommand))]
     public partial bool IsConfigurationOperationInProgress { get; set; }
 
     [ObservableProperty]
@@ -218,6 +250,20 @@ public partial class SettingsModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial string ConfigurationSourcePath { get; set; }
+
+    [ObservableProperty]
+    public partial string UserUnitPreferencesFilePath { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RestoreDefaultUnitPreferencesCommand))]
+    public partial bool IsUnitPreferenceOperationInProgress { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ResetUnitPreferencesCommand))]
+    public partial bool HasUnitPreferenceChanges { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ConfigurationValidationMessage))]
@@ -358,6 +404,14 @@ public partial class SettingsModel : ObservableObject, IDisposable
 
     public IRelayCommand ResetConfigurationCommand { get; }
 
+    public IAsyncRelayCommand SaveUnitPreferencesCommand { get; }
+
+    public IRelayCommand ResetUnitPreferencesCommand { get; }
+
+    public IAsyncRelayCommand RestoreDefaultUnitPreferencesCommand { get; }
+
+    public ReadOnlyObservableCollection<UnitPreferenceItemModel> UnitPreferences { get; }
+
     public void Dispose()
     {
         _subscriptions.Dispose();
@@ -386,6 +440,15 @@ public partial class SettingsModel : ObservableObject, IDisposable
 
     private bool CanRunResetConfigurationAction()
         => CanResetConfiguration;
+
+    private bool CanRunSaveUnitPreferencesAction()
+        => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress && HasUnitPreferenceChanges;
+
+    private bool CanRunResetUnitPreferencesAction()
+        => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress && HasUnitPreferenceChanges;
+
+    private bool CanRunRestoreDefaultUnitPreferencesAction()
+        => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress;
 
     private async Task ExecuteServiceActionAsync(Func<CancellationToken, Task<FrameworkServiceCommandResult>> action)
     {
@@ -463,6 +526,72 @@ public partial class SettingsModel : ObservableObject, IDisposable
         }
     }
 
+    private async Task SaveUnitPreferencesAsync()
+    {
+        if (!CanRunSaveUnitPreferencesAction())
+        {
+            return;
+        }
+
+        IsUnitPreferenceOperationInProgress = true;
+
+        try
+        {
+            var snapshot = BuildDraftUnitPreferenceSnapshot();
+            var result = await _userUnitPreferencesClient.UpdatePreferencesAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
+
+            await _dispatcherQueue.EnqueueAsync(() =>
+            {
+                ApplyUnitPreferenceSnapshot(result);
+                ApplyActionResult("Save display units", "Display unit preferences were saved locally for this client.", InfoBarSeverity.Success);
+            });
+        }
+        catch (Exception exception)
+        {
+            await _dispatcherQueue.EnqueueAsync(() =>
+                ApplyActionResult("Save display units", exception.Message, InfoBarSeverity.Error));
+        }
+        finally
+        {
+            await _dispatcherQueue.EnqueueAsync(() => IsUnitPreferenceOperationInProgress = false);
+        }
+    }
+
+    private void ResetUnitPreferencesDraft()
+    {
+        ApplyUnitPreferenceSnapshot(_currentUnitPreferenceSnapshot);
+    }
+
+    private async Task RestoreDefaultUnitPreferencesAsync()
+    {
+        if (!CanRunRestoreDefaultUnitPreferencesAction())
+        {
+            return;
+        }
+
+        IsUnitPreferenceOperationInProgress = true;
+
+        try
+        {
+            var result = await _userUnitPreferencesClient.ResetToDefaultsAsync(CancellationToken.None).ConfigureAwait(false);
+
+            await _dispatcherQueue.EnqueueAsync(() =>
+            {
+                ApplyUnitPreferenceSnapshot(result);
+                ApplyActionResult("Restore default units", "Default display unit preferences were restored for this client.", InfoBarSeverity.Success);
+            });
+        }
+        catch (Exception exception)
+        {
+            await _dispatcherQueue.EnqueueAsync(() =>
+                ApplyActionResult("Restore default units", exception.Message, InfoBarSeverity.Error));
+        }
+        finally
+        {
+            await _dispatcherQueue.EnqueueAsync(() => IsUnitPreferenceOperationInProgress = false);
+        }
+    }
+
     private void ResetConfiguration()
     {
         if (CurrentConfigurationSnapshot is null)
@@ -497,6 +626,11 @@ public partial class SettingsModel : ObservableObject, IDisposable
                 ApplyConfigurationDraft(snapshot);
             }
         });
+    }
+
+    private Task UpdateUnitPreferenceSnapshotAsync(UserUnitPreferencesSnapshot snapshot)
+    {
+        return _dispatcherQueue.EnqueueAsync(() => ApplyUnitPreferenceSnapshot(snapshot));
     }
 
     private void ApplyStatus(FrameworkSystemStatus status)
@@ -572,6 +706,51 @@ public partial class SettingsModel : ObservableObject, IDisposable
         TelemetryPollingIntervalMillisecondsText = FormatMilliseconds(snapshot.PollingInterval);
         HardwareInfoPollingIntervalMillisecondsText = FormatMilliseconds(snapshot.HardwareInfoPollingInterval);
         AllowFanControlCommandsDraft = snapshot.AllowFanControlCommands;
+    }
+
+    private void InitializeUnitPreferences(UnitPreferenceCatalog unitPreferenceCatalog)
+    {
+        foreach (var definition in unitPreferenceCatalog.Definitions)
+        {
+            var item = new UnitPreferenceItemModel(definition);
+            item.PropertyChanged += HandleUnitPreferenceItemChanged;
+            _unitPreferences.Add(item);
+        }
+    }
+
+    private void HandleUnitPreferenceItemChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(UnitPreferenceItemModel.SelectedOption)
+            || e.PropertyName == nameof(UnitPreferenceItemModel.HasChanges))
+        {
+            UpdateUnitPreferenceChangeState();
+        }
+    }
+
+    private void ApplyUnitPreferenceSnapshot(UserUnitPreferencesSnapshot snapshot)
+    {
+        _currentUnitPreferenceSnapshot = snapshot;
+
+        foreach (var item in _unitPreferences)
+        {
+            item.ApplySnapshotSelection(snapshot.GetOptionKey(item.Kind, item.DefaultOption.Key));
+        }
+
+        HasUnitPreferenceChanges = false;
+    }
+
+    private void UpdateUnitPreferenceChangeState()
+    {
+        HasUnitPreferenceChanges = _unitPreferences.Any(item => item.HasChanges);
+    }
+
+    private UserUnitPreferencesSnapshot BuildDraftUnitPreferenceSnapshot()
+    {
+        return new UserUnitPreferencesSnapshot
+        {
+            SchemaVersion = UserUnitPreferencesSnapshot.CurrentSchemaVersion,
+            Entries = [.. _unitPreferences.Select(item => item.ToEntry())]
+        };
     }
 
     private bool TryBuildDraftConfiguration(out FrameworkServiceConfigurationUpdateRequest request, out string validationError)
