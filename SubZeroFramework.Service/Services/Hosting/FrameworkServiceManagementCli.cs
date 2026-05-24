@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 
-namespace SubZeroFramework.Service;
+namespace SubZeroFramework.Service.Services.Hosting;
 
 internal static class FrameworkServiceManagementCli
 {

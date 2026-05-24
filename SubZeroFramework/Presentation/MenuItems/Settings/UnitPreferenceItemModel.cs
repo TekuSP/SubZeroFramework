@@ -20,11 +20,8 @@ public partial class UnitPreferenceItemModel : ObservableObject
         _defaultOptionKey = definition.DefaultOptionKey;
         _appliedOptionKey = definition.DefaultOptionKey;
 
-        Options = new ReadOnlyObservableCollection<UnitPreferenceOptionViewModel>(
-            new ObservableCollection<UnitPreferenceOptionViewModel>(
-            [
-                .. definition.Options.Select(option => new UnitPreferenceOptionViewModel(option.Key, option.DisplayName, option.Description))
-            ]));
+        Options = new ReadOnlyObservableCollection<UnitPreferenceOption>(
+            new ObservableCollection<UnitPreferenceOption>(definition.Options));
 
         DefaultOption = FindOption(definition.DefaultOptionKey);
         SelectedOption = DefaultOption;
@@ -38,14 +35,14 @@ public partial class UnitPreferenceItemModel : ObservableObject
 
     public string Description { get; }
 
-    public ReadOnlyObservableCollection<UnitPreferenceOptionViewModel> Options { get; }
+    public ReadOnlyObservableCollection<UnitPreferenceOption> Options { get; }
 
-    public UnitPreferenceOptionViewModel DefaultOption { get; }
+    public UnitPreferenceOption DefaultOption { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasChanges))]
     [NotifyPropertyChangedFor(nameof(StateDescription))]
-    public partial UnitPreferenceOptionViewModel SelectedOption { get; set; }
+    public partial UnitPreferenceOption SelectedOption { get; set; }
 
     public bool HasChanges => !string.Equals(SelectedOption?.Key, _appliedOptionKey, StringComparison.Ordinal);
 
@@ -70,7 +67,7 @@ public partial class UnitPreferenceItemModel : ObservableObject
 
     // ItemsRepeater recycles the ComboBox template; the TwoWay binding can momentarily push null
     // back through SelectedItem before ItemsSource resolves the matching option reference.
-    partial void OnSelectedOptionChanged(UnitPreferenceOptionViewModel value)
+    partial void OnSelectedOptionChanged(UnitPreferenceOption value)
     {
         if (value is null)
         {
@@ -78,13 +75,13 @@ public partial class UnitPreferenceItemModel : ObservableObject
         }
     }
 
-    private UnitPreferenceOptionViewModel FindOption(string optionKey)
+    private UnitPreferenceOption FindOption(string optionKey)
     {
         return Options.FirstOrDefault(option => string.Equals(option.Key, optionKey, StringComparison.Ordinal))
             ?? DefaultOptionFallback();
     }
 
-    private UnitPreferenceOptionViewModel DefaultOptionFallback()
+    private UnitPreferenceOption DefaultOptionFallback()
     {
         return Options.First(option => string.Equals(option.Key, _defaultOptionKey, StringComparison.Ordinal));
     }

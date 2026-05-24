@@ -3,7 +3,7 @@ using Microsoft.Extensions.Options;
 using SubZeroFramework.Service.Models;
 using SubZeroFramework.Services;
 
-namespace SubZeroFramework.Service;
+namespace SubZeroFramework.Service.Services.Hosting;
 
 public sealed class FrameworkTelemetryWorker : BackgroundService
 {

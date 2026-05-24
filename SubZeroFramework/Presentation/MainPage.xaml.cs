@@ -18,7 +18,7 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
         TitleBarHost.Loaded += TitleBarHost_Loaded;
     }
 
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("SubZeroFramework.Mvvm", "SZF0009:Avoid direct PropertyChanged event invocation", Justification = "<Pending>")]
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("SubZeroFramework.Mvvm", "SZF0009:Avoid direct PropertyChanged event invocation", Justification = "Page exposes ViewModel as a CLR property (not a DependencyProperty) to support compiled x:Bind; direct PropertyChanged invocation is required to push DataContext updates.")]
     public MainModel ViewModel
     {
         get => field;

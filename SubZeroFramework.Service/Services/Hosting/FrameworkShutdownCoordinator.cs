@@ -1,6 +1,6 @@
-namespace SubZeroFramework.Service;
-
 using SubZeroFramework.Services;
+
+namespace SubZeroFramework.Service.Services.Hosting;
 
 public sealed class FrameworkShutdownCoordinator : IHostedService, IDisposable
 {

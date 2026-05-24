@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 
 using SubZeroFramework.Models;
-using SubZeroFramework.Service;
+using SubZeroFramework.Service.Services.Hosting;
 using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Tests;

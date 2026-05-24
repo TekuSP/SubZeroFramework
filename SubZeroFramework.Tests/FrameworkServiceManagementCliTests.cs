@@ -46,14 +46,14 @@ public class FrameworkServiceManagementCliTests
 
     private static bool InvokeIsRunningAsAdministrator()
     {
-        var cliType = typeof(FrameworkFanControlAuthorizationService).Assembly.GetType("SubZeroFramework.Service.FrameworkServiceManagementCli", throwOnError: true)!;
+        var cliType = typeof(FrameworkFanControlAuthorizationService).Assembly.GetType("SubZeroFramework.Service.Services.Hosting.FrameworkServiceManagementCli", throwOnError: true)!;
         var method = cliType.GetMethod("IsRunningAsAdministrator", BindingFlags.Static | BindingFlags.NonPublic)!;
         return (bool)method.Invoke(null, null)!;
     }
 
     private static Exception? InvokeEnsureManagementPrivileges(string operation)
     {
-        var cliType = typeof(FrameworkFanControlAuthorizationService).Assembly.GetType("SubZeroFramework.Service.FrameworkServiceManagementCli", throwOnError: true)!;
+        var cliType = typeof(FrameworkFanControlAuthorizationService).Assembly.GetType("SubZeroFramework.Service.Services.Hosting.FrameworkServiceManagementCli", throwOnError: true)!;
         var method = cliType.GetMethod("EnsureManagementPrivileges", BindingFlags.Static | BindingFlags.NonPublic)!;
 
         try

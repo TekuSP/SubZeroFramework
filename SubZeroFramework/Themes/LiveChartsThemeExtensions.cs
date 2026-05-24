@@ -3,9 +3,7 @@ using LiveChartsCore.Kernel;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.Themes;
 
-using SubZeroFramework.Themes;
-
-namespace SubZeroFramework;
+namespace SubZeroFramework.Themes;
 
 public static class LiveChartsThemeExtensions
 {

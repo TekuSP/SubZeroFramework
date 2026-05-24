@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 using NUnit.Framework;
 
 using SubZeroFramework.Models;
-using SubZeroFramework.Service;
+using SubZeroFramework.Service.Services.Hosting;
 using SubZeroFramework.Service.Models;
 using SubZeroFramework.Services;
 

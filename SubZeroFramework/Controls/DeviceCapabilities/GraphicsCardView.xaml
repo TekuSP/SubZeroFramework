@@ -160,7 +160,7 @@
                         Background="{StaticResource CardMetricBackgroundBrush}"
                         CornerRadius="10">
                         <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Connected Monitors" />
+                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Monitors" />
                             <TextBlock
                                 Foreground="{StaticResource TextPrimaryBrush}"
                                 Text="{x:Bind ViewModel.MonitorCountDisplay, Mode=OneWay}"

@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 
 using SubZeroFramework.Service.Models;
 using SubZeroFramework.Service.Services;
+using SubZeroFramework.Service.Services.Hosting;
 using SubZeroFramework.Services;
 using SubZeroFramework.Services.Units;
 
@@ -25,7 +26,7 @@ public static class Program
         }
 
         var builder = WebApplication.CreateBuilder(args);
-        var socketPath = SubZeroFramework.Service.Services.FrameworkGrpcSocketPath.GetPath();
+        var socketPath = FrameworkGrpcSocketPath.GetPath();
         var persistentConfigurationPath = FrameworkServiceConfigurationPaths.GetPersistentConfigurationPath();
         var userPreferencesPath = FrameworkServiceConfigurationPaths.GetUserPreferencesPath();
 

@@ -1,13 +1,6 @@
 namespace SubZeroFramework.Service.Services;
 
 /// <summary>
-/// Result of a <see cref="StorePathRelocator"/> relocation request.
-/// <see cref="ActivePath"/> always reflects the path the store should use after the call,
-/// regardless of whether the relocation succeeded or rolled back.
-/// </summary>
-public sealed record StoreRelocationResult(bool Succeeded, string Message, string ActivePath);
-
-/// <summary>
 /// Shared implementation of the "relocate service-owned JSON store" flow. Validates the target
 /// directory is writable by the service account, copies the existing file to the new location,
 /// updates the bootstrap pointer (or clears it when reverting to the default directory),

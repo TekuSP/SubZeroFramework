@@ -16,6 +16,7 @@ using SubZeroFramework.Presentation.MenuItems.ThermalTelemetry;
 using SubZeroFramework.Presentation.MenuItems.WarningsIssues;
 using SubZeroFramework.Services;
 using SubZeroFramework.Services.Units;
+using SubZeroFramework.Themes;
 
 namespace SubZeroFramework;
 
