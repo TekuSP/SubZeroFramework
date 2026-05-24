@@ -47,7 +47,7 @@ public partial class UnitPreferenceItemModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(StateDescription))]
     public partial UnitPreferenceOptionViewModel SelectedOption { get; set; }
 
-    public bool HasChanges => !string.Equals(SelectedOption.Key, _appliedOptionKey, StringComparison.Ordinal);
+    public bool HasChanges => !string.Equals(SelectedOption?.Key, _appliedOptionKey, StringComparison.Ordinal);
 
     public string StateDescription => HasChanges
         ? $"Default: {DefaultOption.DisplayName} • Unsaved changes"
