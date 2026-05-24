@@ -57,6 +57,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         LastError = "Hardware information has not been collected yet.",
     };
     private readonly IHardwareInfo _hardwareInfo;
+    private readonly IHardwareInfoLogNoiseBuffer _hardwareInfoNoiseBuffer;
     private IFrameworkEcConnection? _connection;
     private TimeSpan? _pollingInterval;
     private TimeSpan? _hardwareInfoPollingInterval;
@@ -77,12 +78,14 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         IFrameworkSystem frameworkSystem,
         IHardwareInfo hardwareInfo,
         FrameworkFanControlSafetyTracker fanControlSafetyTracker,
-        ILogger<FrameworkDataProvider> logger)
+        ILogger<FrameworkDataProvider> logger,
+        IHardwareInfoLogNoiseBuffer? hardwareInfoNoiseBuffer = null)
     {
         _frameworkSystem = frameworkSystem;
         _hardwareInfo = hardwareInfo;
         _fanControlSafetyTracker = fanControlSafetyTracker;
         _logger = logger;
+        _hardwareInfoNoiseBuffer = hardwareInfoNoiseBuffer ?? NullHardwareInfoLogNoiseBuffer.Instance;
         SystemStatus = _systemStatus;
         FlashSnapshots = _flashSnapshots;
         FanCapabilitiesSnapshots = _fanCapabilitiesSnapshots;
@@ -461,7 +464,12 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         try
         {
-            _hardwareInfo.RefreshCPUList(true, 500, true);
+            using (var cpuCapture = _hardwareInfoNoiseBuffer.BeginCapture())
+            {
+                _hardwareInfo.RefreshCPUList(true, 500, true);
+                cpuCapture.SetDataPresent(_hardwareInfo.CpuList?.Count > 0);
+            }
+
             _hardwareInfo.RefreshMemoryList();
             _hardwareInfo.RefreshDriveList();
             _hardwareInfo.RefreshMotherboardList();

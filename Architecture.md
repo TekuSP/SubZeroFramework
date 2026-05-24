@@ -65,7 +65,7 @@ The client owns:
 
 - page composition and navigation
 - view models and local DynamicData projections for presentation
-- client-local display-unit preference persistence and presentation formatting
+- presentation formatting against machine-wide service-owned display-unit preferences exposed through gRPC
 - subscribing to status, telemetry, and fan-control state streams from the service
 - rendering charts, cards, legends, and selection state
 - initiating user-requested commands through the service boundary
@@ -73,13 +73,19 @@ The client owns:
 
 The client should treat the service as the authority for runtime hardware state.
 
-## Client-local presentation preferences
+## Machine-wide presentation preferences
 
-Display-unit selection is owned by the client, not by the service.
+Display-unit selection is owned by the service so every local UI client on the machine sees the same units.
 
-The client persists those preferences locally through `IUserUnitPreferencesClient` and formats UI-facing values and axis labels through `IUnitFormattingService`.
+The service hosts a `FrameworkUserPreferencesService` gRPC surface that mirrors the Apply/Save/Load semantics of the runtime configuration surface. Clients consume it through `IUserUnitPreferencesClient`, and the UI formats values and axis labels through `IUnitFormattingService`.
 
-Service snapshots and gRPC contracts remain in canonical units, and client-local unit preferences must stay separate from service-owned runtime configuration such as polling cadence or fan-command authorization.
+Service snapshots and gRPC telemetry payloads remain in canonical units. Display-unit preferences and service runtime configuration (polling cadence, Hardware.Info cadence, fan-command authorization) live in separate stores/managers/contracts but share the same Apply/Save/Load mental model:
+
+- Apply updates the live runtime and broadcasts to every subscribed client without writing to disk.
+- Save persists the current runtime values to the service-approved JSON path.
+- Load re-reads the persisted JSON, applies it to runtime, and broadcasts to every client.
+
+Custom service-approved settings paths are deferred; the service currently uses fixed paths (`%ProgramData%\SubZeroFramework\service-settings.json` and `user-preferences.json` on Windows, `/etc/subzeroframework/` on Linux) with atomic writes.
 
 ## IPC model
 

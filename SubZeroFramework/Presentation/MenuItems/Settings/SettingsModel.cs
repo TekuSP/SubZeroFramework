@@ -74,10 +74,16 @@ public partial class SettingsModel : ObservableObject, IDisposable
         ReinstallServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.ReinstallAsync), CanRunReinstallAction);
         ToggleAutorunCommand = new AsyncRelayCommand(ToggleAutorunAsync, CanRunToggleAutorunAction);
         ApplyConfigurationCommand = new AsyncRelayCommand(ApplyConfigurationAsync, CanRunApplyConfigurationAction);
+        SaveConfigurationCommand = new AsyncRelayCommand(SaveConfigurationAsync, CanRunSaveConfigurationAction);
+        LoadConfigurationCommand = new AsyncRelayCommand(LoadConfigurationAsync, CanRunLoadConfigurationAction);
         ResetConfigurationCommand = new RelayCommand(ResetConfiguration, CanRunResetConfigurationAction);
+        ApplyUnitPreferencesCommand = new AsyncRelayCommand(ApplyUnitPreferencesAsync, CanRunApplyUnitPreferencesAction);
         SaveUnitPreferencesCommand = new AsyncRelayCommand(SaveUnitPreferencesAsync, CanRunSaveUnitPreferencesAction);
+        LoadUnitPreferencesCommand = new AsyncRelayCommand(LoadUnitPreferencesAsync, CanRunLoadUnitPreferencesAction);
         ResetUnitPreferencesCommand = new RelayCommand(ResetUnitPreferencesDraft, CanRunResetUnitPreferencesAction);
         RestoreDefaultUnitPreferencesCommand = new AsyncRelayCommand(RestoreDefaultUnitPreferencesAsync, CanRunRestoreDefaultUnitPreferencesAction);
+        RelocateConfigurationStoreCommand = new AsyncRelayCommand<string>(RelocateConfigurationStoreAsync, CanRunRelocateConfigurationAction);
+        RelocateUnitPreferencesStoreCommand = new AsyncRelayCommand<string>(RelocateUnitPreferencesStoreAsync, CanRunRelocateUnitPreferencesAction);
 
         ApplyServiceControlInfo(_frameworkServiceControlClient.GetInfo());
 
@@ -150,6 +156,38 @@ public partial class SettingsModel : ObservableObject, IDisposable
     public partial bool IsLastActionVisible { get; set; }
 
     [ObservableProperty]
+    public partial string ConfigurationActionTitle { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string ConfigurationActionMessage { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial InfoBarSeverity ConfigurationActionSeverity { get; set; } = InfoBarSeverity.Informational;
+
+    [ObservableProperty]
+    public partial bool IsConfigurationActionVisible { get; set; }
+
+    [ObservableProperty]
+    public partial string UnitPreferenceActionTitle { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string UnitPreferenceActionMessage { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial InfoBarSeverity UnitPreferenceActionSeverity { get; set; } = InfoBarSeverity.Informational;
+
+    [ObservableProperty]
+    public partial bool IsUnitPreferenceActionVisible { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveConfigurationCommand))]
+    public partial bool HasUnsavedConfigurationChanges { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
+    public partial bool HasUnsavedUnitPreferenceChanges { get; set; }
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanManageInstalledService))]
     [NotifyPropertyChangedFor(nameof(CanReinstallService))]
     [NotifyPropertyChangedFor(nameof(CanToggleAutorun))]
@@ -163,10 +201,16 @@ public partial class SettingsModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(ReinstallServiceCommand))]
     [NotifyCanExecuteChangedFor(nameof(ToggleAutorunCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadConfigurationCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyUnitPreferencesCommand))]
     [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadUnitPreferencesCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetUnitPreferencesCommand))]
     [NotifyCanExecuteChangedFor(nameof(RestoreDefaultUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RelocateConfigurationStoreCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RelocateUnitPreferencesStoreCommand))]
     public partial bool IsOperationInProgress { get; set; }
 
     [ObservableProperty]
@@ -183,10 +227,16 @@ public partial class SettingsModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(ReinstallServiceCommand))]
     [NotifyCanExecuteChangedFor(nameof(ToggleAutorunCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadConfigurationCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyUnitPreferencesCommand))]
     [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadUnitPreferencesCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetUnitPreferencesCommand))]
     [NotifyCanExecuteChangedFor(nameof(RestoreDefaultUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RelocateConfigurationStoreCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RelocateUnitPreferencesStoreCommand))]
     public partial bool IsConfigurationOperationInProgress { get; set; }
 
     [ObservableProperty]
@@ -202,6 +252,9 @@ public partial class SettingsModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(ReinstallServiceCommand))]
     [NotifyCanExecuteChangedFor(nameof(ToggleAutorunCommand))]
     [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RelocateConfigurationStoreCommand))]
     public partial bool IsServiceControlSupported { get; set; }
 
     [ObservableProperty]
@@ -245,6 +298,8 @@ public partial class SettingsModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(CanApplyConfiguration))]
     [NotifyPropertyChangedFor(nameof(CanResetConfiguration))]
     [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SaveConfigurationCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadConfigurationCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetConfigurationCommand))]
     public partial bool IsConfigurationLoaded { get; set; }
 
@@ -255,13 +310,16 @@ public partial class SettingsModel : ObservableObject, IDisposable
     public partial string UserUnitPreferencesFilePath { get; set; } = string.Empty;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ApplyUnitPreferencesCommand))]
     [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(LoadUnitPreferencesCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetUnitPreferencesCommand))]
     [NotifyCanExecuteChangedFor(nameof(RestoreDefaultUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(RelocateUnitPreferencesStoreCommand))]
     public partial bool IsUnitPreferenceOperationInProgress { get; set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ApplyUnitPreferencesCommand))]
     [NotifyCanExecuteChangedFor(nameof(ResetUnitPreferencesCommand))]
     public partial bool HasUnitPreferenceChanges { get; set; }
 
@@ -402,13 +460,25 @@ public partial class SettingsModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand ApplyConfigurationCommand { get; }
 
+    public IAsyncRelayCommand SaveConfigurationCommand { get; }
+
+    public IAsyncRelayCommand LoadConfigurationCommand { get; }
+
     public IRelayCommand ResetConfigurationCommand { get; }
 
+    public IAsyncRelayCommand ApplyUnitPreferencesCommand { get; }
+
     public IAsyncRelayCommand SaveUnitPreferencesCommand { get; }
+
+    public IAsyncRelayCommand LoadUnitPreferencesCommand { get; }
 
     public IRelayCommand ResetUnitPreferencesCommand { get; }
 
     public IAsyncRelayCommand RestoreDefaultUnitPreferencesCommand { get; }
+
+    public IAsyncRelayCommand<string> RelocateConfigurationStoreCommand { get; }
+
+    public IAsyncRelayCommand<string> RelocateUnitPreferencesStoreCommand { get; }
 
     public ReadOnlyObservableCollection<UnitPreferenceItemModel> UnitPreferences { get; }
 
@@ -438,17 +508,47 @@ public partial class SettingsModel : ObservableObject, IDisposable
     private bool CanRunApplyConfigurationAction()
         => CanApplyConfiguration;
 
+    private bool CanRunSaveConfigurationAction()
+        => IsServiceControlSupported
+            && IsConfigurationLoaded
+            && !IsOperationInProgress
+            && !IsConfigurationOperationInProgress
+            && HasUnsavedConfigurationChanges;
+
+    private bool CanRunLoadConfigurationAction()
+        => IsServiceControlSupported
+            && !IsOperationInProgress
+            && !IsConfigurationOperationInProgress;
+
     private bool CanRunResetConfigurationAction()
         => CanResetConfiguration;
 
-    private bool CanRunSaveUnitPreferencesAction()
+    private bool CanRunApplyUnitPreferencesAction()
         => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress && HasUnitPreferenceChanges;
+
+    private bool CanRunSaveUnitPreferencesAction()
+        => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress && HasUnsavedUnitPreferenceChanges;
+
+    private bool CanRunLoadUnitPreferencesAction()
+        => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress;
 
     private bool CanRunResetUnitPreferencesAction()
         => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress && HasUnitPreferenceChanges;
 
     private bool CanRunRestoreDefaultUnitPreferencesAction()
         => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress;
+
+    private bool CanRunRelocateConfigurationAction(string? targetDirectory)
+        => IsServiceControlSupported
+            && !IsOperationInProgress
+            && !IsConfigurationOperationInProgress
+            && !string.IsNullOrWhiteSpace(targetDirectory);
+
+    private bool CanRunRelocateUnitPreferencesAction(string? targetDirectory)
+        => !IsOperationInProgress
+            && !IsConfigurationOperationInProgress
+            && !IsUnitPreferenceOperationInProgress
+            && !string.IsNullOrWhiteSpace(targetDirectory);
 
     private async Task ExecuteServiceActionAsync(Func<CancellationToken, Task<FrameworkServiceCommandResult>> action)
     {
@@ -497,7 +597,7 @@ public partial class SettingsModel : ObservableObject, IDisposable
         if (!TryBuildDraftConfiguration(out var request, out var validationError))
         {
             await _dispatcherQueue.EnqueueAsync(() =>
-                ApplyActionResult("Apply service configuration", validationError, InfoBarSeverity.Error));
+                ApplyConfigurationActionResult("Apply service configuration", validationError, InfoBarSeverity.Error));
             return;
         }
 
@@ -505,20 +605,13 @@ public partial class SettingsModel : ObservableObject, IDisposable
 
         try
         {
-            var result = await _frameworkServiceConfigurationClient.UpdateConfigurationAsync(request, CancellationToken.None).ConfigureAwait(false);
+            var result = await _frameworkServiceConfigurationClient.ApplyConfigurationAsync(request, CancellationToken.None).ConfigureAwait(false);
+            await _dispatcherQueue.EnqueueAsync(() => HandleConfigurationOperationResult(ConfigurationOperationKind.Apply, "Apply service configuration", result));
+        }
+        catch (Exception exception)
+        {
             await _dispatcherQueue.EnqueueAsync(() =>
-            {
-                CurrentConfigurationSnapshot = result.Configuration;
-                IsConfigurationLoaded = true;
-                ConfigurationSourcePath = result.Configuration.PersistentConfigurationPath;
-
-                if (result.Succeeded)
-                {
-                    ApplyConfigurationDraft(result.Configuration);
-                }
-
-                ApplyActionResult("Apply service configuration", result.Message, result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Error);
-            });
+                ApplyConfigurationActionResult("Apply service configuration", exception.Message, InfoBarSeverity.Error));
         }
         finally
         {
@@ -526,9 +619,84 @@ public partial class SettingsModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task SaveUnitPreferencesAsync()
+    private async Task SaveConfigurationAsync()
     {
-        if (!CanRunSaveUnitPreferencesAction())
+        IsConfigurationOperationInProgress = true;
+
+        try
+        {
+            var result = await _frameworkServiceConfigurationClient.SaveConfigurationAsync(CancellationToken.None).ConfigureAwait(false);
+            await _dispatcherQueue.EnqueueAsync(() => HandleConfigurationOperationResult(ConfigurationOperationKind.Save, "Save service configuration", result));
+        }
+        catch (Exception exception)
+        {
+            await _dispatcherQueue.EnqueueAsync(() =>
+                ApplyConfigurationActionResult("Save service configuration", exception.Message, InfoBarSeverity.Error));
+        }
+        finally
+        {
+            await _dispatcherQueue.EnqueueAsync(() => IsConfigurationOperationInProgress = false);
+        }
+    }
+
+    private async Task LoadConfigurationAsync()
+    {
+        IsConfigurationOperationInProgress = true;
+
+        try
+        {
+            var result = await _frameworkServiceConfigurationClient.LoadConfigurationAsync(CancellationToken.None).ConfigureAwait(false);
+            await _dispatcherQueue.EnqueueAsync(() => HandleConfigurationOperationResult(ConfigurationOperationKind.Load, "Load service configuration", result));
+        }
+        catch (Exception exception)
+        {
+            await _dispatcherQueue.EnqueueAsync(() =>
+                ApplyConfigurationActionResult("Load service configuration", exception.Message, InfoBarSeverity.Error));
+        }
+        finally
+        {
+            await _dispatcherQueue.EnqueueAsync(() => IsConfigurationOperationInProgress = false);
+        }
+    }
+
+    private void HandleConfigurationOperationResult(ConfigurationOperationKind kind, string title, FrameworkServiceConfigurationOperationResult result)
+    {
+        if (result.Configuration is not null)
+        {
+            CurrentConfigurationSnapshot = result.Configuration;
+            IsConfigurationLoaded = true;
+            ConfigurationSourcePath = result.Configuration.PersistentConfigurationPath;
+
+            if (result.Succeeded)
+            {
+                ApplyConfigurationDraft(result.Configuration);
+            }
+        }
+
+        if (result.Succeeded)
+        {
+            HasUnsavedConfigurationChanges = kind switch
+            {
+                ConfigurationOperationKind.Apply => true,
+                ConfigurationOperationKind.Save => false,
+                ConfigurationOperationKind.Load => false,
+                _ => HasUnsavedConfigurationChanges,
+            };
+        }
+
+        ApplyConfigurationActionResult(title, result.Message, result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+    }
+
+    private enum ConfigurationOperationKind
+    {
+        Apply,
+        Save,
+        Load,
+    }
+
+    private async Task ApplyUnitPreferencesAsync()
+    {
+        if (!CanRunApplyUnitPreferencesAction())
         {
             return;
         }
@@ -538,18 +706,54 @@ public partial class SettingsModel : ObservableObject, IDisposable
         try
         {
             var snapshot = BuildDraftUnitPreferenceSnapshot();
-            var result = await _userUnitPreferencesClient.UpdatePreferencesAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
+            var result = await _userUnitPreferencesClient.ApplyPreferencesAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
 
-            await _dispatcherQueue.EnqueueAsync(() =>
-            {
-                ApplyUnitPreferenceSnapshot(result);
-                ApplyActionResult("Save display units", "Display unit preferences were saved locally for this client.", InfoBarSeverity.Success);
-            });
+            await _dispatcherQueue.EnqueueAsync(() => HandleUnitPreferenceOperationResult(UnitPreferenceOperationKind.Apply, "Apply display units", result));
         }
         catch (Exception exception)
         {
             await _dispatcherQueue.EnqueueAsync(() =>
-                ApplyActionResult("Save display units", exception.Message, InfoBarSeverity.Error));
+                ApplyUnitPreferenceActionResult("Apply display units", exception.Message, InfoBarSeverity.Error));
+        }
+        finally
+        {
+            await _dispatcherQueue.EnqueueAsync(() => IsUnitPreferenceOperationInProgress = false);
+        }
+    }
+
+    private async Task SaveUnitPreferencesAsync()
+    {
+        IsUnitPreferenceOperationInProgress = true;
+
+        try
+        {
+            var result = await _userUnitPreferencesClient.SavePreferencesAsync(CancellationToken.None).ConfigureAwait(false);
+            await _dispatcherQueue.EnqueueAsync(() => HandleUnitPreferenceOperationResult(UnitPreferenceOperationKind.Save, "Save display units", result));
+        }
+        catch (Exception exception)
+        {
+            await _dispatcherQueue.EnqueueAsync(() =>
+                ApplyUnitPreferenceActionResult("Save display units", exception.Message, InfoBarSeverity.Error));
+        }
+        finally
+        {
+            await _dispatcherQueue.EnqueueAsync(() => IsUnitPreferenceOperationInProgress = false);
+        }
+    }
+
+    private async Task LoadUnitPreferencesAsync()
+    {
+        IsUnitPreferenceOperationInProgress = true;
+
+        try
+        {
+            var result = await _userUnitPreferencesClient.LoadPreferencesAsync(CancellationToken.None).ConfigureAwait(false);
+            await _dispatcherQueue.EnqueueAsync(() => HandleUnitPreferenceOperationResult(UnitPreferenceOperationKind.Load, "Load display units", result));
+        }
+        catch (Exception exception)
+        {
+            await _dispatcherQueue.EnqueueAsync(() =>
+                ApplyUnitPreferenceActionResult("Load display units", exception.Message, InfoBarSeverity.Error));
         }
         finally
         {
@@ -575,21 +779,122 @@ public partial class SettingsModel : ObservableObject, IDisposable
         {
             var result = await _userUnitPreferencesClient.ResetToDefaultsAsync(CancellationToken.None).ConfigureAwait(false);
 
-            await _dispatcherQueue.EnqueueAsync(() =>
-            {
-                ApplyUnitPreferenceSnapshot(result);
-                ApplyActionResult("Restore default units", "Default display unit preferences were restored for this client.", InfoBarSeverity.Success);
-            });
+            await _dispatcherQueue.EnqueueAsync(() => HandleUnitPreferenceOperationResult(UnitPreferenceOperationKind.Apply, "Restore default units", result));
         }
         catch (Exception exception)
         {
             await _dispatcherQueue.EnqueueAsync(() =>
-                ApplyActionResult("Restore default units", exception.Message, InfoBarSeverity.Error));
+                ApplyUnitPreferenceActionResult("Restore default units", exception.Message, InfoBarSeverity.Error));
         }
         finally
         {
             await _dispatcherQueue.EnqueueAsync(() => IsUnitPreferenceOperationInProgress = false);
         }
+    }
+
+    private async Task RelocateConfigurationStoreAsync(string? targetDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(targetDirectory))
+        {
+            return;
+        }
+
+        IsConfigurationOperationInProgress = true;
+
+        try
+        {
+            var result = await _frameworkServiceConfigurationClient.RelocateConfigurationStoreAsync(targetDirectory, CancellationToken.None).ConfigureAwait(false);
+            await _dispatcherQueue.EnqueueAsync(() =>
+            {
+                if (result.Configuration is not null)
+                {
+                    ConfigurationSourcePath = result.Configuration.PersistentConfigurationPath;
+                }
+
+                ApplyConfigurationActionResult(
+                    "Change configuration storage location",
+                    result.Message,
+                    result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+            });
+        }
+        catch (Exception exception)
+        {
+            await _dispatcherQueue.EnqueueAsync(() =>
+                ApplyConfigurationActionResult("Change configuration storage location", exception.Message, InfoBarSeverity.Error));
+        }
+        finally
+        {
+            await _dispatcherQueue.EnqueueAsync(() => IsConfigurationOperationInProgress = false);
+        }
+    }
+
+    private async Task RelocateUnitPreferencesStoreAsync(string? targetDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(targetDirectory))
+        {
+            return;
+        }
+
+        IsUnitPreferenceOperationInProgress = true;
+
+        try
+        {
+            var result = await _userUnitPreferencesClient.RelocatePreferencesStoreAsync(targetDirectory, CancellationToken.None).ConfigureAwait(false);
+            await _dispatcherQueue.EnqueueAsync(() =>
+            {
+                if (!string.IsNullOrEmpty(result.PreferencesPath))
+                {
+                    UserUnitPreferencesFilePath = result.PreferencesPath;
+                }
+
+                ApplyUnitPreferenceActionResult(
+                    "Change unit preferences storage location",
+                    result.Message,
+                    result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+            });
+        }
+        catch (Exception exception)
+        {
+            await _dispatcherQueue.EnqueueAsync(() =>
+                ApplyUnitPreferenceActionResult("Change unit preferences storage location", exception.Message, InfoBarSeverity.Error));
+        }
+        finally
+        {
+            await _dispatcherQueue.EnqueueAsync(() => IsUnitPreferenceOperationInProgress = false);
+        }
+    }
+
+    private void HandleUnitPreferenceOperationResult(UnitPreferenceOperationKind kind, string title, UserPreferencesOperationResult result)
+    {
+        if (!string.IsNullOrEmpty(result.PreferencesPath))
+        {
+            UserUnitPreferencesFilePath = result.PreferencesPath;
+        }
+
+        if (result.Succeeded && result.Preferences is not null)
+        {
+            ApplyUnitPreferenceSnapshot(result.Preferences);
+        }
+
+        if (result.Succeeded)
+        {
+            HasUnsavedUnitPreferenceChanges = kind switch
+            {
+                UnitPreferenceOperationKind.Apply => true,
+                UnitPreferenceOperationKind.Save => false,
+                UnitPreferenceOperationKind.Load => false,
+                _ => HasUnsavedUnitPreferenceChanges,
+            };
+        }
+
+        ApplyUnitPreferenceActionResult(title, result.Message, result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+    }
+
+    private enum UnitPreferenceOperationKind
+    {
+        Apply,
+        Save,
+        Load,
     }
 
     private void ResetConfiguration()
@@ -701,6 +1006,22 @@ public partial class SettingsModel : ObservableObject, IDisposable
         IsLastActionVisible = true;
     }
 
+    private void ApplyConfigurationActionResult(string title, string message, InfoBarSeverity severity)
+    {
+        ConfigurationActionTitle = title;
+        ConfigurationActionMessage = message;
+        ConfigurationActionSeverity = severity;
+        IsConfigurationActionVisible = true;
+    }
+
+    private void ApplyUnitPreferenceActionResult(string title, string message, InfoBarSeverity severity)
+    {
+        UnitPreferenceActionTitle = title;
+        UnitPreferenceActionMessage = message;
+        UnitPreferenceActionSeverity = severity;
+        IsUnitPreferenceActionVisible = true;
+    }
+
     private void ApplyConfigurationDraft(FrameworkServiceConfigurationSnapshot snapshot)
     {
         TelemetryPollingIntervalMillisecondsText = FormatMilliseconds(snapshot.PollingInterval);
@@ -753,7 +1074,7 @@ public partial class SettingsModel : ObservableObject, IDisposable
         };
     }
 
-    private bool TryBuildDraftConfiguration(out FrameworkServiceConfigurationUpdateRequest request, out string validationError)
+    private bool TryBuildDraftConfiguration(out FrameworkServiceConfigurationApplyRequest request, out string validationError)
     {
         request = null!;
 
@@ -781,7 +1102,7 @@ public partial class SettingsModel : ObservableObject, IDisposable
             return false;
         }
 
-        request = new FrameworkServiceConfigurationUpdateRequest
+        request = new FrameworkServiceConfigurationApplyRequest
         {
             PollingInterval = TimeSpan.FromMilliseconds(pollingIntervalMilliseconds),
             HardwareInfoPollingInterval = TimeSpan.FromMilliseconds(hardwareInfoPollingIntervalMilliseconds),

@@ -1,4 +1,6 @@
-using Microsoft.Extensions.Configuration;
+using System.Reactive.Linq;
+using System.Reactive.Subjects;
+
 using Microsoft.Extensions.Options;
 
 using SubZeroFramework.Models;
@@ -7,42 +9,41 @@ using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Service.Services;
 
-public sealed class FrameworkServiceConfigurationManager
+public sealed class FrameworkServiceConfigurationManager : IDisposable
 {
     private readonly IFrameworkDataProvider _frameworkDataProvider;
     private readonly FrameworkFanControlAuthorizationService _authorizationService;
-    private readonly IOptionsMonitor<FrameworkServiceOptions> _optionsMonitor;
-    private readonly IConfigurationRoot _configurationRoot;
     private readonly FrameworkServiceConfigurationStore _store;
-    private readonly SemaphoreSlim _updateGate = new(1, 1);
+    private readonly ReactiveRequestQueue _queue = new();
+    private readonly BehaviorSubject<FrameworkServiceConfigurationSnapshot> _snapshotSubject;
     private readonly ILogger<FrameworkServiceConfigurationManager> _logger;
+    private FrameworkServiceOptions _currentOptions;
+    private bool _disposed;
 
     public FrameworkServiceConfigurationManager(
         IFrameworkDataProvider frameworkDataProvider,
         FrameworkFanControlAuthorizationService authorizationService,
         IOptionsMonitor<FrameworkServiceOptions> optionsMonitor,
-        IConfiguration configuration,
         FrameworkServiceConfigurationStore store,
         ILogger<FrameworkServiceConfigurationManager> logger)
     {
         ArgumentNullException.ThrowIfNull(frameworkDataProvider);
         ArgumentNullException.ThrowIfNull(authorizationService);
         ArgumentNullException.ThrowIfNull(optionsMonitor);
-        ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(logger);
 
         _frameworkDataProvider = frameworkDataProvider;
         _authorizationService = authorizationService;
-        _optionsMonitor = optionsMonitor;
-        _configurationRoot = configuration as IConfigurationRoot
-            ?? throw new InvalidOperationException("The service configuration root does not support reload semantics.");
         _store = store;
         _logger = logger;
+        _currentOptions = optionsMonitor.CurrentValue;
+        _snapshotSubject = new BehaviorSubject<FrameworkServiceConfigurationSnapshot>(CreateSnapshot(_currentOptions));
     }
 
-    public FrameworkServiceConfigurationSnapshot GetCurrentSnapshot()
-        => CreateSnapshot(_optionsMonitor.CurrentValue);
+    public FrameworkServiceConfigurationSnapshot GetCurrentSnapshot() => _snapshotSubject.Value;
+
+    public IObservable<FrameworkServiceConfigurationSnapshot> WatchSnapshot() => _snapshotSubject.AsObservable();
 
     public FrameworkServiceConfigurationSnapshot CreateSnapshot(FrameworkServiceOptions options)
     {
@@ -57,26 +58,23 @@ public sealed class FrameworkServiceConfigurationManager
         };
     }
 
-    public async Task<FrameworkServiceConfigurationUpdateResult> UpdateAsync(FrameworkServiceConfigurationUpdateRequest request, CancellationToken cancellationToken = default)
+    public Task<FrameworkServiceConfigurationOperationResult> ApplyAsync(FrameworkServiceConfigurationApplyRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
         if (TryValidate(request, out var validationError))
         {
-            var currentSnapshot = GetCurrentSnapshot();
-            return new FrameworkServiceConfigurationUpdateResult
+            return Task.FromResult(new FrameworkServiceConfigurationOperationResult
             {
                 Succeeded = false,
                 Message = validationError,
-                Configuration = currentSnapshot,
-            };
+                Configuration = GetCurrentSnapshot(),
+            });
         }
 
-        await _updateGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-        try
+        return _queue.EnqueueAsync(async ct =>
         {
-            var previousOptions = _optionsMonitor.CurrentValue;
+            var previousOptions = _currentOptions;
             var updatedOptions = previousOptions with
             {
                 PollingInterval = request.PollingInterval,
@@ -86,11 +84,11 @@ public sealed class FrameworkServiceConfigurationManager
 
             if (updatedOptions == previousOptions)
             {
-                return new FrameworkServiceConfigurationUpdateResult
+                return new FrameworkServiceConfigurationOperationResult
                 {
                     Succeeded = true,
                     Message = "Service configuration already matches the requested values.",
-                    Configuration = CreateSnapshot(updatedOptions),
+                    Configuration = GetCurrentSnapshot(),
                 };
             }
 
@@ -100,43 +98,199 @@ public sealed class FrameworkServiceConfigurationManager
             try
             {
                 _logger.LogInformation(
-                    "Updating service configuration. PollingInterval={PollingInterval}, HardwareInfoPollingInterval={HardwareInfoPollingInterval}, AllowFanControlCommands={AllowFanControlCommands}.",
+                    "Applying service configuration. PollingInterval={PollingInterval}, HardwareInfoPollingInterval={HardwareInfoPollingInterval}, AllowFanControlCommands={AllowFanControlCommands}.",
                     updatedOptions.PollingInterval,
                     updatedOptions.HardwareInfoPollingInterval,
                     updatedOptions.AllowFanControlCommands);
 
-                await _store.WriteAsync(updatedOptions, cancellationToken).ConfigureAwait(false);
-                ReloadConfiguration();
-                await ApplyRuntimeConfigurationAsync(updatedOptions, shouldRunFrameworkPolling, shouldRunHardwareInfoPolling, cancellationToken).ConfigureAwait(false);
+                await ApplyRuntimeConfigurationAsync(updatedOptions, shouldRunFrameworkPolling, shouldRunHardwareInfoPolling, ct).ConfigureAwait(false);
+                _currentOptions = updatedOptions;
+                var snapshot = CreateSnapshot(updatedOptions);
+                _snapshotSubject.OnNext(snapshot);
 
-                return new FrameworkServiceConfigurationUpdateResult
+                return new FrameworkServiceConfigurationOperationResult
                 {
                     Succeeded = true,
-                    Message = "Applied and persisted the updated service configuration.",
-                    Configuration = CreateSnapshot(updatedOptions),
+                    Message = "Applied the updated service configuration. Use Save to persist it.",
+                    Configuration = snapshot,
                 };
             }
             catch (Exception exception)
             {
-                _logger.LogError(exception, "Failed to update service configuration. Attempting rollback to the previous configuration.");
+                _logger.LogError(exception, "Failed to apply service configuration. Attempting to restore the previous runtime configuration.");
 
-                var rollbackSucceeded = await TryRollbackAsync(previousOptions, shouldRunFrameworkPolling, shouldRunHardwareInfoPolling).ConfigureAwait(false);
+                var rollbackSucceeded = await TryRollbackRuntimeAsync(previousOptions, shouldRunFrameworkPolling, shouldRunHardwareInfoPolling).ConfigureAwait(false);
                 var resultMessage = rollbackSucceeded
-                    ? $"Failed to update the service configuration. The previous configuration was restored. {exception.Message}"
-                    : $"Failed to update the service configuration and the rollback attempt also failed. {exception.Message}";
+                    ? $"Failed to apply the service configuration. The previous runtime configuration was restored. {exception.Message}"
+                    : $"Failed to apply the service configuration and the rollback attempt also failed. {exception.Message}";
 
-                return new FrameworkServiceConfigurationUpdateResult
+                return new FrameworkServiceConfigurationOperationResult
                 {
                     Succeeded = false,
                     Message = resultMessage,
                     Configuration = rollbackSucceeded ? CreateSnapshot(previousOptions) : CreateSnapshot(updatedOptions),
                 };
             }
-        }
-        finally
+        }, cancellationToken);
+    }
+
+    public Task<FrameworkServiceConfigurationOperationResult> SaveAsync(CancellationToken cancellationToken = default)
+    {
+        return _queue.EnqueueAsync(async ct =>
         {
-            _updateGate.Release();
+            var options = _currentOptions;
+            try
+            {
+                await _store.WriteAsync(options, ct).ConfigureAwait(false);
+                _logger.LogInformation("Saved current service configuration to {PersistentConfigurationPath}.", _store.PersistentConfigurationPath);
+
+                return new FrameworkServiceConfigurationOperationResult
+                {
+                    Succeeded = true,
+                    Message = $"Saved the current service configuration to {_store.PersistentConfigurationPath}.",
+                    Configuration = CreateSnapshot(options),
+                };
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Failed to save service configuration.");
+                return new FrameworkServiceConfigurationOperationResult
+                {
+                    Succeeded = false,
+                    Message = $"Failed to save the service configuration. {exception.Message}",
+                    Configuration = CreateSnapshot(options),
+                };
+            }
+        }, cancellationToken);
+    }
+
+    public Task<FrameworkServiceConfigurationOperationResult> LoadAsync(CancellationToken cancellationToken = default)
+    {
+        return _queue.EnqueueAsync(async ct =>
+        {
+            FrameworkServiceOptions? loaded;
+            try
+            {
+                loaded = await _store.ReadAsync(ct).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Failed to read service configuration from {PersistentConfigurationPath}.", _store.PersistentConfigurationPath);
+                return new FrameworkServiceConfigurationOperationResult
+                {
+                    Succeeded = false,
+                    Message = $"Failed to read the service configuration. {exception.Message}",
+                    Configuration = CreateSnapshot(_currentOptions),
+                };
+            }
+
+            if (loaded is null)
+            {
+                return new FrameworkServiceConfigurationOperationResult
+                {
+                    Succeeded = false,
+                    Message = $"No persisted service configuration was found at {_store.PersistentConfigurationPath}.",
+                    Configuration = CreateSnapshot(_currentOptions),
+                };
+            }
+
+            var request = new FrameworkServiceConfigurationApplyRequest
+            {
+                PollingInterval = loaded.PollingInterval,
+                HardwareInfoPollingInterval = loaded.HardwareInfoPollingInterval,
+                AllowFanControlCommands = loaded.AllowFanControlCommands,
+            };
+
+            if (TryValidate(request, out var validationError))
+            {
+                return new FrameworkServiceConfigurationOperationResult
+                {
+                    Succeeded = false,
+                    Message = $"Persisted service configuration is invalid: {validationError}",
+                    Configuration = CreateSnapshot(_currentOptions),
+                };
+            }
+
+            var previousOptions = _currentOptions;
+            var shouldRunFrameworkPolling = _frameworkDataProvider.IsPolling;
+            var shouldRunHardwareInfoPolling = _frameworkDataProvider.IsHardwareInfoPolling;
+
+            try
+            {
+                await ApplyRuntimeConfigurationAsync(loaded, shouldRunFrameworkPolling, shouldRunHardwareInfoPolling, ct).ConfigureAwait(false);
+                _currentOptions = loaded;
+                var snapshot = CreateSnapshot(loaded);
+                _snapshotSubject.OnNext(snapshot);
+                _logger.LogInformation("Loaded service configuration from {PersistentConfigurationPath}.", _store.PersistentConfigurationPath);
+
+                return new FrameworkServiceConfigurationOperationResult
+                {
+                    Succeeded = true,
+                    Message = $"Loaded and applied the service configuration from {_store.PersistentConfigurationPath}.",
+                    Configuration = snapshot,
+                };
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Failed to apply loaded service configuration.");
+                var rollbackSucceeded = await TryRollbackRuntimeAsync(previousOptions, shouldRunFrameworkPolling, shouldRunHardwareInfoPolling).ConfigureAwait(false);
+                return new FrameworkServiceConfigurationOperationResult
+                {
+                    Succeeded = false,
+                    Message = rollbackSucceeded
+                        ? $"Failed to apply the loaded service configuration. The previous runtime configuration was restored. {exception.Message}"
+                        : $"Failed to apply the loaded service configuration and the rollback attempt also failed. {exception.Message}",
+                    Configuration = CreateSnapshot(rollbackSucceeded ? previousOptions : loaded),
+                };
+            }
+        }, cancellationToken);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
         }
+
+        _disposed = true;
+        _snapshotSubject.OnCompleted();
+        _snapshotSubject.Dispose();
+        _queue.Dispose();
+    }
+
+    public Task<FrameworkServiceConfigurationOperationResult> RelocateAsync(string targetDirectory, CancellationToken cancellationToken = default)
+    {
+        return _queue.EnqueueAsync(async ct =>
+        {
+            StoreRelocationResult relocation;
+            try
+            {
+                relocation = await _store.RelocateAsync(targetDirectory, ct).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Failed to relocate service configuration store to '{TargetDirectory}'.", targetDirectory);
+                return new FrameworkServiceConfigurationOperationResult
+                {
+                    Succeeded = false,
+                    Message = $"Failed to relocate the service configuration store. {exception.Message}",
+                    Configuration = CreateSnapshot(_currentOptions),
+                };
+            }
+
+            if (relocation.Succeeded)
+            {
+                _snapshotSubject.OnNext(CreateSnapshot(_currentOptions));
+            }
+
+            return new FrameworkServiceConfigurationOperationResult
+            {
+                Succeeded = relocation.Succeeded,
+                Message = relocation.Message,
+                Configuration = CreateSnapshot(_currentOptions),
+            };
+        }, cancellationToken);
     }
 
     private async Task ApplyRuntimeConfigurationAsync(
@@ -183,32 +337,25 @@ public sealed class FrameworkServiceConfigurationManager
         await _frameworkDataProvider.RefreshAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private void ReloadConfiguration()
-    {
-        _configurationRoot.Reload();
-    }
-
-    private async Task<bool> TryRollbackAsync(
+    private async Task<bool> TryRollbackRuntimeAsync(
         FrameworkServiceOptions previousOptions,
         bool shouldRunFrameworkPolling,
         bool shouldRunHardwareInfoPolling)
     {
         try
         {
-            await _store.WriteAsync(previousOptions, CancellationToken.None).ConfigureAwait(false);
-            ReloadConfiguration();
             await ApplyRuntimeConfigurationAsync(previousOptions, shouldRunFrameworkPolling, shouldRunHardwareInfoPolling, CancellationToken.None).ConfigureAwait(false);
-            _logger.LogInformation("Rolled back the service configuration to the previous values.");
+            _logger.LogInformation("Rolled back the runtime service configuration to the previous values.");
             return true;
         }
         catch (Exception rollbackException)
         {
-            _logger.LogError(rollbackException, "Failed to roll back the service configuration to the previous values.");
+            _logger.LogError(rollbackException, "Failed to roll back the runtime service configuration to the previous values.");
             return false;
         }
     }
 
-    private static bool TryValidate(FrameworkServiceConfigurationUpdateRequest request, out string validationError)
+    private static bool TryValidate(FrameworkServiceConfigurationApplyRequest request, out string validationError)
     {
         if (request.PollingInterval <= TimeSpan.Zero)
         {

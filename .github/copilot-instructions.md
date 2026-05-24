@@ -23,7 +23,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - Prefer `[ObservableProperty]` public partial properties over manual `SetProperty(...)` wrappers for bindable state; repo analyzer `SZF0012` enforces this.
 - For inventory surfaces, prefer FrameworkDotnet data first and only use Hardware.Info to fill gaps, keeping that fallback flow behind the existing service/gRPC/client boundary.
 - For service lifecycle work, keep install/update/shutdown/restart/autorun management out of gRPC. Prefer the packaged service executable and `FrameworkServiceManagementCli` so the client stays unelevated and the action still works when the service is offline.
-- For service-owned runtime settings such as polling cadence or writable fan-command authorization, prefer `FrameworkServiceConfigurationGrpcService` / `IFrameworkServiceConfigurationClient` plus the persistent service-owned configuration overlay instead of client-local settings. Keep lifecycle operations out of that gRPC surface.
+- For service-owned runtime settings such as polling cadence or writable fan-command authorization, prefer `FrameworkServiceConfigurationGrpcService` / `IFrameworkServiceConfigurationClient` plus the persistent service-owned configuration overlay instead of client-local settings. Both that surface and the machine-wide display-unit preferences surface follow the same Apply/Save/Load mental model (Apply changes live runtime and broadcasts, Save persists to the service-approved JSON path, Load re-reads and broadcasts). Keep lifecycle operations out of those gRPC surfaces. Custom service-approved settings paths (relocating `service-settings.json` or `user-preferences.json` out of the default `ProgramData` location) are deferred: when implemented, they must go through one shared service-side "relocate store" gRPC flow used by both stores (validate writable by the service account, atomically copy → swap pointer → delete old → broadcast new path, persist a bootstrap pointer file in the default location) and be driven from the client by an Uno `FolderPicker` rather than a free-text path field.
 - Keep service and gRPC payloads in canonical units. When the UI needs alternate display units, persist the choice locally through `IUserUnitPreferencesClient` and format values, suffixes, and axis labels through `IUnitFormattingService`.
 - When a bindable display value depends on other observable properties, prefer analyzer-friendly dependency patterns such as `[NotifyPropertyChangedFor]` over manual `OnPropertyChanged(...)` refresh calls so the solution stays warning-clean.
 - Preserve stable item identity in GridView/ListView card layouts. Prefer persistent mutable card/view-model instances exposed via `ReadOnlyObservableCollection<T>` over rebinding fresh arrays every refresh, otherwise cards blink and pointer/layout state resets.
@@ -32,6 +32,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - When working on telemetry streams, ensure that you are properly marshalling back to the UI thread using `ObserveOn(SynchronizationContext.Current)` or `ObserveOn(DispatcherQueue.Current)` as appropriate for the platform. This will prevent threading issues and ensure that UI updates happen smoothly.
 - When working on IObservable use `DisposeWith` and `CompositeDisposable` to manage subscriptions and ensure they are cleaned up properly to avoid memory leaks or unintended side effects.
 - When modifying or adding new telemetry streams, consider the implications of stream sharing and backpressure. Use `RefCountedObservableCache` or similar patterns to avoid creating multiple gRPC subscriptions for the same data, and implement explicit throttling or buffering strategies if consumers may fall behind.
+- For serializing async work in service-side managers and stores (Apply/Save/Load orchestration over `IFrameworkDataProvider` plus JSON file I/O), prefer the Rx-based `ReactiveRequestQueue` helper (`Subject.Synchronize` + `Observable.FromAsync` + `Concat`) over `SemaphoreSlim(1, 1)` + `try`/`finally`. Public methods stay `Task`/`Task<T>`-returning and just `return _queue.EnqueueAsync(async ct => { ... }, cancellationToken);`; per-call cancellation propagates through the envelope via a `TaskCompletionSource`. Keep `ObjectDisposedException.ThrowIf(...)` outside the enqueue call.
 
 ### Building
 - You build via tasks "build-service", "build-windows", which compiles the service and UNO app.
@@ -73,7 +74,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - `MainModel`, `HeaderModel`, and dashboard view models are the primary reactive consumers.
 - Prefer `IFrameworkStatusClient`, `IFrameworkTelemetryClient`, `IFanCapabilityClient`, `IFanControlStateClient`, and higher-level telemetry clients instead of raw data providers.
 - `SettingsModel` should combine lifecycle state from `IFrameworkServiceControlClient` with service-owned runtime configuration from `IFrameworkServiceConfigurationClient`. Autorun is lifecycle state; polling cadence and writable fan-command authorization are service-owned config.
-- `SettingsModel` should also expose client-local display-unit preferences through `IUserUnitPreferencesClient`; keep those preferences separate from service-owned configuration.
+- `SettingsModel` should also expose machine-wide display-unit preferences through `IUserUnitPreferencesClient` (backed by `FrameworkUserPreferencesService`); those preferences live in a separate service-owned store from the runtime configuration but share the same Apply/Save/Load UX.
 - Route UI-facing numeric formatting, suffixes, copyable inventory values, and chart axis labelers through `IUnitFormattingService` instead of per-page ad hoc conversion logic.
 - Left navigation is icon-led and supports a compact app-shell visual style.
 - Pages should emphasize summary cards, status badges, and nested telemetry cards rather than dense tables.
@@ -236,6 +237,9 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - `SubZeroFramework.Service/Services/FrameworkServiceConfigurationGrpcService.cs`
 - `SubZeroFramework.Service/Services/FrameworkServiceConfigurationManager.cs`
 - `SubZeroFramework.Service/Services/FrameworkServiceConfigurationStore.cs`
+- `SubZeroFramework.Service/Services/FrameworkUserPreferencesGrpcService.cs`
+- `SubZeroFramework.Service/Services/FrameworkUserPreferencesManager.cs`
+- `SubZeroFramework.Service/Services/FrameworkUserPreferencesStore.cs`
 - `SubZeroFramework.Service/Services/FrameworkTelemetryGrpcService.cs`
 - `SubZeroFramework.Service/Services/FrameworkFanControlGrpcService.cs`
 - `SubZeroFramework.Service/Services/FrameworkFanControlStateStore.cs`
@@ -249,6 +253,7 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - `SubZeroFramework/Services/LocalFrameworkServiceControlClient.cs`
 - `SubZeroFramework/Services/GrpcHardwareInfoClient.cs`
 - `SubZeroFramework.Services/RefCountedObservableCache.cs`
+- `SubZeroFramework.Service/Services/ReactiveRequestQueue.cs`
 - `SubZeroFramework/WorkToBeDone.md`
 - `SubZeroFramework/Docs/TelemetryUiGuide.md`
 - `SubZeroFramework.Service/Services/GrpcChangeSetWriter.cs`
@@ -267,7 +272,7 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - `SubZeroFramework/Presentation/PresentationDefaults.cs`
 - `SubZeroFramework/Presentation/TimeChartAxisHelper.cs`
 - `SubZeroFramework/Services/IUserUnitPreferencesClient.cs`
-- `SubZeroFramework/Services/LocalUserUnitPreferencesClient.cs`
+- `SubZeroFramework/Services/GrpcUserUnitPreferencesClient.cs`
 - `SubZeroFramework/Controls/AutoWrapPanel.cs`
 - `SubZeroFramework/Presentation/MenuItems/DeviceCapabilities/DeviceCapabilitiesPage.xaml`
 - `SubZeroFramework/Presentation/MenuItems/Dashboard/DashboardPage.xaml`

@@ -1,6 +1,6 @@
 namespace SubZeroFramework.Models;
 
-public sealed record FrameworkServiceConfigurationUpdateRequest
+public sealed record FrameworkServiceConfigurationApplyRequest
 {
     public required TimeSpan PollingInterval { get; init; }
 

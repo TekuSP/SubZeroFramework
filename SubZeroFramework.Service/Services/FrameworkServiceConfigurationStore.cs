@@ -13,8 +13,10 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
         WriteIndented = true,
     };
 
-    private readonly SemaphoreSlim _writeGate = new(1, 1);
+    private readonly ReactiveRequestQueue _writeQueue = new();
     private readonly ILogger<FrameworkServiceConfigurationStore> _logger;
+    private readonly string _defaultPersistentConfigurationPath;
+    private string _persistentConfigurationPath;
     private bool _disposed;
 
     public FrameworkServiceConfigurationStore(ILogger<FrameworkServiceConfigurationStore> logger)
@@ -22,27 +24,95 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
     {
     }
 
-    public FrameworkServiceConfigurationStore(string persistentConfigurationPath, ILogger<FrameworkServiceConfigurationStore> logger)
+    public FrameworkServiceConfigurationStore(string defaultPersistentConfigurationPath, ILogger<FrameworkServiceConfigurationStore> logger)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(persistentConfigurationPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(defaultPersistentConfigurationPath);
         ArgumentNullException.ThrowIfNull(logger);
 
-        PersistentConfigurationPath = Path.GetFullPath(persistentConfigurationPath);
+        _defaultPersistentConfigurationPath = Path.GetFullPath(defaultPersistentConfigurationPath);
+        _persistentConfigurationPath = StorePathBootstrap.ResolveActivePath(_defaultPersistentConfigurationPath);
         _logger = logger;
     }
 
-    public string PersistentConfigurationPath { get; }
+    public string PersistentConfigurationPath => Volatile.Read(ref _persistentConfigurationPath);
 
-    public async Task WriteAsync(FrameworkServiceOptions options, CancellationToken cancellationToken = default)
+    public string DefaultPersistentConfigurationPath => _defaultPersistentConfigurationPath;
+
+    public Task<StoreRelocationResult> RelocateAsync(string targetDirectory, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        return _writeQueue.EnqueueAsync(async ct =>
+        {
+            var current = Volatile.Read(ref _persistentConfigurationPath);
+            var result = await StorePathRelocator.RelocateAsync(current, _defaultPersistentConfigurationPath, targetDirectory, ct).ConfigureAwait(false);
+            if (result.Succeeded && !string.Equals(result.ActivePath, current, StringComparison.OrdinalIgnoreCase))
+            {
+                Volatile.Write(ref _persistentConfigurationPath, result.ActivePath);
+                _logger.LogInformation("Relocated persistent service configuration store from {OldPath} to {NewPath}.", current, result.ActivePath);
+            }
+            else if (!result.Succeeded)
+            {
+                _logger.LogWarning("Persistent service configuration store relocation to '{TargetDirectory}' failed: {Message}", targetDirectory, result.Message);
+            }
+
+            return result;
+        }, cancellationToken);
+    }
+
+    public Task<FrameworkServiceOptions?> ReadAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        return _writeQueue.EnqueueAsync(async ct =>
+        {
+            var root = await LoadRootObjectAsync(ct).ConfigureAwait(false);
+            if (root["FrameworkService"] is not JsonObject section)
+            {
+                return (FrameworkServiceOptions?)null;
+            }
+
+            var defaults = new FrameworkServiceOptions();
+
+            return (FrameworkServiceOptions?)new FrameworkServiceOptions
+            {
+                PollingInterval = ReadTimeSpan(section, "PollingInterval", defaults.PollingInterval),
+                HardwareInfoPollingInterval = ReadTimeSpan(section, "HardwareInfoPollingInterval", defaults.HardwareInfoPollingInterval),
+                AllowFanControlCommands = ReadBoolean(section, "AllowFanControlCommands", defaults.AllowFanControlCommands),
+            };
+        }, cancellationToken);
+    }
+
+    private static TimeSpan ReadTimeSpan(JsonObject section, string propertyName, TimeSpan fallback)
+    {
+        if (section[propertyName] is JsonValue value && value.TryGetValue(out string? text)
+            && !string.IsNullOrWhiteSpace(text)
+            && TimeSpan.TryParse(text, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        return fallback;
+    }
+
+    private static bool ReadBoolean(JsonObject section, string propertyName, bool fallback)
+    {
+        if (section[propertyName] is JsonValue value && value.TryGetValue(out bool parsed))
+        {
+            return parsed;
+        }
+
+        return fallback;
+    }
+
+    public Task WriteAsync(FrameworkServiceOptions options, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(options);
 
-        await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-        try
+        return _writeQueue.EnqueueAsync(async ct =>
         {
-            var root = await LoadRootObjectAsync(cancellationToken).ConfigureAwait(false);
+            var root = await LoadRootObjectAsync(ct).ConfigureAwait(false);
             var frameworkServiceSection = root["FrameworkService"] as JsonObject ?? new JsonObject();
 
             frameworkServiceSection["PollingInterval"] = options.PollingInterval.ToString("c", CultureInfo.InvariantCulture);
@@ -57,7 +127,7 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
             }
 
             var temporaryPath = $"{PersistentConfigurationPath}.tmp";
-            await File.WriteAllTextAsync(temporaryPath, root.ToJsonString(JsonWriterOptions), cancellationToken).ConfigureAwait(false);
+            await File.WriteAllTextAsync(temporaryPath, root.ToJsonString(JsonWriterOptions), ct).ConfigureAwait(false);
             File.Move(temporaryPath, PersistentConfigurationPath, overwrite: true);
 
             _logger.LogInformation(
@@ -66,11 +136,7 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
                 options.PollingInterval,
                 options.HardwareInfoPollingInterval,
                 options.AllowFanControlCommands);
-        }
-        finally
-        {
-            _writeGate.Release();
-        }
+        }, cancellationToken);
     }
 
     public void Dispose()
@@ -80,7 +146,7 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
             return;
         }
 
-        _writeGate.Dispose();
+        _writeQueue.Dispose();
         _disposed = true;
     }
 

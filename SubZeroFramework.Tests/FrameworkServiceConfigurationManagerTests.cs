@@ -4,7 +4,6 @@ using DynamicData;
 
 using FrameworkDotnet.Snapshots;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using NUnit.Framework;
@@ -20,31 +19,16 @@ namespace SubZeroFramework.Tests;
 public class FrameworkServiceConfigurationManagerTests
 {
     [Test]
-    public async Task UpdateAsync_WhenRequestIsValid_PersistsAndAppliesRuntimeConfiguration()
+    public async Task ApplyAsync_WhenRequestIsValid_AppliesRuntimeConfigurationWithoutPersisting()
     {
         var filePath = CreateTemporaryPath();
 
         try
         {
-            var provider = new TestFrameworkDataProvider();
-            var options = new FrameworkServiceOptions
-            {
-                PollingInterval = TimeSpan.FromMilliseconds(150),
-                HardwareInfoPollingInterval = TimeSpan.FromSeconds(1),
-                AllowFanControlCommands = false,
-            };
-            var authorizationService = new FrameworkFanControlAuthorizationService(new TestOptionsMonitor<FrameworkServiceOptions>(options), NullLogger<FrameworkFanControlAuthorizationService>.Instance);
-            using var store = new FrameworkServiceConfigurationStore(filePath, NullLogger<FrameworkServiceConfigurationStore>.Instance);
-            var configurationRoot = new ConfigurationBuilder().AddInMemoryCollection().Build();
-            var manager = new FrameworkServiceConfigurationManager(
-                provider,
-                authorizationService,
-                new TestOptionsMonitor<FrameworkServiceOptions>(options),
-                configurationRoot,
-                store,
-                NullLogger<FrameworkServiceConfigurationManager>.Instance);
+            var (manager, provider, _, _) = CreateManager(filePath);
+            using var _manager = manager;
 
-            var result = await manager.UpdateAsync(new FrameworkServiceConfigurationUpdateRequest
+            var result = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(250),
                 HardwareInfoPollingInterval = TimeSpan.FromSeconds(2),
@@ -67,8 +51,7 @@ public class FrameworkServiceConfigurationManagerTests
                 Assert.That(provider.StartHardwareInfoPollingCalls, Is.EqualTo(1));
                 Assert.That(provider.RefreshCalls, Is.EqualTo(1));
                 Assert.That(provider.LastFanControlEnabled, Is.True);
-                Assert.That(provider.LastHasCallerIdentityValidation, Is.False);
-                Assert.That(provider.LastAuthorizationMessage, Is.EqualTo(authorizationService.GetAuthorizationMessage(true)));
+                Assert.That(File.Exists(filePath), Is.False, "ApplyAsync must not persist to disk.");
             });
         }
         finally
@@ -78,97 +61,191 @@ public class FrameworkServiceConfigurationManagerTests
     }
 
     [Test]
-    public async Task UpdateAsync_WhenIntervalsAreInvalid_ReturnsFailureWithoutApplyingChanges()
-    {
-        var provider = new TestFrameworkDataProvider();
-        var options = new FrameworkServiceOptions
-        {
-            PollingInterval = TimeSpan.FromMilliseconds(150),
-            HardwareInfoPollingInterval = TimeSpan.FromSeconds(1),
-            AllowFanControlCommands = false,
-        };
-        var authorizationService = new FrameworkFanControlAuthorizationService(new TestOptionsMonitor<FrameworkServiceOptions>(options), NullLogger<FrameworkFanControlAuthorizationService>.Instance);
-        using var store = new FrameworkServiceConfigurationStore(CreateTemporaryPath(), NullLogger<FrameworkServiceConfigurationStore>.Instance);
-        var configurationRoot = new ConfigurationBuilder().AddInMemoryCollection().Build();
-        var manager = new FrameworkServiceConfigurationManager(
-            provider,
-            authorizationService,
-            new TestOptionsMonitor<FrameworkServiceOptions>(options),
-            configurationRoot,
-            store,
-            NullLogger<FrameworkServiceConfigurationManager>.Instance);
-
-        var result = await manager.UpdateAsync(new FrameworkServiceConfigurationUpdateRequest
-        {
-            PollingInterval = TimeSpan.Zero,
-            HardwareInfoPollingInterval = TimeSpan.FromSeconds(1),
-            AllowFanControlCommands = false,
-        });
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.Succeeded, Is.False);
-            Assert.That(result.Message, Does.Contain("greater than zero milliseconds"));
-            Assert.That(provider.SetPollingCalls, Is.Zero);
-            Assert.That(provider.SetHardwareInfoPollingCalls, Is.Zero);
-            Assert.That(provider.StopPollingCalls, Is.Zero);
-            Assert.That(provider.RefreshCalls, Is.Zero);
-        });
-    }
-
-    [Test]
-    public async Task UpdateAsync_WhenApplyingFails_RollsBackToPreviousConfiguration()
+    public async Task ApplyAsync_WhenIntervalsAreInvalid_ReturnsFailureWithoutApplyingChanges()
     {
         var filePath = CreateTemporaryPath();
 
         try
         {
-            var provider = new TestFrameworkDataProvider
+            var (manager, provider, _, _) = CreateManager(filePath);
+            using var _manager = manager;
+
+            var result = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
-                FailSetPollingOnCallNumber = 1,
-            };
-            var options = new FrameworkServiceOptions
-            {
-                PollingInterval = TimeSpan.FromMilliseconds(150),
+                PollingInterval = TimeSpan.Zero,
                 HardwareInfoPollingInterval = TimeSpan.FromSeconds(1),
                 AllowFanControlCommands = false,
-            };
-            var authorizationService = new FrameworkFanControlAuthorizationService(new TestOptionsMonitor<FrameworkServiceOptions>(options), NullLogger<FrameworkFanControlAuthorizationService>.Instance);
-            using var store = new FrameworkServiceConfigurationStore(filePath, NullLogger<FrameworkServiceConfigurationStore>.Instance);
-            var configurationRoot = new ConfigurationBuilder().AddInMemoryCollection().Build();
-            var manager = new FrameworkServiceConfigurationManager(
-                provider,
-                authorizationService,
-                new TestOptionsMonitor<FrameworkServiceOptions>(options),
-                configurationRoot,
-                store,
-                NullLogger<FrameworkServiceConfigurationManager>.Instance);
+            });
 
-            var result = await manager.UpdateAsync(new FrameworkServiceConfigurationUpdateRequest
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Succeeded, Is.False);
+                Assert.That(result.Message, Does.Contain("greater than zero"));
+                Assert.That(provider.SetPollingCalls, Is.Zero);
+                Assert.That(provider.SetHardwareInfoPollingCalls, Is.Zero);
+                Assert.That(provider.StopPollingCalls, Is.Zero);
+                Assert.That(provider.RefreshCalls, Is.Zero);
+            });
+        }
+        finally
+        {
+            DeleteTemporaryPath(filePath);
+        }
+    }
+
+    [Test]
+    public async Task ApplyAsync_WhenApplyingFails_RollsBackRuntimeConfiguration()
+    {
+        var filePath = CreateTemporaryPath();
+
+        try
+        {
+            var (manager, provider, _, options) = CreateManager(filePath, providerFactory: () => new TestFrameworkDataProvider
+            {
+                FailSetPollingOnCallNumber = 1,
+            });
+            using var _manager = manager;
+
+            var result = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(250),
                 HardwareInfoPollingInterval = TimeSpan.FromSeconds(2),
                 AllowFanControlCommands = true,
             });
 
-            var persistedJson = await File.ReadAllTextAsync(filePath);
-
             Assert.Multiple(() =>
             {
                 Assert.That(result.Succeeded, Is.False);
-                Assert.That(result.Message, Does.Contain("previous configuration was restored"));
+                Assert.That(result.Message, Does.Contain("previous runtime configuration was restored"));
                 Assert.That(result.Configuration.PollingInterval, Is.EqualTo(options.PollingInterval));
                 Assert.That(result.Configuration.HardwareInfoPollingInterval, Is.EqualTo(options.HardwareInfoPollingInterval));
                 Assert.That(result.Configuration.AllowFanControlCommands, Is.EqualTo(options.AllowFanControlCommands));
                 Assert.That(provider.SetPollingCalls, Is.EqualTo(2));
-                Assert.That(persistedJson, Does.Contain(options.PollingInterval.ToString("c")));
-                Assert.That(persistedJson, Does.Not.Contain(TimeSpan.FromMilliseconds(250).ToString("c")));
+                Assert.That(File.Exists(filePath), Is.False);
             });
         }
         finally
         {
             DeleteTemporaryPath(filePath);
         }
+    }
+
+    [Test]
+    public async Task SaveAsync_PersistsCurrentConfigurationToDisk()
+    {
+        var filePath = CreateTemporaryPath();
+
+        try
+        {
+            var (manager, _, _, _) = CreateManager(filePath);
+            using var _manager = manager;
+
+            var apply = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
+            {
+                PollingInterval = TimeSpan.FromMilliseconds(250),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(2),
+                AllowFanControlCommands = true,
+            });
+            Assert.That(apply.Succeeded, Is.True);
+
+            var saveResult = await manager.SaveAsync();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(saveResult.Succeeded, Is.True);
+                Assert.That(File.Exists(filePath), Is.True);
+            });
+        }
+        finally
+        {
+            DeleteTemporaryPath(filePath);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_WhenFileMissing_ReturnsFailureWithCurrentSnapshot()
+    {
+        var filePath = CreateTemporaryPath();
+
+        try
+        {
+            var (manager, _, _, options) = CreateManager(filePath);
+            using var _manager = manager;
+
+            var result = await manager.LoadAsync();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(result.Succeeded, Is.False);
+                Assert.That(result.Message, Does.Contain("No persisted"));
+                Assert.That(result.Configuration.PollingInterval, Is.EqualTo(options.PollingInterval));
+            });
+        }
+        finally
+        {
+            DeleteTemporaryPath(filePath);
+        }
+    }
+
+    [Test]
+    public async Task LoadAsync_AfterSave_AppliesPersistedConfiguration()
+    {
+        var filePath = CreateTemporaryPath();
+
+        try
+        {
+            var (manager, provider, _, _) = CreateManager(filePath);
+            using var _manager = manager;
+
+            var apply = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
+            {
+                PollingInterval = TimeSpan.FromMilliseconds(250),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(2),
+                AllowFanControlCommands = true,
+            });
+            Assert.That(apply.Succeeded, Is.True);
+            var save = await manager.SaveAsync();
+            Assert.That(save.Succeeded, Is.True);
+
+            var loadResult = await manager.LoadAsync();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(loadResult.Succeeded, Is.True);
+                Assert.That(loadResult.Configuration.PollingInterval, Is.EqualTo(TimeSpan.FromMilliseconds(250)));
+                Assert.That(loadResult.Configuration.HardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(2)));
+                Assert.That(loadResult.Configuration.AllowFanControlCommands, Is.True);
+                Assert.That(provider.SetPollingCalls, Is.GreaterThanOrEqualTo(2));
+            });
+        }
+        finally
+        {
+            DeleteTemporaryPath(filePath);
+        }
+    }
+
+    private static (FrameworkServiceConfigurationManager Manager, TestFrameworkDataProvider Provider, FrameworkServiceConfigurationStore Store, FrameworkServiceOptions Options) CreateManager(
+        string filePath,
+        Func<TestFrameworkDataProvider>? providerFactory = null)
+    {
+        var provider = (providerFactory ?? (() => new TestFrameworkDataProvider()))();
+        var options = new FrameworkServiceOptions
+        {
+            PollingInterval = TimeSpan.FromMilliseconds(150),
+            HardwareInfoPollingInterval = TimeSpan.FromSeconds(1),
+            AllowFanControlCommands = false,
+        };
+        var optionsMonitor = new TestOptionsMonitor<FrameworkServiceOptions>(options);
+        var authorizationService = new FrameworkFanControlAuthorizationService(optionsMonitor, NullLogger<FrameworkFanControlAuthorizationService>.Instance);
+        var store = new FrameworkServiceConfigurationStore(filePath, NullLogger<FrameworkServiceConfigurationStore>.Instance);
+        var manager = new FrameworkServiceConfigurationManager(
+            provider,
+            authorizationService,
+            optionsMonitor,
+            store,
+            NullLogger<FrameworkServiceConfigurationManager>.Instance);
+
+        return (manager, provider, store, options);
     }
 
     private static string CreateTemporaryPath()

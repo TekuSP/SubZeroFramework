@@ -251,11 +251,11 @@ Settings is the control panel for application behavior, service lifecycle action
 
 - Application preferences such as start with Windows and start minimized.
 - Default profile selection.
-- A Units section for local client display units covering temperature, fan speed, clock frequency, refresh rate, information size, voltage, current, charge capacity, ratio or fraction, length, airflow, network link speed, and power.
-- Preference-path visibility plus Save Units, Reset Draft, and Restore Defaults flows for client-local display-unit persistence.
+- A Units section for machine-wide display units (owned by the service so every local client sees the same units) covering temperature, fan speed, clock frequency, refresh rate, information size, voltage, current, charge capacity, ratio or fraction, length, airflow, network link speed, and power.
+- Preference-path visibility plus Load, Reset Draft, Restore Defaults, Apply, and Save flows for machine-wide display-unit preferences.
 - Service-manager identity, install source summary, readiness guidance, and privilege-prompt messaging.
 - Service shutdown, restart, autorun, install, update, uninstall, and reinstall actions when needed.
-- Service-owned runtime configuration for telemetry cadence, hardware-info cadence, and fan-command authorization, kept separate from client-local display preferences.
+- Service-owned runtime configuration for telemetry cadence, hardware-info cadence, and fan-command authorization, exposed with Load, Reset Draft, Apply, and Save flows that share the same Apply/Save/Load mental model as display-unit preferences.
 - Feature toggles for app modules or custom fan control features.
 - Advanced configuration blocks when they are safe and meaningful.
 - Update and about information.
@@ -264,7 +264,7 @@ Settings is the control panel for application behavior, service lifecycle action
 
 - Managing startup behavior.
 - Managing profile defaults.
-- Managing local display-unit preferences without changing the service's canonical units.
+- Managing machine-wide display-unit preferences (Apply for live updates across all clients, Save to persist) without changing the service's canonical units.
 - Managing service lifecycle operations, including shutdown, restart, autorun, install, update, uninstall, and reinstall.
 - Reviewing version and build information.
 - Accessing update or project links.
@@ -296,8 +296,8 @@ The design boards currently suggest these broad visual intentions:
 ## Notes on current implementation state
 
 - Dashboard and Device Capabilities already contain the most mature UI direction.
-- Settings now includes service-health, package-readiness, privilege-prompt, lifecycle-action functionality, and a working Units section backed by local client preference persistence; the broader app-preferences surface still needs more work.
+- Settings now includes service-health, package-readiness, privilege-prompt, lifecycle-action functionality, and a working Units section backed by machine-wide service-owned preferences; the broader app-preferences surface still needs more work.
 - Warnings and Issues now acts as the unhealthy-state remediation surface with top-level status messaging, package readiness, privilege guidance, and quick service lifecycle actions.
-- Dashboard, Thermal Telemetry, Power, fan cards, cooling hardware views, and Device Capabilities surfaces already honor client-local display-unit conversion and axis labeling.
+- Dashboard, Thermal Telemetry, Power, fan cards, cooling hardware views, and Device Capabilities surfaces already honor the machine-wide display-unit conversion and axis labeling.
 - Thermal Telemetry now has the first end-to-end dedicated telemetry slice, while Power Telemetry and Fan Curve Profiles still need more of the intended functionality implemented.
 - The old broader design idea of a single generic Telemetry or Diagnostics area has effectively been split into Thermal Telemetry, Power Telemetry, Fan Curve Profiles, Device Capabilities, and Warnings and Issues.

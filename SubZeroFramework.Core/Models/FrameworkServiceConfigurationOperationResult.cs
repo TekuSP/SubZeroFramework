@@ -1,6 +1,6 @@
 namespace SubZeroFramework.Models;
 
-public sealed record FrameworkServiceConfigurationUpdateResult
+public sealed record FrameworkServiceConfigurationOperationResult
 {
     public required bool Succeeded { get; init; }
 

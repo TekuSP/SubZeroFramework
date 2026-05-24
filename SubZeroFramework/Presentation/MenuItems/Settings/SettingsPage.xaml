@@ -163,6 +163,22 @@
                     </Grid>
                 </controls:ElevatedCard>
 
+                <controls:ElevatedCard
+                    Margin="5,0,0,10"
+                    Background="{StaticResource CardBackgroundBrush}"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Stretch"
+                    Visibility="{x:Bind ViewModel.IsLastActionVisible, Mode=OneWay}">
+                    <StackPanel Margin="15" Spacing="10">
+                        <InfoBar
+                            Title="{x:Bind ViewModel.LastActionTitle, Mode=OneWay}"
+                            IsClosable="True"
+                            IsOpen="{x:Bind ViewModel.IsLastActionVisible, Mode=TwoWay}"
+                            Message="{x:Bind ViewModel.LastActionMessage, Mode=OneWay}"
+                            Severity="{x:Bind ViewModel.LastActionSeverity, Mode=OneWay}" />
+                    </StackPanel>
+                </controls:ElevatedCard>
+
                 <Grid Margin="5,0" RowSpacing="12" ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -374,6 +390,13 @@
                                 <StackPanel Spacing="6">
                                     <TextBlock Style="{StaticResource SettingsLabelStyle}" Text="Persistent configuration path" />
                                     <TextBlock Style="{StaticResource SettingsValueStyle}" Text="{x:Bind ViewModel.ConfigurationSourcePath, Mode=OneWay}" />
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
+                                        <Button
+                                            Click="OnChangeConfigurationPathClick"
+                                            Content="Change folder…"
+                                            IsEnabled="{x:Bind ViewModel.IsConfigurationLoaded, Mode=OneWay}"
+                                            Style="{StaticResource SettingsActionButtonStyle}" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 
@@ -433,23 +456,31 @@
 
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
                                 <Button
+                                    Command="{x:Bind ViewModel.LoadConfigurationCommand, Mode=OneWay}"
+                                    Content="Load saved"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+                                <Button
                                     Command="{x:Bind ViewModel.ResetConfigurationCommand, Mode=OneWay}"
                                     Content="Reset draft"
                                     IsEnabled="{x:Bind ViewModel.CanResetConfiguration, Mode=OneWay}"
                                     Style="{StaticResource SettingsActionButtonStyle}" />
                                 <Button
                                     Command="{x:Bind ViewModel.ApplyConfigurationCommand, Mode=OneWay}"
-                                    Content="Save and apply"
+                                    Content="Apply"
                                     IsEnabled="{x:Bind ViewModel.CanApplyConfiguration, Mode=OneWay}"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+                                <Button
+                                    Command="{x:Bind ViewModel.SaveConfigurationCommand, Mode=OneWay}"
+                                    Content="Save"
                                     Style="{StaticResource SettingsActionButtonStyle}" />
                             </StackPanel>
 
                             <InfoBar
-                                Title="{x:Bind ViewModel.LastActionTitle, Mode=OneWay}"
+                                Title="{x:Bind ViewModel.ConfigurationActionTitle, Mode=OneWay}"
                                 IsClosable="True"
-                                IsOpen="{x:Bind ViewModel.IsLastActionVisible, Mode=TwoWay}"
-                                Message="{x:Bind ViewModel.LastActionMessage, Mode=OneWay}"
-                                Severity="{x:Bind ViewModel.LastActionSeverity, Mode=OneWay}" />
+                                IsOpen="{x:Bind ViewModel.IsConfigurationActionVisible, Mode=TwoWay}"
+                                Message="{x:Bind ViewModel.ConfigurationActionMessage, Mode=OneWay}"
+                                Severity="{x:Bind ViewModel.ConfigurationActionSeverity, Mode=OneWay}" />
                         </StackPanel>
                     </controls:ElevatedCard>
 
@@ -472,15 +503,21 @@
 
                             <TextBlock
                                 Style="{StaticResource SettingsBodyStyle}"
-                                Text="These preferences are stored locally for this client and only affect how the UI displays telemetry, inventory, and chart values. The service and gRPC contracts keep their canonical units." />
+                                Text="These display preferences are stored by SubZeroFramework.Service and shared by every client on this machine. They only affect how the UI presents telemetry, inventory, and chart values; the service and gRPC contracts keep their canonical units." />
 
                             <Border
                                 Padding="12"
                                 Background="#1CFFFFFF"
                                 CornerRadius="8">
                                 <StackPanel Spacing="6">
-                                    <TextBlock Style="{StaticResource SettingsLabelStyle}" Text="Local preferences path" />
+                                    <TextBlock Style="{StaticResource SettingsLabelStyle}" Text="Machine-wide preferences path" />
                                     <TextBlock Style="{StaticResource SettingsValueStyle}" Text="{x:Bind ViewModel.UserUnitPreferencesFilePath, Mode=OneWay}" />
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
+                                        <Button
+                                            Click="OnChangeUserPreferencesPathClick"
+                                            Content="Change folder…"
+                                            Style="{StaticResource SettingsActionButtonStyle}" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 
@@ -520,9 +557,13 @@
 
                             <TextBlock
                                 Style="{StaticResource SettingsBodyStyle}"
-                                Text="Saving here updates the UI immediately and persists the selected display units under your local app data folder." />
+                                Text="Apply updates the live UI on every client immediately. Save persists the current preferences for future service starts. Load re-reads the persisted preferences from the service." />
 
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                                <Button
+                                    Command="{x:Bind ViewModel.LoadUnitPreferencesCommand, Mode=OneWay}"
+                                    Content="Load saved"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
                                 <Button
                                     Command="{x:Bind ViewModel.ResetUnitPreferencesCommand, Mode=OneWay}"
                                     Content="Reset draft"
@@ -532,10 +573,21 @@
                                     Content="Restore defaults"
                                     Style="{StaticResource SettingsActionButtonStyle}" />
                                 <Button
+                                    Command="{x:Bind ViewModel.ApplyUnitPreferencesCommand, Mode=OneWay}"
+                                    Content="Apply"
+                                    Style="{StaticResource SettingsActionButtonStyle}" />
+                                <Button
                                     Command="{x:Bind ViewModel.SaveUnitPreferencesCommand, Mode=OneWay}"
-                                    Content="Save units"
+                                    Content="Save"
                                     Style="{StaticResource SettingsActionButtonStyle}" />
                             </StackPanel>
+
+                            <InfoBar
+                                Title="{x:Bind ViewModel.UnitPreferenceActionTitle, Mode=OneWay}"
+                                IsClosable="True"
+                                IsOpen="{x:Bind ViewModel.IsUnitPreferenceActionVisible, Mode=TwoWay}"
+                                Message="{x:Bind ViewModel.UnitPreferenceActionMessage, Mode=OneWay}"
+                                Severity="{x:Bind ViewModel.UnitPreferenceActionSeverity, Mode=OneWay}" />
                         </StackPanel>
                     </controls:ElevatedCard>
                 </Grid>

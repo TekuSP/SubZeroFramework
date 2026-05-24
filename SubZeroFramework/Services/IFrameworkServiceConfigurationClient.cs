@@ -6,5 +6,11 @@ public interface IFrameworkServiceConfigurationClient
 
     IObservable<FrameworkServiceConfigurationSnapshot> WatchConfiguration();
 
-    Task<FrameworkServiceConfigurationUpdateResult> UpdateConfigurationAsync(FrameworkServiceConfigurationUpdateRequest request, CancellationToken cancellationToken = default);
+    Task<FrameworkServiceConfigurationOperationResult> ApplyConfigurationAsync(FrameworkServiceConfigurationApplyRequest request, CancellationToken cancellationToken = default);
+
+    Task<FrameworkServiceConfigurationOperationResult> SaveConfigurationAsync(CancellationToken cancellationToken = default);
+
+    Task<FrameworkServiceConfigurationOperationResult> LoadConfigurationAsync(CancellationToken cancellationToken = default);
+
+    Task<FrameworkServiceConfigurationOperationResult> RelocateConfigurationStoreAsync(string targetDirectory, CancellationToken cancellationToken = default);
 }

@@ -1,5 +1,10 @@
 using System.ComponentModel;
 
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+
+using Windows.Storage.Pickers;
+
 namespace SubZeroFramework.Presentation.MenuItems.Settings;
 
 public sealed partial class SettingsPage : Page, INotifyPropertyChanged
@@ -30,5 +35,45 @@ public sealed partial class SettingsPage : Page, INotifyPropertyChanged
         {
             ViewModel = model;
         }
+    }
+
+    private async void OnChangeConfigurationPathClick(object sender, RoutedEventArgs e)
+    {
+        var folder = await PickFolderAsync().ConfigureAwait(true);
+        if (folder is null)
+        {
+            return;
+        }
+
+        await ViewModel.RelocateConfigurationStoreCommand.ExecuteAsync(folder);
+    }
+
+    private async void OnChangeUserPreferencesPathClick(object sender, RoutedEventArgs e)
+    {
+        var folder = await PickFolderAsync().ConfigureAwait(true);
+        if (folder is null)
+        {
+            return;
+        }
+
+        await ViewModel.RelocateUnitPreferencesStoreCommand.ExecuteAsync(folder);
+    }
+
+    private async Task<string?> PickFolderAsync()
+    {
+        var picker = new FolderPicker
+        {
+            SuggestedStartLocation = PickerLocationId.ComputerFolder,
+        };
+        picker.FileTypeFilter.Add("*");
+
+        if (Application.Current is App app && app.MainWindow is not null)
+        {
+            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(app.MainWindow);
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+        }
+
+        var folder = await picker.PickSingleFolderAsync();
+        return folder?.Path;
     }
 }

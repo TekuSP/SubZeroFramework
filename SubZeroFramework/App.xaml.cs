@@ -105,7 +105,7 @@ public partial class App : Application
                     services.AddSingleton<IFanTelemetryClient, FanTelemetryClient>();
                     services.AddSingleton<ITemperatureTelemetryClient, TemperatureTelemetryClient>();
                     services.AddSingleton<IBatteryTelemetryClient, BatteryTelemetryClient>();
-                    services.AddSingleton<IUserUnitPreferencesClient, LocalUserUnitPreferencesClient>();
+                    services.AddSingleton<IUserUnitPreferencesClient, GrpcUserUnitPreferencesClient>();
                     services.AddSingleton<IUnitFormattingService, UnitsNetUnitFormattingService>();
                     services.AddSingleton<IFrameworkFanControlClient, GrpcFrameworkFanControlClient>();
                     services.AddSingleton<IHardwareInfoClient, GrpcHardwareInfoClient>();

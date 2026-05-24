@@ -2,31 +2,24 @@ using System.Threading.Channels;
 
 using Grpc.Core;
 
-using Microsoft.Extensions.Options;
-
 using SubZeroFramework.GrpcContracts;
 using SubZeroFramework.Models;
-using SubZeroFramework.Service.Models;
 
 namespace SubZeroFramework.Service.Services;
 
 public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceConfigurationService.FrameworkServiceConfigurationServiceBase
 {
     private readonly FrameworkServiceConfigurationManager _configurationManager;
-    private readonly IOptionsMonitor<FrameworkServiceOptions> _optionsMonitor;
     private readonly ILogger<FrameworkServiceConfigurationGrpcService> _logger;
 
     public FrameworkServiceConfigurationGrpcService(
         FrameworkServiceConfigurationManager configurationManager,
-        IOptionsMonitor<FrameworkServiceOptions> optionsMonitor,
         ILogger<FrameworkServiceConfigurationGrpcService> logger)
     {
         ArgumentNullException.ThrowIfNull(configurationManager);
-        ArgumentNullException.ThrowIfNull(optionsMonitor);
         ArgumentNullException.ThrowIfNull(logger);
 
         _configurationManager = configurationManager;
-        _optionsMonitor = optionsMonitor;
         _logger = logger;
     }
 
@@ -41,12 +34,10 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
         try
         {
             _logger.LogInformation("Opening service configuration stream.");
-            await responseStream.WriteAsync(MapConfiguration(_configurationManager.GetCurrentSnapshot()), context.CancellationToken).ConfigureAwait(false);
 
             var updates = Channel.CreateUnbounded<FrameworkServiceConfigurationReply>();
-            using var optionsSubscription = _optionsMonitor.OnChange(_ =>
+            using var subscription = _configurationManager.WatchSnapshot().Subscribe(snapshot =>
             {
-                var snapshot = _configurationManager.GetCurrentSnapshot();
                 updates.Writer.TryWrite(MapConfiguration(snapshot));
             });
 
@@ -64,16 +55,16 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
         }
     }
 
-    public override async Task<UpdateServiceConfigurationReply> UpdateServiceConfiguration(UpdateServiceConfigurationRequest request, ServerCallContext context)
+    public override async Task<ServiceConfigurationOperationReply> ApplyServiceConfiguration(ApplyServiceConfigurationRequest request, ServerCallContext context)
     {
         _logger.LogInformation(
-            "Received UpdateServiceConfiguration request. PollingIntervalMilliseconds={PollingIntervalMilliseconds}, HardwareInfoPollingIntervalMilliseconds={HardwareInfoPollingIntervalMilliseconds}, AllowFanControlCommands={AllowFanControlCommands}.",
+            "Received ApplyServiceConfiguration request. PollingIntervalMilliseconds={PollingIntervalMilliseconds}, HardwareInfoPollingIntervalMilliseconds={HardwareInfoPollingIntervalMilliseconds}, AllowFanControlCommands={AllowFanControlCommands}.",
             request.PollingIntervalMilliseconds,
             request.HardwareInfoPollingIntervalMilliseconds,
             request.AllowFanControlCommands);
 
-        var result = await _configurationManager.UpdateAsync(
-            new FrameworkServiceConfigurationUpdateRequest
+        var result = await _configurationManager.ApplyAsync(
+            new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(request.PollingIntervalMilliseconds),
                 HardwareInfoPollingInterval = TimeSpan.FromMilliseconds(request.HardwareInfoPollingIntervalMilliseconds),
@@ -81,7 +72,33 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
             },
             context.CancellationToken).ConfigureAwait(false);
 
-        return new UpdateServiceConfigurationReply
+        return MapResult(result);
+    }
+
+    public override async Task<ServiceConfigurationOperationReply> SaveServiceConfiguration(SaveServiceConfigurationRequest request, ServerCallContext context)
+    {
+        _logger.LogInformation("Received SaveServiceConfiguration request.");
+        var result = await _configurationManager.SaveAsync(context.CancellationToken).ConfigureAwait(false);
+        return MapResult(result);
+    }
+
+    public override async Task<ServiceConfigurationOperationReply> LoadServiceConfiguration(LoadServiceConfigurationRequest request, ServerCallContext context)
+    {
+        _logger.LogInformation("Received LoadServiceConfiguration request.");
+        var result = await _configurationManager.LoadAsync(context.CancellationToken).ConfigureAwait(false);
+        return MapResult(result);
+    }
+
+    public override async Task<ServiceConfigurationOperationReply> RelocateServiceConfiguration(RelocateServiceConfigurationRequest request, ServerCallContext context)
+    {
+        _logger.LogInformation("Received RelocateServiceConfiguration request. TargetDirectory={TargetDirectory}.", request.TargetDirectory);
+        var result = await _configurationManager.RelocateAsync(request.TargetDirectory ?? string.Empty, context.CancellationToken).ConfigureAwait(false);
+        return MapResult(result);
+    }
+
+    private static ServiceConfigurationOperationReply MapResult(FrameworkServiceConfigurationOperationResult result)
+    {
+        return new ServiceConfigurationOperationReply
         {
             Succeeded = result.Succeeded,
             Message = result.Message,

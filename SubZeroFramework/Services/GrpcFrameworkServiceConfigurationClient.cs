@@ -31,13 +31,13 @@ public sealed class GrpcFrameworkServiceConfigurationClient : IFrameworkServiceC
     public IObservable<FrameworkServiceConfigurationSnapshot> WatchConfiguration()
         => _sharedConfigurationStream;
 
-    public async Task<FrameworkServiceConfigurationUpdateResult> UpdateConfigurationAsync(FrameworkServiceConfigurationUpdateRequest request, CancellationToken cancellationToken = default)
+    public async Task<FrameworkServiceConfigurationOperationResult> ApplyConfigurationAsync(FrameworkServiceConfigurationApplyRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
 
         using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
-        var reply = await _client.UpdateServiceConfigurationAsync(
-            new UpdateServiceConfigurationRequest
+        var reply = await _client.ApplyServiceConfigurationAsync(
+            new ApplyServiceConfigurationRequest
             {
                 PollingIntervalMilliseconds = checked((long)Math.Round(request.PollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
                 HardwareInfoPollingIntervalMilliseconds = checked((long)Math.Round(request.HardwareInfoPollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
@@ -45,7 +45,38 @@ public sealed class GrpcFrameworkServiceConfigurationClient : IFrameworkServiceC
             },
             cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
 
-        return new FrameworkServiceConfigurationUpdateResult
+        return MapResult(reply);
+    }
+
+    public async Task<FrameworkServiceConfigurationOperationResult> SaveConfigurationAsync(CancellationToken cancellationToken = default)
+    {
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.SaveServiceConfigurationAsync(new SaveServiceConfigurationRequest(), cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+        return MapResult(reply);
+    }
+
+    public async Task<FrameworkServiceConfigurationOperationResult> LoadConfigurationAsync(CancellationToken cancellationToken = default)
+    {
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.LoadServiceConfigurationAsync(new LoadServiceConfigurationRequest(), cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+        return MapResult(reply);
+    }
+
+    public async Task<FrameworkServiceConfigurationOperationResult> RelocateConfigurationStoreAsync(string targetDirectory, CancellationToken cancellationToken = default)
+    {
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.RelocateServiceConfigurationAsync(
+            new RelocateServiceConfigurationRequest
+            {
+                TargetDirectory = targetDirectory ?? string.Empty,
+            },
+            cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+        return MapResult(reply);
+    }
+
+    private static FrameworkServiceConfigurationOperationResult MapResult(ServiceConfigurationOperationReply reply)
+    {
+        return new FrameworkServiceConfigurationOperationResult
         {
             Succeeded = reply.Succeeded,
             Message = reply.Message,

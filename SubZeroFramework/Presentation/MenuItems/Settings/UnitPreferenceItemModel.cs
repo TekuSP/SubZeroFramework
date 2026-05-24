@@ -66,7 +66,17 @@ public partial class UnitPreferenceItemModel : ObservableObject
     }
 
     public UserUnitPreferenceEntry ToEntry()
-        => new(Kind, SelectedOption.Key);
+        => new(Kind, SelectedOption?.Key ?? _appliedOptionKey);
+
+    // ItemsRepeater recycles the ComboBox template; the TwoWay binding can momentarily push null
+    // back through SelectedItem before ItemsSource resolves the matching option reference.
+    partial void OnSelectedOptionChanged(UnitPreferenceOptionViewModel value)
+    {
+        if (value is null)
+        {
+            SelectedOption = FindOption(_appliedOptionKey);
+        }
+    }
 
     private UnitPreferenceOptionViewModel FindOption(string optionKey)
     {

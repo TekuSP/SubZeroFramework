@@ -12,7 +12,20 @@ service FrameworkStatusService {
 service FrameworkServiceConfigurationService {
   rpc GetServiceConfiguration (GetServiceConfigurationRequest) returns (FrameworkServiceConfigurationReply);
   rpc WatchServiceConfiguration (WatchServiceConfigurationRequest) returns (stream FrameworkServiceConfigurationReply);
-  rpc UpdateServiceConfiguration (UpdateServiceConfigurationRequest) returns (UpdateServiceConfigurationReply);
+  rpc ApplyServiceConfiguration (ApplyServiceConfigurationRequest) returns (ServiceConfigurationOperationReply);
+  rpc SaveServiceConfiguration (SaveServiceConfigurationRequest) returns (ServiceConfigurationOperationReply);
+  rpc LoadServiceConfiguration (LoadServiceConfigurationRequest) returns (ServiceConfigurationOperationReply);
+  rpc RelocateServiceConfiguration (RelocateServiceConfigurationRequest) returns (ServiceConfigurationOperationReply);
+}
+
+service FrameworkUserPreferencesService {
+  rpc GetUserPreferences (GetUserPreferencesRequest) returns (UserPreferencesReply);
+  rpc WatchUserPreferences (WatchUserPreferencesRequest) returns (stream UserPreferencesReply);
+  rpc ApplyUserPreferences (ApplyUserPreferencesRequest) returns (UserPreferencesOperationReply);
+  rpc SaveUserPreferences (SaveUserPreferencesRequest) returns (UserPreferencesOperationReply);
+  rpc LoadUserPreferences (LoadUserPreferencesRequest) returns (UserPreferencesOperationReply);
+  rpc ResetUserPreferences (ResetUserPreferencesRequest) returns (UserPreferencesOperationReply);
+  rpc RelocateUserPreferences (RelocateUserPreferencesRequest) returns (UserPreferencesOperationReply);
 }
 
 service FrameworkTelemetryService {
@@ -48,10 +61,20 @@ message GetServiceConfigurationRequest {
 message WatchServiceConfigurationRequest {
 }
 
-message UpdateServiceConfigurationRequest {
+message ApplyServiceConfigurationRequest {
   int64 polling_interval_milliseconds = 1;
   int64 hardware_info_polling_interval_milliseconds = 2;
   bool allow_fan_control_commands = 3;
+}
+
+message SaveServiceConfigurationRequest {
+}
+
+message LoadServiceConfigurationRequest {
+}
+
+message RelocateServiceConfigurationRequest {
+  string target_directory = 1;
 }
 
 message FrameworkServiceConfigurationReply {
@@ -61,10 +84,51 @@ message FrameworkServiceConfigurationReply {
   string persistent_configuration_path = 4;
 }
 
-message UpdateServiceConfigurationReply {
+message ServiceConfigurationOperationReply {
   bool succeeded = 1;
   string message = 2;
   FrameworkServiceConfigurationReply configuration = 3;
+}
+
+message GetUserPreferencesRequest {
+}
+
+message WatchUserPreferencesRequest {
+}
+
+message ApplyUserPreferencesRequest {
+  int32 schema_version = 1;
+  repeated UserPreferenceEntryReply entries = 2;
+}
+
+message SaveUserPreferencesRequest {
+}
+
+message LoadUserPreferencesRequest {
+}
+
+message ResetUserPreferencesRequest {
+}
+
+message RelocateUserPreferencesRequest {
+  string target_directory = 1;
+}
+
+message UserPreferenceEntryReply {
+  string kind = 1;
+  string option_key = 2;
+}
+
+message UserPreferencesReply {
+  int32 schema_version = 1;
+  repeated UserPreferenceEntryReply entries = 2;
+  string preferences_path = 3;
+}
+
+message UserPreferencesOperationReply {
+  bool succeeded = 1;
+  string message = 2;
+  UserPreferencesReply preferences = 3;
 }
 
 message WatchTelemetryChannelsRequest {
