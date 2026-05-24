@@ -12,11 +12,12 @@
     mc:Ignorable="d">
 
     <controls:ElevatedCard
+        x:Name="CardRoot"
         Width="300"
         Height="250"
         HorizontalContentAlignment="Stretch"
         VerticalContentAlignment="Stretch"
-        Background="{StaticResource CardBackgroundBrush}">
+        Background="{x:Bind ViewModel.CardBackgroundBrush, Mode=OneWay}">
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
@@ -105,7 +106,8 @@
                     Margin="0,2,0,0"
                     HorizontalAlignment="Center"
                     Orientation="Horizontal"
-                    Spacing="6">
+                    Spacing="6"
+                    Visibility="{x:Bind ViewModel.DrivingTemperatureVisibility, Mode=OneWay}">
                     <material:MaterialIcon
                         Width="14"
                         Height="14"
@@ -116,14 +118,22 @@
                         Foreground="{StaticResource TextSecondaryBrush}"
                         Text="{x:Bind ViewModel.DrivingTemperatureDisplay, Mode=OneWay}" />
                 </StackPanel>
-                <TextBlock
-                    Margin="0,4,0,0"
+                <StackPanel
+                    Margin="0,2,0,0"
                     HorizontalAlignment="Right"
-                    FontSize="13"
-                    FontWeight="SemiBold"
-                    Foreground="{x:Bind ViewModel.OverrideStateBrush, Mode=OneWay}"
-                    Text="{x:Bind ViewModel.OverrideStateText, Mode=OneWay}"
-                    Visibility="{x:Bind ViewModel.OverrideStateVisibility, Mode=OneWay}" />
+                    Orientation="Horizontal"
+                    Spacing="6"
+                    Visibility="{x:Bind ViewModel.OverrideStateVisibility, Mode=OneWay}">
+                    <material:MaterialIcon
+                        Width="14"
+                        Height="14"
+                        Foreground="{x:Bind ViewModel.OverrideStateBrush, Mode=OneWay}"
+                        Kind="{x:Bind ViewModel.OverrideStateIcon, Mode=OneWay}" />
+                    <TextBlock
+                        FontSize="14"
+                        Foreground="{x:Bind ViewModel.OverrideStateBrush, Mode=OneWay}"
+                        Text="{x:Bind ViewModel.OverrideStateText, Mode=OneWay}" />
+                </StackPanel>
             </StackPanel>
 
             <lvc:CartesianChart
@@ -143,8 +153,16 @@
                             Fill="{x:Null}"
                             GeometryFill="{x:Null}"
                             GeometryStroke="{x:Null}"
-                            Stroke="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}, StrokeWidth='2'}"
+                            ScalesYAt="0"
+                            Stroke="{x:Bind ViewModel.FanSpeedStrokePaint, Mode=OneWay}"
                             Values="{x:Bind ViewModel.FanSpeedHistory, Mode=OneWay}" />
+                        <lvc:XamlLineSeries
+                            Fill="{x:Null}"
+                            GeometryFill="{x:Null}"
+                            GeometryStroke="{x:Null}"
+                            ScalesYAt="1"
+                            Stroke="{x:Bind ViewModel.DrivingTemperatureStrokePaint, Mode=OneWay}"
+                            Values="{x:Bind ViewModel.DrivingTemperatureHistory, Mode=OneWay}" />
                     </lvc:SeriesCollection>
                 </lvc:CartesianChart.Series>
                 <lvc:CartesianChart.XAxes>
@@ -154,8 +172,8 @@
                             CustomSeparators="{x:Bind ViewModel.Separators, Mode=OneWay}"
                             DateFormatter="{x:Bind ViewModel.LabelsFormatter, Mode=OneWay}"
                             Interval="0:0:1"
-                            LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSubtleAxisLabelColor}}"
-                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                            LabelsPaint="{x:Bind ViewModel.HistoryXAxisLabelsPaint, Mode=OneWay}"
+                            SeparatorsPaint="{x:Bind ViewModel.HistoryXAxisSeparatorsPaint, Mode=OneWay}"
                             TextSize="8" />
                     </lvc:AxesCollection>
                 </lvc:CartesianChart.XAxes>
@@ -164,11 +182,20 @@
                         <lvc:XamlAxis
                             Labeler="{x:Bind ViewModel.FanSpeedLabelFormatter, Mode=OneWay}"
                             Padding="{lvc:Padding Value='0,0'}"
-                            LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
+                            LabelsPaint="{x:Bind ViewModel.FanSpeedYAxisLabelsPaint, Mode=OneWay}"
                             MaxLimit="{x:Bind ViewModel.FanSpeedHistoryAxisMaxLimit, Mode=OneWay}"
                             MinLimit="0"
-                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                            SeparatorsPaint="{x:Bind ViewModel.FanSpeedYAxisSeparatorsPaint, Mode=OneWay}"
                             ShowSeparatorLines="True"
+                            TextSize="8" />
+                        <lvc:XamlAxis
+                            Labeler="{x:Bind ViewModel.DrivingTemperatureLabelFormatter, Mode=OneWay}"
+                            Padding="{lvc:Padding Value='0,0'}"
+                            LabelsPaint="{x:Bind ViewModel.DrivingTemperatureYAxisLabelsPaint, Mode=OneWay}"
+                            MaxLimit="{x:Bind ViewModel.DrivingTemperatureHistoryAxisMaxLimit, Mode=OneWay}"
+                            MinLimit="0"
+                            Position="End"
+                            ShowSeparatorLines="False"
                             TextSize="8" />
                     </lvc:AxesCollection>
                 </lvc:CartesianChart.YAxes>

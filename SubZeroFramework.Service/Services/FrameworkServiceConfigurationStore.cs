@@ -105,6 +105,137 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
         return fallback;
     }
 
+    public Task UpsertFanControlStateAsync(FanControlStateOptions state, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(state);
+
+        return _writeQueue.EnqueueAsync(async ct =>
+        {
+            var root = await LoadRootObjectAsync(ct).ConfigureAwait(false);
+            var section = root["FrameworkService"] as JsonObject ?? new JsonObject();
+            var array = section["FanControlStates"] as JsonArray ?? new JsonArray();
+
+            var existingIndex = -1;
+            for (var i = 0; i < array.Count; i++)
+            {
+                if (array[i] is JsonObject entry
+                    && entry["FanIndex"] is JsonValue value
+                    && value.TryGetValue(out int existingFanIndex)
+                    && existingFanIndex == state.FanIndex)
+                {
+                    existingIndex = i;
+                    break;
+                }
+            }
+
+            var node = SerializeFanControlState(state);
+            if (existingIndex >= 0)
+            {
+                array[existingIndex] = node;
+            }
+            else
+            {
+                array.Add(node);
+            }
+
+            section["FanControlStates"] = array;
+            root["FrameworkService"] = section;
+
+            await PersistRootAsync(root, ct).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Persisted fan control state for fan {FanIndex} with {PointCount} curve point(s) to {PersistentConfigurationPath}.",
+                state.FanIndex,
+                state.CustomCurvePoints.Count,
+                PersistentConfigurationPath);
+        }, cancellationToken);
+    }
+
+    public Task<bool> RemoveFanControlStateAsync(int fanIndex, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        return _writeQueue.EnqueueAsync(async ct =>
+        {
+            var root = await LoadRootObjectAsync(ct).ConfigureAwait(false);
+            if (root["FrameworkService"] is not JsonObject section
+                || section["FanControlStates"] is not JsonArray array)
+            {
+                return false;
+            }
+
+            var removed = false;
+            for (var i = array.Count - 1; i >= 0; i--)
+            {
+                if (array[i] is JsonObject entry
+                    && entry["FanIndex"] is JsonValue value
+                    && value.TryGetValue(out int existingFanIndex)
+                    && existingFanIndex == fanIndex)
+                {
+                    array.RemoveAt(i);
+                    removed = true;
+                }
+            }
+
+            if (!removed)
+            {
+                return false;
+            }
+
+            section["FanControlStates"] = array;
+            root["FrameworkService"] = section;
+
+            await PersistRootAsync(root, ct).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Removed persisted fan control state for fan {FanIndex} from {PersistentConfigurationPath}.",
+                fanIndex,
+                PersistentConfigurationPath);
+
+            return true;
+        }, cancellationToken);
+    }
+
+    private static JsonObject SerializeFanControlState(FanControlStateOptions state)
+    {
+        var node = new JsonObject
+        {
+            ["FanIndex"] = state.FanIndex,
+            ["Mode"] = state.Mode.ToString(),
+            ["DrivingTemperatureAggregation"] = state.DrivingTemperatureAggregation.ToString(),
+        };
+
+        var pointsObject = new JsonObject();
+        foreach (var pair in state.CustomCurvePoints.OrderBy(static p => p.Key))
+        {
+            pointsObject[pair.Key.ToString(CultureInfo.InvariantCulture)] = pair.Value;
+        }
+        node["CustomCurvePoints"] = pointsObject;
+
+        var sensors = new JsonArray();
+        foreach (var sensorIndex in state.DrivingSensorIndices)
+        {
+            sensors.Add(sensorIndex);
+        }
+        node["DrivingSensorIndices"] = sensors;
+
+        return node;
+    }
+
+    private async Task PersistRootAsync(JsonObject root, CancellationToken cancellationToken)
+    {
+        var directoryPath = Path.GetDirectoryName(PersistentConfigurationPath);
+        if (!string.IsNullOrWhiteSpace(directoryPath))
+        {
+            Directory.CreateDirectory(directoryPath);
+        }
+
+        var temporaryPath = $"{PersistentConfigurationPath}.tmp";
+        await File.WriteAllTextAsync(temporaryPath, root.ToJsonString(JsonWriterOptions), cancellationToken).ConfigureAwait(false);
+        File.Move(temporaryPath, PersistentConfigurationPath, overwrite: true);
+    }
+
     public Task WriteAsync(FrameworkServiceOptions options, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -120,15 +251,7 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
             frameworkServiceSection["AllowFanControlCommands"] = options.AllowFanControlCommands;
             root["FrameworkService"] = frameworkServiceSection;
 
-            var directoryPath = Path.GetDirectoryName(PersistentConfigurationPath);
-            if (!string.IsNullOrWhiteSpace(directoryPath))
-            {
-                Directory.CreateDirectory(directoryPath);
-            }
-
-            var temporaryPath = $"{PersistentConfigurationPath}.tmp";
-            await File.WriteAllTextAsync(temporaryPath, root.ToJsonString(JsonWriterOptions), ct).ConfigureAwait(false);
-            File.Move(temporaryPath, PersistentConfigurationPath, overwrite: true);
+            await PersistRootAsync(root, ct).ConfigureAwait(false);
 
             _logger.LogInformation(
                 "Persisted service configuration overlay to {PersistentConfigurationPath}. PollingInterval={PollingInterval}, HardwareInfoPollingInterval={HardwareInfoPollingInterval}, AllowFanControlCommands={AllowFanControlCommands}.",

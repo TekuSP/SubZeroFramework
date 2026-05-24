@@ -20,6 +20,22 @@ public interface IFrameworkFanControlClient
     Task<FrameworkFanDutyCommandResult> SetFanDutyAsync(int fanIndex, double dutyPercent, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Forces the fan to 100% duty (Max mode).
+    /// </summary>
+    /// <param name="fanIndex">The zero-based fan index.</param>
+    Task<FrameworkFanMaxCommandResult> SetFanMaxAsync(int fanIndex, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Applies a custom fan curve for the specified fan and records the driving sensors and aggregation mode in the service-side state store.
+    /// </summary>
+    Task<FrameworkFanCustomCurveCommandResult> SetCustomCurveAsync(
+        int fanIndex,
+        IReadOnlyDictionary<int, double> curvePoints,
+        IReadOnlyCollection<int> drivingSensorIndices,
+        TemperatureAggregationMode aggregationMode,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Restores automatic fan control for the specified fan.
     /// </summary>
     /// <param name="fanIndex">The zero-based fan index.</param>

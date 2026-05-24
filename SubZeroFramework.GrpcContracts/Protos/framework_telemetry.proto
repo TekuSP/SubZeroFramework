@@ -46,6 +46,8 @@ service HardwareInfoService {
 service FrameworkFanControlService {
   rpc SetFanRpm (SetFanRpmRequest) returns (SetFanRpmReply);
   rpc SetFanDuty (SetFanDutyRequest) returns (SetFanDutyReply);
+  rpc SetFanMax (SetFanMaxRequest) returns (SetFanMaxReply);
+  rpc SetFanCustomCurve (SetFanCustomCurveRequest) returns (SetFanCustomCurveReply);
   rpc RestoreAutoFanControl (RestoreAutoFanControlRequest) returns (RestoreAutoFanControlReply);
 }
 
@@ -361,6 +363,28 @@ message SetFanDutyReply {
   double applied_duty_percent = 2;
 }
 
+message SetFanMaxRequest {
+  int32 fan_index = 1;
+}
+
+message SetFanMaxReply {
+  int32 fan_index = 1;
+  double applied_duty_percent = 2;
+}
+
+message SetFanCustomCurveRequest {
+  int32 fan_index = 1;
+  map<int32, double> curve_points = 2;
+  repeated int32 driving_sensor_indices = 3;
+  TemperatureAggregationModeValue driving_temperature_aggregation = 4;
+}
+
+message SetFanCustomCurveReply {
+  int32 fan_index = 1;
+  bool succeeded = 2;
+  string message = 3;
+}
+
 message RestoreAutoFanControlRequest {
   int32 fan_index = 1;
 }
@@ -436,6 +460,7 @@ enum FanControlModeValue {
   FAN_CONTROL_MODE_VALUE_AUTO = 1;
   FAN_CONTROL_MODE_VALUE_MANUAL = 2;
   FAN_CONTROL_MODE_VALUE_CUSTOM_CURVE = 3;
+  FAN_CONTROL_MODE_VALUE_MAX = 7;
 }
 
 enum TemperatureAggregationModeValue {
@@ -572,6 +597,7 @@ message FanControlStateChangeReply {
   bool has_last_auto_restore_attempt = 14;
   int64 last_auto_restore_attempt_at_unix_time_milliseconds = 15;
   string last_auto_restore_error = 16;
+  optional double last_duty_percent = 17;
 }
 
 message FanControlStateChangeBatchReply {

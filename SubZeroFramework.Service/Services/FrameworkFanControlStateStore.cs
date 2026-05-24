@@ -71,8 +71,22 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                 ObservedAt = DateTimeOffset.UtcNow,
                 CustomCurvePoints = ImmutableSortedDictionary<int, double>.Empty,
                 DrivingSensorIndices = [],
+                LastDutyPercent = null,
             },
             "manual command");
+    }
+
+    public void RecordAppliedDuty(int fanIndex, double dutyPercent)
+    {
+        ThrowIfDisposed();
+        UpsertState(
+            fanIndex,
+            existing => existing with
+            {
+                ObservedAt = DateTimeOffset.UtcNow,
+                LastDutyPercent = dutyPercent,
+            },
+            "applied duty update");
     }
 
     public void MarkAuto(int fanIndex)
@@ -86,8 +100,25 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                 ObservedAt = DateTimeOffset.UtcNow,
                 CustomCurvePoints = ImmutableSortedDictionary<int, double>.Empty,
                 DrivingSensorIndices = [],
+                LastDutyPercent = null,
             },
             "automatic restore");
+    }
+
+    public void MarkMax(int fanIndex)
+    {
+        ThrowIfDisposed();
+        UpsertState(
+            fanIndex,
+            existing => existing with
+            {
+                Mode = FanControlMode.Max,
+                ObservedAt = DateTimeOffset.UtcNow,
+                CustomCurvePoints = ImmutableSortedDictionary<int, double>.Empty,
+                DrivingSensorIndices = [],
+                LastDutyPercent = null,
+            },
+            "max command");
     }
 
     public void SetCustomCurve(int fanIndex, IReadOnlyDictionary<int, double> customCurvePoints, TemperatureAggregationMode aggregationMode, IReadOnlyCollection<int> drivingSensorIndices)
@@ -107,6 +138,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     : customCurvePoints.ToImmutableSortedDictionary(pair => pair.Key, pair => pair.Value),
                 DrivingTemperatureAggregation = aggregationMode,
                 DrivingSensorIndices = [.. drivingSensorIndices],
+                LastDutyPercent = null,
             },
             "custom curve update");
     }

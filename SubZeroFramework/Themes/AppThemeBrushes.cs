@@ -24,11 +24,17 @@ public static class AppThemeBrushes
 
     public static Windows.UI.Color BrandDisabledColor { get; } = ColorHelper.FromArgb(255, 74, 76, 89);
 
+    public static Windows.UI.Color CardBackgroundColor { get; } = ColorHelper.FromArgb(255, 46, 46, 46);
+
+    public static Windows.UI.Color CardSelectedBackgroundColor { get; } = ColorHelper.FromArgb(255, 0, 120, 215);
+
     public static Windows.UI.Color StatusSuccessColor { get; } = ColorHelper.FromArgb(255, 108, 203, 95);
 
     public static Windows.UI.Color StatusWarningColor { get; } = ColorHelper.FromArgb(255, 197, 153, 78);
 
     public static Windows.UI.Color StatusErrorColor { get; } = ColorHelper.FromArgb(255, 68, 39, 38);
+
+    public static Windows.UI.Color StatusInfoColor { get; } = ColorHelper.FromArgb(255, 138, 183, 232);
 
     public static Windows.UI.Color TextPrimaryColor { get; } = ColorHelper.FromArgb(255, 215, 216, 255);
 
@@ -49,6 +55,17 @@ public static class AppThemeBrushes
     public static Windows.UI.Color ChartSubtleAxisLabelColor { get; } = ColorHelper.FromArgb(216, 93, 94, 115);
 
     public static Windows.UI.Color ChartDimAxisLabelColor { get; } = ColorHelper.FromArgb(200, 215, 216, 255);
+
+    // High-contrast variants used by chart paints when their host card is selected
+    // (the selected card background switches to accent blue, washing out the default
+    // chart line / axis / separator colors).
+    public static Windows.UI.Color ChartPrimaryOnSelectedColor { get; } = ColorHelper.FromArgb(255, 255, 255, 255);
+
+    public static Windows.UI.Color ChartErrorOnSelectedColor { get; } = ColorHelper.FromArgb(255, 255, 216, 168);
+
+    public static Windows.UI.Color ChartAxisLabelOnSelectedColor { get; } = ColorHelper.FromArgb(240, 255, 255, 255);
+
+    public static Windows.UI.Color ChartSeparatorOnSelectedColor { get; } = ColorHelper.FromArgb(64, 255, 255, 255);
 
     public static Windows.UI.Color TemperatureAccentColor => ChartAccentColor;
 

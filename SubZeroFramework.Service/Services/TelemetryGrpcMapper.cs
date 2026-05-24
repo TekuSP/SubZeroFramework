@@ -189,6 +189,11 @@ internal static class TelemetryGrpcMapper
             reply.LastAutoRestoreError = change.Current.LastAutoRestoreError;
         }
 
+        if (change.Current.LastDutyPercent is double lastDutyPercent)
+        {
+            reply.LastDutyPercent = lastDutyPercent;
+        }
+
         reply.DrivingSensorIndices.AddRange(change.Current.DrivingSensorIndices);
         reply.CustomCurvePoints.AddRange(change.Current.CustomCurvePoints.Select(point => new FanCurvePointReply
         {
@@ -358,6 +363,7 @@ internal static class TelemetryGrpcMapper
             FanControlModeValue.Auto => FanControlMode.Auto,
             FanControlModeValue.Manual => FanControlMode.Manual,
             FanControlModeValue.CustomCurve => FanControlMode.CustomCurve,
+            FanControlModeValue.Max => FanControlMode.Max,
             _ => default,
         };
 
@@ -469,6 +475,7 @@ internal static class TelemetryGrpcMapper
             FanControlMode.Auto => FanControlModeValue.Auto,
             FanControlMode.Manual => FanControlModeValue.Manual,
             FanControlMode.CustomCurve => FanControlModeValue.CustomCurve,
+            FanControlMode.Max => FanControlModeValue.Max,
             _ => FanControlModeValue.Unspecified,
         };
     }

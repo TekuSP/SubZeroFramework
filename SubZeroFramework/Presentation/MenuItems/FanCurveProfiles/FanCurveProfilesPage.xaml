@@ -2,20 +2,273 @@
     x:Class="SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.FanCurveProfilesPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:cardModels="using:SubZeroFramework.Controls.FanCurveProfiles.Models"
+    xmlns:fanControls="using:SubZeroFramework.Controls.Fans"
+    xmlns:fanModels="using:SubZeroFramework.Controls.Fans.Models"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:SubZeroFramework.Presentation.MenuItems.FanCurveProfiles"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
+    xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
     xmlns:uen="using:Uno.Extensions.Navigation.UI"
     xmlns:utu="using:Uno.Toolkit.UI"
     Background="{StaticResource AppBackgroundBrush}"
     NavigationCacheMode="Required"
     mc:Ignorable="d">
 
-    <Grid utu:SafeArea.Insets="VisibleBounds">
-        <TextBlock
-            HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            FontSize="24"
-            Text="Fan Curve Profiles Page" />
+    <Grid x:Name="PageRoot" utu:SafeArea.Insets="VisibleBounds">
+        <ScrollViewer
+            HorizontalScrollMode="Disabled"
+            VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20" Spacing="20">
+
+                <TextBlock
+                    FontSize="28"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Fan Curve Profiles" />
+
+                <muxc:InfoBar
+                    IsClosable="True"
+                    IsOpen="{x:Bind ViewModel.IsStatusVisible, Mode=TwoWay}"
+                    Message="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+                    Severity="{x:Bind ViewModel.StatusSeverity, Mode=OneWay}" />
+
+                <!--  Fan tiles  -->
+                <GridView
+                    IsItemClickEnabled="False"
+                    ItemsSource="{x:Bind ViewModel.Fans, Mode=OneWay}"
+                    SelectedItem="{x:Bind ViewModel.SelectedFan, Mode=TwoWay}"
+                    SelectionMode="Single">
+                    <GridView.ItemContainerStyle>
+                        <Style TargetType="GridViewItem">
+                            <Setter Property="Margin" Value="0,0,16,16" />
+                            <Setter Property="Padding" Value="0" />
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+                        </Style>
+                    </GridView.ItemContainerStyle>
+                    <GridView.ItemTemplate>
+                        <DataTemplate x:DataType="fanModels:FanCardModel">
+                            <fanControls:FanCardView IsHitTestVisible="False" ViewModel="{x:Bind Mode=OneWay}" />
+                        </DataTemplate>
+                    </GridView.ItemTemplate>
+                </GridView>
+
+                <!--  Editor card  -->
+                <controls:ElevatedCard
+                    HorizontalContentAlignment="Stretch"
+                    Background="{StaticResource CardBackgroundBrush}"
+                    Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
+                    <StackPanel Padding="20" Spacing="16">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock
+                                FontSize="20"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{x:Bind ViewModel.SelectedFanHeading, Mode=OneWay}" />
+                            <Border
+                                Padding="8,2"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource CardBackgroundBrush}"
+                                BorderBrush="{StaticResource TextSecondaryBrush}"
+                                BorderThickness="1"
+                                CornerRadius="4">
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="{x:Bind ViewModel.SelectedFanModeDisplay, Mode=OneWay}" />
+                            </Border>
+                        </StackPanel>
+
+                        <!--  Mode selector  -->
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button
+                                MinWidth="100"
+                                Command="{x:Bind ViewModel.SetAutoCommand, Mode=OneWay}"
+                                Content="Auto" />
+                            <Button
+                                MinWidth="100"
+                                Command="{x:Bind ViewModel.SetManualCommand, Mode=OneWay}"
+                                Content="Manual" />
+                            <Button
+                                MinWidth="100"
+                                Command="{x:Bind ViewModel.SetMaxCommand, Mode=OneWay}"
+                                Content="Max" />
+                            <Button
+                                MinWidth="100"
+                                Command="{x:Bind ViewModel.EnterCustomEditorCommand, Mode=OneWay}"
+                                Content="Custom curve" />
+                        </StackPanel>
+
+                        <!--  Auto body  -->
+                        <muxc:InfoBar
+                            IsClosable="False"
+                            IsOpen="True"
+                            Message="The embedded controller is driving this fan based on its built-in policy. No user override is active."
+                            Severity="Informational"
+                            Title="Auto mode active"
+                            Visibility="{x:Bind ViewModel.IsAutoBodyVisible, Mode=OneWay}" />
+
+                        <!--  Manual body  -->
+                        <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.IsManualBodyVisible, Mode=OneWay}">
+                            <TextBlock
+                                FontSize="14"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="Set a fixed duty cycle. Changes apply automatically after a short pause; use Apply to send immediately." />
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Slider
+                                    Grid.Column="0"
+                                    Maximum="100"
+                                    Minimum="0"
+                                    StepFrequency="1"
+                                    TickFrequency="10"
+                                    Value="{x:Bind ViewModel.ManualDutyPercent, Mode=TwoWay}" />
+                                <muxc:NumberBox
+                                    Grid.Column="1"
+                                    Width="100"
+                                    Maximum="100"
+                                    Minimum="0"
+                                    SmallChange="1"
+                                    SpinButtonPlacementMode="Inline"
+                                    Value="{x:Bind ViewModel.ManualDutyPercent, Mode=TwoWay}" />
+                                <Button
+                                    Grid.Column="2"
+                                    Command="{x:Bind ViewModel.ApplyManualDutyCommand, Mode=OneWay}"
+                                    Content="Apply" />
+                            </Grid>
+                        </StackPanel>
+
+                        <!--  Max body  -->
+                        <muxc:InfoBar
+                            IsClosable="False"
+                            IsOpen="True"
+                            Message="This fan is forced to 100% duty. Expect significantly increased acoustics. Click Auto to release."
+                            Severity="Warning"
+                            Title="Max mode active"
+                            Visibility="{x:Bind ViewModel.IsMaxBodyVisible, Mode=OneWay}" />
+
+                        <!--  Custom body  -->
+                        <StackPanel Spacing="14" Visibility="{x:Bind ViewModel.IsCustomBodyVisible, Mode=OneWay}">
+                            <muxc:InfoBar
+                                IsClosable="False"
+                                IsOpen="True"
+                                Message="Define a temperature/duty curve and pick driving sensors. Applied curves are persisted by the service and restored automatically on the next service start."
+                                Severity="Informational"
+                                Title="Custom curve editor" />
+
+                            <TextBlock
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="Driving temperature sensors" />
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.AvailableSensors, Mode=OneWay}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <controls:AutoWrapPanel
+                                            HorizontalSpacing="8"
+                                            ItemWidth="180"
+                                            VerticalSpacing="8" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="cardModels:SensorChipModel">
+                                        <ToggleButton
+                                            HorizontalAlignment="Stretch"
+                                            Content="{x:Bind DisplayName, Mode=OneWay}"
+                                            IsChecked="{x:Bind IsSelected, Mode=TwoWay}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="14"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="Aggregation:" />
+                                <ComboBox
+                                    MinWidth="160"
+                                    ItemsSource="{x:Bind ViewModel.AggregationModes, Mode=OneTime}"
+                                    SelectedItem="{x:Bind ViewModel.SelectedAggregation, Mode=TwoWay}" />
+                            </StackPanel>
+
+                            <TextBlock
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="Curve points" />
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="100" />
+                                    <ColumnDefinition Width="100" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    FontSize="12"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="Temperature (°C)" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    FontSize="12"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="Duty (%)" />
+                            </Grid>
+                            <ItemsControl ItemsSource="{x:Bind ViewModel.CurvePoints, Mode=OneWay}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="cardModels:CurvePointModel">
+                                        <Grid Margin="0,0,0,8" ColumnSpacing="12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="100" />
+                                                <ColumnDefinition Width="100" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <muxc:NumberBox
+                                                Grid.Column="0"
+                                                Maximum="120"
+                                                Minimum="0"
+                                                SmallChange="1"
+                                                SpinButtonPlacementMode="Inline"
+                                                Value="{x:Bind TemperatureCelsius, Mode=TwoWay}" />
+                                            <muxc:NumberBox
+                                                Grid.Column="1"
+                                                Maximum="100"
+                                                Minimum="0"
+                                                SmallChange="1"
+                                                SpinButtonPlacementMode="Inline"
+                                                Value="{x:Bind DutyPercent, Mode=TwoWay}" />
+                                            <Button
+                                                Grid.Column="2"
+                                                Command="{Binding DataContext.RemoveCurvePointCommand, ElementName=PageRoot}"
+                                                CommandParameter="{x:Bind}"
+                                                Content="Remove" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button
+                                    Command="{x:Bind ViewModel.AddCurvePointCommand, Mode=OneWay}"
+                                    Content="Add point" />
+                                <Button
+                                    Command="{x:Bind ViewModel.ApplyCustomCurveCommand, Mode=OneWay}"
+                                    Content="Apply custom curve" />
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </controls:ElevatedCard>
+
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Page>
+

@@ -61,10 +61,19 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
 
                         while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
                         {
-                            foreach (var change in call.ResponseStream.Current.Changes)
+                            var changes = call.ResponseStream.Current.Changes;
+                            if (changes.Count == 0)
                             {
-                                ApplyControlStateChange(controlStates, change);
+                                continue;
                             }
+
+                            controlStates.Edit(updater =>
+                            {
+                                foreach (var change in changes)
+                                {
+                                    ApplyControlStateChange(updater, change);
+                                }
+                            });
                         }
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
@@ -104,7 +113,7 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
         });
     }
 
-    private static void ApplyControlStateChange(SourceCache<FanControlStateSnapshot, int> controlStates, FanControlStateChangeReply reply)
+    private static void ApplyControlStateChange(ISourceUpdater<FanControlStateSnapshot, int> controlStates, FanControlStateChangeReply reply)
     {
         if (reply.ChangeKind == TelemetryChangeKind.Remove)
         {
@@ -135,6 +144,9 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
             LastAutoRestoreError = string.IsNullOrWhiteSpace(reply.LastAutoRestoreError)
                 ? null
                 : reply.LastAutoRestoreError,
+            LastDutyPercent = reply.HasLastDutyPercent
+                ? reply.LastDutyPercent
+                : null,
             ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
             IsAvailable = reply.IsAvailable,
         });
@@ -147,6 +159,7 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
             FanControlModeValue.Auto => FanControlMode.Auto,
             FanControlModeValue.Manual => FanControlMode.Manual,
             FanControlModeValue.CustomCurve => FanControlMode.CustomCurve,
+            FanControlModeValue.Max => FanControlMode.Max,
             _ => FanControlMode.Auto,
         };
     }

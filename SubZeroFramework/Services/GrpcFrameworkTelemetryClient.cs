@@ -94,10 +94,19 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
                         while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
                         {
-                            foreach (var change in call.ResponseStream.Current.Changes)
+                            var changes = call.ResponseStream.Current.Changes;
+                            if (changes.Count == 0)
                             {
-                                ApplyTelemetryChannelChange(channels, change);
+                                continue;
                             }
+
+                            channels.Edit(updater =>
+                            {
+                                foreach (var change in changes)
+                                {
+                                    ApplyTelemetryChannelChange(updater, change);
+                                }
+                            });
                         }
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
@@ -158,10 +167,19 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
                         while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
                         {
-                            foreach (var change in call.ResponseStream.Current.Changes)
+                            var changes = call.ResponseStream.Current.Changes;
+                            if (changes.Count == 0)
                             {
-                                ApplyCurrentTelemetryValueChange(currentValues, change);
+                                continue;
                             }
+
+                            currentValues.Edit(updater =>
+                            {
+                                foreach (var change in changes)
+                                {
+                                    ApplyCurrentTelemetryValueChange(updater, change);
+                                }
+                            });
                         }
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
@@ -272,7 +290,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
         });
     }
 
-    private static void ApplyTelemetryChannelChange(SourceCache<TelemetryChannel, TelemetryChannelId> channels, TelemetryChannelChangeReply reply)
+    private static void ApplyTelemetryChannelChange(ISourceUpdater<TelemetryChannel, TelemetryChannelId> channels, TelemetryChannelChangeReply reply)
     {
         var channel = new TelemetryChannel
         {
@@ -298,7 +316,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
         channels.AddOrUpdate(channel);
     }
 
-    private static void ApplyCurrentTelemetryValueChange(SourceCache<CurrentTelemetryValue, TelemetryChannelId> currentValues, CurrentTelemetryValueChangeReply reply)
+    private static void ApplyCurrentTelemetryValueChange(ISourceUpdater<CurrentTelemetryValue, TelemetryChannelId> currentValues, CurrentTelemetryValueChangeReply reply)
     {
         var value = new CurrentTelemetryValue
         {

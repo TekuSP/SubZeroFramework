@@ -63,10 +63,19 @@ public sealed class GrpcFanStateClient : IFanStateClient, IDisposable
 
                         while (await call.ResponseStream.MoveNext(cancellationSource.Token).ConfigureAwait(false))
                         {
-                            foreach (var change in call.ResponseStream.Current.Changes)
+                            var changes = call.ResponseStream.Current.Changes;
+                            if (changes.Count == 0)
                             {
-                                ApplyFanStateChange(fanStates, change);
+                                continue;
                             }
+
+                            fanStates.Edit(updater =>
+                            {
+                                foreach (var change in changes)
+                                {
+                                    ApplyFanStateChange(updater, change);
+                                }
+                            });
                         }
                     }
                     catch (OperationCanceledException) when (cancellationSource.IsCancellationRequested)
@@ -106,7 +115,7 @@ public sealed class GrpcFanStateClient : IFanStateClient, IDisposable
         });
     }
 
-    private static void ApplyFanStateChange(SourceCache<FanStateSnapshot, int> fanStates, FanStateChangeReply reply)
+    private static void ApplyFanStateChange(ISourceUpdater<FanStateSnapshot, int> fanStates, FanStateChangeReply reply)
     {
         if (reply.ChangeKind == TelemetryChangeKind.Remove)
         {

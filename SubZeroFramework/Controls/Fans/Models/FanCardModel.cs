@@ -3,8 +3,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using FrameworkDotnet.Enums;
 
 using LiveChartsCore.Defaults;
+using LiveChartsCore.SkiaSharpView.Painting;
+
+using Material.Icons;
 
 using Microsoft.UI.Xaml;
+
+using SkiaSharp;
 
 using SubZeroFramework.Services.Units;
 using SubZeroFramework.Themes;
@@ -40,7 +45,53 @@ public partial class FanCardModel : ObservableObject
     public partial FanCapabilityState? Capability { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DrivingTemperatureVisibility))]
     public partial FanControlStateSnapshot? ControlState { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CardBackgroundBrush))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedStrokePaint))]
+    [NotifyPropertyChangedFor(nameof(DrivingTemperatureStrokePaint))]
+    [NotifyPropertyChangedFor(nameof(HistoryXAxisLabelsPaint))]
+    [NotifyPropertyChangedFor(nameof(HistoryXAxisSeparatorsPaint))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedYAxisLabelsPaint))]
+    [NotifyPropertyChangedFor(nameof(FanSpeedYAxisSeparatorsPaint))]
+    [NotifyPropertyChangedFor(nameof(DrivingTemperatureYAxisLabelsPaint))]
+    public partial bool IsSelected { get; set; }
+
+    public Brush CardBackgroundBrush => IsSelected
+        ? AppThemeBrushes.Get("CardSelectedBackgroundBrush", AppThemeBrushes.CardSelectedBackgroundColor)
+        : AppThemeBrushes.Get("CardBackgroundBrush", AppThemeBrushes.CardBackgroundColor);
+
+    public SolidColorPaint FanSpeedStrokePaint => new(ToSkColor(IsSelected
+        ? AppThemeBrushes.ChartPrimaryOnSelectedColor
+        : AppThemeBrushes.ChartPrimaryColor), 2);
+
+    public SolidColorPaint DrivingTemperatureStrokePaint => new(ToSkColor(IsSelected
+        ? AppThemeBrushes.ChartErrorOnSelectedColor
+        : AppThemeBrushes.ChartErrorColor), 2);
+
+    public SolidColorPaint HistoryXAxisLabelsPaint => new(ToSkColor(IsSelected
+        ? AppThemeBrushes.ChartAxisLabelOnSelectedColor
+        : AppThemeBrushes.ChartSubtleAxisLabelColor));
+
+    public SolidColorPaint HistoryXAxisSeparatorsPaint => new(ToSkColor(IsSelected
+        ? AppThemeBrushes.ChartSeparatorOnSelectedColor
+        : AppThemeBrushes.ChartSeparatorColor));
+
+    public SolidColorPaint FanSpeedYAxisLabelsPaint => new(ToSkColor(IsSelected
+        ? AppThemeBrushes.ChartAxisLabelOnSelectedColor
+        : AppThemeBrushes.ChartPrimaryColor));
+
+    public SolidColorPaint FanSpeedYAxisSeparatorsPaint => new(ToSkColor(IsSelected
+        ? AppThemeBrushes.ChartSeparatorOnSelectedColor
+        : AppThemeBrushes.ChartSeparatorColor));
+
+    public SolidColorPaint DrivingTemperatureYAxisLabelsPaint => new(ToSkColor(IsSelected
+        ? AppThemeBrushes.ChartErrorOnSelectedColor
+        : AppThemeBrushes.ChartErrorColor));
+
+    private static SKColor ToSkColor(Windows.UI.Color color) => new(color.R, color.G, color.B, color.A);
 
     [ObservableProperty]
     public partial ImmutableArray<TemperatureTelemetrySnapshot> DrivingSensors { get; set; } = [];
@@ -73,10 +124,17 @@ public partial class FanCardModel : ObservableObject
     public partial string OverrideStateText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial Brush OverrideStateBrush { get; set; } = AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor);
+    public partial Brush OverrideStateBrush { get; set; } = AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextSecondaryColor);
+
+    [ObservableProperty]
+    public partial MaterialIconKind OverrideStateIcon { get; set; } = MaterialIconKind.Information;
 
     [ObservableProperty]
     public partial Visibility OverrideStateVisibility { get; set; } = Visibility.Collapsed;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DrivingTemperatureHistoryAxisMaxLimit))]
+    public partial DateTimePoint[] DrivingTemperatureHistory { get; set; } = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FanSpeedGaugeValues))]
@@ -90,6 +148,27 @@ public partial class FanCardModel : ObservableObject
     private partial int UnitFormattingRevision { get; set; }
 
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
+
+    public Func<double, string> DrivingTemperatureLabelFormatter => _unitFormattingService.FormatTemperatureAxisLabel;
+
+    public double DrivingTemperatureHistoryAxisMaxLimit
+    {
+        get
+        {
+            var max = 0d;
+            foreach (var point in DrivingTemperatureHistory)
+            {
+                if (point.Value is double value && value > max)
+                {
+                    max = value;
+                }
+            }
+
+            // Always keep a reasonable headroom; floor at the display equivalent of 80 °C.
+            var floor = _unitFormattingService.ConvertTemperature(80d);
+            return Math.Max(floor, max * 1.1d);
+        }
+    }
 
     public double MaximumFanSpeedRpm => Capability is { MaximumSpeedRpm: > 0 } capability
         ? capability.MaximumSpeedRpm
@@ -112,6 +191,9 @@ public partial class FanCardModel : ObservableObject
     public string TargetModeDisplay => $"Mode: {TargetMode}";
 
     public string DrivingTemperatureDisplay => $"Driving Temp: {DrivingTemperature}";
+
+    public Visibility DrivingTemperatureVisibility =>
+        ControlState?.Mode == FanControlMode.CustomCurve ? Visibility.Visible : Visibility.Collapsed;
 
     public void RefreshUnitFormatting()
     {
@@ -190,6 +272,7 @@ public partial class FanCardModel : ObservableObject
             FanControlMode.Auto => "Auto",
             FanControlMode.Manual => "Manual",
             FanControlMode.CustomCurve => "Curve",
+            FanControlMode.Max => "Max",
             _ => "Auto",
         };
 
@@ -219,23 +302,50 @@ public partial class FanCardModel : ObservableObject
         if (ControlState?.LastAutoRestoreAttemptFailed == true)
         {
             OverrideStateText = "Auto restore failed";
+            OverrideStateIcon = MaterialIconKind.AlertCircle;
             OverrideStateBrush = AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
+            OverrideStateVisibility = Visibility.Visible;
+            return;
+        }
+
+        var secondaryBrush = AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextSecondaryColor);
+
+        if (ControlState?.Mode == FanControlMode.Max)
+        {
+            OverrideStateText = "Max speed";
+            OverrideStateIcon = MaterialIconKind.Speedometer;
+            OverrideStateBrush = secondaryBrush;
             OverrideStateVisibility = Visibility.Visible;
             return;
         }
 
         if (ControlState?.HasActiveOverride == true)
         {
-            OverrideStateText = ControlState.Mode == FanControlMode.CustomCurve
-                ? "Curve override active"
-                : "Manual override active";
-            OverrideStateBrush = AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor);
+            if (ControlState.Mode == FanControlMode.CustomCurve)
+            {
+                OverrideStateText = ControlState.LastDutyPercent is double curveDutyPercent
+                    ? $"Curve: {_unitFormattingService.FormatRatio(curveDutyPercent, decimals: 0)}"
+                    : "Curve override active";
+                OverrideStateIcon = MaterialIconKind.ChartBellCurve;
+            }
+            else if (ControlState.Mode == FanControlMode.Manual && ControlState.LastDutyPercent is double dutyPercent)
+            {
+                OverrideStateText = $"Manual: {_unitFormattingService.FormatRatio(dutyPercent, decimals: 0)}";
+                OverrideStateIcon = MaterialIconKind.Tune;
+            }
+            else
+            {
+                OverrideStateText = "Manual override active";
+                OverrideStateIcon = MaterialIconKind.Tune;
+            }
+
+            OverrideStateBrush = secondaryBrush;
             OverrideStateVisibility = Visibility.Visible;
             return;
         }
 
         OverrideStateText = string.Empty;
-        OverrideStateBrush = AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor);
+        OverrideStateBrush = secondaryBrush;
         OverrideStateVisibility = Visibility.Collapsed;
     }
 

@@ -16,6 +16,8 @@ public sealed record FanControlStateSnapshot
 
     public bool HasActiveOverride { get; init; }
 
+    public double? LastDutyPercent { get; init; }
+
     public bool LastAutoRestoreAttemptFailed { get; init; }
 
     public DateTimeOffset? LastAutoRestoreAttemptAt { get; init; }

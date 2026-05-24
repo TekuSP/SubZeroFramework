@@ -68,6 +68,15 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private Task? _pollingTask;
     private Task? _hardwareInfoPollingTask;
     private long _nextTelemetryPointId;
+
+    // Per-publish-cycle batching updaters. When set by a Publish* method that has opened a
+    // SourceCache.Edit() transaction, helper methods route their mutations through the updater
+    // so the entire polling cycle emits ONE consolidated ChangeSet per cache. When null,
+    // helpers fall back to direct cache mutation (single-shot edits). Polling is single-threaded
+    // (one telemetry polling task), so plain instance fields are sufficient.
+    private ISourceUpdater<FanStateSnapshot, int>? _activeFanStatesUpdater;
+    private ISourceUpdater<TelemetryChannel, TelemetryChannelId>? _activeTelemetryChannelsUpdater;
+    private ISourceUpdater<CurrentTelemetryValue, TelemetryChannelId>? _activeCurrentValuesUpdater;
     private DateTimeOffset _lastTelemetryObservedAt;
     private bool _isFanControlEnabled;
     private bool _hasCallerIdentityValidation;
@@ -681,7 +690,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         try
         {
-            if (_hardwareInfo.CpuList.Count > 0)
+            if (_hardwareInfo.CpuList is { Count: > 0 })
             {
                 cpus = _hardwareInfo.CpuList
                     .Select(cpu =>
@@ -1224,6 +1233,28 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     private void PublishThermalTelemetry(FrameworkThermalSnapshot thermalSnapshot, DateTimeOffset observedAt)
     {
+        _telemetryChannels.Edit(channelsUpdater =>
+        _currentTelemetryValues.Edit(currentValuesUpdater =>
+        _fanStates.Edit(fanStatesUpdater =>
+        {
+            _activeTelemetryChannelsUpdater = channelsUpdater;
+            _activeCurrentValuesUpdater = currentValuesUpdater;
+            _activeFanStatesUpdater = fanStatesUpdater;
+            try
+            {
+                PublishThermalTelemetryCore(thermalSnapshot, observedAt);
+            }
+            finally
+            {
+                _activeFanStatesUpdater = null;
+                _activeCurrentValuesUpdater = null;
+                _activeTelemetryChannelsUpdater = null;
+            }
+        })));
+    }
+
+    private void PublishThermalTelemetryCore(FrameworkThermalSnapshot thermalSnapshot, DateTimeOffset observedAt)
+    {
         var observedTemperatureChannels = new HashSet<TelemetryChannelId>();
 
         var temperatureCount = Math.Min((int)thermalSnapshot.SensorCount, thermalSnapshot.Temperatures.Count);
@@ -1260,7 +1291,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         foreach (var fanSnapshot in thermalSnapshot.ReportedFans)
         {
             observedFanIndices.Add(fanIndex);
-            _fanStates.AddOrUpdate(new FanStateSnapshot
+            UpsertFanState(new FanStateSnapshot
             {
                 FanIndex = fanIndex,
                 DisplayName = $"Fan {fanIndex}",
@@ -1286,13 +1317,14 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             fanIndex++;
         }
 
-        var staleFanStates = _fanStates.Items
+        var fanStatesItems = _activeFanStatesUpdater?.Items ?? (IEnumerable<FanStateSnapshot>)_fanStates.Items;
+        var staleFanStates = fanStatesItems
             .Where(fanState => !observedFanIndices.Contains(fanState.FanIndex))
             .ToArray();
 
         foreach (var staleFanState in staleFanStates)
         {
-            _fanStates.AddOrUpdate(staleFanState with
+            UpsertFanState(staleFanState with
             {
                 ObservedAt = observedAt,
                 IsAvailable = false,
@@ -1308,41 +1340,63 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     private void PublishFanCapabilities(FrameworkFanCapabilitiesSnapshot fanCapabilitiesSnapshot, FrameworkPlatform? platform, FrameworkPlatformFamily? platformFamily, DateTimeOffset observedAt)
     {
-        var observedFanIndices = new HashSet<int>();
-        var coolingMetadata = FrameworkCoolingMetadataResolver.Resolve(platform, platformFamily);
-
-        for (var fanIndex = 0; fanIndex < fanCapabilitiesSnapshot.FanCount; fanIndex++)
+        _fanCapabilities.Edit(updater =>
         {
-            observedFanIndices.Add(fanIndex);
-            _fanCapabilities.AddOrUpdate(new FanCapabilityState
-            {
-                FanIndex = fanIndex,
-                DisplayName = $"Fan {fanIndex}",
-                Features = fanCapabilitiesSnapshot.Features,
-                SupportsFanControl = fanCapabilitiesSnapshot.Features.HasFlag(FrameworkFanFeaturesState.FanControl),
-                SupportsThermalReporting = fanCapabilitiesSnapshot.Features.HasFlag(FrameworkFanFeaturesState.ThermalReporting),
-                MaximumSpeedRpm = coolingMetadata.MaximumSpeedRpm,
-                CoolingDetails = coolingMetadata.CoolingDetails,
-                ObservedAt = observedAt,
-                IsAvailable = true,
-            });
-        }
+            var observedFanIndices = new HashSet<int>();
+            var coolingMetadata = FrameworkCoolingMetadataResolver.Resolve(platform, platformFamily);
 
-        var staleCapabilities = _fanCapabilities.Items
-            .Where(capability => !observedFanIndices.Contains(capability.FanIndex))
-            .ToArray();
-
-        foreach (var staleCapability in staleCapabilities)
-        {
-            _fanCapabilities.AddOrUpdate(staleCapability with
+            for (var fanIndex = 0; fanIndex < fanCapabilitiesSnapshot.FanCount; fanIndex++)
             {
-                ObservedAt = observedAt,
-                IsAvailable = false,
-            });
-        }
+                observedFanIndices.Add(fanIndex);
+                updater.AddOrUpdate(new FanCapabilityState
+                {
+                    FanIndex = fanIndex,
+                    DisplayName = $"Fan {fanIndex}",
+                    Features = fanCapabilitiesSnapshot.Features,
+                    SupportsFanControl = fanCapabilitiesSnapshot.Features.HasFlag(FrameworkFanFeaturesState.FanControl),
+                    SupportsThermalReporting = fanCapabilitiesSnapshot.Features.HasFlag(FrameworkFanFeaturesState.ThermalReporting),
+                    MaximumSpeedRpm = coolingMetadata.MaximumSpeedRpm,
+                    CoolingDetails = coolingMetadata.CoolingDetails,
+                    ObservedAt = observedAt,
+                    IsAvailable = true,
+                });
+            }
+
+            var staleCapabilities = updater.Items
+                .Where(capability => !observedFanIndices.Contains(capability.FanIndex))
+                .ToArray();
+
+            foreach (var staleCapability in staleCapabilities)
+            {
+                updater.AddOrUpdate(staleCapability with
+                {
+                    ObservedAt = observedAt,
+                    IsAvailable = false,
+                });
+            }
+        });
     }
 
     private void PublishPowerTelemetry(FrameworkPowerSnapshot powerSnapshot, DateTimeOffset observedAt)
+    {
+        _telemetryChannels.Edit(channelsUpdater =>
+        _currentTelemetryValues.Edit(currentValuesUpdater =>
+        {
+            _activeTelemetryChannelsUpdater = channelsUpdater;
+            _activeCurrentValuesUpdater = currentValuesUpdater;
+            try
+            {
+                PublishPowerTelemetryCore(powerSnapshot, observedAt);
+            }
+            finally
+            {
+                _activeCurrentValuesUpdater = null;
+                _activeTelemetryChannelsUpdater = null;
+            }
+        }));
+    }
+
+    private void PublishPowerTelemetryCore(FrameworkPowerSnapshot powerSnapshot, DateTimeOffset observedAt)
     {
         var observedBatteryChannels = new HashSet<TelemetryChannelId>();
         var batteryIndex = 0;
@@ -1450,7 +1504,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     {
         _lastTelemetryObservedAt = observedAt;
         UpsertChannel(channelId, displayName, unitSymbol, observedAt, isAvailable: true);
-        _currentTelemetryValues.AddOrUpdate(new CurrentTelemetryValue
+        var currentValue = new CurrentTelemetryValue
         {
             ChannelId = channelId,
             DisplayName = displayName,
@@ -1470,13 +1524,34 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             BatteryDesignVoltageVolts = batteryDesignVoltageVolts,
             BatteryCycleCount = batteryCycleCount,
             IsAvailable = true,
-        });
+        };
+
+        if (_activeCurrentValuesUpdater is { } currentValuesUpdater)
+        {
+            currentValuesUpdater.AddOrUpdate(currentValue);
+        }
+        else
+        {
+            _currentTelemetryValues.AddOrUpdate(currentValue);
+        }
 
         _telemetryPoints.AddOrUpdate(new TelemetryPoint(
             SampleId: Interlocked.Increment(ref _nextTelemetryPointId),
             ChannelId: channelId,
             ObservedAt: observedAt,
             NumericValue: numericValue));
+    }
+
+    private void UpsertFanState(FanStateSnapshot fanState)
+    {
+        if (_activeFanStatesUpdater is { } updater)
+        {
+            updater.AddOrUpdate(fanState);
+        }
+        else
+        {
+            _fanStates.AddOrUpdate(fanState);
+        }
     }
 
     private void UpsertChannel(
@@ -1486,11 +1561,12 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         DateTimeOffset observedAt,
         bool isAvailable)
     {
-        var existingChannel = _telemetryChannels.Items.FirstOrDefault(channel => channel.Id == channelId);
+        var channelsItems = _activeTelemetryChannelsUpdater?.Items ?? (IEnumerable<TelemetryChannel>)_telemetryChannels.Items;
+        var existingChannel = channelsItems.FirstOrDefault(channel => channel.Id == channelId);
 
         if (existingChannel is null)
         {
-            _telemetryChannels.AddOrUpdate(new TelemetryChannel
+            var added = new TelemetryChannel
             {
                 Id = channelId,
                 DisplayName = displayName,
@@ -1498,17 +1574,33 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 FirstObservedAt = observedAt,
                 LastObservedAt = observedAt,
                 IsAvailable = isAvailable,
-            });
+            };
+            if (_activeTelemetryChannelsUpdater is { } addUpdater)
+            {
+                addUpdater.AddOrUpdate(added);
+            }
+            else
+            {
+                _telemetryChannels.AddOrUpdate(added);
+            }
             return;
         }
 
-        _telemetryChannels.AddOrUpdate(existingChannel with
+        var updated = existingChannel with
         {
             DisplayName = displayName,
             UnitSymbol = unitSymbol,
             LastObservedAt = observedAt,
             IsAvailable = isAvailable,
-        });
+        };
+        if (_activeTelemetryChannelsUpdater is { } updateUpdater)
+        {
+            updateUpdater.AddOrUpdate(updated);
+        }
+        else
+        {
+            _telemetryChannels.AddOrUpdate(updated);
+        }
     }
 
     private void SetChannelsAvailability(
@@ -1517,7 +1609,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         IReadOnlySet<TelemetryChannelId> observedChannels,
         DateTimeOffset observedAt)
     {
-        var staleChannels = _telemetryChannels.Items
+        var channelsItems = _activeTelemetryChannelsUpdater?.Items ?? (IEnumerable<TelemetryChannel>)_telemetryChannels.Items;
+        var staleChannels = channelsItems
             .Where(channel => channel.Id.Area == area && channel.Id.EntityKind == entityKind && !observedChannels.Contains(channel.Id))
             .ToArray();
 
@@ -1525,10 +1618,18 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         {
             if (staleChannel.IsAvailable)
             {
-                _telemetryChannels.AddOrUpdate(staleChannel with { IsAvailable = false });
+                var updatedChannel = staleChannel with { IsAvailable = false };
+                if (_activeTelemetryChannelsUpdater is { } channelsUpdater)
+                {
+                    channelsUpdater.AddOrUpdate(updatedChannel);
+                }
+                else
+                {
+                    _telemetryChannels.AddOrUpdate(updatedChannel);
+                }
             }
 
-            _currentTelemetryValues.AddOrUpdate(new CurrentTelemetryValue
+            var unavailableValue = new CurrentTelemetryValue
             {
                 ChannelId = staleChannel.Id,
                 DisplayName = staleChannel.DisplayName,
@@ -1548,41 +1649,64 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 BatteryDesignVoltageVolts = null,
                 BatteryCycleCount = null,
                 IsAvailable = false,
-            });
+            };
+
+            if (_activeCurrentValuesUpdater is { } currentValuesUpdater)
+            {
+                currentValuesUpdater.AddOrUpdate(unavailableValue);
+            }
+            else
+            {
+                _currentTelemetryValues.AddOrUpdate(unavailableValue);
+            }
         }
     }
 
     private void MarkAllTelemetryUnavailable(DateTimeOffset observedAt)
     {
-        foreach (var channel in _telemetryChannels.Items.ToArray())
+        _telemetryChannels.Edit(channelsUpdater =>
+        _currentTelemetryValues.Edit(currentValuesUpdater =>
         {
-            if (channel.IsAvailable)
+            _activeTelemetryChannelsUpdater = channelsUpdater;
+            _activeCurrentValuesUpdater = currentValuesUpdater;
+            try
             {
-                _telemetryChannels.AddOrUpdate(channel with { IsAvailable = false });
-            }
+                foreach (var channel in channelsUpdater.Items.ToArray())
+                {
+                    if (channel.IsAvailable)
+                    {
+                        channelsUpdater.AddOrUpdate(channel with { IsAvailable = false });
+                    }
 
-            _currentTelemetryValues.AddOrUpdate(new CurrentTelemetryValue
+                    currentValuesUpdater.AddOrUpdate(new CurrentTelemetryValue
+                    {
+                        ChannelId = channel.Id,
+                        DisplayName = channel.DisplayName,
+                        UnitSymbol = channel.UnitSymbol,
+                        ObservedAt = observedAt,
+                        NumericValue = null,
+                        TemperatureState = null,
+                        PowerSourceState = null,
+                        BatteryState = null,
+                        BatteryManufacturer = null,
+                        BatteryModelNumber = null,
+                        BatterySerialNumber = null,
+                        BatteryType = null,
+                        BatteryRemainingCapacityAmpereHours = null,
+                        BatteryDesignCapacityAmpereHours = null,
+                        BatteryLastFullChargeCapacityAmpereHours = null,
+                        BatteryDesignVoltageVolts = null,
+                        BatteryCycleCount = null,
+                        IsAvailable = false,
+                    });
+                }
+            }
+            finally
             {
-                ChannelId = channel.Id,
-                DisplayName = channel.DisplayName,
-                UnitSymbol = channel.UnitSymbol,
-                ObservedAt = observedAt,
-                NumericValue = null,
-                TemperatureState = null,
-                PowerSourceState = null,
-                BatteryState = null,
-                BatteryManufacturer = null,
-                BatteryModelNumber = null,
-                BatterySerialNumber = null,
-                BatteryType = null,
-                BatteryRemainingCapacityAmpereHours = null,
-                BatteryDesignCapacityAmpereHours = null,
-                BatteryLastFullChargeCapacityAmpereHours = null,
-                BatteryDesignVoltageVolts = null,
-                BatteryCycleCount = null,
-                IsAvailable = false,
-            });
-        }
+                _activeCurrentValuesUpdater = null;
+                _activeTelemetryChannelsUpdater = null;
+            }
+        }));
 
         MarkAllFanCapabilitiesUnavailable(observedAt);
         MarkAllFanStatesUnavailable(observedAt);
@@ -1590,36 +1714,42 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     private void MarkAllFanCapabilitiesUnavailable(DateTimeOffset observedAt)
     {
-        foreach (var fanCapability in _fanCapabilities.Items.ToArray())
+        _fanCapabilities.Edit(updater =>
         {
-            if (!fanCapability.IsAvailable)
+            foreach (var fanCapability in updater.Items.ToArray())
             {
-                continue;
-            }
+                if (!fanCapability.IsAvailable)
+                {
+                    continue;
+                }
 
-            _fanCapabilities.AddOrUpdate(fanCapability with
-            {
-                ObservedAt = observedAt,
-                IsAvailable = false,
-            });
-        }
+                updater.AddOrUpdate(fanCapability with
+                {
+                    ObservedAt = observedAt,
+                    IsAvailable = false,
+                });
+            }
+        });
     }
 
     private void MarkAllFanStatesUnavailable(DateTimeOffset observedAt)
     {
-        foreach (var fanState in _fanStates.Items.ToArray())
+        _fanStates.Edit(updater =>
         {
-            if (!fanState.IsAvailable)
+            foreach (var fanState in updater.Items.ToArray())
             {
-                continue;
-            }
+                if (!fanState.IsAvailable)
+                {
+                    continue;
+                }
 
-            _fanStates.AddOrUpdate(fanState with
-            {
-                ObservedAt = observedAt,
-                IsAvailable = false,
-            });
-        }
+                updater.AddOrUpdate(fanState with
+                {
+                    ObservedAt = observedAt,
+                    IsAvailable = false,
+                });
+            }
+        });
     }
 
     private void RestoreAutomaticFanControl()

@@ -58,6 +58,73 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
     }
 
     /// <summary>
+    /// Forces the fan to 100% duty (Max mode).
+    /// </summary>
+    /// <param name="fanIndex">The zero-based fan index.</param>
+    public async Task<FrameworkFanMaxCommandResult> SetFanMaxAsync(int fanIndex, CancellationToken cancellationToken = default)
+    {
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.SetFanMaxAsync(new SetFanMaxRequest
+        {
+            FanIndex = fanIndex,
+        }, cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+
+        return new FrameworkFanMaxCommandResult
+        {
+            FanIndex = reply.FanIndex,
+            AppliedDutyPercent = reply.AppliedDutyPercent,
+        };
+    }
+
+    public async Task<FrameworkFanCustomCurveCommandResult> SetCustomCurveAsync(
+        int fanIndex,
+        IReadOnlyDictionary<int, double> curvePoints,
+        IReadOnlyCollection<int> drivingSensorIndices,
+        TemperatureAggregationMode aggregationMode,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(curvePoints);
+        ArgumentNullException.ThrowIfNull(drivingSensorIndices);
+
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var request = new SetFanCustomCurveRequest
+        {
+            FanIndex = fanIndex,
+            DrivingTemperatureAggregation = MapAggregationMode(aggregationMode),
+        };
+
+        foreach (var pair in curvePoints)
+        {
+            request.CurvePoints[pair.Key] = pair.Value;
+        }
+
+        foreach (var sensorIndex in drivingSensorIndices)
+        {
+            request.DrivingSensorIndices.Add(sensorIndex);
+        }
+
+        var reply = await _client.SetFanCustomCurveAsync(request, cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+
+        return new FrameworkFanCustomCurveCommandResult
+        {
+            FanIndex = reply.FanIndex,
+            Succeeded = reply.Succeeded,
+            Message = reply.Message ?? string.Empty,
+        };
+    }
+
+    private static TemperatureAggregationModeValue MapAggregationMode(TemperatureAggregationMode mode)
+    {
+        return mode switch
+        {
+            TemperatureAggregationMode.Median => TemperatureAggregationModeValue.Median,
+            TemperatureAggregationMode.Maximum => TemperatureAggregationModeValue.Maximum,
+            TemperatureAggregationMode.Minimum => TemperatureAggregationModeValue.Minimum,
+            _ => TemperatureAggregationModeValue.Average,
+        };
+    }
+
+    /// <summary>
     /// Restores automatic fan control for the specified fan.
     /// </summary>
     /// <param name="fanIndex">The zero-based fan index.</param>
