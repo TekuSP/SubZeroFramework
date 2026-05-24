@@ -13,6 +13,7 @@ All notable changes to this repository should be documented in this file.
 ### Changed
 
 - Dashboard, Thermal Telemetry, Power, fan cards, cooling hardware views, and Device Capabilities surfaces now render converted values and unit-aware axis labels while service contracts remain in canonical units.
+- Unit formatting and unit preference contracts now live under `SubZeroFramework/Services/Units` instead of `SubZeroFramework/Presentation/Units`, matching their DI/service role and keeping presentation folders focused on view models and pages.
 - Device Capabilities graphics and network presentation now uses explicit Adapter labels, numbered monitor subcards, left-aligned wrap-friendly layouts, and auto-height network cards.
 - Bindable display refresh paths now use analyzer-friendly dependent observable-property wiring instead of manual refresh-oriented notifications, keeping the solution warning-clean.
 

@@ -17,7 +17,7 @@ using System.Threading;
 using Microsoft.UI.Dispatching;
 using CommunityToolkit.WinUI;
 using SubZeroFramework.Controls.DeviceCapabilities.Models;
-using SubZeroFramework.Presentation.Units;
+using SubZeroFramework.Services.Units;
 
 namespace SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 

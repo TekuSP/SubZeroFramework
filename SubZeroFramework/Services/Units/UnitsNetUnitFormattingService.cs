@@ -5,7 +5,7 @@ using UnitsNet.Units;
 
 using SubZeroFramework.Services;
 
-namespace SubZeroFramework.Presentation.Units;
+namespace SubZeroFramework.Services.Units;
 
 public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
 {

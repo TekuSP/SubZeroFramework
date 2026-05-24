@@ -1,4 +1,4 @@
-namespace SubZeroFramework.Presentation.Units;
+namespace SubZeroFramework.Services.Units;
 
 public sealed partial record UnitPreferenceOption(
     string Key,

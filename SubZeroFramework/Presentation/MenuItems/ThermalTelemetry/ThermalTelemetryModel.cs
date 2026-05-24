@@ -18,7 +18,7 @@ using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 
 using SubZeroFramework.Controls.Thermal.Models;
-using SubZeroFramework.Presentation.Units;
+using SubZeroFramework.Services.Units;
 using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Presentation.MenuItems.ThermalTelemetry;

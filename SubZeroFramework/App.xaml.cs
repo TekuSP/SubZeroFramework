@@ -7,7 +7,6 @@ using LiveChartsCore.SkiaSharpView;
 
 using Microsoft.Extensions.Options;
 
-using SubZeroFramework.Presentation.Units;
 using SubZeroFramework.Presentation.MenuItems.Dashboard;
 using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
@@ -16,6 +15,7 @@ using SubZeroFramework.Presentation.MenuItems.Settings;
 using SubZeroFramework.Presentation.MenuItems.ThermalTelemetry;
 using SubZeroFramework.Presentation.MenuItems.WarningsIssues;
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Units;
 
 namespace SubZeroFramework;
 

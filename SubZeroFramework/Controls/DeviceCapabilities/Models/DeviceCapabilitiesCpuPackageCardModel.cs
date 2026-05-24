@@ -3,7 +3,7 @@ using LiveChartsCore.Defaults;
 using Microsoft.UI.Xaml;
 using SubZeroFramework.Models;
 using SubZeroFramework.Presentation;
-using SubZeroFramework.Presentation.Units;
+using SubZeroFramework.Services.Units;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
 

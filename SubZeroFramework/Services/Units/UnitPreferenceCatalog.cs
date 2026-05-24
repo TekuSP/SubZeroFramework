@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 
-namespace SubZeroFramework.Presentation.Units;
+namespace SubZeroFramework.Services.Units;
 
 public sealed class UnitPreferenceCatalog
 {

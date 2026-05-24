@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using SubZeroFramework.Models;
-using SubZeroFramework.Presentation.Units;
+using SubZeroFramework.Services.Units;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 

@@ -6,7 +6,7 @@ using LiveChartsCore.Defaults;
 
 using Microsoft.UI.Xaml;
 
-using SubZeroFramework.Presentation.Units;
+using SubZeroFramework.Services.Units;
 using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.Fans.Models;

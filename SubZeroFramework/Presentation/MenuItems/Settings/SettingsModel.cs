@@ -13,7 +13,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
-using SubZeroFramework.Presentation.Units;
+using SubZeroFramework.Services.Units;
 using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Presentation.MenuItems.Settings;

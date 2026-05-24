@@ -261,9 +261,9 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - `SubZeroFramework/Controls/DeviceCapabilities/Models/DeviceCapabilitiesGraphicsCardGroupModel.cs`
 - `SubZeroFramework/Presentation/MenuItems/Settings/SettingsModel.cs`
 - `SubZeroFramework/Presentation/MenuItems/WarningsIssues/WarningIssuesModel.cs`
-- `SubZeroFramework/Presentation/Units/IUnitFormattingService.cs`
-- `SubZeroFramework/Presentation/Units/UnitsNetUnitFormattingService.cs`
-- `SubZeroFramework/Presentation/Units/UnitPreferenceCatalog.cs`
+- `SubZeroFramework/Services/Units/IUnitFormattingService.cs`
+- `SubZeroFramework/Services/Units/UnitsNetUnitFormattingService.cs`
+- `SubZeroFramework/Services/Units/UnitPreferenceCatalog.cs`
 - `SubZeroFramework/Presentation/PresentationDefaults.cs`
 - `SubZeroFramework/Presentation/TimeChartAxisHelper.cs`
 - `SubZeroFramework/Services/IUserUnitPreferencesClient.cs`

@@ -8,7 +8,7 @@ using LiveChartsCore.Defaults;
 
 using Microsoft.UI.Xaml.Media;
 
-using SubZeroFramework.Presentation.Units;
+using SubZeroFramework.Services.Units;
 using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.Thermal.Models;

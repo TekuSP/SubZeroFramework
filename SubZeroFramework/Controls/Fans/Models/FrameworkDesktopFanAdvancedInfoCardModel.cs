@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
-using SubZeroFramework.Presentation.Units;
+using SubZeroFramework.Services.Units;
 
 namespace SubZeroFramework.Controls.Fans.Models;
 

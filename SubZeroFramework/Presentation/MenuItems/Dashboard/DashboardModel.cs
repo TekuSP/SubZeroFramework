@@ -21,7 +21,7 @@ using SubZeroFramework.Controls.Fans.Models;
 using SubZeroFramework.Controls.Power.Models;
 using SubZeroFramework.Controls.Thermal.Models;
 using SubZeroFramework.Models;
-using SubZeroFramework.Presentation.Units;
+using SubZeroFramework.Services.Units;
 using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
