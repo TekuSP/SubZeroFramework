@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Reactive.Disposables;
 using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
@@ -13,14 +15,20 @@ using DynamicData;
 
 using FrameworkDotnet.Enums;
 
+using LiveChartsCore;
 using LiveChartsCore.Defaults;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
 
 using Microsoft.UI.Dispatching;
+
+using SkiaSharp;
 
 using SubZeroFramework.Controls.FanCurveProfiles.Models;
 using SubZeroFramework.Controls.Fans.Models;
 using SubZeroFramework.Services;
 using SubZeroFramework.Services.Units;
+using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 
@@ -67,6 +75,28 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         new CurvePointModel(60, 60d),
         new CurvePointModel(80, 100d),
     ];
+    private readonly ObservableCollection<ObservablePoint> _curveSeriesPoints = [];
+
+    private readonly Dictionary<int, ObservableCollection<DateTimePoint>> _sensorChartPointsBySensorIndex = [];
+    private readonly Dictionary<int, ISeries> _sensorChartSeriesBySensorIndex = [];
+    private readonly Dictionary<SensorChipModel, PropertyChangedEventHandler> _sensorChipHandlers = [];
+    private readonly ObservableCollection<DateTimePoint> _drivingTemperaturePoints = [];
+    private LineSeries<DateTimePoint>? _drivingTemperatureSeries;
+    private bool _suppressSensorSelectionReentry;
+    private CustomCurveSnapshot? _pendingCurveSnapshot;
+
+    private static readonly SKColor DrivingTemperatureColor = new(80, 150, 255);
+
+    private static readonly SKColor[] SensorChartPalette =
+    [
+        new(138, 183, 232),
+        new(232, 168, 124),
+        new(168, 220, 158),
+        new(220, 158, 220),
+        new(244, 213, 134),
+        new(158, 220, 220),
+        new(232, 138, 138),
+    ];
 
     public FanCurveProfilesModel(
         IStringLocalizer localizer,
@@ -98,6 +128,14 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         Fans = new ReadOnlyObservableCollection<FanCardModel>(_fans);
         AvailableSensors = new ReadOnlyObservableCollection<SensorChipModel>(_availableSensors);
         CurvePoints = new ReadOnlyObservableCollection<CurvePointModel>(_curvePoints);
+        CurveSeriesPoints = new ReadOnlyObservableCollection<ObservablePoint>(_curveSeriesPoints);
+
+        _curvePoints.CollectionChanged += OnCurvePointsCollectionChanged;
+        foreach (var point in _curvePoints)
+        {
+            point.PropertyChanged += OnCurvePointPropertyChanged;
+        }
+        RefreshCurveSeries();
 
         _fanCapabilityClient
             .WatchFanCapabilities()
@@ -153,6 +191,81 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
 
     public ReadOnlyObservableCollection<CurvePointModel> CurvePoints { get; }
 
+    public ReadOnlyObservableCollection<ObservablePoint> CurveSeriesPoints { get; }
+
+    public SolidColorPaint CurveStrokePaint { get; } = new(new SKColor(
+        AppThemeBrushes.ChartAccentColor.R,
+        AppThemeBrushes.ChartAccentColor.G,
+        AppThemeBrushes.ChartAccentColor.B,
+        AppThemeBrushes.ChartAccentColor.A), 2.5f);
+
+    public SolidColorPaint CurveGeometryFillPaint { get; } = new(new SKColor(
+        AppThemeBrushes.ChartAccentColor.R,
+        AppThemeBrushes.ChartAccentColor.G,
+        AppThemeBrushes.ChartAccentColor.B,
+        AppThemeBrushes.ChartAccentColor.A));
+
+    public SolidColorPaint CurveAxisLabelsPaint { get; } = new(new SKColor(
+        AppThemeBrushes.ChartSubtleAxisLabelColor.R,
+        AppThemeBrushes.ChartSubtleAxisLabelColor.G,
+        AppThemeBrushes.ChartSubtleAxisLabelColor.B,
+        AppThemeBrushes.ChartSubtleAxisLabelColor.A));
+
+    public SolidColorPaint CurveAxisSeparatorsPaint { get; } = new(new SKColor(
+        AppThemeBrushes.ChartSeparatorColor.R,
+        AppThemeBrushes.ChartSeparatorColor.G,
+        AppThemeBrushes.ChartSeparatorColor.B,
+        AppThemeBrushes.ChartSeparatorColor.A));
+
+    public Func<double, string> CurveTemperatureLabelFormatter { get; } = static value => $"{value:0}°";
+
+    public Func<double, string> CurveDutyLabelFormatter { get; } = static value => $"{value:0}%";
+
+    public Func<DateTime, string> SensorChartDateFormatter { get; } = static dt => dt.ToString("HH:mm:ss");
+
+    public Func<double, string> SensorChartTemperatureFormatter { get; } = static value => $"{value:0.#}°";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SensorChartVisibility))]
+    public partial ISeries[] SensorChartSeries { get; set; } = [];
+
+    [ObservableProperty]
+    public partial double[] SensorChartSeparators { get; set; } = [];
+
+    [ObservableProperty]
+    public partial double? SensorChartMinLimit { get; set; }
+
+    [ObservableProperty]
+    public partial double? SensorChartMaxLimit { get; set; }
+
+    public Microsoft.UI.Xaml.Visibility SensorChartVisibility =>
+        SensorChartSeries.Length > 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    private sealed record CustomCurveSnapshot(
+        TemperatureAggregationMode Aggregation,
+        int[] SensorIndices,
+        (int Temperature, double Duty)[] CurvePoints);
+
+    public bool IsAutoSelected => SelectedFanMode == FanControlMode.Auto && !ShowCustomEditor;
+
+    public bool IsManualSelected => SelectedFanMode == FanControlMode.Manual && !ShowCustomEditor;
+
+    public bool IsMaxSelected => SelectedFanMode == FanControlMode.Max && !ShowCustomEditor;
+
+    public bool IsCustomSelected => SelectedFanMode == FanControlMode.CustomCurve || ShowCustomEditor;
+
+    public Microsoft.UI.Xaml.Media.Brush AutoTileBackground => GetTileBackground(IsAutoSelected);
+
+    public Microsoft.UI.Xaml.Media.Brush ManualTileBackground => GetTileBackground(IsManualSelected);
+
+    public Microsoft.UI.Xaml.Media.Brush MaxTileBackground => GetTileBackground(IsMaxSelected);
+
+    public Microsoft.UI.Xaml.Media.Brush CustomTileBackground => GetTileBackground(IsCustomSelected);
+
+    private static Microsoft.UI.Xaml.Media.Brush GetTileBackground(bool selected) => selected
+        ? AppThemeBrushes.Get("CardSelectedBackgroundBrush", AppThemeBrushes.CardSelectedBackgroundColor)
+        : AppThemeBrushes.Get("CardBackgroundBrush", AppThemeBrushes.CardBackgroundColor);
+
     public IReadOnlyList<TemperatureAggregationMode> AggregationModes { get; } =
     [
         TemperatureAggregationMode.Average,
@@ -166,13 +279,24 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial TemperatureAggregationMode? SelectedAggregation { get; set; } = TemperatureAggregationMode.Maximum;
 
+    partial void OnSelectedAggregationChanged(TemperatureAggregationMode? value) => RefreshSensorChart();
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelectedFan))]
+    [NotifyPropertyChangedFor(nameof(CanSelectMode))]
     [NotifyPropertyChangedFor(nameof(EditorVisibility))]
     [NotifyPropertyChangedFor(nameof(IsAutoBodyVisible))]
     [NotifyPropertyChangedFor(nameof(IsManualBodyVisible))]
     [NotifyPropertyChangedFor(nameof(IsCustomBodyVisible))]
     [NotifyPropertyChangedFor(nameof(IsMaxBodyVisible))]
+    [NotifyPropertyChangedFor(nameof(IsAutoSelected))]
+    [NotifyPropertyChangedFor(nameof(IsManualSelected))]
+    [NotifyPropertyChangedFor(nameof(IsMaxSelected))]
+    [NotifyPropertyChangedFor(nameof(IsCustomSelected))]
+    [NotifyPropertyChangedFor(nameof(AutoTileBackground))]
+    [NotifyPropertyChangedFor(nameof(ManualTileBackground))]
+    [NotifyPropertyChangedFor(nameof(MaxTileBackground))]
+    [NotifyPropertyChangedFor(nameof(CustomTileBackground))]
     [NotifyPropertyChangedFor(nameof(SelectedFanHeading))]
     [NotifyPropertyChangedFor(nameof(SelectedFanModeDisplay))]
     [NotifyCanExecuteChangedFor(nameof(SetAutoCommand))]
@@ -185,7 +309,23 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsCustomBodyVisible))]
+    [NotifyPropertyChangedFor(nameof(IsAutoSelected))]
+    [NotifyPropertyChangedFor(nameof(IsManualSelected))]
+    [NotifyPropertyChangedFor(nameof(IsMaxSelected))]
+    [NotifyPropertyChangedFor(nameof(IsCustomSelected))]
+    [NotifyPropertyChangedFor(nameof(AutoTileBackground))]
+    [NotifyPropertyChangedFor(nameof(ManualTileBackground))]
+    [NotifyPropertyChangedFor(nameof(MaxTileBackground))]
+    [NotifyPropertyChangedFor(nameof(CustomTileBackground))]
+    [NotifyPropertyChangedFor(nameof(CanSelectMode))]
+    [NotifyCanExecuteChangedFor(nameof(SetAutoCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SetManualCommand))]
+    [NotifyCanExecuteChangedFor(nameof(SetMaxCommand))]
+    [NotifyCanExecuteChangedFor(nameof(EnterCustomEditorCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelCustomEditorCommand))]
     public partial bool ShowCustomEditor { get; set; }
+
+    public bool CanSelectMode => HasSelectedFan && !ShowCustomEditor;
 
     [ObservableProperty]
     public partial double ManualDutyPercent { get; set; } = DefaultManualDutyPercent;
@@ -235,6 +375,14 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(IsManualBodyVisible))]
     [NotifyPropertyChangedFor(nameof(IsCustomBodyVisible))]
     [NotifyPropertyChangedFor(nameof(IsMaxBodyVisible))]
+    [NotifyPropertyChangedFor(nameof(IsAutoSelected))]
+    [NotifyPropertyChangedFor(nameof(IsManualSelected))]
+    [NotifyPropertyChangedFor(nameof(IsMaxSelected))]
+    [NotifyPropertyChangedFor(nameof(IsCustomSelected))]
+    [NotifyPropertyChangedFor(nameof(AutoTileBackground))]
+    [NotifyPropertyChangedFor(nameof(ManualTileBackground))]
+    [NotifyPropertyChangedFor(nameof(MaxTileBackground))]
+    [NotifyPropertyChangedFor(nameof(CustomTileBackground))]
     private partial int ControlStateRevision { get; set; }
 
     public bool HasSelectedFan => SelectedFan is not null;
@@ -292,13 +440,68 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         ShowCustomEditor = false;
     }
 
-    [RelayCommand(CanExecute = nameof(HasSelectedFan))]
+    [RelayCommand(CanExecute = nameof(CanSelectMode))]
     private void EnterCustomEditor()
     {
+        _pendingCurveSnapshot = new CustomCurveSnapshot(
+            SelectedAggregation ?? TemperatureAggregationMode.Maximum,
+            _availableSensors.Where(static c => c.IsSelected).Select(static c => c.SensorIndex).ToArray(),
+            _curvePoints.Select(static p => (p.TemperatureCelsius, p.DutyPercent)).ToArray());
+
+        if (!_availableSensors.Any(static c => c.IsSelected) && _availableSensors.Count > 0)
+        {
+            _suppressSensorSelectionReentry = true;
+            try { _availableSensors[0].IsSelected = true; }
+            finally { _suppressSensorSelectionReentry = false; }
+            EnsureTemperatureHistorySubscription(_availableSensors[0].SensorIndex, PresentationDefaults.RecentTelemetryHistoryWindow);
+            RefreshSensorChart();
+        }
+
         ShowCustomEditor = true;
     }
 
-    [RelayCommand(CanExecute = nameof(HasSelectedFan))]
+    private bool CanCancelCustomEditor() => ShowCustomEditor;
+
+    [RelayCommand(CanExecute = nameof(CanCancelCustomEditor))]
+    private void CancelCustomEditor()
+    {
+        if (_pendingCurveSnapshot is { } snapshot)
+        {
+            SelectedAggregation = snapshot.Aggregation;
+
+            _suppressSensorSelectionReentry = true;
+            try
+            {
+                var desired = new HashSet<int>(snapshot.SensorIndices);
+                foreach (var chip in _availableSensors)
+                {
+                    chip.IsSelected = desired.Contains(chip.SensorIndex);
+                }
+            }
+            finally
+            {
+                _suppressSensorSelectionReentry = false;
+            }
+
+            foreach (var point in _curvePoints)
+            {
+                point.PropertyChanged -= OnCurvePointPropertyChanged;
+            }
+            _curvePoints.Clear();
+            foreach (var (t, d) in snapshot.CurvePoints)
+            {
+                _curvePoints.Add(new CurvePointModel(t, d));
+            }
+
+            RefreshSensorChart();
+            RefreshCurveSeries();
+        }
+
+        _pendingCurveSnapshot = null;
+        ShowCustomEditor = false;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSelectMode))]
     private async Task SetAutoAsync(CancellationToken cancellationToken)
     {
         var fan = SelectedFan;
@@ -316,7 +519,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand(CanExecute = nameof(HasSelectedFan))]
+    [RelayCommand(CanExecute = nameof(CanSelectMode))]
     private async Task SetManualAsync(CancellationToken cancellationToken)
     {
         var fan = SelectedFan;
@@ -325,7 +528,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         await ApplyManualDutyAsync(cancellationToken).ConfigureAwait(true);
     }
 
-    [RelayCommand(CanExecute = nameof(HasSelectedFan))]
+    [RelayCommand(CanExecute = nameof(CanSelectMode))]
     private async Task SetMaxAsync(CancellationToken cancellationToken)
     {
         var fan = SelectedFan;
@@ -398,6 +601,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
             var result = await _fanControlClient.SetCustomCurveAsync(fan.Snapshot.FanIndex, dictionary, selectedSensors, aggregation, cancellationToken).ConfigureAwait(true);
             if (result.Succeeded)
             {
+                _pendingCurveSnapshot = null;
+                ShowCustomEditor = false;
                 ReportStatus($"Custom curve applied to {fan.Snapshot.DisplayName} ({dictionary.Count} points, {selectedSensors.Length} sensor(s)).", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success);
             }
             else
@@ -413,19 +618,96 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private void AddCurvePoint()
-    {
-        var lastTemperature = _curvePoints.Count > 0 ? _curvePoints[^1].TemperatureCelsius : 30;
-        var lastDuty = _curvePoints.Count > 0 ? _curvePoints[^1].DutyPercent : 50d;
-        _curvePoints.Add(new CurvePointModel(Math.Min(100, lastTemperature + 5), Math.Min(100d, lastDuty + 10d)));
-    }
-
-    [RelayCommand]
     private void RemoveCurvePoint(CurvePointModel? point)
     {
         if (point is null) return;
         if (_curvePoints.Count <= 2) return;
         _curvePoints.Remove(point);
+    }
+
+    public void AddCurvePointAt(double temperatureCelsius, double dutyPercent)
+    {
+        var t = (int)Math.Round(Math.Clamp(temperatureCelsius, 0d, 130d));
+        var d = Math.Clamp(dutyPercent, 0d, 100d);
+        _curvePoints.Add(new CurvePointModel(t, d));
+    }
+
+    public void UpdateCurvePoint(CurvePointModel point, double temperatureCelsius, double dutyPercent)
+    {
+        point.TemperatureCelsius = (int)Math.Round(Math.Clamp(temperatureCelsius, 0d, 130d));
+        point.DutyPercent = Math.Clamp(dutyPercent, 0d, 100d);
+    }
+
+    public CurvePointModel? FindNearestCurvePoint(double temperatureCelsius, double dutyPercent, double maxTemperatureDelta, double maxDutyDelta)
+    {
+        CurvePointModel? best = null;
+        var bestDistanceSquared = double.PositiveInfinity;
+        foreach (var point in _curvePoints)
+        {
+            var dt = (point.TemperatureCelsius - temperatureCelsius) / maxTemperatureDelta;
+            var dd = (point.DutyPercent - dutyPercent) / maxDutyDelta;
+            var distanceSquared = (dt * dt) + (dd * dd);
+            if (distanceSquared <= 1d && distanceSquared < bestDistanceSquared)
+            {
+                bestDistanceSquared = distanceSquared;
+                best = point;
+            }
+        }
+        return best;
+    }
+
+    private void OnCurvePointsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e.OldItems is not null)
+        {
+            foreach (CurvePointModel point in e.OldItems)
+            {
+                point.PropertyChanged -= OnCurvePointPropertyChanged;
+            }
+        }
+
+        if (e.NewItems is not null)
+        {
+            foreach (CurvePointModel point in e.NewItems)
+            {
+                point.PropertyChanged += OnCurvePointPropertyChanged;
+            }
+        }
+
+        RefreshCurveSeries();
+    }
+
+    private void OnCurvePointPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(CurvePointModel.TemperatureCelsius) or nameof(CurvePointModel.DutyPercent))
+        {
+            RefreshCurveSeries();
+        }
+    }
+
+    private void RefreshCurveSeries()
+    {
+        _curveSeriesPoints.Clear();
+        var ordered = _curvePoints.OrderBy(p => p.TemperatureCelsius).ToArray();
+        if (ordered.Length == 0)
+        {
+            _curveSeriesPoints.Add(new ObservablePoint(0d, 0d));
+            _curveSeriesPoints.Add(new ObservablePoint(130d, 100d));
+            return;
+        }
+
+        if (ordered[0].TemperatureCelsius > 0)
+        {
+            _curveSeriesPoints.Add(new ObservablePoint(0d, 0d));
+        }
+        foreach (var point in ordered)
+        {
+            _curveSeriesPoints.Add(new ObservablePoint(point.TemperatureCelsius, point.DutyPercent));
+        }
+        if (ordered[^1].TemperatureCelsius < 130)
+        {
+            _curveSeriesPoints.Add(new ObservablePoint(130d, ordered[^1].DutyPercent));
+        }
     }
 
     private void RefreshUnitFormatting()
@@ -437,6 +719,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         }
 
         RefreshAllDrivingTemperatureHistory();
+        RefreshSensorChart();
     }
 
     private void ApplyCapabilityChanges(IChangeSet<FanCapabilityState, int> changes)
@@ -603,6 +886,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         {
             chip = new SensorChipModel(snapshot.SensorIndex, snapshot.DisplayName);
             _sensorChipIndex[snapshot.SensorIndex] = chip;
+            AttachSensorChipHandler(chip);
 
             var insertIndex = 0;
             while (insertIndex < _availableSensors.Count && _availableSensors[insertIndex].SensorIndex < snapshot.SensorIndex)
@@ -623,8 +907,235 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
     {
         if (_sensorChipIndex.Remove(sensorIndex, out var chip))
         {
+            DetachSensorChipHandler(chip);
             _availableSensors.Remove(chip);
+            _sensorChartSeriesBySensorIndex.Remove(sensorIndex);
+            _sensorChartPointsBySensorIndex.Remove(sensorIndex);
+            RefreshSensorChart();
         }
+    }
+
+    private void AttachSensorChipHandler(SensorChipModel chip)
+    {
+        PropertyChangedEventHandler handler = (_, args) =>
+        {
+            if (args.PropertyName == nameof(SensorChipModel.IsSelected))
+            {
+                if (_suppressSensorSelectionReentry)
+                {
+                    return;
+                }
+
+                if (!chip.IsSelected && !_availableSensors.Any(static c => c.IsSelected))
+                {
+                    _suppressSensorSelectionReentry = true;
+                    try { chip.IsSelected = true; }
+                    finally { _suppressSensorSelectionReentry = false; }
+                    return;
+                }
+
+                if (chip.IsSelected)
+                {
+                    EnsureTemperatureHistorySubscription(chip.SensorIndex, PresentationDefaults.RecentTelemetryHistoryWindow);
+                }
+                RefreshSensorChart();
+            }
+            else if (args.PropertyName == nameof(SensorChipModel.DisplayName))
+            {
+                if (_sensorChartSeriesBySensorIndex.TryGetValue(chip.SensorIndex, out var series))
+                {
+                    series.Name = chip.DisplayName;
+                }
+            }
+        };
+
+        chip.PropertyChanged += handler;
+        _sensorChipHandlers[chip] = handler;
+    }
+
+    private void DetachSensorChipHandler(SensorChipModel chip)
+    {
+        if (_sensorChipHandlers.Remove(chip, out var handler))
+        {
+            chip.PropertyChanged -= handler;
+        }
+    }
+
+    private void RefreshSensorChart()
+    {
+        var selected = _availableSensors.Where(static c => c.IsSelected).ToArray();
+
+        foreach (var chip in selected)
+        {
+            UpdateSensorChartPoints(chip.SensorIndex);
+        }
+
+        UpdateDrivingTemperaturePoints(selected);
+
+        var series = new List<ISeries>(selected.Length + 1);
+        foreach (var chip in selected)
+        {
+            series.Add(GetOrCreateSensorChartSeries(chip));
+        }
+        if (selected.Length > 0)
+        {
+            series.Add(GetOrCreateDrivingTemperatureSeries());
+        }
+
+        SensorChartSeries = [.. series];
+        UpdateSensorChartAxis(selected);
+    }
+
+    private void UpdateDrivingTemperaturePoints(IReadOnlyList<SensorChipModel> selectedChips)
+    {
+        _drivingTemperaturePoints.Clear();
+        if (selectedChips.Count == 0)
+        {
+            return;
+        }
+
+        var perSensor = new List<TelemetryPoint[]>(selectedChips.Count);
+        foreach (var chip in selectedChips)
+        {
+            if (_temperatureHistoryPoints.TryGetValue(chip.SensorIndex, out var points) && points.Length > 0)
+            {
+                perSensor.Add(points);
+            }
+        }
+        if (perSensor.Count == 0)
+        {
+            return;
+        }
+
+        var timestampSet = new SortedSet<DateTimeOffset>();
+        foreach (var series in perSensor)
+        {
+            foreach (var p in series)
+            {
+                timestampSet.Add(p.ObservedAt);
+            }
+        }
+
+        var aggregation = SelectedAggregation ?? TemperatureAggregationMode.Maximum;
+        foreach (var timestamp in timestampSet)
+        {
+            var readings = new List<double>(perSensor.Count);
+            foreach (var s in perSensor)
+            {
+                if (FindNearestValue(s, timestamp) is double value)
+                {
+                    readings.Add(value);
+                }
+            }
+            if (readings.Count == 0) continue;
+
+            var aggregated = aggregation switch
+            {
+                TemperatureAggregationMode.Average => readings.Average(),
+                TemperatureAggregationMode.Maximum => readings.Max(),
+                TemperatureAggregationMode.Minimum => readings.Min(),
+                TemperatureAggregationMode.Median => ComputeMedian(readings),
+                _ => readings.Average(),
+            };
+
+            _drivingTemperaturePoints.Add(new DateTimePoint(
+                timestamp.LocalDateTime,
+                _unitFormattingService.ConvertTemperature(aggregated)));
+        }
+    }
+
+    private LineSeries<DateTimePoint> GetOrCreateDrivingTemperatureSeries()
+    {
+        if (_drivingTemperatureSeries is null)
+        {
+            _drivingTemperatureSeries = new LineSeries<DateTimePoint>
+            {
+                Values = _drivingTemperaturePoints,
+                Fill = null,
+                GeometrySize = 0,
+                LineSmoothness = 0.4,
+                Stroke = new SolidColorPaint(DrivingTemperatureColor, 3),
+            };
+        }
+
+        _drivingTemperatureSeries.Name = $"Driving ({SelectedAggregation ?? TemperatureAggregationMode.Maximum})";
+        return _drivingTemperatureSeries;
+    }
+
+    private void UpdateSensorChartPoints(int sensorIndex)
+    {
+        if (!_sensorChartPointsBySensorIndex.TryGetValue(sensorIndex, out var collection))
+        {
+            collection = [];
+            _sensorChartPointsBySensorIndex[sensorIndex] = collection;
+        }
+
+        collection.Clear();
+        if (_temperatureHistoryPoints.TryGetValue(sensorIndex, out var points))
+        {
+            foreach (var point in points)
+            {
+                collection.Add(new DateTimePoint(
+                    point.ObservedAt.LocalDateTime,
+                    _unitFormattingService.ConvertTemperature(point.NumericValue)));
+            }
+        }
+    }
+
+    private ISeries GetOrCreateSensorChartSeries(SensorChipModel chip)
+    {
+        if (_sensorChartSeriesBySensorIndex.TryGetValue(chip.SensorIndex, out var existing))
+        {
+            existing.Name = chip.DisplayName;
+            return existing;
+        }
+
+        var color = SensorChartPalette[chip.SensorIndex % SensorChartPalette.Length];
+        var values = _sensorChartPointsBySensorIndex.GetValueOrDefault(chip.SensorIndex)
+            ?? (_sensorChartPointsBySensorIndex[chip.SensorIndex] = []);
+
+        var series = new LineSeries<DateTimePoint>
+        {
+            Values = values,
+            Name = chip.DisplayName,
+            Fill = null,
+            GeometrySize = 5,
+            GeometryFill = new SolidColorPaint(color),
+            GeometryStroke = new SolidColorPaint(color, 2),
+            LineSmoothness = 0.4,
+            Stroke = new SolidColorPaint(color, 2),
+        };
+
+        _sensorChartSeriesBySensorIndex[chip.SensorIndex] = series;
+        return series;
+    }
+
+    private void UpdateSensorChartAxis(IReadOnlyList<SensorChipModel> selectedChips)
+    {
+        if (selectedChips.Count == 0)
+        {
+            SensorChartMinLimit = null;
+            SensorChartMaxLimit = null;
+            SensorChartSeparators = [];
+            return;
+        }
+
+        var timestamps = selectedChips
+            .SelectMany(c => _sensorChartPointsBySensorIndex.TryGetValue(c.SensorIndex, out var col)
+                ? col.Select(p => p.DateTime)
+                : [])
+            .Concat(_drivingTemperaturePoints.Select(p => p.DateTime))
+            .OrderBy(t => t)
+            .ToArray();
+
+        var (axisStart, axisEnd, separators) = TimeChartAxisHelper.BuildAxis(
+            timestamps,
+            PresentationDefaults.RecentTelemetryHistoryWindow,
+            PresentationDefaults.RecentTelemetrySeparatorStep);
+
+        SensorChartMinLimit = axisStart.Ticks;
+        SensorChartMaxLimit = axisEnd.Ticks;
+        SensorChartSeparators = separators;
     }
 
     private void RemoveFanCard(int fanIndex)
@@ -783,6 +1294,12 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
                 RefreshDrivingTemperatureHistory(fan);
             }
         }
+
+        if (_sensorChipIndex.TryGetValue(sensorIndex, out var chip) && chip.IsSelected)
+        {
+            UpdateSensorChartPoints(sensorIndex);
+            UpdateSensorChartAxis(_availableSensors.Where(static c => c.IsSelected).ToArray());
+        }
     }
 
     private void RefreshAllDrivingTemperatureHistory()
@@ -912,6 +1429,17 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
             subscription.Dispose();
         }
         _temperatureHistorySubscriptions.Clear();
+
+        _curvePoints.CollectionChanged -= OnCurvePointsCollectionChanged;
+        foreach (var point in _curvePoints)
+        {
+            point.PropertyChanged -= OnCurvePointPropertyChanged;
+        }
+
+        foreach (var chip in _sensorChipHandlers.Keys.ToArray())
+        {
+            DetachSensorChipHandler(chip);
+        }
 
         _subscriptions.Dispose();
     }

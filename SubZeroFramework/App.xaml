@@ -127,7 +127,6 @@
             <StaticResource x:Key="TitleBarPaneToggleButtonBackgroundDisabled" ResourceKey="BrandDisabledBrush" />
 
             <!--  Add resources here  -->
-
         </ResourceDictionary>
     </Application.Resources>
 
