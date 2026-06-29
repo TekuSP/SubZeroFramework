@@ -49,6 +49,18 @@ service FrameworkFanControlService {
   rpc SetFanMax (SetFanMaxRequest) returns (SetFanMaxReply);
   rpc SetFanCustomCurve (SetFanCustomCurveRequest) returns (SetFanCustomCurveReply);
   rpc RestoreAutoFanControl (RestoreAutoFanControlRequest) returns (RestoreAutoFanControlReply);
+  // Per-fan curve profile slots (up to 5 unique slots per fan, with an optional per-slot follow target).
+  rpc SaveFanCurveProfile (SaveFanCurveProfileRequest) returns (FanCurveProfileOperationReply);
+  rpc SetActiveFanCurveProfile (SetActiveFanCurveProfileRequest) returns (FanCurveProfileOperationReply);
+  rpc ClearFanCurveProfile (ClearFanCurveProfileRequest) returns (FanCurveProfileOperationReply);
+  // "Applies to" group membership: set (or clear, when linked_leader_index is unset) which fan this one is
+  // grouped under. Persisted so the grouping survives restarts and streams back via linked_leader_index.
+  rpc SetFanLink (SetFanLinkRequest) returns (FanCurveProfileOperationReply);
+  // Preview safety lease: the client keeps this server stream open while a volatile preview is live. The
+  // service captures the fan's pre-preview state when the stream opens, and if the stream breaks before the
+  // preview is committed (Apply) or explicitly released, it reverts the fan to that captured state. This
+  // covers an app crash or kill mid-preview so the EC is never left stuck on an unapplied preview.
+  rpc HoldFanPreview (HoldFanPreviewRequest) returns (stream HoldFanPreviewReply);
 }
 
 message GetStatusRequest {
@@ -356,6 +368,9 @@ message SetFanRpmReply {
 message SetFanDutyRequest {
   int32 fan_index = 1;
   double duty_percent = 2;
+  // When true, actuate the EC live but do not persist the override to the configuration store
+  // (a volatile "preview"); a service restart restores the last applied state.
+  bool preview = 3;
 }
 
 message SetFanDutyReply {
@@ -365,6 +380,8 @@ message SetFanDutyReply {
 
 message SetFanMaxRequest {
   int32 fan_index = 1;
+  // When true, actuate the EC live but do not persist (volatile preview). See SetFanDutyRequest.preview.
+  bool preview = 2;
 }
 
 message SetFanMaxReply {
@@ -377,6 +394,8 @@ message SetFanCustomCurveRequest {
   map<int32, double> curve_points = 2;
   repeated int32 driving_sensor_indices = 3;
   TemperatureAggregationModeValue driving_temperature_aggregation = 4;
+  // When true, actuate the EC live but do not persist (volatile preview). See SetFanDutyRequest.preview.
+  bool preview = 5;
 }
 
 message SetFanCustomCurveReply {
@@ -387,10 +406,72 @@ message SetFanCustomCurveReply {
 
 message RestoreAutoFanControlRequest {
   int32 fan_index = 1;
+  // When true, actuate the EC live but do not persist (volatile preview). See SetFanDutyRequest.preview.
+  bool preview = 2;
 }
 
 message RestoreAutoFanControlReply {
   int32 fan_index = 1;
+}
+
+message HoldFanPreviewRequest {
+  int32 fan_index = 1;
+}
+
+message HoldFanPreviewReply {
+  // The first reply signals the hold is established and the pre-preview state has been captured, so the
+  // client may safely send its preview command. Further replies (if any) are keepalives.
+  bool ready = 1;
+}
+
+// One per-fan curve profile slot. An unconfigured slot has is_configured = false.
+message FanCurveProfileReply {
+  int32 fan_index = 1;
+  int32 slot = 2;
+  string name = 3;
+  bool is_configured = 4;
+  repeated FanCurvePointReply points = 5;
+  repeated int32 driving_sensor_indices = 6;
+  TemperatureAggregationModeValue aggregation = 7;
+  // When set, this slot mirrors the active curve of follow_fan_index instead of using its own points.
+  bool has_follow_target = 8;
+  int32 follow_fan_index = 9;
+}
+
+message SaveFanCurveProfileRequest {
+  int32 fan_index = 1;
+  int32 slot = 2;
+  string name = 3;
+  map<int32, double> curve_points = 4;
+  repeated int32 driving_sensor_indices = 5;
+  TemperatureAggregationModeValue driving_temperature_aggregation = 6;
+  bool has_follow_target = 7;
+  int32 follow_fan_index = 8;
+  // When true, also make this the active slot and switch the fan into curve mode.
+  bool activate = 9;
+}
+
+message SetActiveFanCurveProfileRequest {
+  int32 fan_index = 1;
+  int32 slot = 2;
+}
+
+message ClearFanCurveProfileRequest {
+  int32 fan_index = 1;
+  int32 slot = 2;
+}
+
+message SetFanLinkRequest {
+  int32 fan_index = 1;
+  // Unset clears the link (the fan becomes independent); set groups it under that leader.
+  optional int32 linked_leader_index = 2;
+}
+
+message FanCurveProfileOperationReply {
+  int32 fan_index = 1;
+  int32 slot = 2;
+  bool succeeded = 3;
+  string message = 4;
 }
 
 enum TelemetryChangeKind {
@@ -598,6 +679,12 @@ message FanControlStateChangeReply {
   int64 last_auto_restore_attempt_at_unix_time_milliseconds = 15;
   string last_auto_restore_error = 16;
   optional double last_duty_percent = 17;
+  // Per-fan curve profile slots and which one is active (fields 4/10/11 reflect the active slot's curve).
+  int32 active_curve_slot = 18;
+  repeated FanCurveProfileReply curve_profiles = 19;
+  // The fan this one is grouped under ("Applies to" link). Persisted by the service so the grouping survives
+  // restarts and is authoritative across clients. Unset means the fan is independent (or a leader itself).
+  optional int32 linked_leader_index = 20;
 }
 
 message FanControlStateChangeBatchReply {

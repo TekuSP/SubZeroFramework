@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using CommunityToolkit.Mvvm.ComponentModel;
 
 using FrameworkDotnet.Enums;
@@ -34,6 +36,16 @@ public partial class FanCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(FanSpeedUnitSuffix))]
     [NotifyPropertyChangedFor(nameof(MaximumFanSpeedAxisLimit))]
     [NotifyPropertyChangedFor(nameof(FanSpeedHistoryAxisMaxLimit))]
+    [NotifyPropertyChangedFor(nameof(LocationDisplay))]
+    [NotifyPropertyChangedFor(nameof(SlotLabel))]
+    [NotifyPropertyChangedFor(nameof(RowSpeedDisplay))]
+    [NotifyPropertyChangedFor(nameof(RowSubLine))]
+    [NotifyPropertyChangedFor(nameof(SpeedBandBrush))]
+    [NotifyPropertyChangedFor(nameof(SpeedBandPaint))]
+    [NotifyPropertyChangedFor(nameof(GaugeNominalValues))]
+    [NotifyPropertyChangedFor(nameof(GaugeCautionValues))]
+    [NotifyPropertyChangedFor(nameof(GaugeCriticalValues))]
+    [NotifyPropertyChangedFor(nameof(GaugeRemainingValues))]
     public partial FanTelemetrySnapshot Snapshot { get; set; } = default!;
 
     [ObservableProperty]
@@ -42,14 +54,22 @@ public partial class FanCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(FanSpeedRemainingGaugeValues))]
     [NotifyPropertyChangedFor(nameof(MaximumFanSpeedAxisLimit))]
     [NotifyPropertyChangedFor(nameof(FanSpeedHistoryAxisMaxLimit))]
+    [NotifyPropertyChangedFor(nameof(GaugeNominalValues))]
+    [NotifyPropertyChangedFor(nameof(GaugeCautionValues))]
+    [NotifyPropertyChangedFor(nameof(GaugeCriticalValues))]
+    [NotifyPropertyChangedFor(nameof(GaugeRemainingValues))]
     public partial FanCapabilityState? Capability { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DrivingTemperatureVisibility))]
+    [NotifyPropertyChangedFor(nameof(HeaderContext))]
     public partial FanControlStateSnapshot? ControlState { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CardBackgroundBrush))]
+    [NotifyPropertyChangedFor(nameof(SelectedAccentBarVisibility))]
+    [NotifyPropertyChangedFor(nameof(RowBorderBrush))]
+    [NotifyPropertyChangedFor(nameof(RowBackgroundBrush))]
     [NotifyPropertyChangedFor(nameof(FanSpeedStrokePaint))]
     [NotifyPropertyChangedFor(nameof(DrivingTemperatureStrokePaint))]
     [NotifyPropertyChangedFor(nameof(HistoryXAxisLabelsPaint))]
@@ -97,10 +117,18 @@ public partial class FanCardModel : ObservableObject
     public partial ImmutableArray<TemperatureTelemetrySnapshot> DrivingSensors { get; set; } = [];
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RowSubLine))]
+    [NotifyPropertyChangedFor(nameof(SpeedBandBrush))]
+    [NotifyPropertyChangedFor(nameof(SpeedBandPaint))]
+    [NotifyPropertyChangedFor(nameof(StatusLabel))]
+    [NotifyPropertyChangedFor(nameof(StatusIcon))]
     public partial FanStateSnapshot? FanState { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FanSpeedHistoryAxisMaxLimit))]
+    [NotifyPropertyChangedFor(nameof(OneMinuteAverageDisplay))]
+    [NotifyPropertyChangedFor(nameof(PeakDisplay))]
+    [NotifyPropertyChangedFor(nameof(RevPerSecondHistory))]
     public partial DateTimePoint[] FanSpeedHistory { get; set; } = [];
 
     [ObservableProperty]
@@ -110,7 +138,13 @@ public partial class FanCardModel : ObservableObject
     public partial string StatusText { get; set; } = "Status: Checking";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusChipBackground))]
     public partial Brush StatusBrush { get; set; } = AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor);
+
+    /// <summary>Tinted fill behind the status chip (status colour at low alpha) so OK/Stalled read as filled pills.</summary>
+    public Brush StatusChipBackground => StatusBrush is SolidColorBrush brush
+        ? new SolidColorBrush(Windows.UI.Color.FromArgb(0x33, brush.Color.R, brush.Color.G, brush.Color.B))
+        : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(TargetModeDisplay))]
@@ -134,6 +168,7 @@ public partial class FanCardModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DrivingTemperatureHistoryAxisMaxLimit))]
+    [NotifyPropertyChangedFor(nameof(TemperatureSparkline))]
     public partial DateTimePoint[] DrivingTemperatureHistory { get; set; } = [];
 
     [ObservableProperty]
@@ -145,6 +180,8 @@ public partial class FanCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(FanSpeedHistoryAxisMaxLimit))]
     [NotifyPropertyChangedFor(nameof(FanSpeedLabelFormatter))]
     [NotifyPropertyChangedFor(nameof(DrivingTemperatureDisplay))]
+    [NotifyPropertyChangedFor(nameof(OneMinuteAverageDisplay))]
+    [NotifyPropertyChangedFor(nameof(PeakDisplay))]
     private partial int UnitFormattingRevision { get; set; }
 
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
@@ -189,6 +226,222 @@ public partial class FanCardModel : ObservableObject
     public Func<double, string> FanSpeedLabelFormatter => _unitFormattingService.FormatFanSpeedAxisLabel;
 
     public string TargetModeDisplay => $"Mode: {TargetMode}";
+
+    // ===== Redesign master-list row presentation =====
+
+    /// <summary>Location label for the redesigned fan list (uses the service-provided display name).</summary>
+    public string LocationDisplay => Snapshot.DisplayName;
+
+    public string SlotLabel => $"Slot {Snapshot.FanIndex}";
+
+    public string RowSpeedDisplay => Snapshot.SpeedRpm > 0
+        ? $"{FanSpeedValueDisplay} {FanSpeedUnitSuffix}"
+        : "Stopped";
+
+    public string RowSubLine
+    {
+        get
+        {
+            if (FanState?.FanState == FrameworkFanState.Stalled)
+            {
+                return "no rotation";
+            }
+
+            return Snapshot.SpeedRpm > 0 ? $"⌀ {FanSpeedValueDisplay}" : string.Empty;
+        }
+    }
+
+    /// <summary>True when this fan has uncommitted staged edits (drives the row's "Changes pending" pill).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ChangesPendingVisibility))]
+    public partial bool IsStaged { get; set; }
+
+    public Visibility ChangesPendingVisibility => IsStaged ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// True when this fan is a linked partner of another (the user added it to that fan's "Applies to" group).
+    /// While linked it is controlled by its leader: the master-list row is disabled and the mode controls hidden
+    /// until it is unlinked. Driven by client link intent (set by <c>FanLinkSectionModel</c>).
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRowSelectable))]
+    [NotifyPropertyChangedFor(nameof(LinkedNoteVisibility))]
+    [NotifyPropertyChangedFor(nameof(ModePillVisibility))]
+    [NotifyPropertyChangedFor(nameof(RowOpacity))]
+    public partial bool IsLinkedPartner { get; set; }
+
+    /// <summary>Dim a linked partner's row so it reads as controlled-by-its-leader (disabled).</summary>
+    public double RowOpacity => IsLinkedPartner ? 0.5 : 1d;
+
+    /// <summary>Display name of the fan this one is linked to (its leader), or null when not linked.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LinkedNoteText))]
+    public partial string? LinkedLeaderName { get; set; }
+
+    /// <summary>The master-list row is selectable unless this fan is a linked partner (controlled by its leader).</summary>
+    public bool IsRowSelectable => !IsLinkedPartner;
+
+    public Visibility LinkedNoteVisibility => IsLinkedPartner ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Hide the per-fan mode pill while linked — the leader drives the mode.</summary>
+    public Visibility ModePillVisibility => IsLinkedPartner ? Visibility.Collapsed : Visibility.Visible;
+
+    public string LinkedNoteText => LinkedLeaderName is { } leader
+        ? $"Linked to {leader} — unlink to control"
+        : string.Empty;
+
+    /// <summary>Short status word for the redesigned status chips (e.g. "OK", "Stalled").</summary>
+    public string StatusLabel => FanState?.FanState switch
+    {
+        FrameworkFanState.Stalled => "Stalled",
+        FrameworkFanState.NotPresent => "Not present",
+        FrameworkFanState.Ok => "OK",
+        _ => Snapshot.IsAvailable ? "OK" : "Unavailable",
+    };
+
+    /// <summary>Glyph inside the round status badge — a check when OK, a cross when stalled.</summary>
+    public MaterialIconKind StatusIcon => FanState?.FanState == FrameworkFanState.Stalled
+        ? MaterialIconKind.Close
+        : MaterialIconKind.Check;
+
+    private double SpeedFraction => MaximumFanSpeedRpm > 0
+        ? Math.Clamp(Snapshot.SpeedRpm / MaximumFanSpeedRpm, 0d, 1d)
+        : 0d;
+
+    // Speed-band colours (design tokens): nominal accent, caution amber, critical red. Bright values so the
+    // row ring + arc read clearly (the app's StatusErrorBrush is a dark fill, unsuitable for a gauge stroke).
+    private static readonly SKColor BandNominalColor = new(0x00, 0x78, 0xD7);
+    private static readonly SKColor BandCautionColor = new(0xC5, 0x99, 0x4E);
+    private static readonly SKColor BandCriticalColor = new(0xD9, 0x70, 0x6A);
+
+    private SKColor SpeedBandColor
+    {
+        get
+        {
+            if (FanState?.FanState == FrameworkFanState.Stalled)
+            {
+                return BandCriticalColor;
+            }
+
+            var fraction = SpeedFraction;
+            return fraction >= 0.85d ? BandCriticalColor
+                : fraction >= 0.6d ? BandCautionColor
+                : BandNominalColor;
+        }
+    }
+
+    /// <summary>Severity band colour for the row's speed ring (nominal &lt; 60% → caution &lt; 85% → critical).</summary>
+    public Brush SpeedBandBrush
+    {
+        get
+        {
+            var c = SpeedBandColor;
+            return new SolidColorBrush(Windows.UI.Color.FromArgb(c.Alpha, c.Red, c.Green, c.Blue));
+        }
+    }
+
+    /// <summary>Band-coloured value arc for the row's mini ring gauge.</summary>
+    public SolidColorPaint SpeedBandPaint => new(SpeedBandColor);
+
+    /// <summary>Faint track behind the row ring's value arc (gauge track ~#474b4b).</summary>
+    public SolidColorPaint SpeedTrackPaint { get; } = new(new SKColor(0x47, 0x4B, 0x4B));
+
+    // ===== Segmented (multi-band) gauge values, mirroring the ThermalTelemetry sensor gauges =====
+    // The arc is filled through severity bands (nominal 0-60% → caution 60-85% → critical 85-100%) so the
+    // gauge reads as colour segments, not a single solid arc. All values are percentages with MaxValue=100.
+    private double SpeedPercent => SpeedFraction * 100d;
+
+    private double GetSpeedSegment(double startInclusive, double endExclusive)
+    {
+        var value = SpeedPercent;
+        return value <= startInclusive ? 0d : Math.Min(value, endExclusive) - startInclusive;
+    }
+
+    public double[] GaugeNominalValues => [GetSpeedSegment(0d, 60d)];
+
+    public double[] GaugeCautionValues => [GetSpeedSegment(60d, 85d)];
+
+    public double[] GaugeCriticalValues => [GetSpeedSegment(85d, 100d)];
+
+    public double[] GaugeRemainingValues => [Math.Max(0d, 100d - SpeedPercent)];
+
+    public SolidColorPaint GaugeNominalPaint { get; } = new(BandNominalColor);
+
+    public SolidColorPaint GaugeCautionPaint { get; } = new(BandCautionColor);
+
+    public SolidColorPaint GaugeCriticalPaint { get; } = new(BandCriticalColor);
+
+    public Visibility SelectedAccentBarVisibility => IsSelected ? Visibility.Visible : Visibility.Collapsed;
+
+    public Brush RowBorderBrush => IsSelected
+        ? AppThemeBrushes.Get("BrandPrimaryBrush", AppThemeBrushes.ChartAccentColor)
+        : AppThemeBrushes.Get("CardBorderBrush", AppThemeBrushes.CardBackgroundColor);
+
+    // ===== Redesign detail-header presentation =====
+
+    /// <summary>Mode-specific context line for the detail header (matches the prototype copy).</summary>
+    public string HeaderContext
+    {
+        get
+        {
+            if (ControlState is not { } state)
+            {
+                return string.Empty;
+            }
+
+            return state.Mode switch
+            {
+                FanControlMode.CustomCurve =>
+                    $"Custom curve · driven by {state.DrivingSensorIndices.Length} sensor{(state.DrivingSensorIndices.Length == 1 ? string.Empty : "s")}",
+                FanControlMode.Manual => state.LastDutyPercent is double duty
+                    ? $"Fixed {duty:0}% duty"
+                    : "Manual duty",
+                FanControlMode.Max => "Commanded to full speed",
+                _ => "Controller policy",
+            };
+        }
+    }
+
+    // Header sparkline series plotted against sample index (not time) on a single shared scale, so the line
+    // always spreads across the width and updates every poll. rev/s = RPM ÷ 60 keeps it numerically close to °C.
+    public double[] RevPerSecondHistory =>
+        [.. FanSpeedHistory.Where(static p => p.Value.HasValue).Select(static p => p.Value!.Value / 60d)];
+
+    public double[] TemperatureSparkline =>
+        [.. DrivingTemperatureHistory.Where(static p => p.Value.HasValue).Select(static p => p.Value!.Value)];
+
+    public string OneMinuteAverageDisplay => FormatHistoryStatistic(static values => values.Average());
+
+    public string PeakDisplay => FormatHistoryStatistic(static values => values.Max());
+
+    private string FormatHistoryStatistic(Func<IEnumerable<double>, double> selector)
+    {
+        var values = FanSpeedHistory.Where(static p => p.Value.HasValue).Select(static p => p.Value!.Value).ToArray();
+        var converted = values.Length > 0 ? selector(values) : _unitFormattingService.ConvertFanSpeed(Snapshot.SpeedRpm);
+        return converted.ToString("N0", CultureInfo.CurrentCulture);
+    }
+
+    // Fading sparkline strokes for the header history (old → transparent, now → opaque).
+    public LinearGradientPaint HeaderRevStrokePaint => new(
+        [new SKColor(0, 120, 215, 18), new SKColor(0, 120, 215, 255)],
+        new SKPoint(0, 0),
+        new SKPoint(1, 0))
+    {
+        StrokeThickness = 2.5f,
+    };
+
+    public LinearGradientPaint HeaderTempStrokePaint => new(
+        [new SKColor(217, 112, 106, 26), new SKColor(217, 112, 106, 255)],
+        new SKPoint(0, 0),
+        new SKPoint(1, 0))
+    {
+        StrokeThickness = 2.5f,
+    };
+
+    // Selected rows use a subtle accent wash (≈16% alpha) rather than a solid flood, per the redesign.
+    public Brush RowBackgroundBrush => IsSelected
+        ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(40, 0, 120, 215))
+        : AppThemeBrushes.Get("CardSecondaryBackgroundBrush", AppThemeBrushes.CardBackgroundColor);
 
     public string DrivingTemperatureDisplay => $"Driving Temp: {DrivingTemperature}";
 

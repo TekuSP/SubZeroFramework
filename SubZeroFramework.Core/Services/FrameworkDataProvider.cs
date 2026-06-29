@@ -44,6 +44,9 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private readonly RetainedSnapshotStream<FrameworkThermalSnapshot> _thermalSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
     private readonly SourceCache<FanCapabilityState, int> _fanCapabilities = new(capability => capability.FanIndex);
     private readonly SourceCache<FanStateSnapshot, int> _fanStates = new(fanState => fanState.FanIndex);
+    // Friendly fan names resolved from the thermal snapshot (FrameworkFanName), keyed by fan index, so the
+    // capabilities stream (which has no per-fan name) reports the same label. Touched only on the telemetry scheduler.
+    private readonly Dictionary<int, string> _fanDisplayNames = [];
     private readonly SourceCache<TelemetryChannel, TelemetryChannelId> _telemetryChannels = new(channel => channel.Id);
     private readonly SourceCache<CurrentTelemetryValue, TelemetryChannelId> _currentTelemetryValues = new(value => value.ChannelId);
     private readonly SourceCache<TelemetryPoint, long> _telemetryPoints = new(point => point.SampleId);
@@ -1291,10 +1294,16 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         foreach (var fanSnapshot in thermalSnapshot.ReportedFans)
         {
             observedFanIndices.Add(fanIndex);
+
+            // FrameworkDotnet now reports the physical fan location (Left/Right/APU/Front); fall back to the
+            // index label for unknown/unnamed fans. Cache it so the capabilities stream uses the same name.
+            var displayName = GetFanDisplayName(fanSnapshot.Name, fanIndex);
+            _fanDisplayNames[fanIndex] = displayName;
+
             UpsertFanState(new FanStateSnapshot
             {
                 FanIndex = fanIndex,
-                DisplayName = $"Fan {fanIndex}",
+                DisplayName = displayName,
                 FanState = fanSnapshot.FanState,
                 ObservedAt = observedAt,
                 IsAvailable = true,
@@ -1309,7 +1318,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             observedFanChannels.Add(channelId);
             PublishNumericTelemetry(
                 channelId: channelId,
-                displayName: $"Fan {fanIndex}",
+                displayName: displayName,
                 unitSymbol: "RPM",
                 observedAt: observedAt,
                 numericValue: fanSnapshot.Speed.RevolutionsPerMinute);
@@ -1351,7 +1360,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 updater.AddOrUpdate(new FanCapabilityState
                 {
                     FanIndex = fanIndex,
-                    DisplayName = $"Fan {fanIndex}",
+                    DisplayName = _fanDisplayNames.GetValueOrDefault(fanIndex, $"Fan {fanIndex}"),
                     Features = fanCapabilitiesSnapshot.Features,
                     SupportsFanControl = fanCapabilitiesSnapshot.Features.HasFlag(FrameworkFanFeaturesState.FanControl),
                     SupportsThermalReporting = fanCapabilitiesSnapshot.Features.HasFlag(FrameworkFanFeaturesState.ThermalReporting),
@@ -1752,7 +1761,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         });
     }
 
-    private void RestoreAutomaticFanControl()
+    public void RestoreAutomaticFanControl()
     {
         var fansToRestore = _fanControlSafetyTracker.BeginRestoreBatch();
         if (fansToRestore.Length == 0)
@@ -1870,6 +1879,21 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     private static string GetVideoControllerDisplayName(HardwareVideoController videoController)
         => FirstNonEmpty(videoController.Name, videoController.Caption, videoController.Description, videoController.VideoProcessor) ?? "Unknown adapter";
+
+    // Maps the FrameworkDotnet fan-location enum to the friendly labels the redesigned UI shows
+    // (e.g. "Left fan"). Unknown/None or any unmapped value falls back to the positional label.
+    // FD0001 (platform-specific enum members) is intentionally suppressed: we translate whatever name the
+    // device itself reported, so only the cases valid for the running platform are ever hit; the rest are inert.
+#pragma warning disable FD0001
+    private static string GetFanDisplayName(FrameworkFanName name, int fanIndex) => name switch
+    {
+        FrameworkFanName.LeftFan => "Left fan",
+        FrameworkFanName.RightFan => "Right fan",
+        FrameworkFanName.ApuFan => "APU fan",
+        FrameworkFanName.FrontFan => "Front fan",
+        _ => $"Fan {fanIndex}",
+    };
+#pragma warning restore FD0001
 
     private static bool MatchesMonitorIdentity(HardwareMonitor left, HardwareMonitor right)
     {

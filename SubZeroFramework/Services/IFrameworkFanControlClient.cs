@@ -17,27 +17,67 @@ public interface IFrameworkFanControlClient
     /// </summary>
     /// <param name="fanIndex">The zero-based fan index.</param>
     /// <param name="dutyPercent">The requested duty cycle percent.</param>
-    Task<FrameworkFanDutyCommandResult> SetFanDutyAsync(int fanIndex, double dutyPercent, CancellationToken cancellationToken = default);
+    /// <param name="preview">When true, actuate the EC live without persisting the override (a volatile preview).</param>
+    Task<FrameworkFanDutyCommandResult> SetFanDutyAsync(int fanIndex, double dutyPercent, bool preview = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Forces the fan to 100% duty (Max mode).
     /// </summary>
     /// <param name="fanIndex">The zero-based fan index.</param>
-    Task<FrameworkFanMaxCommandResult> SetFanMaxAsync(int fanIndex, CancellationToken cancellationToken = default);
+    /// <param name="preview">When true, actuate the EC live without persisting the override (a volatile preview).</param>
+    Task<FrameworkFanMaxCommandResult> SetFanMaxAsync(int fanIndex, bool preview = false, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Applies a custom fan curve for the specified fan and records the driving sensors and aggregation mode in the service-side state store.
     /// </summary>
+    /// <param name="preview">When true, actuate the EC live without persisting the curve (a volatile preview).</param>
     Task<FrameworkFanCustomCurveCommandResult> SetCustomCurveAsync(
         int fanIndex,
         IReadOnlyDictionary<int, double> curvePoints,
         IReadOnlyCollection<int> drivingSensorIndices,
         TemperatureAggregationMode aggregationMode,
+        bool preview = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Restores automatic fan control for the specified fan.
     /// </summary>
     /// <param name="fanIndex">The zero-based fan index.</param>
-    Task<FrameworkRestoreAutoFanControlCommandResult> RestoreAutoFanControlAsync(int fanIndex, CancellationToken cancellationToken = default);
+    /// <param name="preview">When true, actuate the EC live without persisting the change (a volatile preview).</param>
+    Task<FrameworkRestoreAutoFanControlCommandResult> RestoreAutoFanControlAsync(int fanIndex, bool preview = false, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves (or overwrites) one of a fan's curve profile slots, optionally activating it. A follow slot
+    /// (<paramref name="followFanIndex"/> set) mirrors another fan's active curve and may omit curve points.
+    /// </summary>
+    Task<FrameworkFanCurveProfileCommandResult> SaveCurveProfileAsync(
+        int fanIndex,
+        int slot,
+        string? name,
+        IReadOnlyDictionary<int, double> curvePoints,
+        IReadOnlyCollection<int> drivingSensorIndices,
+        TemperatureAggregationMode aggregationMode,
+        int? followFanIndex,
+        bool activate,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Activates a stored curve profile slot for the specified fan.</summary>
+    Task<FrameworkFanCurveProfileCommandResult> SetActiveCurveProfileAsync(int fanIndex, int slot, CancellationToken cancellationToken = default);
+
+    /// <summary>Clears a curve profile slot back to empty.</summary>
+    Task<FrameworkFanCurveProfileCommandResult> ClearCurveProfileAsync(int fanIndex, int slot, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sets (or clears, when <paramref name="linkedLeaderIndex"/> is null) which fan this one is grouped under
+    /// for the "Applies to" link. Persisted by the service and streamed back via the control state's
+    /// linked-leader, so the grouping survives restarts.
+    /// </summary>
+    Task<FrameworkFanCurveProfileCommandResult> SetFanLinkAsync(int fanIndex, int? linkedLeaderIndex, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Opens a preview safety hold for a fan and returns once the service has captured its pre-preview state.
+    /// The hold stays open until <paramref name="cancellationToken"/> is cancelled (commit / revert / app
+    /// exit); if it drops before the preview is committed, the service reverts the fan to its prior state.
+    /// </summary>
+    Task OpenPreviewHoldAsync(int fanIndex, CancellationToken cancellationToken);
 }

@@ -145,9 +145,10 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
             await PersistRootAsync(root, ct).ConfigureAwait(false);
 
             _logger.LogInformation(
-                "Persisted fan control state for fan {FanIndex} with {PointCount} curve point(s) to {PersistentConfigurationPath}.",
+                "Persisted fan control state for fan {FanIndex} with {ProfileCount} curve profile(s), active slot {ActiveCurveSlot}, to {PersistentConfigurationPath}.",
                 state.FanIndex,
-                state.CustomCurvePoints.Count,
+                state.CurveProfiles.Length,
+                state.ActiveCurveSlot,
                 PersistentConfigurationPath);
         }, cancellationToken);
     }
@@ -203,22 +204,55 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
         {
             ["FanIndex"] = state.FanIndex,
             ["Mode"] = state.Mode.ToString(),
-            ["DrivingTemperatureAggregation"] = state.DrivingTemperatureAggregation.ToString(),
+            ["ActiveCurveSlot"] = state.ActiveCurveSlot,
         };
 
+        var profiles = new JsonArray();
+        foreach (var profile in state.CurveProfiles.OrderBy(static p => p.Slot))
+        {
+            profiles.Add(SerializeCurveProfile(profile));
+        }
+        node["CurveProfiles"] = profiles;
+
+        if (state.LinkedLeaderIndex is int linkedLeaderIndex)
+        {
+            node["LinkedLeaderIndex"] = linkedLeaderIndex;
+        }
+
+        return node;
+    }
+
+    private static JsonObject SerializeCurveProfile(FanCurveProfileOptions profile)
+    {
+        var node = new JsonObject
+        {
+            ["Slot"] = profile.Slot,
+            ["DrivingTemperatureAggregation"] = profile.DrivingTemperatureAggregation.ToString(),
+        };
+
+        if (!string.IsNullOrWhiteSpace(profile.Name))
+        {
+            node["Name"] = profile.Name;
+        }
+
         var pointsObject = new JsonObject();
-        foreach (var pair in state.CustomCurvePoints.OrderBy(static p => p.Key))
+        foreach (var pair in profile.CurvePoints.OrderBy(static p => p.Key))
         {
             pointsObject[pair.Key.ToString(CultureInfo.InvariantCulture)] = pair.Value;
         }
-        node["CustomCurvePoints"] = pointsObject;
+        node["CurvePoints"] = pointsObject;
 
         var sensors = new JsonArray();
-        foreach (var sensorIndex in state.DrivingSensorIndices)
+        foreach (var sensorIndex in profile.DrivingSensorIndices)
         {
             sensors.Add(sensorIndex);
         }
         node["DrivingSensorIndices"] = sensors;
+
+        if (profile.FollowFanIndex is int followFanIndex)
+        {
+            node["FollowFanIndex"] = followFanIndex;
+        }
 
         return node;
     }

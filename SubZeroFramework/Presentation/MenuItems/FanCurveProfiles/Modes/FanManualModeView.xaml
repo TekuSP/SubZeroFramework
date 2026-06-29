@@ -1,0 +1,104 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.Modes.FanManualModeView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.Modes"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--  Manual mode body: shared gauge (with the duty ghost arc), the duty slider, and quick presets.  -->
+    <StackPanel Spacing="16">
+        <Grid ColumnSpacing="18">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <local:FanModeGaugeView ViewModel="{x:Bind ViewModel, Mode=OneWay}" />
+            <Border
+                Grid.Column="1"
+                MinHeight="184"
+                Padding="18,16"
+                VerticalAlignment="Stretch"
+                Background="{StaticResource CardSecondaryBackgroundBrush}"
+                CornerRadius="10">
+                <StackPanel Spacing="10" VerticalAlignment="Top">
+                    <TextBlock
+                        FontSize="15"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.ModeDescriptionTitle, Mode=OneWay}" />
+                    <TextBlock
+                        FontSize="13"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.ModeDescriptionText, Mode=OneWay}"
+                        TextWrapping="Wrap" />
+                    <Grid Margin="0,4,0,0" ColumnSpacing="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Slider
+                            VerticalAlignment="Center"
+                            IsEnabled="{x:Bind ViewModel.CanSelectMode, Mode=OneWay}"
+                            Maximum="100"
+                            Minimum="0"
+                            StepFrequency="1"
+                            TickFrequency="10"
+                            Value="{x:Bind ViewModel.ManualDutyPercent, Mode=TwoWay}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            FontSize="30"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.ManualDutyDisplay, Mode=OneWay}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!--  Quick presets  -->
+        <StackPanel Spacing="10">
+            <TextBlock
+                FontSize="12"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="Quick presets" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <StackPanel.Resources>
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#0078D7" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#1184E0" />
+                    <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#006CC1" />
+                    <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#FFFFFA" />
+                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="#FFFFFA" />
+                    <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="#FFFFFA" />
+                    <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#0078D7" />
+                </StackPanel.Resources>
+                <ToggleButton
+                    Command="{x:Bind ViewModel.SetManualPresetCommand, Mode=OneWay}"
+                    CommandParameter="25"
+                    Content="Silent · 25%"
+                    IsChecked="{x:Bind ViewModel.IsPreset25, Mode=OneWay}"
+                    IsEnabled="{x:Bind ViewModel.CanSelectMode, Mode=OneWay}" />
+                <ToggleButton
+                    Command="{x:Bind ViewModel.SetManualPresetCommand, Mode=OneWay}"
+                    CommandParameter="50"
+                    Content="Balanced · 50%"
+                    IsChecked="{x:Bind ViewModel.IsPreset50, Mode=OneWay}"
+                    IsEnabled="{x:Bind ViewModel.CanSelectMode, Mode=OneWay}" />
+                <ToggleButton
+                    Command="{x:Bind ViewModel.SetManualPresetCommand, Mode=OneWay}"
+                    CommandParameter="80"
+                    Content="Performance · 80%"
+                    IsChecked="{x:Bind ViewModel.IsPreset80, Mode=OneWay}"
+                    IsEnabled="{x:Bind ViewModel.CanSelectMode, Mode=OneWay}" />
+                <ToggleButton
+                    Command="{x:Bind ViewModel.SetManualPresetCommand, Mode=OneWay}"
+                    CommandParameter="100"
+                    Content="Full · 100%"
+                    IsChecked="{x:Bind ViewModel.IsPreset100, Mode=OneWay}"
+                    IsEnabled="{x:Bind ViewModel.CanSelectMode, Mode=OneWay}" />
+            </StackPanel>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

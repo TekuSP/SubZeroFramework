@@ -52,6 +52,7 @@
         <Platforms>x64;ARM64</Platforms>
     </PropertyGroup>
     <ItemGroup>
+        <PackageReference Include="CommunityToolkit.WinUI.Controls.Segmented" />
         <PackageReference Include="CommunityToolkit.WinUI.Extensions" />
         <PackageReference Include="DynamicData" />
         <PackageReference Include="FrameworkDotnet" />
@@ -142,6 +143,11 @@
       </Page>
     </ItemGroup>
     <ItemGroup>
+      <Page Update="Controls\Fans\FanStatusChipView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
       <Page Update="Themes\Generic.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>
@@ -163,6 +169,31 @@
     </ItemGroup>
     <ItemGroup>
       <Page Update="Presentation\MenuItems\FanCurveProfiles\FanCurveProfilesPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Presentation\MenuItems\FanCurveProfiles\FanListView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Presentation\MenuItems\FanCurveProfiles\FanDetailEditorView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Presentation\MenuItems\FanCurveProfiles\FanCurveEditorView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Controls\BandRingGaugeView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <ItemGroup>
+      <Page Update="Controls\StatusBadgeView.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>
     </ItemGroup>

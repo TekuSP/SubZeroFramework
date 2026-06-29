@@ -36,9 +36,17 @@ public class FrameworkServiceConfigurationStoreFanCurveTests
             {
                 FanIndex = 1,
                 Mode = FanControlMode.CustomCurve,
-                CustomCurvePoints = new Dictionary<int, double> { [30] = 25d, [60] = 75d, [80] = 100d },
-                DrivingTemperatureAggregation = TemperatureAggregationMode.Maximum,
-                DrivingSensorIndices = [2, 5],
+                ActiveCurveSlot = 0,
+                CurveProfiles =
+                [
+                    new FanCurveProfileOptions
+                    {
+                        Slot = 0,
+                        CurvePoints = new Dictionary<int, double> { [30] = 25d, [60] = 75d, [80] = 100d },
+                        DrivingTemperatureAggregation = TemperatureAggregationMode.Maximum,
+                        DrivingSensorIndices = [2, 5],
+                    },
+                ],
             });
 
             var root = JsonNode.Parse(await File.ReadAllTextAsync(filePath))!.AsObject();
@@ -52,12 +60,17 @@ public class FrameworkServiceConfigurationStoreFanCurveTests
                 var entry = array[0]!.AsObject();
                 Assert.That(entry["FanIndex"]!.GetValue<int>(), Is.EqualTo(1));
                 Assert.That(entry["Mode"]!.GetValue<string>(), Is.EqualTo(nameof(FanControlMode.CustomCurve)));
-                Assert.That(entry["DrivingTemperatureAggregation"]!.GetValue<string>(), Is.EqualTo(nameof(TemperatureAggregationMode.Maximum)));
-                var points = entry["CustomCurvePoints"]!.AsObject();
+                Assert.That(entry["ActiveCurveSlot"]!.GetValue<int>(), Is.EqualTo(0));
+                var profiles = entry["CurveProfiles"]!.AsArray();
+                Assert.That(profiles.Count, Is.EqualTo(1));
+                var profile = profiles[0]!.AsObject();
+                Assert.That(profile["Slot"]!.GetValue<int>(), Is.EqualTo(0));
+                Assert.That(profile["DrivingTemperatureAggregation"]!.GetValue<string>(), Is.EqualTo(nameof(TemperatureAggregationMode.Maximum)));
+                var points = profile["CurvePoints"]!.AsObject();
                 Assert.That(points["30"]!.GetValue<double>(), Is.EqualTo(25d));
                 Assert.That(points["60"]!.GetValue<double>(), Is.EqualTo(75d));
                 Assert.That(points["80"]!.GetValue<double>(), Is.EqualTo(100d));
-                var sensors = entry["DrivingSensorIndices"]!.AsArray();
+                var sensors = profile["DrivingSensorIndices"]!.AsArray();
                 Assert.That(sensors.Count, Is.EqualTo(2));
                 Assert.That(sensors[0]!.GetValue<int>(), Is.EqualTo(2));
                 Assert.That(sensors[1]!.GetValue<int>(), Is.EqualTo(5));
@@ -82,18 +95,34 @@ public class FrameworkServiceConfigurationStoreFanCurveTests
             {
                 FanIndex = 0,
                 Mode = FanControlMode.CustomCurve,
-                CustomCurvePoints = new Dictionary<int, double> { [30] = 20d, [70] = 70d },
-                DrivingTemperatureAggregation = TemperatureAggregationMode.Average,
-                DrivingSensorIndices = [1],
+                ActiveCurveSlot = 0,
+                CurveProfiles =
+                [
+                    new FanCurveProfileOptions
+                    {
+                        Slot = 0,
+                        CurvePoints = new Dictionary<int, double> { [30] = 20d, [70] = 70d },
+                        DrivingTemperatureAggregation = TemperatureAggregationMode.Average,
+                        DrivingSensorIndices = [1],
+                    },
+                ],
             });
 
             await store.UpsertFanControlStateAsync(new FanControlStateOptions
             {
                 FanIndex = 0,
                 Mode = FanControlMode.CustomCurve,
-                CustomCurvePoints = new Dictionary<int, double> { [40] = 40d, [80] = 90d },
-                DrivingTemperatureAggregation = TemperatureAggregationMode.Maximum,
-                DrivingSensorIndices = [3, 4],
+                ActiveCurveSlot = 0,
+                CurveProfiles =
+                [
+                    new FanCurveProfileOptions
+                    {
+                        Slot = 0,
+                        CurvePoints = new Dictionary<int, double> { [40] = 40d, [80] = 90d },
+                        DrivingTemperatureAggregation = TemperatureAggregationMode.Maximum,
+                        DrivingSensorIndices = [3, 4],
+                    },
+                ],
             });
 
             var root = JsonNode.Parse(await File.ReadAllTextAsync(filePath))!.AsObject();
@@ -103,12 +132,13 @@ public class FrameworkServiceConfigurationStoreFanCurveTests
             var entry = array[0]!.AsObject();
             Assert.Multiple(() =>
             {
-                Assert.That(entry["DrivingTemperatureAggregation"]!.GetValue<string>(), Is.EqualTo(nameof(TemperatureAggregationMode.Maximum)));
-                var points = entry["CustomCurvePoints"]!.AsObject();
+                var profile = entry["CurveProfiles"]!.AsArray()[0]!.AsObject();
+                Assert.That(profile["DrivingTemperatureAggregation"]!.GetValue<string>(), Is.EqualTo(nameof(TemperatureAggregationMode.Maximum)));
+                var points = profile["CurvePoints"]!.AsObject();
                 Assert.That(points.Count, Is.EqualTo(2));
                 Assert.That(points["40"]!.GetValue<double>(), Is.EqualTo(40d));
                 Assert.That(points["80"]!.GetValue<double>(), Is.EqualTo(90d));
-                var sensors = entry["DrivingSensorIndices"]!.AsArray();
+                var sensors = profile["DrivingSensorIndices"]!.AsArray();
                 Assert.That(sensors.Count, Is.EqualTo(2));
                 Assert.That(sensors[0]!.GetValue<int>(), Is.EqualTo(3));
                 Assert.That(sensors[1]!.GetValue<int>(), Is.EqualTo(4));

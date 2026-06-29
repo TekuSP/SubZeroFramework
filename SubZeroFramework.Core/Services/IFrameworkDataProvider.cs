@@ -81,4 +81,13 @@ public interface IFrameworkDataProvider
     Task<FrameworkFanDutyCommandResult> SetFanDutyAsync(int fanIndex, double dutyPercent, CancellationToken cancellationToken = default);
 
     Task<FrameworkRestoreAutoFanControlCommandResult> RestoreAutoFanControlAsync(int fanIndex, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Best-effort restore of every fan that currently has an active manual override back to automatic EC
+    /// control. Called from shutdown paths (graceful disposal and the ProcessExit hook) so fans are not left on
+    /// a manual override when the service exits. No-op by default; the EC-backed provider implements it.
+    /// </summary>
+    void RestoreAutomaticFanControl()
+    {
+    }
 }
