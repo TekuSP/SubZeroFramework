@@ -1,0 +1,32 @@
+<UserControl
+    x:Class="SubZeroFramework.Controls.Fans.FanStatusChipView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--  Fan status pill (coloured chip + status disc + label). Reused by the fan list rows and the detail
+          header; sizing DPs let each site keep its own scale.  -->
+    <Border
+        Padding="{x:Bind ChipPadding, Mode=OneWay}"
+        Background="{x:Bind Fan.StatusChipBackground, Mode=OneWay}"
+        CornerRadius="8">
+        <StackPanel
+            VerticalAlignment="Center"
+            Orientation="Horizontal"
+            Spacing="{x:Bind ChipSpacing, Mode=OneWay}">
+            <controls:StatusBadgeView
+                Diameter="{x:Bind BadgeDiameter, Mode=OneWay}"
+                Fill="{x:Bind Fan.StatusBrush, Mode=OneWay}"
+                Glyph="{x:Bind Fan.StatusIcon, Mode=OneWay}"
+                GlyphSize="{x:Bind BadgeGlyphSize, Mode=OneWay}" />
+            <TextBlock
+                FontSize="{x:Bind LabelFontSize, Mode=OneWay}"
+                FontWeight="SemiBold"
+                Foreground="{x:Bind Fan.StatusBrush, Mode=OneWay}"
+                Text="{x:Bind Fan.StatusLabel, Mode=OneWay}" />
+        </StackPanel>
+    </Border>
+</UserControl>

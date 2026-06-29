@@ -1,0 +1,520 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.FanDetailEditorView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cardModels="using:SubZeroFramework.Controls.FanCurveProfiles.Models"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:fans="using:SubZeroFramework.Controls.Fans"
+    xmlns:local="using:SubZeroFramework.Presentation.MenuItems.FanCurveProfiles"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:muxc="using:Microsoft.UI.Xaml.Controls"
+    xmlns:uen="using:Uno.Extensions.Navigation.UI">
+
+    <controls:ElevatedCard
+        Background="{StaticResource CardBackgroundBrush}"
+        HorizontalContentAlignment="Stretch"
+        VerticalContentAlignment="Stretch"
+        Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <!--  Pinned header + link + mode (stay on top while the body scrolls)  -->
+            <StackPanel Grid.Row="0" Padding="20,18,20,12" Spacing="14">
+                <!--  Detail header: gauge + identity/status/context/avg-peak + fading dual-line history  -->
+                <Grid ColumnSpacing="20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!--  Current-speed gauge  -->
+                    <Grid
+                        Width="100"
+                        Height="100"
+                        VerticalAlignment="Center">
+                        <controls:BandRingGaugeView Fan="{x:Bind ViewModel.SelectedFan, Mode=OneWay}" RingThickness="9" />
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontSize="20"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{x:Bind ViewModel.SelectedFan.FanSpeedValueDisplay, Mode=OneWay}" />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontSize="10"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="RPM" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!--  Identity / status / context / averages  -->
+                    <StackPanel
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock
+                                FontSize="24"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{x:Bind ViewModel.SelectedFan.LocationDisplay, Mode=OneWay}" />
+                            <TextBlock
+                                VerticalAlignment="Bottom"
+                                FontSize="13"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind ViewModel.SelectedFan.SlotLabel, Mode=OneWay}" />
+                        </StackPanel>
+                        <StackPanel
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="10">
+                            <fans:FanStatusChipView
+                                BadgeDiameter="16"
+                                BadgeGlyphSize="11"
+                                ChipPadding="9,3"
+                                ChipSpacing="6"
+                                Fan="{x:Bind ViewModel.SelectedFan, Mode=OneWay}" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="13"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind ViewModel.SelectedFan.HeaderContext, Mode=OneWay}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="18">
+                            <TextBlock FontSize="12" Foreground="{StaticResource TextPrimaryBrush}">
+                                <Run Foreground="{StaticResource TextSecondaryBrush}" Text="1-min avg " /><Run Text="{x:Bind ViewModel.SelectedFan.OneMinuteAverageDisplay, Mode=OneWay}" /><Run Foreground="{StaticResource TextSecondaryBrush}" Text=" RPM" />
+                            </TextBlock>
+                            <TextBlock FontSize="12" Foreground="{StaticResource TextPrimaryBrush}">
+                                <Run Foreground="{StaticResource TextSecondaryBrush}" Text="peak " /><Run Text="{x:Bind ViewModel.SelectedFan.PeakDisplay, Mode=OneWay}" /><Run Foreground="{StaticResource TextSecondaryBrush}" Text=" RPM" />
+                            </TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!--  Fading dual-line history (rev/s + Temp)  -->
+                    <StackPanel
+                        Grid.Column="2"
+                        Width="268"
+                        VerticalAlignment="Center">
+                        <Grid Margin="0,0,0,3">
+                            <TextBlock
+                                FontSize="10"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="Last 60s" />
+                            <StackPanel
+                                HorizontalAlignment="Right"
+                                Orientation="Horizontal"
+                                Spacing="11">
+                                <StackPanel
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal"
+                                    Spacing="4">
+                                    <Border
+                                        Width="9"
+                                        Height="2"
+                                        VerticalAlignment="Center"
+                                        Background="{StaticResource BrandPrimaryBrush}"
+                                        CornerRadius="1" />
+                                    <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Text="rev/s" />
+                                </StackPanel>
+                                <StackPanel
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal"
+                                    Spacing="4">
+                                    <Border
+                                        Width="9"
+                                        Height="2"
+                                        VerticalAlignment="Center"
+                                        Background="#FFD9706A"
+                                        CornerRadius="1" />
+                                    <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Text="Temp" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                        <lvc:CartesianChart
+                            AnimationsSpeed="0:0:0.4"
+                            Height="84"
+                            AutoUpdateEnabled="True"
+                            Background="Transparent"
+                            TooltipPosition="Hidden">
+                            <lvc:CartesianChart.Series>
+                                <lvc:SeriesCollection>
+                                    <!--  rev/s and Temp share one Y scale; plotted by sample index so the line always spans the width  -->
+                                    <lvc:XamlLineSeries
+                                        Fill="{x:Null}"
+                                        GeometryFill="{x:Null}"
+                                        GeometryStroke="{x:Null}"
+                                        LineSmoothness="0.65"
+                                        Stroke="{x:Bind ViewModel.SelectedFan.HeaderRevStrokePaint, Mode=OneWay}"
+                                        Values="{x:Bind ViewModel.SelectedFan.RevPerSecondHistory, Mode=OneWay}" />
+                                    <lvc:XamlLineSeries
+                                        Fill="{x:Null}"
+                                        GeometryFill="{x:Null}"
+                                        GeometryStroke="{x:Null}"
+                                        LineSmoothness="0.65"
+                                        Stroke="{x:Bind ViewModel.SelectedFan.HeaderTempStrokePaint, Mode=OneWay}"
+                                        Values="{x:Bind ViewModel.SelectedFan.TemperatureSparkline, Mode=OneWay}" />
+                                </lvc:SeriesCollection>
+                            </lvc:CartesianChart.Series>
+                            <lvc:CartesianChart.XAxes>
+                                <lvc:AxesCollection>
+                                    <lvc:XamlAxis
+                                        LabelsPaint="{x:Null}"
+                                        Padding="{lvc:Padding Value='0,0'}"
+                                        ShowSeparatorLines="False"
+                                        TextSize="0" />
+                                </lvc:AxesCollection>
+                            </lvc:CartesianChart.XAxes>
+                            <lvc:CartesianChart.YAxes>
+                                <lvc:AxesCollection>
+                                    <lvc:XamlAxis
+                                        LabelsPaint="{x:Null}"
+                                        MinLimit="0"
+                                        Padding="{lvc:Padding Value='0,0'}"
+                                        ShowSeparatorLines="False"
+                                        TextSize="0" />
+                                </lvc:AxesCollection>
+                            </lvc:CartesianChart.YAxes>
+                        </lvc:CartesianChart>
+                    </StackPanel>
+                </Grid>
+
+                <!--  Fan-control authorization (IpcAuthorizationAndUiCadence.md): commands stay disabled unless all enablement flags are met.  -->
+                <muxc:InfoBar
+                    Title="Fan control unavailable"
+                    IsClosable="False"
+                    IsOpen="True"
+                    Message="{x:Bind ViewModel.FanControlBlockedMessage, Mode=OneWay}"
+                    Severity="Informational"
+                    Visibility="{x:Bind ViewModel.FanControlBlockedVisibility, Mode=OneWay}" />
+
+                <!--  Applies to (link fans) — the edited fan's curve fans out to every linked fan on Apply  -->
+                <Border
+                    Padding="16,12"
+                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                    CornerRadius="10"
+                    Visibility="{x:Bind ViewModel.EditorControlsVisibility, Mode=OneWay}">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal"
+                                Spacing="10">
+                                <material:MaterialIcon
+                                    Width="16"
+                                    Height="16"
+                                    VerticalAlignment="Center"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Kind="LinkVariant" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="13"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="Applies to" />
+                                <ItemsControl VerticalAlignment="Center" ItemsSource="{x:Bind ViewModel.LinkSection.LinkChips, Mode=OneWay}">
+                                    <!--  Force the linked (checked) chip to flood brand blue, not the OS system accent.  -->
+                                    <ItemsControl.Resources>
+                                        <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#0078D7" />
+                                        <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#1184E0" />
+                                        <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#006CC1" />
+                                        <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#FFFFFA" />
+                                        <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="#FFFFFA" />
+                                        <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="#FFFFFA" />
+                                        <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#0078D7" />
+                                        <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#1184E0" />
+                                        <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#006CC1" />
+                                    </ItemsControl.Resources>
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="cardModels:FanLinkChip">
+                                            <ToggleButton
+                                                Margin="0,0,8,0"
+                                                Padding="12,5"
+                                                Click="LinkChip_Click"
+                                                CornerRadius="8"
+                                                IsChecked="{x:Bind IsLinked, Mode=OneWay}"
+                                                IsEnabled="{x:Bind IsToggleEnabled, Mode=OneWay}">
+                                                <StackPanel
+                                                    VerticalAlignment="Center"
+                                                    Orientation="Horizontal"
+                                                    Spacing="6">
+                                                    <material:MaterialIcon
+                                                        Width="14"
+                                                        Height="14"
+                                                        VerticalAlignment="Center"
+                                                        Kind="{x:Bind IconKind, Mode=OneWay}" />
+                                                    <TextBlock
+                                                        FontSize="13"
+                                                        FontWeight="SemiBold"
+                                                        Text="{x:Bind DisplayName, Mode=OneWay}" />
+                                                </StackPanel>
+                                            </ToggleButton>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                            <Button
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Background="Transparent"
+                                BorderBrush="{StaticResource BrandPrimaryBrush}"
+                                BorderThickness="1"
+                                Command="{x:Bind ViewModel.LinkSection.LinkAllFansCommand}"
+                                CornerRadius="8"
+                                Visibility="{x:Bind ViewModel.LinkSection.LinkAllVisibility, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <material:MaterialIcon
+                                        Width="14"
+                                        Height="14"
+                                        VerticalAlignment="Center"
+                                        Foreground="{StaticResource BrandPrimaryBrush}"
+                                        Kind="LinkVariant" />
+                                    <TextBlock
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource BrandPrimaryBrush}"
+                                        Text="Link all" />
+                                </StackPanel>
+                            </Button>
+                            <Button
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Background="Transparent"
+                                BorderBrush="{StaticResource BrandPrimaryBrush}"
+                                BorderThickness="1"
+                                Command="{x:Bind ViewModel.LinkSection.OnlyThisFanCommand}"
+                                CornerRadius="8"
+                                Visibility="{x:Bind ViewModel.LinkSection.OnlyThisVisibility, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <material:MaterialIcon
+                                        Width="14"
+                                        Height="14"
+                                        VerticalAlignment="Center"
+                                        Foreground="{StaticResource BrandPrimaryBrush}"
+                                        Kind="LinkVariantOff" />
+                                    <TextBlock
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource BrandPrimaryBrush}"
+                                        Text="Only this fan" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="{x:Bind ViewModel.LinkSection.LinkSummaryText, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+
+                <!--  Stalled-fan lockdown: replaces all controls with a full-width warning panel  -->
+                <Border
+                    Padding="28"
+                    Background="{StaticResource StatusErrorBrush}"
+                    BorderBrush="#FFD9706A"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Visibility="{x:Bind ViewModel.StalledLockdownVisibility, Mode=OneWay}">
+                    <StackPanel
+                        MaxWidth="520"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="12">
+                        <material:MaterialIcon
+                            Width="56"
+                            Height="56"
+                            HorizontalAlignment="Center"
+                            Foreground="#FFD9706A"
+                            Kind="FanAlert" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontSize="20"
+                            FontWeight="SemiBold"
+                            Foreground="#FFD9706A"
+                            Text="Fan stalled — please inspect this fan"
+                            TextAlignment="Center" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontSize="13"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="This fan is reporting no rotation while it is being driven. Controls are locked until it spins up again. Check for obstructions, dust, or a disconnected fan header; re-seat or replace the fan."
+                            TextAlignment="Center"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="0 RPM · no rotation detected" />
+                        <Button HorizontalAlignment="Center" Command="{x:Bind ViewModel.RecheckFanCommand}">
+                            <StackPanel Orientation="Horizontal" Spacing="7">
+                                <material:MaterialIcon
+                                    Width="16"
+                                    Height="16"
+                                    VerticalAlignment="Center"
+                                    Kind="Refresh" />
+                                <TextBlock Text="Re-check fan" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!--  Mode selector (segmented pill)  -->
+                <StackPanel
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="11"
+                    Visibility="{x:Bind ViewModel.EditorControlsVisibility, Mode=OneWay}">
+                    <StackPanel
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="7">
+                        <material:MaterialIcon
+                            Width="15"
+                            Height="15"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Kind="TuneVariant" />
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Mode" />
+                    </StackPanel>
+                    <!--  Segmented pill built from ToggleButtons so the active option floods brand blue (matches design).  -->
+                    <Border
+                        Padding="3"
+                        Background="{StaticResource CardSecondaryBackgroundBrush}"
+                        CornerRadius="9">
+                        <Border.Resources>
+                            <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#0078D7" />
+                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#1184E0" />
+                            <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#006CC1" />
+                            <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#FFFFFA" />
+                            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="#FFFFFA" />
+                            <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="#FFFFFA" />
+                            <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
+                            <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#22FFFFFF" />
+                            <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#0078D7" />
+                            <Thickness x:Key="ToggleButtonBorderThemeThickness">0</Thickness>
+                        </Border.Resources>
+                        <StackPanel Orientation="Horizontal" Spacing="3">
+                            <ToggleButton
+                                Padding="14,6"
+                                Click="ModeSegment_Click"
+                                CornerRadius="6"
+                                IsChecked="{x:Bind ViewModel.IsAutoModeChecked, Mode=OneWay}"
+                                IsEnabled="{x:Bind ViewModel.CanCommandFanMode, Mode=OneWay}"
+                                Tag="0">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Kind="AutoFix" />
+                                    <TextBlock Text="Auto" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <ToggleButton
+                                Padding="14,6"
+                                Click="ModeSegment_Click"
+                                CornerRadius="6"
+                                IsChecked="{x:Bind ViewModel.IsManualModeChecked, Mode=OneWay}"
+                                IsEnabled="{x:Bind ViewModel.CanCommandFanMode, Mode=OneWay}"
+                                Tag="1">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Kind="Tune" />
+                                    <TextBlock Text="Manual" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <ToggleButton
+                                Padding="14,6"
+                                Click="ModeSegment_Click"
+                                CornerRadius="6"
+                                IsChecked="{x:Bind ViewModel.IsCustomModeChecked, Mode=OneWay}"
+                                IsEnabled="{x:Bind ViewModel.CanCommandFanMode, Mode=OneWay}"
+                                Tag="2">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Kind="ChartBellCurve" />
+                                    <TextBlock Text="Custom curve" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <ToggleButton
+                                Padding="14,6"
+                                Click="ModeSegment_Click"
+                                CornerRadius="6"
+                                IsChecked="{x:Bind ViewModel.IsMaxModeChecked, Mode=OneWay}"
+                                IsEnabled="{x:Bind ViewModel.CanCommandFanMode, Mode=OneWay}"
+                                Tag="3">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Kind="Speedometer" />
+                                    <TextBlock Text="Max" />
+                                </StackPanel>
+                            </ToggleButton>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+            </StackPanel>
+            <!--  Scrollable mode body  -->
+            <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto">
+                <!--  Mode body sub-region: Auto / Manual / Max / Custom resolved by navigation (ContentControl host)  -->
+                <ContentControl
+                    x:Name="ModeRegionHost"
+                    Padding="20,4,20,14"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Top"
+                    uen:Region.Attached="True"
+                    Visibility="{x:Bind ViewModel.EditorControlsVisibility, Mode=OneWay}" />
+        </ScrollViewer>
+            <!--  Sticky per-fan action bar  -->
+            <Border Grid.Row="2" Padding="20,12" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0" Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="7" Visibility="{x:Bind ViewModel.ActionBarCleanVisibility, Mode=OneWay}">
+                        <controls:StatusBadgeView
+                            Diameter="18"
+                            Fill="{StaticResource StatusSuccessBrush}"
+                            Glyph="Check"
+                            GlyphForeground="#FF14241F"
+                            GlyphSize="12" />
+                        <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="No unsaved changes for this fan." />
+                    </StackPanel>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="7" Visibility="{x:Bind ViewModel.ActionBarEditingVisibility, Mode=OneWay}">
+                        <material:MaterialIcon Width="15" Height="15" VerticalAlignment="Center" Foreground="{StaticResource BrandPrimaryBrush}" Kind="CircleEditOutline" />
+                        <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource BrandPrimaryBrush}" Text="Staged changes — Preview them live, then Apply from the fan list to commit." />
+                    </StackPanel>
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="7" Visibility="{x:Bind ViewModel.TestingVisibility, Mode=OneWay}">
+                        <material:MaterialIcon Width="13" Height="13" VerticalAlignment="Center" Foreground="{StaticResource StatusWarningBrush}" Kind="Circle" />
+                        <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource StatusWarningBrush}" Text="Previewing live on the fan — reverts automatically unless you apply it." />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Visibility="{x:Bind ViewModel.ActionBarEditingVisibility, Mode=OneWay}">
+                        <Button MinWidth="90" Command="{x:Bind ViewModel.RevertToAppliedCommand, Mode=OneWay}" Content="Discard" />
+                        <Button MinWidth="90" Command="{x:Bind ViewModel.TestOnFanCommand, Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <material:MaterialIcon Width="14" Height="14" VerticalAlignment="Center" Kind="Play" />
+                                <TextBlock Text="Preview" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                    <Button Grid.Column="1" MinWidth="90" Background="#FFC42B1C" BorderBrush="#FFC42B1C" Foreground="White" Command="{x:Bind ViewModel.RevertToAppliedCommand, Mode=OneWay}" Visibility="{x:Bind ViewModel.TestingVisibility, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <material:MaterialIcon Width="14" Height="14" VerticalAlignment="Center" Foreground="White" Kind="Stop" />
+                            <TextBlock Text="Stop preview" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+        </Grid>
+    </controls:ElevatedCard>
+</UserControl>

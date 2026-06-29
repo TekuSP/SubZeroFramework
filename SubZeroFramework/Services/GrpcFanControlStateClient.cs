@@ -147,9 +147,28 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
             LastDutyPercent = reply.HasLastDutyPercent
                 ? reply.LastDutyPercent
                 : null,
+            ActiveCurveSlot = reply.ActiveCurveSlot,
+            CurveProfiles = [.. reply.CurveProfiles.Select(ParseCurveProfile)],
+            LinkedLeaderIndex = reply.HasLinkedLeaderIndex ? reply.LinkedLeaderIndex : null,
             ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
             IsAvailable = reply.IsAvailable,
         });
+    }
+
+    private static FanCurveProfileSnapshot ParseCurveProfile(FanCurveProfileReply reply)
+    {
+        return new FanCurveProfileSnapshot
+        {
+            Slot = reply.Slot,
+            Name = string.IsNullOrWhiteSpace(reply.Name) ? null : reply.Name,
+            IsConfigured = reply.IsConfigured,
+            CurvePoints = reply.Points.Count == 0
+                ? ImmutableSortedDictionary<int, double>.Empty
+                : reply.Points.ToImmutableSortedDictionary(point => point.TemperatureCelsius, point => point.FanDutyPercent),
+            DrivingTemperatureAggregation = ParseTemperatureAggregationMode(reply.Aggregation),
+            DrivingSensorIndices = [.. reply.DrivingSensorIndices],
+            FollowFanIndex = reply.HasFollowTarget ? reply.FollowFanIndex : null,
+        };
     }
 
     private static FanControlMode ParseFanControlMode(FanControlModeValue value)

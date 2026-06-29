@@ -7,9 +7,11 @@ using LiveChartsCore.SkiaSharpView;
 
 using Microsoft.Extensions.Options;
 
+using SubZeroFramework.Controls.FanCurveProfiles.Models.Modes;
 using SubZeroFramework.Presentation.MenuItems.Dashboard;
 using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
+using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.Modes;
 using SubZeroFramework.Presentation.MenuItems.PowerTelemetry;
 using SubZeroFramework.Presentation.MenuItems.Settings;
 using SubZeroFramework.Presentation.MenuItems.ThermalTelemetry;
@@ -109,10 +111,19 @@ public partial class App : Application
                     services.AddSingleton<IUserUnitPreferencesClient, GrpcUserUnitPreferencesClient>();
                     services.AddSingleton<IUnitFormattingService, UnitsNetUnitFormattingService>();
                     services.AddSingleton<IFrameworkFanControlClient, GrpcFrameworkFanControlClient>();
+                    services.AddSingleton<IFanControlActuator, FanControlActuator>();
+                    services.AddSingleton<IFanHistoryStore, FanHistoryStore>();
+                    services.AddSingleton<FanTelemetryHub>();
                     services.AddSingleton<IHardwareInfoClient, GrpcHardwareInfoClient>();
                     services.AddSingleton<IFrameworkServiceControlClient, LocalFrameworkServiceControlClient>();
                     services.AddSingleton<DispatcherQueue>(DispatcherQueue.GetForCurrentThread());
                     services.AddSingleton<SynchronizationContext>(SynchronizationContext.Current!);
+
+                    // Fan Control coordinator. Uno's nested-region navigation resolves a SEPARATE
+                    // FanCurveProfilesModel for the mode body VMs (not the page-driven one), so they bridge to the
+                    // displayed instance via FanCoordinatorAccessor (set in the coordinator's ctor) instead of DI.
+                    services.AddSingleton<FanCurveProfilesModel>();
+                    services.AddSingleton<FanCoordinatorAccessor>();
                 })
                 .UseNavigation(RegisterRoutes)
             );
@@ -177,6 +188,10 @@ public partial class App : Application
             new ViewMap<DashboardPage, DashboardModel>(),
             new ViewMap<DeviceCapabilitiesPage, DeviceCapabilitiesModel>(),
             new ViewMap<FanCurveProfilesPage, FanCurveProfilesModel>(),
+            new ViewMap<FanAutoModeView, FanAutoModeModel>(),
+            new ViewMap<FanManualModeView, FanManualModeModel>(),
+            new ViewMap<FanMaxModeView, FanMaxModeModel>(),
+            new ViewMap<FanCustomCurveView, FanCustomCurveModel>(),
             new ViewMap<PowerTelemetryPage, PowerTelemetryModel>(),
             new ViewMap<ThermalTelemetryPage, ThermalTelemetryModel>(),
             new ViewMap<WarningIssuesPage, WarningIssuesModel>(),
@@ -190,7 +205,14 @@ public partial class App : Application
             [
                 new RouteMap("Dashboard", View: views.FindByViewModel<DashboardModel>()),
                 new RouteMap("DeviceCapabilities",  View: views.FindByViewModel<DeviceCapabilitiesModel>()),
-                new RouteMap("FanCurveProfiles",  View: views.FindByViewModel<FanCurveProfilesModel>()),
+                new RouteMap("FanCurveProfiles",  View: views.FindByViewModel<FanCurveProfilesModel>(),
+                Nested:
+                [
+                    new RouteMap("Auto", View: views.FindByViewModel<FanAutoModeModel>(), IsDefault: true),
+                    new RouteMap("Manual", View: views.FindByViewModel<FanManualModeModel>()),
+                    new RouteMap("Max", View: views.FindByViewModel<FanMaxModeModel>()),
+                    new RouteMap("Custom", View: views.FindByViewModel<FanCustomCurveModel>()),
+                ]),
                 new RouteMap("PowerTelemetry",  View: views.FindByViewModel<PowerTelemetryModel>()),
                 new RouteMap("ThermalTelemetry",  View: views.FindByViewModel<ThermalTelemetryModel>()),
                 new RouteMap("WarningIssues",  View: views.FindByViewModel<WarningIssuesModel>()),

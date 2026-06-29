@@ -1,0 +1,55 @@
+<UserControl
+    x:Class="SubZeroFramework.Controls.BandRingGaugeView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--  Segmented multi-band speed gauge (nominal → caution → critical → track), reused by the fan rows,
+          the detail header, and the mode body. The host overlays the centre value text + any ghost arc.  -->
+    <lvc:PieChart
+        AnimationsSpeed="0:0:0.4"
+        Background="Transparent"
+        CornerRadius="0"
+        InitialRotation="-225"
+        LegendPosition="Hidden"
+        MaxAngle="270"
+        MaxValue="100"
+        MinValue="0"
+        TooltipPosition="Hidden">
+        <lvc:PieChart.Series>
+            <lvc:SeriesCollection>
+                <lvc:XamlPieSeries
+                    DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
+                    Fill="{x:Bind Fan.GaugeNominalPaint, Mode=OneWay}"
+                    HoverPushout="0"
+                    IsHoverable="False"
+                    MaxRadialColumnWidth="{x:Bind RingThickness, Mode=OneWay}"
+                    Values="{x:Bind Fan.GaugeNominalValues, Mode=OneWay}" />
+                <lvc:XamlPieSeries
+                    DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
+                    Fill="{x:Bind Fan.GaugeCautionPaint, Mode=OneWay}"
+                    HoverPushout="0"
+                    IsHoverable="False"
+                    MaxRadialColumnWidth="{x:Bind RingThickness, Mode=OneWay}"
+                    Values="{x:Bind Fan.GaugeCautionValues, Mode=OneWay}" />
+                <lvc:XamlPieSeries
+                    DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
+                    Fill="{x:Bind Fan.GaugeCriticalPaint, Mode=OneWay}"
+                    HoverPushout="0"
+                    IsHoverable="False"
+                    MaxRadialColumnWidth="{x:Bind RingThickness, Mode=OneWay}"
+                    Values="{x:Bind Fan.GaugeCriticalValues, Mode=OneWay}" />
+                <lvc:XamlPieSeries
+                    DataLabelsPaint="{lvc:SolidColorPaint Color='#00000000'}"
+                    Fill="{x:Bind Fan.SpeedTrackPaint, Mode=OneWay}"
+                    HoverPushout="0"
+                    IsHoverable="False"
+                    MaxRadialColumnWidth="{x:Bind RingThickness, Mode=OneWay}"
+                    Values="{x:Bind Fan.GaugeRemainingValues, Mode=OneWay}" />
+            </lvc:SeriesCollection>
+        </lvc:PieChart.Series>
+    </lvc:PieChart>
+</UserControl>

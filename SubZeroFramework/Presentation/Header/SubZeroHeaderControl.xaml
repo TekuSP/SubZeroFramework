@@ -14,7 +14,7 @@
     <Grid
         MinHeight="130"
         MaxHeight="180"
-        Margin="5,5,5,10"
+        Margin="5,5,5,2"
         HorizontalAlignment="Stretch"
         VerticalAlignment="Top">
         <Grid.RowDefinitions>

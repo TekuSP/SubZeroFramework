@@ -56,6 +56,12 @@ public sealed class FrameworkShutdownCoordinator : IHostedService, IDisposable
             var frameworkPollingStopped = _frameworkDataProvider.StopPolling();
             var hardwareInfoPollingStopped = _frameworkDataProvider.StopHardwareInfoPolling();
 
+            // Polling is stopped (so the curve worker is no longer fed thermal ticks and won't re-assert an
+            // override); now return any still-overridden fans to automatic EC control. Graceful shutdown also
+            // does this via provider disposal — this covers the ProcessExit / unhandled-exception paths where
+            // disposal may not run.
+            _frameworkDataProvider.RestoreAutomaticFanControl();
+
             _logger.LogInformation("Telemetry shutdown finished for {Trigger}. FrameworkPollingStopped={FrameworkPollingStopped}, HardwareInfoPollingStopped={HardwareInfoPollingStopped}.", trigger, frameworkPollingStopped, hardwareInfoPollingStopped);
         }
         catch (ObjectDisposedException)

@@ -1,0 +1,368 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.FanCurveEditorView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:cardModels="using:SubZeroFramework.Controls.FanCurveProfiles.Models"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:muxc="using:Microsoft.UI.Xaml.Controls">
+
+    <!--  Always visible when shown — the mode navigation sub-region controls when this body is displayed.  -->
+    <StackPanel Spacing="16">
+        <!--  Surfaced when another client changes this fan's running curve while the user has unsaved edits.  -->
+        <muxc:InfoBar
+            Title="Applied curve changed elsewhere"
+            IsClosable="False"
+            IsOpen="True"
+            Message="Another client updated this fan's running curve. Use Revert to applied to load it, or Apply to overwrite it with your edits."
+            Severity="Warning"
+            Visibility="{x:Bind ViewModel.ExternalChangeVisibility, Mode=OneWay}" />
+
+        <!--  Section 1: curve editor (flat, no card)  -->
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock
+                VerticalAlignment="Center"
+                FontSize="12"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="Left-click to add a point · drag to move · right-click to remove" />
+            <StackPanel
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="14">
+                <StackPanel
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="6">
+                    <Rectangle
+                        Width="18"
+                        Height="2"
+                        VerticalAlignment="Center"
+                        Fill="{StaticResource TextSecondaryBrush}"
+                        Opacity="0.55"
+                        StrokeDashArray="2,2" />
+                    <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Applied" />
+                </StackPanel>
+                <StackPanel
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="6">
+                    <Rectangle
+                        Width="18"
+                        Height="3"
+                        VerticalAlignment="Center"
+                        Fill="{StaticResource BrandPrimaryBrush}"
+                        RadiusX="1.5"
+                        RadiusY="1.5" />
+                    <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Staged" />
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+        <lvc:CartesianChart
+            AnimationsSpeed="0"
+            x:Name="CurveChart"
+            Height="250"
+            Background="Transparent"
+            PointerCaptureLost="CurveChart_PointerReleased"
+            PointerMoved="CurveChart_PointerMoved"
+            PointerPressed="CurveChart_PointerPressed"
+            PointerReleased="CurveChart_PointerReleased"
+            RightTapped="CurveChart_RightTapped"
+            Sections="{x:Bind ViewModel.CurveChart.CurveDrivingSections, Mode=OneWay}"
+            TooltipPosition="Top">
+            <lvc:CartesianChart.Series>
+                <lvc:SeriesCollection>
+                    <!--  Read-only reference: the curve the service currently has applied (empty when none).  -->
+                    <lvc:XamlLineSeries
+                        Fill="{x:Null}"
+                        GeometrySize="0"
+                        LineSmoothness="0.2"
+                        Stroke="{x:Bind ViewModel.CurveChart.AppliedCurveStrokePaint, Mode=OneWay}"
+                        Values="{x:Bind ViewModel.CurveChart.AppliedCurveSeriesPoints, Mode=OneWay}" />
+                    <!--  Editable draft (area-filled).  -->
+                    <lvc:XamlLineSeries
+                        Fill="{x:Bind ViewModel.CurveChart.CurveAreaFillPaint, Mode=OneWay}"
+                        GeometryFill="{x:Bind ViewModel.CurveChart.CurveGeometryFillPaint, Mode=OneWay}"
+                        GeometrySize="12"
+                        LineSmoothness="0.2"
+                        Stroke="{x:Bind ViewModel.CurveChart.CurveStrokePaint, Mode=OneWay}"
+                        Values="{x:Bind ViewModel.CurveChart.CurveSeriesPoints, Mode=OneWay}" />
+                </lvc:SeriesCollection>
+            </lvc:CartesianChart.Series>
+            <lvc:CartesianChart.XAxes>
+                <lvc:AxesCollection>
+                    <lvc:XamlAxis
+                        Labeler="{x:Bind ViewModel.CurveChart.CurveTemperatureLabelFormatter, Mode=OneWay}"
+                        LabelsPaint="{x:Bind ViewModel.CurveChart.CurveAxisLabelsPaint, Mode=OneWay}"
+                        MaxLimit="125"
+                        MinLimit="10"
+                        MinStep="10"
+                        SeparatorsPaint="{x:Bind ViewModel.CurveChart.CurveAxisSeparatorsPaint, Mode=OneWay}"
+                        ShowSeparatorLines="True"
+                        TextSize="11" />
+                </lvc:AxesCollection>
+            </lvc:CartesianChart.XAxes>
+            <lvc:CartesianChart.YAxes>
+                <lvc:AxesCollection>
+                    <lvc:XamlAxis
+                        Labeler="{x:Bind ViewModel.CurveChart.CurveDutyLabelFormatter, Mode=OneWay}"
+                        LabelsPaint="{x:Bind ViewModel.CurveChart.CurveAxisLabelsPaint, Mode=OneWay}"
+                        MaxLimit="108"
+                        MinLimit="-4"
+                        MinStep="20"
+                        SeparatorsPaint="{x:Bind ViewModel.CurveChart.CurveAxisSeparatorsPaint, Mode=OneWay}"
+                        ShowSeparatorLines="True"
+                        TextSize="11" />
+                </lvc:AxesCollection>
+            </lvc:CartesianChart.YAxes>
+        </lvc:CartesianChart>
+        <TextBlock
+            FontSize="13"
+            Foreground="{StaticResource TextPrimaryBrush}"
+            Text="{x:Bind ViewModel.CurveChart.PredictedDutyText, Mode=OneWay}"
+            Visibility="{x:Bind ViewModel.PredictedDutyVisibility, Mode=OneWay}" />
+
+        <!--  divider  -->
+        <Border Height="1" Margin="0,2" Background="{StaticResource CardBorderBrush}" />
+
+        <!--  Section 2: driving temperature sensors + aggregation segmented  -->
+        <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock
+                VerticalAlignment="Center"
+                FontSize="15"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="Driving temperature sensors" />
+            <StackPanel
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="9">
+                <StackPanel
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="6">
+                    <material:MaterialIcon
+                        Width="15"
+                        Height="15"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Kind="Sigma" />
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="Aggregate" />
+                </StackPanel>
+                <Border
+                    Padding="3"
+                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                    CornerRadius="9">
+                    <Border.Resources>
+                        <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#0078D7" />
+                        <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#1184E0" />
+                        <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#006CC1" />
+                        <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#FFFFFA" />
+                        <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="#FFFFFA" />
+                        <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="#FFFFFA" />
+                        <SolidColorBrush x:Key="ToggleButtonBackground" Color="Transparent" />
+                        <SolidColorBrush x:Key="ToggleButtonBackgroundPointerOver" Color="#22FFFFFF" />
+                        <Thickness x:Key="ToggleButtonBorderThemeThickness">0</Thickness>
+                    </Border.Resources>
+                    <StackPanel Orientation="Horizontal" Spacing="3">
+                        <ToggleButton
+                            Padding="12,5"
+                            Command="{x:Bind ViewModel.SetAggregationCommand}"
+                            CommandParameter="Maximum"
+                            Content="Maximum"
+                            CornerRadius="6"
+                            IsChecked="{x:Bind ViewModel.IsAggregateMaximum, Mode=OneWay}" />
+                        <ToggleButton
+                            Padding="12,5"
+                            Command="{x:Bind ViewModel.SetAggregationCommand}"
+                            CommandParameter="Average"
+                            Content="Average"
+                            CornerRadius="6"
+                            IsChecked="{x:Bind ViewModel.IsAggregateAverage, Mode=OneWay}" />
+                        <ToggleButton
+                            Padding="12,5"
+                            Command="{x:Bind ViewModel.SetAggregationCommand}"
+                            CommandParameter="Median"
+                            Content="Median"
+                            CornerRadius="6"
+                            IsChecked="{x:Bind ViewModel.IsAggregateMedian, Mode=OneWay}" />
+                        <ToggleButton
+                            Padding="12,5"
+                            Command="{x:Bind ViewModel.SetAggregationCommand}"
+                            CommandParameter="Minimum"
+                            Content="Minimum"
+                            CornerRadius="6"
+                            IsChecked="{x:Bind ViewModel.IsAggregateMinimum, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Grid>
+        <ItemsControl ItemsSource="{x:Bind ViewModel.SensorSelection.AvailableSensors, Mode=OneWay}">
+            <ItemsControl.Resources>
+                <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#0078D7" />
+                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#1184E0" />
+                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#006CC1" />
+                <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="#FFFFFA" />
+                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="#FFFFFA" />
+                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="#FFFFFA" />
+                <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#0078D7" />
+                <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#1184E0" />
+                <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#006CC1" />
+            </ItemsControl.Resources>
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <controls:AutoWrapPanel
+                        HorizontalSpacing="8"
+                        ItemWidth="128"
+                        VerticalSpacing="8" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="cardModels:SensorChipModel">
+                    <ToggleButton
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Left"
+                        Padding="11,6"
+                        CornerRadius="8"
+                        IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
+                        IsEnabled="{x:Bind IsUsable, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <material:MaterialIcon
+                                Width="15"
+                                Height="15"
+                                VerticalAlignment="Center"
+                                Kind="{x:Bind StateIcon, Mode=OneWay}" />
+                            <StackPanel>
+                                <TextBlock
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Text="{x:Bind DisplayName, Mode=OneWay}" />
+                                <TextBlock
+                                    FontSize="11"
+                                    Opacity="0.85"
+                                    Text="{x:Bind SubLabel, Mode=OneWay}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </ToggleButton>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <StackPanel Orientation="Horizontal" Spacing="7">
+            <material:MaterialIcon
+                Width="14"
+                Height="14"
+                VerticalAlignment="Center"
+                Foreground="{StaticResource StatusWarningBrush}"
+                Kind="ShieldAlertOutline" />
+            <TextBlock
+                FontSize="12"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="If a driving sensor reports an error or loses power, the fan falls back to its firmware-safe curve." />
+        </StackPanel>
+
+        <!--  divider  -->
+        <Border Height="1" Margin="0,2" Background="{StaticResource CardBorderBrush}" />
+
+        <!--  Section 3: driving temperature · last 30s  -->
+        <Grid ColumnSpacing="12" Visibility="{x:Bind ViewModel.SensorChart.SensorChartVisibility, Mode=OneWay}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel
+                VerticalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="7">
+                <material:MaterialIcon
+                    Width="15"
+                    Height="15"
+                    VerticalAlignment="Center"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Kind="ChartLine" />
+                <TextBlock
+                    FontSize="15"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Driving temperature · last 30s" />
+            </StackPanel>
+            <TextBlock
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                FontSize="12"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="{x:Bind ViewModel.SensorAggregateLabel, Mode=OneWay}" />
+        </Grid>
+        <lvc:CartesianChart
+            AnimationsSpeed="0:0:0.4"
+            Height="200"
+            Background="Transparent"
+            LegendPosition="Hidden"
+            Series="{x:Bind ViewModel.SensorChart.SensorChartSeries, Mode=OneWay}"
+            TooltipPosition="Top"
+            Visibility="{x:Bind ViewModel.SensorChart.SensorChartVisibility, Mode=OneWay}">
+            <lvc:CartesianChart.XAxes>
+                <lvc:AxesCollection>
+                    <lvc:XamlDateTimeAxis
+                        AnimationsSpeed="0"
+                        CustomSeparators="{x:Bind ViewModel.SensorChart.SensorChartSeparators, Mode=OneWay}"
+                        DateFormatter="{x:Bind ViewModel.SensorChart.SensorChartDateFormatter, Mode=OneWay}"
+                        LabelsPaint="{x:Bind ViewModel.CurveChart.CurveAxisLabelsPaint, Mode=OneWay}"
+                        MaxLimit="{x:Bind ViewModel.SensorChart.SensorChartMaxLimit, Mode=OneWay}"
+                        MinLimit="{x:Bind ViewModel.SensorChart.SensorChartMinLimit, Mode=OneWay}"
+                        ShowSeparatorLines="False"
+                        TextSize="11" />
+                </lvc:AxesCollection>
+            </lvc:CartesianChart.XAxes>
+            <lvc:CartesianChart.YAxes>
+                <lvc:AxesCollection>
+                    <lvc:XamlAxis
+                        Labeler="{x:Bind ViewModel.SensorChart.SensorChartTemperatureFormatter, Mode=OneWay}"
+                        LabelsPaint="{x:Bind ViewModel.CurveChart.CurveAxisLabelsPaint, Mode=OneWay}"
+                        ShowSeparatorLines="False"
+                        TextSize="11" />
+                </lvc:AxesCollection>
+            </lvc:CartesianChart.YAxes>
+        </lvc:CartesianChart>
+        <!--  Left-aligned custom legend (swatch + name + current value)  -->
+        <ItemsControl
+            Margin="0,2,0,0"
+            HorizontalAlignment="Left"
+            ItemsSource="{x:Bind ViewModel.SensorChart.SensorChartLegend, Mode=OneWay}"
+            Visibility="{x:Bind ViewModel.SensorChart.SensorChartVisibility, Mode=OneWay}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="16" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="cardModels:SensorLegendItem">
+                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal" Spacing="6">
+                        <Border
+                            Width="16"
+                            Height="3"
+                            VerticalAlignment="Center"
+                            Background="{x:Bind Swatch}"
+                            CornerRadius="1.5" />
+                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind Name}" />
+                        <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ValueDisplay}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+    </StackPanel>
+</UserControl>

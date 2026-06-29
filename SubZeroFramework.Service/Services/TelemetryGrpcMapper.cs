@@ -200,6 +200,45 @@ internal static class TelemetryGrpcMapper
             TemperatureCelsius = point.Key,
             FanDutyPercent = point.Value,
         }));
+
+        reply.ActiveCurveSlot = change.Current.ActiveCurveSlot;
+        foreach (var profile in change.Current.CurveProfiles)
+        {
+            reply.CurveProfiles.Add(MapCurveProfile(change.Key, profile));
+        }
+
+        if (change.Current.LinkedLeaderIndex is int linkedLeaderIndex)
+        {
+            reply.LinkedLeaderIndex = linkedLeaderIndex;
+        }
+
+        return reply;
+    }
+
+    private static FanCurveProfileReply MapCurveProfile(int fanIndex, FanCurveProfileSnapshot profile)
+    {
+        var reply = new FanCurveProfileReply
+        {
+            FanIndex = fanIndex,
+            Slot = profile.Slot,
+            Name = profile.Name ?? string.Empty,
+            IsConfigured = profile.IsConfigured,
+            Aggregation = MapTemperatureAggregationMode(profile.DrivingTemperatureAggregation),
+        };
+
+        reply.DrivingSensorIndices.AddRange(profile.DrivingSensorIndices);
+        reply.Points.AddRange(profile.CurvePoints.Select(point => new FanCurvePointReply
+        {
+            TemperatureCelsius = point.Key,
+            FanDutyPercent = point.Value,
+        }));
+
+        if (profile.FollowFanIndex is int followFanIndex)
+        {
+            reply.HasFollowTarget = true;
+            reply.FollowFanIndex = followFanIndex;
+        }
+
         return reply;
     }
 
