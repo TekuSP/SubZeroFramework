@@ -42,8 +42,15 @@ Two sources, per the handoff:
 ## Per-page plan (data each needs; ✅ = data already flows)
 - **Fan Control** — largely built (staging model, master/detail). Redesign pass to match mockup; reuse
   `BandRingGaugeView`, `StatusBadgeView`, `FanStatusChipView`.
-- **Thermal Telemetry** — needs **sensor `Name`** carried Core→proto→client (the FFI now provides it). Overview +
-  per-sensor chart; `map-marker` location, named sensors instead of "Sensor N".
+- **Thermal Telemetry — DONE.** Full 6-layer vertical for the sensor **location**: `FrameworkSensorName` (FFI) →
+  `CurrentTelemetryValue.SensorName` → proto `TemperatureSensorNameValue sensor_name` (mirrors the enum) →
+  `TelemetryGrpcMapper.MapSensorName` → client `ParseSensorName` → `TemperatureTelemetrySnapshot.SensorName`. UI:
+  `FrameworkSensorNameDisplay.ToLocation` (Core, tested) maps the role → short label ("APU / SoC" etc.). New
+  `ThermalSensorTileView` (top series-colour stripe + plot checkbox + "Sensor N" + `map-marker` location +
+  severity °C/bar + OK status, dims when unplotted) replaces `ThermalStateCardView` (deleted). Page: segmented
+  history window (1/5/15/60, default 5 min), icon device-meta strip (green "Live telemetry"), "Sensors" header
+  with "N of N plotted" + Select all, the tile grid, and a comparison chart with a custom live legend
+  (swatch + Sensor N + °C). **This is the reference pattern for the remaining telemetry-redesign verticals.**
 - **Power Telemetry** — PD per-port section ✅ already built. Add: **power-flow** (adapter→system→battery, derived
   from active PD port V×A + battery V×A), **battery charge ring** + details, **charge limits** read + a
   `SetChargeLimits` control (gated by fan-control auth), trends.
@@ -57,8 +64,9 @@ Two sources, per the handoff:
   fingerprint. Most data needs the Core→proto→client vertical (only PD is wired today).
 
 ## Phasing
-1. **Foundation** — IconifyIcon control + mappers + app shell/nav (incl. new Modules rail entry).
-2. **Thermal** (smallest new-data lift: sensor names) → proves the telemetry-redesign pattern.
+1. **Foundation** — resolver DONE; Modules rail entry + stub DONE; title-bar/rail chrome restyle CANCELLED by user
+   (keep the existing title bar + nav rail as-is — only page content changes).
+2. **Thermal** — DONE (see above). Proves the telemetry-redesign pattern for Power/Device-Caps/Modules.
 3. **Power** (extends the existing PD work: power-flow + battery + charge-limits control).
 4. **Device Capabilities** (mostly HardwareInfo, already partly flowing).
 5. **Modules** (largest: new page + per-platform layouts + the most new EC plumbing) — do the **Library** first

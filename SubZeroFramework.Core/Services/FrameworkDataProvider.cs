@@ -1294,7 +1294,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 unitSymbol: "C",
                 observedAt: observedAt,
                 numericValue: temperatureSnapshot.Temperature.DegreesCelsius,
-                temperatureState: temperatureSnapshot.State);
+                temperatureState: temperatureSnapshot.State,
+                sensorName: temperatureSnapshot.Name);
         }
 
         SetChannelsAvailability(
@@ -1545,6 +1546,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         DateTimeOffset observedAt,
         double numericValue,
         FrameworkTemperatureState? temperatureState = null,
+        FrameworkSensorName? sensorName = null,
         FrameworkPowerSourceState? powerSourceState = null,
         FrameworkBatteryState? batteryState = null,
         string? batteryManufacturer = null,
@@ -1567,6 +1569,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             ObservedAt = observedAt,
             NumericValue = numericValue,
             TemperatureState = temperatureState,
+            SensorName = sensorName,
             PowerSourceState = powerSourceState,
             BatteryState = batteryState,
             BatteryManufacturer = batteryManufacturer,

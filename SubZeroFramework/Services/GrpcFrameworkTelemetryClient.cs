@@ -326,6 +326,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
             NumericValue = reply.HasNumericValue ? reply.NumericValue : null,
             TemperatureState = ParseTemperatureState(reply.TemperatureState),
+            SensorName = ParseSensorName(reply.SensorName),
             PowerSourceState = ParsePowerSourceState(reply.PowerSourceState),
             BatteryState = ParseBatteryState(reply.BatteryState),
             BatteryManufacturer = string.IsNullOrEmpty(reply.BatteryManufacturer) ? null : reply.BatteryManufacturer,
@@ -464,6 +465,31 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             TemperatureStateValue.Error => FrameworkTemperatureState.Error,
             TemperatureStateValue.NotPowered => FrameworkTemperatureState.NotPowered,
             TemperatureStateValue.NotCalibrated => FrameworkTemperatureState.NotCalibrated,
+            _ => null,
+        };
+    }
+
+    private static FrameworkSensorName? ParseSensorName(TemperatureSensorNameValue value)
+    {
+        return value switch
+        {
+            TemperatureSensorNameValue.Generic => FrameworkSensorName.Generic,
+            TemperatureSensorNameValue.F75303Local => FrameworkSensorName.F75303Local,
+            TemperatureSensorNameValue.F75303Cpu => FrameworkSensorName.F75303Cpu,
+            TemperatureSensorNameValue.F75303Ddr => FrameworkSensorName.F75303Ddr,
+            TemperatureSensorNameValue.Battery => FrameworkSensorName.Battery,
+            TemperatureSensorNameValue.Peci => FrameworkSensorName.Peci,
+            TemperatureSensorNameValue.F57397VccGt => FrameworkSensorName.F57397VccGt,
+            TemperatureSensorNameValue.F75303Skin => FrameworkSensorName.F75303Skin,
+            TemperatureSensorNameValue.ChargerIc => FrameworkSensorName.ChargerIc,
+            TemperatureSensorNameValue.Apu => FrameworkSensorName.Apu,
+            TemperatureSensorNameValue.DgpuVr => FrameworkSensorName.DgpuVr,
+            TemperatureSensorNameValue.DgpuVram => FrameworkSensorName.DgpuVram,
+            TemperatureSensorNameValue.DgpuAmb => FrameworkSensorName.DgpuAmb,
+            TemperatureSensorNameValue.DgpuTemp => FrameworkSensorName.DgpuTemp,
+            TemperatureSensorNameValue.F75303Apu => FrameworkSensorName.F75303Apu,
+            TemperatureSensorNameValue.F75303Amb => FrameworkSensorName.F75303Amb,
+            TemperatureSensorNameValue.Virtual => FrameworkSensorName.Virtual,
             _ => null,
         };
     }

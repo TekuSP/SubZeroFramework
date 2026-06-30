@@ -5,6 +5,7 @@ using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
 
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 using DynamicData;
 
@@ -15,11 +16,14 @@ using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 
+using Microsoft.UI.Xaml.Media;
+
 using SkiaSharp;
 
 using SubZeroFramework.Controls.Thermal.Models;
 using SubZeroFramework.Services.Units;
 using SubZeroFramework.Services;
+using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Presentation.MenuItems.ThermalTelemetry;
 
@@ -27,6 +31,7 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
 {
     private readonly CompositeDisposable _subscriptions = [];
     private readonly ObservableCollection<ThermalSensorModel> _sensors = [];
+    private readonly ObservableCollection<ThermalSensorModel> _plottedSensors = [];
     private readonly Dictionary<int, ThermalSensorModel> _sensorModelsByIndex = [];
     private readonly Dictionary<int, TelemetryPoint[]> _historyPoints = [];
     private readonly Dictionary<int, IDisposable> _historySubscriptions = [];
@@ -50,8 +55,10 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
         _synchronizationContext = synchronizationContext;
 
         Sensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_sensors);
+        PlottedSensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_plottedSensors);
         HistoryWindowOptions = PresentationDefaults.ThermalHistoryWindowLabels;
         UpdateThermalHistoryAxis([]);
+        RefreshPlottedState();
 
         frameworkStatusClient
             .WatchStatus()
@@ -76,12 +83,34 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
 
     public ReadOnlyObservableCollection<ThermalSensorModel> Sensors { get; }
 
+    /// <summary>The plotted (checked) sensors, in index order — backs the chart legend (name + live °C swatch).</summary>
+    public ReadOnlyObservableCollection<ThermalSensorModel> PlottedSensors { get; }
+
     public IReadOnlyList<string> HistoryWindowOptions { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(SelectedHistoryWindow))]
     [NotifyPropertyChangedFor(nameof(SelectedHistoryWindowDisplay))]
-    public partial int SelectedHistoryWindowIndex { get; set; }
+    [NotifyPropertyChangedFor(nameof(IsHistoryWindow0Selected))]
+    [NotifyPropertyChangedFor(nameof(IsHistoryWindow1Selected))]
+    [NotifyPropertyChangedFor(nameof(IsHistoryWindow2Selected))]
+    [NotifyPropertyChangedFor(nameof(IsHistoryWindow3Selected))]
+    public partial int SelectedHistoryWindowIndex { get; set; } = PresentationDefaults.DefaultThermalHistoryWindowIndex;
+
+    // Per-segment checked state for the history-window pill (a ToggleButton segmented control).
+    public bool IsHistoryWindow0Selected => SelectedHistoryWindowIndex == 0;
+
+    public bool IsHistoryWindow1Selected => SelectedHistoryWindowIndex == 1;
+
+    public bool IsHistoryWindow2Selected => SelectedHistoryWindowIndex == 2;
+
+    public bool IsHistoryWindow3Selected => SelectedHistoryWindowIndex == 3;
+
+    [ObservableProperty]
+    public partial string PlottedSummary { get; set; } = "0 of 0 plotted";
+
+    [ObservableProperty]
+    public partial string SelectAllLabel { get; set; } = "Select all";
 
     public TimeSpan SelectedHistoryWindow => PresentationDefaults.ThermalHistoryWindowValues[Math.Clamp(SelectedHistoryWindowIndex, 0, PresentationDefaults.ThermalHistoryWindowValues.Length - 1)];
 
@@ -113,6 +142,7 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(DriverDisplay))]
     [NotifyPropertyChangedFor(nameof(EcBuildInfoDisplay))]
     [NotifyPropertyChangedFor(nameof(ServiceStateDisplay))]
+    [NotifyPropertyChangedFor(nameof(ServiceStateBrush))]
     [NotifyPropertyChangedFor(nameof(TelemetryObservedDisplay))]
     [NotifyPropertyChangedFor(nameof(LastErrorDisplay))]
     public partial FrameworkSystemStatus? LastStatus { get; set; }
@@ -123,9 +153,21 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
 
     public string DriverDisplay => LastStatus?.ActiveDriver?.ToString() ?? "Unknown driver";
 
-    public string EcBuildInfoDisplay => string.IsNullOrWhiteSpace(LastStatus?.EcBuildInfo)
-        ? "Unavailable"
-        : LastStatus.EcBuildInfo!;
+    public string EcBuildInfoDisplay
+    {
+        get
+        {
+            var build = LastStatus?.EcBuildInfo;
+            if (string.IsNullOrWhiteSpace(build))
+            {
+                return "Unavailable";
+            }
+
+            // The EC build can carry a trailing "<date> <host>" — show just the build identifier (matches design).
+            var tokens = build.Split([' ', '\t', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries);
+            return tokens.Length > 0 ? tokens[0] : build;
+        }
+    }
 
     public string ServiceStateDisplay
     {
@@ -154,6 +196,11 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
             return "Live telemetry";
         }
     }
+
+    /// <summary>Green when telemetry is live, muted otherwise — for the device-meta "Service" value.</summary>
+    public Brush ServiceStateBrush => string.Equals(ServiceStateDisplay, "Live telemetry", StringComparison.Ordinal)
+        ? AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor)
+        : AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextSecondaryColor);
 
     public string TelemetryObservedDisplay => LastStatus is { LastTelemetryObservedAt: var observedAt } && observedAt != DateTimeOffset.MinValue
         ? observedAt.LocalDateTime.ToString("T")
@@ -337,6 +384,33 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
 
         UpdateThermalHistoryAxis(selectedSensors);
         ThermalHistorySeries = [.. selectedSensors.Select(GetOrCreateThermalHistorySeries)];
+        RefreshPlottedState(selectedSensors);
+    }
+
+    private void RefreshPlottedState() => RefreshPlottedState(GetSelectedSensors());
+
+    private void RefreshPlottedState(IReadOnlyList<ThermalSensorModel> selectedSensors)
+    {
+        var total = _sensors.Count;
+        PlottedSummary = $"{selectedSensors.Count} of {total} plotted";
+        SelectAllLabel = total > 0 && selectedSensors.Count == total ? "Clear all" : "Select all";
+
+        // Rebuild the legend-backing list (selection changes are infrequent — not per telemetry tick).
+        _plottedSensors.Clear();
+        foreach (var sensor in selectedSensors)
+        {
+            _plottedSensors.Add(sensor);
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleSelectAll()
+    {
+        var selectAll = !(_sensors.Count > 0 && _sensors.All(sensor => sensor.IsSelected));
+        foreach (var sensor in _sensors)
+        {
+            sensor.IsSelected = selectAll;
+        }
     }
 
     private void UpdateThermalHistoryAxis()
@@ -386,7 +460,7 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
         return new LineSeries<DateTimePoint>
         {
             Values = sensor.OverviewTemperatureHistory,
-            Name = sensor.DisplayName,
+            Name = sensor.CardTitle,
             Fill = null,
             GeometrySize = 6,
             GeometryFill = new SolidColorPaint(strokeColor),

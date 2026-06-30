@@ -31,4 +31,13 @@ public sealed partial class ThermalTelemetryPage : Page, INotifyPropertyChanged
             ViewModel = model;
         }
     }
+
+    private void HistorySegment_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    {
+        if (sender is Microsoft.UI.Xaml.FrameworkElement { Tag: string tag }
+            && int.TryParse(tag, System.Globalization.CultureInfo.InvariantCulture, out var index))
+        {
+            ViewModel.SelectedHistoryWindowIndex = index;
+        }
+    }
 }

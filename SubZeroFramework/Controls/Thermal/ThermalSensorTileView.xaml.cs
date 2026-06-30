@@ -4,9 +4,9 @@ using SubZeroFramework.Controls.Thermal.Models;
 
 namespace SubZeroFramework.Controls.Thermal;
 
-public sealed partial class ThermalStateCardView : UserControl, INotifyPropertyChanged
+public sealed partial class ThermalSensorTileView : UserControl, INotifyPropertyChanged
 {
-    public ThermalStateCardView()
+    public ThermalSensorTileView()
     {
         this.InitializeComponent();
     }

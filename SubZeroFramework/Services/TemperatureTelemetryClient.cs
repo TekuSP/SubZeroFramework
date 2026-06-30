@@ -105,6 +105,7 @@ public sealed class TemperatureTelemetryClient : ITemperatureTelemetryClient
         {
             SensorIndex = value.ChannelId.Index,
             DisplayName = value.DisplayName,
+            SensorName = value.SensorName,
             UnitSymbol = value.UnitSymbol,
             ObservedAt = value.ObservedAt,
             TemperatureCelsius = value.NumericValue,

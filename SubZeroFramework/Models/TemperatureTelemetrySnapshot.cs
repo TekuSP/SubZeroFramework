@@ -8,6 +8,9 @@ public sealed record TemperatureTelemetrySnapshot
 
     public required string DisplayName { get; init; }
 
+    /// <summary>Platform role of the sensor (e.g. APU, CPU PECI, GPU VRAM); null when not identified.</summary>
+    public FrameworkSensorName? SensorName { get; init; }
+
     public string? UnitSymbol { get; init; }
 
     public DateTimeOffset ObservedAt { get; init; }

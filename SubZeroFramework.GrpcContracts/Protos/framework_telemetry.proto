@@ -519,6 +519,29 @@ enum TemperatureStateValue {
   TEMPERATURE_STATE_VALUE_NOT_CALIBRATED = 5;
 }
 
+// Platform role of a temperature sensor slot (mirrors FrameworkDotnet.Enums.FrameworkSensorName). UNSPECIFIED
+// corresponds to FrameworkSensorName.Unknown.
+enum TemperatureSensorNameValue {
+  TEMPERATURE_SENSOR_NAME_VALUE_UNSPECIFIED = 0;
+  TEMPERATURE_SENSOR_NAME_VALUE_GENERIC = 1;
+  TEMPERATURE_SENSOR_NAME_VALUE_F75303_LOCAL = 2;
+  TEMPERATURE_SENSOR_NAME_VALUE_F75303_CPU = 3;
+  TEMPERATURE_SENSOR_NAME_VALUE_F75303_DDR = 4;
+  TEMPERATURE_SENSOR_NAME_VALUE_BATTERY = 5;
+  TEMPERATURE_SENSOR_NAME_VALUE_PECI = 6;
+  TEMPERATURE_SENSOR_NAME_VALUE_F57397_VCC_GT = 7;
+  TEMPERATURE_SENSOR_NAME_VALUE_F75303_SKIN = 8;
+  TEMPERATURE_SENSOR_NAME_VALUE_CHARGER_IC = 9;
+  TEMPERATURE_SENSOR_NAME_VALUE_APU = 10;
+  TEMPERATURE_SENSOR_NAME_VALUE_DGPU_VR = 11;
+  TEMPERATURE_SENSOR_NAME_VALUE_DGPU_VRAM = 12;
+  TEMPERATURE_SENSOR_NAME_VALUE_DGPU_AMB = 13;
+  TEMPERATURE_SENSOR_NAME_VALUE_DGPU_TEMP = 14;
+  TEMPERATURE_SENSOR_NAME_VALUE_F75303_APU = 15;
+  TEMPERATURE_SENSOR_NAME_VALUE_F75303_AMB = 16;
+  TEMPERATURE_SENSOR_NAME_VALUE_VIRTUAL = 17;
+}
+
 enum PowerSourceStateValue {
   POWER_SOURCE_STATE_VALUE_UNSPECIFIED = 0;
   POWER_SOURCE_STATE_VALUE_NONE = 1;
@@ -731,6 +754,8 @@ message CurrentTelemetryValueChangeReply {
   double battery_design_voltage_volts = 23;
   bool has_battery_cycle_count = 24;
   uint32 battery_cycle_count = 25;
+  // Platform role of a temperature sensor (thermal channels only); UNSPECIFIED for non-thermal or unidentified.
+  TemperatureSensorNameValue sensor_name = 26;
 }
 
 message CurrentTelemetryValueChangeBatchReply {

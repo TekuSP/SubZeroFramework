@@ -6,8 +6,13 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 using LiveChartsCore.Defaults;
 
+using Material.Icons;
+
+using Microsoft.UI;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
+using SubZeroFramework.Services;
 using SubZeroFramework.Services.Units;
 using SubZeroFramework.Themes;
 
@@ -43,11 +48,18 @@ public partial class ThermalSensorModel : ObservableObject
 
 	[ObservableProperty]
 	[NotifyPropertyChangedFor(nameof(DisplayName))]
+	[NotifyPropertyChangedFor(nameof(CardTitle))]
+	[NotifyPropertyChangedFor(nameof(LocationDisplay))]
+	[NotifyPropertyChangedFor(nameof(HasLocation))]
+	[NotifyPropertyChangedFor(nameof(LocationVisibility))]
 	[NotifyPropertyChangedFor(nameof(TemperatureValueDisplay))]
 	[NotifyPropertyChangedFor(nameof(TemperatureValueWithUnit))]
 	[NotifyPropertyChangedFor(nameof(SelectionDisplay))]
 	[NotifyPropertyChangedFor(nameof(TemperatureUnitSuffix))]
 	[NotifyPropertyChangedFor(nameof(HistoryStrokeHex))]
+	[NotifyPropertyChangedFor(nameof(SeriesBrush))]
+	[NotifyPropertyChangedFor(nameof(PlottedIndicatorBrush))]
+	[NotifyPropertyChangedFor(nameof(StatusIconKind))]
 	public partial TemperatureTelemetrySnapshot Snapshot { get; set; } = default!;
 
 	public ObservableCollection<DateTimePoint> TemperatureHistory { get; } = [];
@@ -63,9 +75,15 @@ public partial class ThermalSensorModel : ObservableObject
 	public partial double[] Separators { get; set; } = [];
 
 	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(PlottedIndicatorBrush))]
+	[NotifyPropertyChangedFor(nameof(CardOpacity))]
 	public partial bool IsSelected { get; set; } = true;
 
+	/// <summary>Plotted cards render at full opacity; unplotted ones dim slightly (matches the design).</summary>
+	public double CardOpacity => IsSelected ? 1d : 0.6d;
+
 	[ObservableProperty]
+	[NotifyPropertyChangedFor(nameof(StatusShortText))]
 	public partial string StatusText { get; set; } = "Status: Checking";
 
 	[ObservableProperty]
@@ -86,6 +104,16 @@ public partial class ThermalSensorModel : ObservableObject
 	public string DisplayName => string.IsNullOrWhiteSpace(Snapshot.DisplayName)
 		? $"Sensor {Snapshot.SensorIndex + 1}"
 		: Snapshot.DisplayName;
+
+	/// <summary>Card/legend title — index-based "Sensor N" (the descriptive role is shown as the location).</summary>
+	public string CardTitle => $"Sensor {Snapshot.SensorIndex}";
+
+	/// <summary>Short platform-role location shown beneath the title (e.g. "APU / SoC"); null when unidentified.</summary>
+	public string? LocationDisplay => FrameworkSensorNameDisplay.ToLocation(Snapshot.SensorName);
+
+	public bool HasLocation => !string.IsNullOrEmpty(LocationDisplay);
+
+	public Visibility LocationVisibility => HasLocation ? Visibility.Visible : Visibility.Collapsed;
 
 	public string TemperatureValueDisplay => ShouldDisplayMeasuredTemperature && Snapshot.TemperatureCelsius is double value
 		? _unitFormattingService.FormatTemperatureValue(value, decimals: 0)
@@ -124,6 +152,50 @@ public partial class ThermalSensorModel : ObservableObject
 	public ObservableValue[] RemainingGaugeValues { get; }
 
 	public string HistoryStrokeHex => HistoryStrokePalette[Math.Abs(Snapshot.SensorIndex) % HistoryStrokePalette.Length];
+
+	/// <summary>The sensor's chart-series colour, used for the card's top stripe, the plotted dot and the legend swatch.</summary>
+	public Brush SeriesBrush => BrushFromHex(HistoryStrokeHex);
+
+	/// <summary>Series colour when plotted, muted grey when not — drives the top stripe and the plotted dot.</summary>
+	public Brush PlottedIndicatorBrush => IsSelected
+		? SeriesBrush
+		: AppThemeBrushes.Get("BrandDisabledBrush", AppThemeBrushes.BrandDisabledColor);
+
+	/// <summary>Status text without the "Status: " prefix (e.g. "OK"), for the compact card footer.</summary>
+	public string StatusShortText => StatusText.StartsWith("Status: ", StringComparison.Ordinal)
+		? StatusText["Status: ".Length..]
+		: StatusText;
+
+	/// <summary>Status glyph: a check for healthy sensors, otherwise a caution/error mark.</summary>
+	public MaterialIconKind StatusIconKind
+	{
+		get
+		{
+			if (!Snapshot.IsAvailable)
+			{
+				return MaterialIconKind.CloseCircleOutline;
+			}
+
+			return Snapshot.TemperatureState switch
+			{
+				FrameworkTemperatureState.NotPresent => MaterialIconKind.CloseCircleOutline,
+				FrameworkTemperatureState.Error => MaterialIconKind.AlertCircleOutline,
+				FrameworkTemperatureState.NotCalibrated => MaterialIconKind.AlertCircleOutline,
+				FrameworkTemperatureState.NotPowered => MaterialIconKind.AlertCircleOutline,
+				_ => MaterialIconKind.CheckCircle,
+			};
+		}
+	}
+
+	private static SolidColorBrush BrushFromHex(string hex)
+	{
+		var value = hex.TrimStart('#');
+		var alpha = Convert.ToByte(value.Substring(0, 2), 16);
+		var red = Convert.ToByte(value.Substring(2, 2), 16);
+		var green = Convert.ToByte(value.Substring(4, 2), 16);
+		var blue = Convert.ToByte(value.Substring(6, 2), 16);
+		return new SolidColorBrush(ColorHelper.FromArgb(alpha, red, green, blue));
+	}
 
 	public void RefreshUnitFormatting()
 	{

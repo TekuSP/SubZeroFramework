@@ -21,15 +21,20 @@ public static class PresentationDefaults
 
     public static ImmutableArray<TimeSpan> ThermalHistoryWindowValues { get; } =
         ImmutableArray.Create(
+            TimeSpan.FromMinutes(1),
             TimeSpan.FromMinutes(5),
             TimeSpan.FromMinutes(15),
             TelemetryHistoryLimits.MaximumHistoryWindow);
 
     public static ImmutableArray<string> ThermalHistoryWindowLabels { get; } =
         ImmutableArray.Create(
-            "Last 5 minutes",
-            "Last 15 minutes",
-            "Last hour");
+            "1 min",
+            "5 min",
+            "15 min",
+            "1 hour");
+
+    /// <summary>Default selected thermal history window — "5 min" (index 1).</summary>
+    public const int DefaultThermalHistoryWindowIndex = 1;
 
     public static string FormatHistoryWindowLabel(TimeSpan window)
     {
