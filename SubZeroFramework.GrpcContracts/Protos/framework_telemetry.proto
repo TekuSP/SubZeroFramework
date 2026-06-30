@@ -62,6 +62,9 @@ service FrameworkFanControlService {
   // preview is committed (Apply) or explicitly released, it reverts the fan to that captured state. This
   // covers an app crash or kill mid-preview so the EC is never left stuck on an unapplied preview.
   rpc HoldFanPreview (HoldFanPreviewRequest) returns (stream HoldFanPreviewReply);
+  // Battery charge floor/ceiling. Get is a plain read; Set is an EC write gated by the same authorization.
+  rpc GetChargeLimits (GetChargeLimitsRequest) returns (ChargeLimitsReply);
+  rpc SetChargeLimits (SetChargeLimitsRequest) returns (ChargeLimitsReply);
 }
 
 message GetStatusRequest {
@@ -475,6 +478,22 @@ message FanCurveProfileOperationReply {
   string message = 4;
 }
 
+message GetChargeLimitsRequest {
+}
+
+message SetChargeLimitsRequest {
+  int32 minimum_percent = 1;
+  int32 maximum_percent = 2;
+}
+
+message ChargeLimitsReply {
+  bool succeeded = 1;
+  string message = 2;
+  bool is_available = 3;
+  int32 minimum_percent = 4;
+  int32 maximum_percent = 5;
+}
+
 enum TelemetryChangeKind {
   UNSPECIFIED = 0;
   UPSERT = 1;
@@ -817,6 +836,17 @@ message PowerDeliveryPortState {
   bool is_epr_active = 12;
   bool is_epr_supported = 13;
   uint32 alt_mode_flags = 14;
+  // Expansion card detected in the slot (FrameworkExpansionCardType name; "Unknown" when none).
+  string card_type = 15;
+  // Static board capability of the slot (independent of the live PD state above).
+  string data_lane = 16;                 // FrameworkUsbCDataLane name (e.g. "Usb4", "Thunderbolt4").
+  string display_port_capability = 17;   // FrameworkDisplayPortCapability name (e.g. "Dp21Uhbr10", "None").
+  bool capability_supports_charging = 18; // Whether the slot supports USB-PD charging.
+  int32 max_charge_watts = 19;           // Max charge power in watts (0 = none/undocumented).
+  bool usb_a_high_power = 20;            // Whether the "higher power consumption" USB-A note applies.
+  bool capability_documented = 21;       // Whether a documented capability matrix covers this slot.
+  // Where the port lives: "Mainboard" (numbered slots) or "GraphicsModule" (the expansion-bay GPU port).
+  string port_source = 22;
 }
 
 message PowerDeliveryReply {

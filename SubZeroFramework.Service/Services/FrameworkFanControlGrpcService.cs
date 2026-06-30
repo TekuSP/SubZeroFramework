@@ -217,6 +217,64 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         }
     }
 
+    public override Task<ChargeLimitsReply> GetChargeLimits(GetChargeLimitsRequest request, ServerCallContext context)
+    {
+        try
+        {
+            var limits = _frameworkDataProvider.GetChargeLimits();
+            if (limits is null)
+            {
+                return Task.FromResult(new ChargeLimitsReply
+                {
+                    Succeeded = false,
+                    IsAvailable = false,
+                    Message = "Battery charge limits are unavailable.",
+                });
+            }
+
+            return Task.FromResult(new ChargeLimitsReply
+            {
+                Succeeded = true,
+                IsAvailable = true,
+                MinimumPercent = limits.MinimumPercent,
+                MaximumPercent = limits.MaximumPercent,
+            });
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Rejected GetChargeLimits because the service was not in a readable state.");
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
+    }
+
+    public override async Task<ChargeLimitsReply> SetChargeLimits(SetChargeLimitsRequest request, ServerCallContext context)
+    {
+        try
+        {
+            _logger.LogInformation("Received SetChargeLimits command (min={Minimum}%, max={Maximum}%).", request.MinimumPercent, request.MaximumPercent);
+            _authorizationService.EnsureCommandAccess();
+            await _frameworkDataProvider.SetChargeLimitsAsync(request.MinimumPercent, request.MaximumPercent, context.CancellationToken).ConfigureAwait(false);
+            _logger.LogInformation("Applied SetChargeLimits command (min={Minimum}%, max={Maximum}%).", request.MinimumPercent, request.MaximumPercent);
+            return new ChargeLimitsReply
+            {
+                Succeeded = true,
+                IsAvailable = true,
+                MinimumPercent = request.MinimumPercent,
+                MaximumPercent = request.MaximumPercent,
+            };
+        }
+        catch (ArgumentException exception)
+        {
+            _logger.LogWarning(exception, "Rejected SetChargeLimits command because the request was invalid.");
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Rejected SetChargeLimits command because the service was not in a writable state.");
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
+    }
+
     public override async Task<FanCurveProfileOperationReply> SaveFanCurveProfile(SaveFanCurveProfileRequest request, ServerCallContext context)
     {
         try

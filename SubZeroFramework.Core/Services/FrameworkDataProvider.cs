@@ -954,7 +954,13 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             && TryReadSnapshot(connection.GetModuleInventorySnapshot, "module inventory", ref snapshotError, out var moduleInventory))
         {
             _lastModuleInventoryReadAt = observedAt;
-            _powerDeliverySnapshots.Publish(BuildPowerDeliverySnapshot(moduleInventory!), observedAt);
+            FrameworkExpansionBaySnapshot? expansionBay = null;
+            if (connectedStatus.PlatformFamily == FrameworkPlatformFamily.Framework16)
+            {
+                TryReadSnapshot(connection.GetExpansionBaySnapshot, "expansion bay", ref snapshotError, out expansionBay);
+            }
+
+            _powerDeliverySnapshots.Publish(BuildPowerDeliverySnapshot(moduleInventory!, expansionBay), observedAt);
             successfulReads += 1;
         }
 
@@ -1089,6 +1095,44 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         {
             FanIndex = response.FanIndex,
         });
+    }
+
+    public ChargeLimitsState? GetChargeLimits()
+    {
+        ThrowIfDisposed();
+
+        var connection = EnsureConnection();
+        if (connection is null)
+        {
+            return null;
+        }
+
+        var snapshot = connection.GetChargeLimits();
+        return new ChargeLimitsState
+        {
+            MinimumPercent = (int)Math.Round(snapshot.MinPercent.Percent),
+            MaximumPercent = (int)Math.Round(snapshot.MaxPercent.Percent),
+        };
+    }
+
+    public Task SetChargeLimitsAsync(int minimumPercent, int maximumPercent, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (minimumPercent < 0 || minimumPercent > 100 || maximumPercent < 0 || maximumPercent > 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumPercent), "Charge limits must be between 0 and 100 percent.");
+        }
+
+        if (minimumPercent > maximumPercent)
+        {
+            throw new ArgumentException("The minimum charge limit cannot exceed the maximum.", nameof(minimumPercent));
+        }
+
+        var connection = EnsureWritableConnection();
+        connection.SetChargeLimits(Ratio.FromPercent(minimumPercent), Ratio.FromPercent(maximumPercent));
+        return Task.CompletedTask;
     }
 
     private FrameworkSystemStatus ReadSystemStatus()
@@ -1405,12 +1449,19 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     // Projects the USB-C expansion-card slots' Power Delivery state into the decoupled snapshot the gRPC
     // boundary and UI consume, dropping the rest of the (heavier) module inventory.
-    private static PowerDeliverySnapshot BuildPowerDeliverySnapshot(FrameworkModuleInventorySnapshot inventory)
+    /// <summary>Distinct slot index for the expansion-bay (graphics-module) USB-C port, kept clear of the 0–5
+    /// mainboard slot indices so it dedupes as its own port in the UI.</summary>
+    private const int GraphicsModulePortIndex = 100;
+
+    private static PowerDeliverySnapshot BuildPowerDeliverySnapshot(
+        FrameworkModuleInventorySnapshot inventory,
+        FrameworkExpansionBaySnapshot? expansionBay)
     {
         var ports = new List<PowerDeliveryPortSnapshot>();
         foreach (var slot in inventory.ReportedUsbCSlots)
         {
             var pd = slot.PowerDelivery;
+            var capability = slot.Capability;
             ports.Add(new PowerDeliveryPortSnapshot
             {
                 SlotIndex = slot.SlotIndex,
@@ -1427,6 +1478,46 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 IsEprActive = pd.IsEprActive,
                 IsEprSupported = pd.IsEprSupported,
                 AltModeFlags = pd.AltModeFlags,
+                CardType = slot.CardType.ToString(),
+                DataLane = capability.DataLane,
+                DisplayPortCapability = capability.DisplayPort,
+                SupportsCharging = capability.SupportsPowerDelivery,
+                MaxChargeWatts = (int)System.Math.Round(capability.MaxChargePower.Watts),
+                UsbAHighPower = capability.UsbAHighPowerDraw,
+                CapabilityDocumented = capability.IsDocumented,
+                PortSource = "Mainboard",
+            });
+        }
+
+        // The Framework 16 graphics module exposes its own rear USB-C port (PD + DisplayPort). Append it after the
+        // mainboard slots, sourced from the GPU, so it appears alongside them in the Power UI.
+        if (expansionBay is { HasUsbCPort: true, UsbCPort: { } bayPd })
+        {
+            var bayCapability = expansionBay.UsbCCapability;
+            ports.Add(new PowerDeliveryPortSnapshot
+            {
+                SlotIndex = GraphicsModulePortIndex,
+                PortSource = "GraphicsModule",
+                IsPresent = true,
+                IsActivePort = bayPd.IsActivePort,
+                HasPowerDeliveryContract = bayPd.HasPowerDeliveryContract,
+                CState = bayPd.CState,
+                PowerRole = bayPd.PowerRole,
+                DataRole = bayPd.DataRole,
+                CcPolarity = bayPd.CcPolarity,
+                VoltageVolts = bayPd.Voltage.Volts,
+                CurrentAmperes = bayPd.Current.Amperes,
+                IsVconnActive = bayPd.IsVconnActive,
+                IsEprActive = bayPd.IsEprActive,
+                IsEprSupported = bayPd.IsEprSupported,
+                AltModeFlags = bayPd.AltModeFlags,
+                CardType = "Unknown",
+                DataLane = bayCapability?.DataLane ?? FrameworkUsbCDataLane.Unknown,
+                DisplayPortCapability = bayCapability?.DisplayPort ?? FrameworkDisplayPortCapability.None,
+                SupportsCharging = bayCapability?.SupportsPowerDelivery ?? false,
+                MaxChargeWatts = bayCapability is null ? 0 : (int)System.Math.Round(bayCapability.MaxChargePower.Watts),
+                UsbAHighPower = bayCapability?.UsbAHighPowerDraw ?? false,
+                CapabilityDocumented = bayCapability?.IsDocumented ?? false,
             });
         }
 

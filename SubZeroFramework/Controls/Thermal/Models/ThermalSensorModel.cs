@@ -239,8 +239,8 @@ public partial class ThermalSensorModel : ObservableObject
 				return;
 			case FrameworkTemperatureState.Error:
 				StatusText = "Status: Error";
-					StatusBrush = AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
-					TemperatureBrush = AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
+					StatusBrush = AppThemeBrushes.Get("SeverityCriticalBrush", AppThemeBrushes.SeverityCriticalColor);
+					TemperatureBrush = AppThemeBrushes.Get("SeverityCriticalBrush", AppThemeBrushes.SeverityCriticalColor);
 				return;
 		}
 
@@ -273,7 +273,7 @@ public partial class ThermalSensorModel : ObservableObject
 			return;
 		}
 
-		TemperatureBrush = AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
+		TemperatureBrush = AppThemeBrushes.Get("SeverityCriticalBrush", AppThemeBrushes.SeverityCriticalColor);
 	}
 
 	private void UpdateGaugeValues()

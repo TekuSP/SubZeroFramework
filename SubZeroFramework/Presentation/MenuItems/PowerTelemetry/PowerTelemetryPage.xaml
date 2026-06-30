@@ -3,9 +3,12 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:ctk="using:CommunityToolkit.WinUI.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
     xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:powerControls="using:SubZeroFramework.Controls.Power"
     xmlns:pt="using:SubZeroFramework.Presentation.MenuItems.PowerTelemetry"
     xmlns:utu="using:Uno.Toolkit.UI"
     Background="{StaticResource AppBackgroundBrush}"
@@ -13,114 +16,513 @@
     mc:Ignorable="d">
 
     <Grid utu:SafeArea.Insets="VisibleBounds">
-        <ScrollViewer Padding="24">
-            <StackPanel
-                MaxWidth="920"
-                HorizontalAlignment="Left"
-                Spacing="6">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Padding="0,0,0,24" Spacing="18">
+
+                <StackPanel Margin="15,0">
+                    <TextBlock
+                        FontSize="28"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Power telemetry" />
+                    <TextBlock
+                        Margin="0,6,0,0"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="Live energy flow, battery health, and per-port USB-C Power Delivery from the embedded controller." />
+                </StackPanel>
+
+                <!--  Power-flow hero  -->
+                <StackPanel Margin="10,0">
+                    <controls:ElevatedCard
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch"
+                        Background="{StaticResource SurfaceCardBrush}">
+                        <Grid Padding="18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" HorizontalAlignment="Center" Spacing="2">
+                                <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="6">
+                                    <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="PowerPlug" />
+                                    <TextBlock FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="Adapter input" />
+                                </StackPanel>
+                                <TextBlock HorizontalAlignment="Center" FontSize="32" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.AdapterInputDisplay, Mode=OneWay}" />
+                                <TextBlock HorizontalAlignment="Center" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.AdapterDetailDisplay, Mode=OneWay}" />
+                            </StackPanel>
+
+                            <powerControls:FlowArrowsView Grid.Column="1" VerticalAlignment="Center" Accent="{StaticResource TextSecondaryBrush}" />
+
+                            <!--  Middle stat is flanked by the two divider lines (design: border-left + border-right).  -->
+                            <Border Grid.Column="2" Padding="14,0" BorderBrush="{StaticResource SurfaceOutlineBrush}" BorderThickness="1,0,1,0">
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
+                                    <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="6">
+                                        <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="Chip" />
+                                        <TextBlock FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="System draw" />
+                                    </StackPanel>
+                                    <TextBlock HorizontalAlignment="Center" FontSize="32" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.SystemDrawDisplay, Mode=OneWay}" />
+                                    <TextBlock HorizontalAlignment="Center" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.SystemDrawCaption, Mode=OneWay}" />
+                                </StackPanel>
+                            </Border>
+
+                            <powerControls:FlowArrowsView Grid.Column="3" VerticalAlignment="Center" Accent="{StaticResource StatusSuccessBrush}" />
+
+                            <StackPanel Grid.Column="4" HorizontalAlignment="Center" Spacing="2">
+                                <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="6">
+                                    <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="Battery" />
+                                    <TextBlock FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="Battery" />
+                                </StackPanel>
+                                <TextBlock HorizontalAlignment="Center" FontSize="32" FontWeight="SemiBold" Foreground="{x:Bind ViewModel.BatteryPowerBrush, Mode=OneWay}" Text="{x:Bind ViewModel.BatteryPowerDisplay, Mode=OneWay}" />
+                                <TextBlock HorizontalAlignment="Center" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.BatterySummaryDisplay, Mode=OneWay}" />
+                            </StackPanel>
+                        </Grid>
+                    </controls:ElevatedCard>
+                </StackPanel>
+
                 <TextBlock
+                    Margin="15,0"
                     FontSize="22"
                     FontWeight="SemiBold"
                     Foreground="{StaticResource TextPrimaryBrush}"
-                    Text="USB-C Power Delivery" />
-                <TextBlock
-                    FontSize="13"
-                    Foreground="{StaticResource TextSecondaryBrush}"
-                    Text="Per-port negotiated power and roles reported by the embedded controller." />
+                    Text="Battery"
+                    Visibility="{x:Bind ViewModel.BatterySectionVisibility, Mode=OneWay}" />
 
-                <TextBlock
-                    Margin="0,16,0,0"
-                    FontSize="13"
-                    Foreground="{StaticResource TextSecondaryBrush}"
-                    Text="No USB-C ports reported yet…"
-                    Visibility="{x:Bind ViewModel.EmptyVisibility, Mode=OneWay}" />
+                <!--  Row: Battery overview | Health & capacity  -->
+                <Grid Margin="10,0" ColumnSpacing="12" Visibility="{x:Bind ViewModel.BatterySectionVisibility, Mode=OneWay}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="3*" />
+                    </Grid.ColumnDefinitions>
 
-                <ItemsControl
-                    Margin="0,12,0,0"
-                    ItemsSource="{x:Bind ViewModel.Ports, Mode=OneWay}"
-                    Visibility="{x:Bind ViewModel.PortsVisibility, Mode=OneWay}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="pt:PowerDeliveryPortViewModel">
-                            <controls:ElevatedCard Margin="0,0,0,12" Background="{StaticResource CardBackgroundBrush}">
-                                <Grid Padding="16" ColumnSpacing="14">
+                    <controls:ElevatedCard Grid.Column="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{StaticResource SurfaceCardBrush}">
+                        <Grid Padding="18" ColumnSpacing="20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <powerControls:BatteryChargeRingView
+                                Grid.Column="0"
+                                VerticalAlignment="Center"
+                                ChargeFraction="{x:Bind ViewModel.ChargeFraction, Mode=OneWay}"
+                                ChargeText="{x:Bind ViewModel.ChargePercentNumberDisplay, Mode=OneWay}"
+                                FlowReversed="{x:Bind ViewModel.IsBatteryDischarging, Mode=OneWay}"
+                                IsAnimating="{x:Bind ViewModel.IsBatteryAnimating, Mode=OneWay}" />
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="14">
+                                <Border
+                                    Height="28"
+                                    Padding="12,0"
+                                    HorizontalAlignment="Left"
+                                    Background="{x:Bind ViewModel.BatteryStatePillBackground, Mode=OneWay}"
+                                    CornerRadius="14">
+                                    <StackPanel
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal"
+                                        Spacing="6">
+                                        <material:MaterialIcon
+                                            Width="14"
+                                            Height="14"
+                                            VerticalAlignment="Center"
+                                            Foreground="{x:Bind ViewModel.BatteryStateBrush, Mode=OneWay}"
+                                            Kind="{x:Bind ViewModel.BatteryStateIconKind, Mode=OneWay}" />
+                                        <TextBlock
+                                            FontSize="13"
+                                            Foreground="{x:Bind ViewModel.BatteryStateBrush, Mode=OneWay}"
+                                            Text="{x:Bind ViewModel.BatteryStateDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="PowerPlugOutline" />
+                                    <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Text="Source:" />
+                                    <TextBlock VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.SourceDisplay, Mode=OneWay}" />
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Spacing="28">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Voltage" />
+                                        <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.VoltageDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Current" />
+                                        <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{x:Bind ViewModel.CurrentBrush, Mode=OneWay}" Text="{x:Bind ViewModel.CurrentDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </controls:ElevatedCard>
+
+                    <controls:ElevatedCard Grid.Column="1" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{StaticResource SurfaceCardBrush}">
+                        <StackPanel Padding="18" Spacing="12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="Health &amp; capacity" />
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Orientation="Horizontal" Spacing="6">
+                                    <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Foreground="{StaticResource StatusSuccessBrush}" Kind="HeartPulse" />
+                                    <TextBlock FontSize="14" Foreground="{StaticResource StatusSuccessBrush}" Text="{x:Bind ViewModel.HealthyDisplay, Mode=OneWay}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid ColumnSpacing="12" RowSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0" Grid.Column="0" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Design" />
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.DesignCapacityDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="0" Grid.Column="1" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Last full" />
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.LastFullCapacityDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="0" Grid.Column="2" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Remaining" />
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.RemainingCapacityDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="0" Grid.Column="3" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Wear" />
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource StatusWarningBrush}" Text="{x:Bind ViewModel.WearDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="1" Grid.Column="0" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Cycle count" />
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.CycleCountDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="1" Grid.Column="1" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Chemistry" />
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChemistryDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="1" Grid.Column="2" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ManufacturerDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="1" Grid.Column="3" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Model" />
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ModelDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <StackPanel Spacing="6">
+                                <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-
-                                    <material:MaterialIcon
-                                        Grid.Column="0"
-                                        Width="28"
-                                        Height="28"
-                                        VerticalAlignment="Center"
-                                        Foreground="{StaticResource BrandPrimaryBrush}"
-                                        Kind="Usb" />
-
-                                    <StackPanel
-                                        Grid.Column="1"
-                                        VerticalAlignment="Center"
-                                        Spacing="4">
-                                        <StackPanel Orientation="Horizontal" Spacing="8">
-                                            <TextBlock
-                                                FontSize="16"
-                                                FontWeight="SemiBold"
-                                                Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind Title}" />
-                                            <Border
-                                                Padding="7,1"
-                                                VerticalAlignment="Center"
-                                                Background="{StaticResource BrandPrimaryBrush}"
-                                                CornerRadius="8"
-                                                Visibility="{x:Bind ActiveBadgeVisibility, Mode=OneWay}">
-                                                <TextBlock
-                                                    FontSize="10"
-                                                    Foreground="White"
-                                                    Text="Charging" />
-                                            </Border>
-                                            <Border
-                                                Padding="7,1"
-                                                VerticalAlignment="Center"
-                                                BorderBrush="{StaticResource TextSecondaryBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="8"
-                                                Visibility="{x:Bind EprBadgeVisibility, Mode=OneWay}">
-                                                <TextBlock
-                                                    FontSize="10"
-                                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                                    Text="EPR" />
-                                            </Border>
-                                            <Border
-                                                Padding="7,1"
-                                                VerticalAlignment="Center"
-                                                BorderBrush="{StaticResource TextSecondaryBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="8"
-                                                Visibility="{x:Bind VconnBadgeVisibility, Mode=OneWay}">
-                                                <TextBlock
-                                                    FontSize="10"
-                                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                                    Text="VCONN" />
-                                            </Border>
-                                        </StackPanel>
-                                        <TextBlock
-                                            FontSize="13"
-                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                            Text="{x:Bind DetailLine, Mode=OneWay}" />
-                                    </StackPanel>
-
-                                    <TextBlock
-                                        Grid.Column="2"
-                                        VerticalAlignment="Center"
-                                        FontSize="15"
-                                        FontWeight="SemiBold"
-                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                        Text="{x:Bind PowerText, Mode=OneWay}" />
+                                    <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Wear since new" />
+                                    <TextBlock Grid.Column="1" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.WearBarCaption, Mode=OneWay}" />
                                 </Grid>
-                            </controls:ElevatedCard>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                                <ProgressBar Height="8" Foreground="{StaticResource StatusSuccessBrush}" Maximum="1" Value="{x:Bind ViewModel.WearFraction, Mode=OneWay}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </controls:ElevatedCard>
+                </Grid>
+
+                <!--  Row: Charge limits | Trends  -->
+                <Grid Margin="10,0" ColumnSpacing="12" Visibility="{x:Bind ViewModel.BatterySectionVisibility, Mode=OneWay}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <controls:ElevatedCard Grid.Column="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{StaticResource SurfaceCardBrush}">
+                        <StackPanel Padding="18" Spacing="12">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <material:MaterialIcon Width="18" Height="18" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="BatteryLock" />
+                                <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="Charge limits" />
+                            </StackPanel>
+                            <TextBlock FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="Keep the pack between a floor and a ceiling to extend its lifespan." TextWrapping="Wrap" />
+
+                            <ctk:RangeSelector
+                                Margin="0,4"
+                                Foreground="{StaticResource BrandPrimaryBrush}"
+                                Maximum="100"
+                                Minimum="0"
+                                RangeEnd="{x:Bind ViewModel.ChargeLimitMaximum, Mode=TwoWay}"
+                                RangeStart="{x:Bind ViewModel.ChargeLimitMinimum, Mode=TwoWay}"
+                                StepFrequency="1">
+                                <!--  The RangeSelector defaults to the Windows system accent (red on this machine); force our brand blue.  -->
+                                <ctk:RangeSelector.Resources>
+                                    <Color x:Key="SystemAccentColor">#FF0078D7</Color>
+                                    <Color x:Key="SystemAccentColorLight1">#FF1F8AE6</Color>
+                                    <Color x:Key="SystemAccentColorLight2">#FF3D9BEA</Color>
+                                    <Color x:Key="SystemAccentColorLight3">#FF63B0EF</Color>
+                                    <Color x:Key="SystemAccentColorDark1">#FF006CC1</Color>
+                                    <SolidColorBrush x:Key="SystemControlHighlightAccentBrush" Color="#0078D7" />
+                                    <SolidColorBrush x:Key="SystemControlForegroundAccentBrush" Color="#0078D7" />
+                                    <SolidColorBrush x:Key="SystemControlHighlightAltAccentBrush" Color="#0078D7" />
+                                    <SolidColorBrush x:Key="SystemControlHighlightListAccentLowBrush" Color="#0078D7" />
+                                    <SolidColorBrush x:Key="SystemControlHighlightListAccentMediumBrush" Color="#0078D7" />
+                                    <SolidColorBrush x:Key="SystemControlHighlightListAccentHighBrush" Color="#0078D7" />
+                                    <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#0078D7" />
+                                    <SolidColorBrush x:Key="AccentFillColorSecondaryBrush" Color="#FF1F8AE6" />
+                                    <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#FF3D9BEA" />
+                                </ctk:RangeSelector.Resources>
+                            </ctk:RangeSelector>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="0%" />
+                                <TextBlock Grid.Column="1" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="100%" />
+                            </Grid>
+
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Minimum" />
+                                        <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChargeMinimumDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="1" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Maximum" />
+                                        <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChargeMaximumDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Border>
+                                <Button
+                                    Grid.Column="2"
+                                    VerticalAlignment="Bottom"
+                                    Background="{StaticResource BrandPrimaryBrush}"
+                                    Command="{x:Bind ViewModel.SetChargeLimitsCommand}"
+                                    Content="Set limits"
+                                    Foreground="White" />
+                            </Grid>
+
+                            <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.ChargeLimitsStatus, Mode=OneWay}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </controls:ElevatedCard>
+
+                    <controls:ElevatedCard Grid.Column="1" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{StaticResource SurfaceCardBrush}">
+                        <StackPanel Padding="18" Spacing="12">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <material:MaterialIcon Width="18" Height="18" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="ChartLine" />
+                                <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="Trends · last 5 min" />
+                            </StackPanel>
+
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border Grid.Column="0" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Charge %" />
+                                        <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource StatusSuccessBrush}" Text="{x:Bind ViewModel.ChargePercentDisplay, Mode=OneWay}" />
+                                        <lvc:CartesianChart Height="44" Background="Transparent" LegendPosition="Hidden" Series="{x:Bind ViewModel.ChargeTrendSeries, Mode=OneWay}" TooltipPosition="Hidden">
+                                            <lvc:CartesianChart.XAxes>
+                                                <lvc:AxesCollection><lvc:XamlAxis LabelsPaint="{x:Null}" ShowSeparatorLines="False" /></lvc:AxesCollection>
+                                            </lvc:CartesianChart.XAxes>
+                                            <lvc:CartesianChart.YAxes>
+                                                <lvc:AxesCollection><lvc:XamlAxis LabelsPaint="{x:Null}" ShowSeparatorLines="False" /></lvc:AxesCollection>
+                                            </lvc:CartesianChart.YAxes>
+                                        </lvc:CartesianChart>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Column="1" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Current" />
+                                        <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{x:Bind ViewModel.CurrentBrush, Mode=OneWay}" Text="{x:Bind ViewModel.CurrentDisplay, Mode=OneWay}" />
+                                        <lvc:CartesianChart Height="44" Background="Transparent" LegendPosition="Hidden" Series="{x:Bind ViewModel.CurrentTrendSeries, Mode=OneWay}" TooltipPosition="Hidden">
+                                            <lvc:CartesianChart.XAxes>
+                                                <lvc:AxesCollection><lvc:XamlAxis LabelsPaint="{x:Null}" ShowSeparatorLines="False" /></lvc:AxesCollection>
+                                            </lvc:CartesianChart.XAxes>
+                                            <lvc:CartesianChart.YAxes>
+                                                <lvc:AxesCollection><lvc:XamlAxis LabelsPaint="{x:Null}" ShowSeparatorLines="False" /></lvc:AxesCollection>
+                                            </lvc:CartesianChart.YAxes>
+                                        </lvc:CartesianChart>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Grid.Column="2" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Voltage" />
+                                        <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.VoltageDisplay, Mode=OneWay}" />
+                                        <lvc:CartesianChart Height="44" Background="Transparent" LegendPosition="Hidden" Series="{x:Bind ViewModel.VoltageTrendSeries, Mode=OneWay}" TooltipPosition="Hidden">
+                                            <lvc:CartesianChart.XAxes>
+                                                <lvc:AxesCollection><lvc:XamlAxis LabelsPaint="{x:Null}" ShowSeparatorLines="False" /></lvc:AxesCollection>
+                                            </lvc:CartesianChart.XAxes>
+                                            <lvc:CartesianChart.YAxes>
+                                                <lvc:AxesCollection><lvc:XamlAxis LabelsPaint="{x:Null}" ShowSeparatorLines="False" /></lvc:AxesCollection>
+                                            </lvc:CartesianChart.YAxes>
+                                        </lvc:CartesianChart>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </StackPanel>
+                    </controls:ElevatedCard>
+                </Grid>
+
+                <!--  USB-C Power Delivery  -->
+                <StackPanel Margin="10,0" Spacing="4">
+                    <TextBlock Margin="5,0" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="USB-C Power Delivery" />
+                    <TextBlock Margin="5,0" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="Per-port negotiated power, data roles, and alt-modes reported by the embedded controller." />
+
+                    <TextBlock Margin="5,12,0,0" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="No USB-C ports reported yet…" Visibility="{x:Bind ViewModel.EmptyVisibility, Mode=OneWay}" />
+
+                    <ItemsRepeater Margin="0,12,0,0" ItemsSource="{x:Bind ViewModel.Ports, Mode=OneWay}" Visibility="{x:Bind ViewModel.PortsVisibility, Mode=OneWay}">
+                        <ItemsRepeater.Layout>
+                            <!--  Exactly two equal columns that stretch to fill the full width (dynamic port count).  -->
+                            <UniformGridLayout
+                                ItemsStretch="Fill"
+                                MaximumRowsOrColumns="2"
+                                MinColumnSpacing="14"
+                                MinItemWidth="320"
+                                MinRowSpacing="14" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="pt:PowerDeliveryPortViewModel">
+                                <controls:ElevatedCard
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    VerticalContentAlignment="Stretch"
+                                    Background="{StaticResource SurfaceCardBrush}"
+                                    BorderBrush="{x:Bind CardBorderBrush, Mode=OneWay}"
+                                    BorderThickness="{x:Bind CardBorderThickness, Mode=OneWay}">
+                                    <Grid Padding="16,16,18,16" RowSpacing="13">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <!--  Main row: port chip | (title + badges) over role pills | negotiated power  -->
+                                        <Grid Grid.Row="0" ColumnSpacing="13">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <Border Grid.Column="0" Width="42" Height="42" VerticalAlignment="Top" Background="{x:Bind PortIconBackground, Mode=OneWay}" CornerRadius="11">
+                                                <material:MaterialIcon Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{x:Bind PortIconForeground, Mode=OneWay}" Kind="UsbCPort" />
+                                            </Border>
+
+                                            <StackPanel Grid.Column="1" MinWidth="0" VerticalAlignment="Top" Spacing="8">
+                                                <!--  Title with inline badges  -->
+                                                <ctk:WrapPanel VerticalAlignment="Center" HorizontalSpacing="8" VerticalSpacing="6">
+                                                    <TextBlock VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind Title}" />
+                                                    <Border Height="22" Padding="9,0" VerticalAlignment="Center" BorderBrush="{StaticResource BrandPrimaryBrush}" BorderThickness="1" CornerRadius="11" Visibility="{x:Bind SourcePillVisibility, Mode=OneWay}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                                            <material:MaterialIcon Width="12" Height="12" VerticalAlignment="Center" Foreground="{StaticResource BrandPrimaryBrush}" Kind="ExpansionCardVariant" />
+                                                            <TextBlock VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource BrandPrimaryBrush}" Text="Graphics module" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                    <ItemsControl VerticalAlignment="Center" ItemsSource="{x:Bind Badges, Mode=OneWay}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <ctk:WrapPanel HorizontalSpacing="6" VerticalSpacing="6" />
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate x:DataType="pt:PowerDeliveryPortPill">
+                                                                <Border Height="22" Padding="9,0" VerticalAlignment="Center" Background="{x:Bind Background}" BorderBrush="{x:Bind Border}" BorderThickness="1" CornerRadius="11">
+                                                                    <TextBlock VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Foreground="{x:Bind Foreground}" Text="{x:Bind Text}" />
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </ctk:WrapPanel>
+
+                                                <!--  Static board capability pills (data lane / DisplayPort / charging)  -->
+                                                <ItemsControl ItemsSource="{x:Bind CapabilityPills, Mode=OneWay}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <ctk:WrapPanel HorizontalSpacing="6" VerticalSpacing="6" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="pt:PowerDeliveryPortPill">
+                                                            <Border Height="22" Padding="9,0" Background="{x:Bind Background}" BorderBrush="{x:Bind Border}" BorderThickness="1" CornerRadius="11">
+                                                                <TextBlock VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Foreground="{x:Bind Foreground}" Text="{x:Bind Text}" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <!--  Role pills  -->
+                                                <ItemsControl ItemsSource="{x:Bind RolePills, Mode=OneWay}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <ctk:WrapPanel HorizontalSpacing="6" VerticalSpacing="6" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate x:DataType="pt:PowerDeliveryPortPill">
+                                                            <Border Height="24" Padding="10,0" Background="{x:Bind Background}" BorderBrush="{x:Bind Border}" BorderThickness="1" CornerRadius="12">
+                                                                <TextBlock VerticalAlignment="Center" FontSize="11.5" FontWeight="SemiBold" Foreground="{x:Bind Foreground}" Text="{x:Bind Text}" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Top" Spacing="6">
+                                                <TextBlock HorizontalAlignment="Right" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind PowerText, Mode=OneWay}" />
+                                                <Border Height="24" Padding="11,0" HorizontalAlignment="Right" Background="{StaticResource BrandPrimaryBrush}" CornerRadius="12" Visibility="{x:Bind WattVisibility, Mode=OneWay}">
+                                                    <TextBlock VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="White" Text="{x:Bind WattText, Mode=OneWay}" />
+                                                </Border>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!--  Bottom row, divided by a top hairline: expansion card in the slot | alt-mode  -->
+                                        <Border Grid.Row="1" Padding="0,12,0,0" BorderBrush="{StaticResource SurfaceOutlineBrush}" BorderThickness="0,1,0,0">
+                                            <Grid ColumnSpacing="8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="5">
+                                                    <material:MaterialIcon Width="13" Height="13" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="ExpansionCardVariant" />
+                                                    <TextBlock VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind CardTypeText, Mode=OneWay}" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind AltModeText, Mode=OneWay}" />
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+                                </controls:ElevatedCard>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
     </Grid>

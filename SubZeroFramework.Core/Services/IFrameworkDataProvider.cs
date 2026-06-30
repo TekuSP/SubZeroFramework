@@ -97,4 +97,10 @@ public interface IFrameworkDataProvider
     void RestoreAutomaticFanControl()
     {
     }
+
+    /// <summary>Reads the battery charge floor/ceiling from the EC, or <see langword="null"/> when unavailable.</summary>
+    ChargeLimitsState? GetChargeLimits() => null;
+
+    /// <summary>Writes the battery charge floor/ceiling to the EC. No-op by default; the EC-backed provider implements it.</summary>
+    Task SetChargeLimitsAsync(int minimumPercent, int maximumPercent, CancellationToken cancellationToken = default) => Task.CompletedTask;
 }

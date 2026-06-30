@@ -103,6 +103,14 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
                 IsEprActive = port.IsEprActive,
                 IsEprSupported = port.IsEprSupported,
                 AltModeFlags = port.AltModeFlags,
+                CardType = port.CardType,
+                DataLane = port.DataLane.ToString(),
+                DisplayPortCapability = port.DisplayPortCapability.ToString(),
+                CapabilitySupportsCharging = port.SupportsCharging,
+                MaxChargeWatts = port.MaxChargeWatts,
+                UsbAHighPower = port.UsbAHighPower,
+                CapabilityDocumented = port.CapabilityDocumented,
+                PortSource = port.PortSource,
             });
         }
 

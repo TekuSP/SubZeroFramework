@@ -9,8 +9,11 @@ namespace SubZeroFramework.Models;
 /// </summary>
 public sealed record PowerDeliveryPortSnapshot
 {
-    /// <summary>The zero-based expansion-card slot index (0–5).</summary>
+    /// <summary>The zero-based expansion-card slot index (0–5 for mainboard slots; a distinct index for the bay port).</summary>
     public required int SlotIndex { get; init; }
+
+    /// <summary>Where the port physically lives: "Mainboard" (numbered slots) or "GraphicsModule" (expansion bay).</summary>
+    public required string PortSource { get; init; }
 
     /// <summary>Whether the slot appears populated.</summary>
     public required bool IsPresent { get; init; }
@@ -50,6 +53,27 @@ public sealed record PowerDeliveryPortSnapshot
 
     /// <summary>Raw EC alt-mode status bits (DP/TBT, HPD, etc.).</summary>
     public required byte AltModeFlags { get; init; }
+
+    /// <summary>The expansion card detected in this slot (FrameworkExpansionCardType name; "Unknown" when none).</summary>
+    public required string CardType { get; init; }
+
+    /// <summary>Static USB-C data-lane capability of this slot (board spec, independent of the live PD state).</summary>
+    public required FrameworkUsbCDataLane DataLane { get; init; }
+
+    /// <summary>Static DisplayPort alt-mode capability/version of this slot (board spec).</summary>
+    public required FrameworkDisplayPortCapability DisplayPortCapability { get; init; }
+
+    /// <summary>Whether this slot supports USB Power Delivery charging (false for power-limited slots).</summary>
+    public required bool SupportsCharging { get; init; }
+
+    /// <summary>Maximum charge power in watts (0 when not a charging slot, or undocumented).</summary>
+    public required int MaxChargeWatts { get; init; }
+
+    /// <summary>Whether the "higher power consumption" USB-A note applies to this slot.</summary>
+    public required bool UsbAHighPower { get; init; }
+
+    /// <summary>Whether a documented capability matrix covers this slot and platform.</summary>
+    public required bool CapabilityDocumented { get; init; }
 }
 
 /// <summary>A point-in-time projection of every reported USB-C Power Delivery port.</summary>

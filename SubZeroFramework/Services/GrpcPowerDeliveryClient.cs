@@ -105,6 +105,14 @@ public sealed class GrpcPowerDeliveryClient : IPowerDeliveryClient
                 IsEprActive = port.IsEprActive,
                 IsEprSupported = port.IsEprSupported,
                 AltModeFlags = (byte)port.AltModeFlags,
+                CardType = port.CardType,
+                DataLane = port.DataLane,
+                DisplayPortCapability = port.DisplayPortCapability,
+                SupportsCharging = port.CapabilitySupportsCharging,
+                MaxChargeWatts = port.MaxChargeWatts,
+                UsbAHighPower = port.UsbAHighPower,
+                CapabilityDocumented = port.CapabilityDocumented,
+                PortSource = port.PortSource,
             });
         }
 

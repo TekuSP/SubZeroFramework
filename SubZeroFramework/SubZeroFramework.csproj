@@ -52,6 +52,8 @@
         <Platforms>x64;ARM64</Platforms>
     </PropertyGroup>
     <ItemGroup>
+        <PackageReference Include="CommunityToolkit.WinUI.Controls.Primitives" />
+        <PackageReference Include="CommunityToolkit.WinUI.Controls.RangeSelector" />
         <PackageReference Include="CommunityToolkit.WinUI.Controls.Segmented" />
         <PackageReference Include="CommunityToolkit.WinUI.Extensions" />
         <PackageReference Include="DynamicData" />

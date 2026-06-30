@@ -34,6 +34,10 @@ public static class AppThemeBrushes
 
     public static Windows.UI.Color StatusErrorColor { get; } = ColorHelper.FromArgb(255, 68, 39, 38);
 
+    /// <summary>Readable danger/critical red for foreground use (design token --sz-danger #d9706a). Unlike
+    /// <see cref="StatusErrorColor"/> (a very dark fill), this is bright enough for text and big numerals.</summary>
+    public static Windows.UI.Color SeverityCriticalColor { get; } = ColorHelper.FromArgb(255, 217, 112, 106);
+
     public static Windows.UI.Color StatusInfoColor { get; } = ColorHelper.FromArgb(255, 138, 183, 232);
 
     public static Windows.UI.Color TextPrimaryColor { get; } = ColorHelper.FromArgb(255, 215, 216, 255);

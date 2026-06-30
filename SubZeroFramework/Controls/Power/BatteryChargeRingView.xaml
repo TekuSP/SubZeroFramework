@@ -1,0 +1,73 @@
+<UserControl
+    x:Class="SubZeroFramework.Controls.Power.BatteryChargeRingView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="160"
+    d:DesignWidth="160"
+    mc:Ignorable="d">
+
+    <!--  Battery charge ring: a 270° track (gap at the bottom). The grey track is the full sweep; the live charge
+          is drawn over it in severity zones — red 0–20%, amber 20–40%, green 40–100% — clipped to the charge level.
+          Geometry is computed in code-behind from ChargeFraction; the centre shows the charge text.  -->
+    <Grid
+        Width="160"
+        Height="160">
+        <Path
+            x:Name="GreyTrack"
+            Stroke="#FF404646"
+            StrokeEndLineCap="Round"
+            StrokeStartLineCap="Round"
+            StrokeThickness="12" />
+        <Path
+            x:Name="RedZone"
+            Stroke="#FFD9706A"
+            StrokeEndLineCap="Round"
+            StrokeStartLineCap="Round"
+            StrokeThickness="12" />
+        <Path
+            x:Name="AmberZone"
+            Stroke="#FFC5994E"
+            StrokeEndLineCap="Round"
+            StrokeStartLineCap="Round"
+            StrokeThickness="12" />
+        <Path
+            x:Name="GreenZone"
+            Stroke="#FF6CCB5F"
+            StrokeEndLineCap="Round"
+            StrokeStartLineCap="Round"
+            StrokeThickness="12" />
+        <!--  Flowing dashed overlay over the charged arc — animated while charging/discharging.  -->
+        <Path
+            x:Name="DashOverlay"
+            Stroke="#70FFFFFF"
+            StrokeDashArray="0.5,1.7"
+            StrokeDashCap="Round"
+            StrokeThickness="5" />
+
+        <StackPanel
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Spacing="-2">
+            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                <TextBlock
+                    FontSize="34"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{x:Bind ChargeText, Mode=OneWay}" />
+                <TextBlock
+                    Margin="2,0,0,5"
+                    VerticalAlignment="Bottom"
+                    FontSize="15"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="%" />
+            </StackPanel>
+            <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="12"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="charge" />
+        </StackPanel>
+    </Grid>
+</UserControl>

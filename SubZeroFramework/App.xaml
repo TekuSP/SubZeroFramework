@@ -42,6 +42,10 @@
             <SolidColorBrush x:Key="CardSecondaryBackgroundBrush" Color="#1f1f1f" />
             <SolidColorBrush x:Key="CardSecondaryBorderBrush" Color="#1f1f1f" />
             <SolidColorBrush x:Key="CardMetricBackgroundBrush" Color="#1AFFFFFF" />
+            <!--  Dark-teal layered surfaces (Power redesign): card sits just above the window ground, well is recessed.  -->
+            <SolidColorBrush x:Key="SurfaceCardBrush" Color="#FF222B2A" />
+            <SolidColorBrush x:Key="SurfaceWellBrush" Color="#FF161E1D" />
+            <SolidColorBrush x:Key="SurfaceOutlineBrush" Color="#14FFFFFF" />
 
             <SolidColorBrush x:Key="TextPrimaryBrush" Color="#fffffa" />
             <SolidColorBrush x:Key="TextSecondaryBrush" Color="#D7D8FF" />

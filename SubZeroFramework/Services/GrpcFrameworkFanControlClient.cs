@@ -270,4 +270,35 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
             Succeeded = reply.Succeeded,
             Message = reply.Message ?? string.Empty,
         };
+
+    public async Task<FrameworkChargeLimitsResult> GetChargeLimitsAsync(CancellationToken cancellationToken = default)
+    {
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.GetChargeLimitsAsync(new GetChargeLimitsRequest(), cancellationToken: timeoutSource.Token)
+            .ResponseAsync.ConfigureAwait(false);
+
+        return MapChargeLimitsReply(reply);
+    }
+
+    public async Task<FrameworkChargeLimitsResult> SetChargeLimitsAsync(int minimumPercent, int maximumPercent, CancellationToken cancellationToken = default)
+    {
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.SetChargeLimitsAsync(new SetChargeLimitsRequest
+        {
+            MinimumPercent = minimumPercent,
+            MaximumPercent = maximumPercent,
+        }, cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+
+        return MapChargeLimitsReply(reply);
+    }
+
+    private static FrameworkChargeLimitsResult MapChargeLimitsReply(ChargeLimitsReply reply)
+        => new()
+        {
+            IsAvailable = reply.IsAvailable,
+            Succeeded = reply.Succeeded,
+            Message = reply.Message ?? string.Empty,
+            MinimumPercent = reply.MinimumPercent,
+            MaximumPercent = reply.MaximumPercent,
+        };
 }

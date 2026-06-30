@@ -80,4 +80,10 @@ public interface IFrameworkFanControlClient
     /// exit); if it drops before the preview is committed, the service reverts the fan to its prior state.
     /// </summary>
     Task OpenPreviewHoldAsync(int fanIndex, CancellationToken cancellationToken);
+
+    /// <summary>Reads the battery charge floor/ceiling from the EC.</summary>
+    Task<FrameworkChargeLimitsResult> GetChargeLimitsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Writes the battery charge floor/ceiling to the EC (gated by service authorization).</summary>
+    Task<FrameworkChargeLimitsResult> SetChargeLimitsAsync(int minimumPercent, int maximumPercent, CancellationToken cancellationToken = default);
 }
