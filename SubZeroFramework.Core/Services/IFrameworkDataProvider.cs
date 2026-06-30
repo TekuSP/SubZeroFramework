@@ -22,6 +22,13 @@ public interface IFrameworkDataProvider
 
     IObservable<FrameworkPowerSnapshot> PowerSnapshots { get; }
 
+    /// <summary>
+    /// The latest USB-C Power Delivery port state (per expansion-card slot). Empty by default; the EC-backed
+    /// provider implements it from the module inventory snapshot.
+    /// </summary>
+    IObservable<SubZeroFramework.Models.PowerDeliverySnapshot> PowerDeliverySnapshots
+        => System.Reactive.Linq.Observable.Empty<SubZeroFramework.Models.PowerDeliverySnapshot>();
+
     IObservable<FrameworkThermalSnapshot> ThermalSnapshots { get; }
 
     IObservable<IChangeSet<HistoricalRecord<FrameworkSystemStatus>, long>> ConnectSystemStatusHistory(TimeSpan historyWindow);
