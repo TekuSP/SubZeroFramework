@@ -35,6 +35,7 @@ service FrameworkTelemetryService {
   rpc WatchTelemetryChannels (WatchTelemetryChannelsRequest) returns (stream TelemetryChannelChangeBatchReply);
   rpc WatchCurrentTelemetryValues (WatchCurrentTelemetryValuesRequest) returns (stream CurrentTelemetryValueChangeBatchReply);
   rpc WatchTelemetrySeries (WatchTelemetrySeriesRequest) returns (stream TelemetrySeriesPointChangeBatchReply);
+  rpc WatchPowerDelivery (WatchPowerDeliveryRequest) returns (stream PowerDeliveryReply);
 }
 
 service HardwareInfoService {
@@ -770,4 +771,29 @@ message FrameworkStatusReply {
   bool is_fan_control_enabled = 19;
   bool has_caller_identity_validation = 20;
   string fan_control_authorization_message = 21;
+}
+
+message WatchPowerDeliveryRequest {
+}
+
+// USB-C Power Delivery state for one expansion-card slot (enums carried as their names).
+message PowerDeliveryPortState {
+  int32 slot_index = 1;
+  bool is_present = 2;
+  bool is_active_port = 3;
+  bool has_power_delivery_contract = 4;
+  string c_state = 5;
+  string power_role = 6;
+  string data_role = 7;
+  string cc_polarity = 8;
+  double voltage_volts = 9;
+  double current_amperes = 10;
+  bool is_vconn_active = 11;
+  bool is_epr_active = 12;
+  bool is_epr_supported = 13;
+  uint32 alt_mode_flags = 14;
+}
+
+message PowerDeliveryReply {
+  repeated PowerDeliveryPortState ports = 1;
 }

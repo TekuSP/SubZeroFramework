@@ -41,6 +41,11 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private readonly RetainedSnapshotStream<FrameworkEcFlashSnapshot> _flashSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
     private readonly RetainedSnapshotStream<FrameworkFanCapabilitiesSnapshot> _fanCapabilitiesSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
     private readonly RetainedSnapshotStream<FrameworkPowerSnapshot> _powerSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
+    private readonly RetainedSnapshotStream<PowerDeliverySnapshot> _powerDeliverySnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
+    // The module-inventory read (USB-C PD source) is heavier than the per-fan/thermal reads and PD state changes
+    // slowly (plug/unplug), so it is sampled on a calmer cadence than the main telemetry poll.
+    private static readonly TimeSpan ModuleInventoryReadInterval = TimeSpan.FromSeconds(2);
+    private DateTimeOffset _lastModuleInventoryReadAt = DateTimeOffset.MinValue;
     private readonly RetainedSnapshotStream<FrameworkThermalSnapshot> _thermalSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
     private readonly SourceCache<FanCapabilityState, int> _fanCapabilities = new(capability => capability.FanIndex);
     private readonly SourceCache<FanStateSnapshot, int> _fanStates = new(fanState => fanState.FanIndex);
@@ -102,6 +107,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         FlashSnapshots = _flashSnapshots;
         FanCapabilitiesSnapshots = _fanCapabilitiesSnapshots;
         PowerSnapshots = _powerSnapshots;
+        PowerDeliverySnapshots = _powerDeliverySnapshots;
         ThermalSnapshots = _thermalSnapshots;
         HardwareInfoSnapshots = _hardwareInfoSnapshots;
         _telemetryPoints
@@ -161,6 +167,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     public IObservable<FrameworkFanCapabilitiesSnapshot> FanCapabilitiesSnapshots { get; }
 
     public IObservable<FrameworkPowerSnapshot> PowerSnapshots { get; }
+
+    public IObservable<PowerDeliverySnapshot> PowerDeliverySnapshots { get; }
 
     public IObservable<FrameworkThermalSnapshot> ThermalSnapshots { get; }
 
@@ -942,6 +950,14 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             successfulReads += 1;
         }
 
+        if (observedAt - _lastModuleInventoryReadAt >= ModuleInventoryReadInterval
+            && TryReadSnapshot(connection.GetModuleInventorySnapshot, "module inventory", ref snapshotError, out var moduleInventory))
+        {
+            _lastModuleInventoryReadAt = observedAt;
+            _powerDeliverySnapshots.Publish(BuildPowerDeliverySnapshot(moduleInventory!), observedAt);
+            successfulReads += 1;
+        }
+
         if (TryReadSnapshot(connection.GetThermalSnapshot, "thermal", ref snapshotError, out var thermalSnapshot))
         {
             _logger.LogDebug("Publishing thermal snapshot for {SensorCount} sensor(s) and {FanCount} reported fan(s) at {ObservedAt}.", thermalSnapshot!.SensorCount, thermalSnapshot.ReportedFans.Count(), observedAt);
@@ -1384,6 +1400,36 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 });
             }
         });
+    }
+
+    // Projects the USB-C expansion-card slots' Power Delivery state into the decoupled snapshot the gRPC
+    // boundary and UI consume, dropping the rest of the (heavier) module inventory.
+    private static PowerDeliverySnapshot BuildPowerDeliverySnapshot(FrameworkModuleInventorySnapshot inventory)
+    {
+        var ports = new List<PowerDeliveryPortSnapshot>();
+        foreach (var slot in inventory.ReportedUsbCSlots)
+        {
+            var pd = slot.PowerDelivery;
+            ports.Add(new PowerDeliveryPortSnapshot
+            {
+                SlotIndex = slot.SlotIndex,
+                IsPresent = slot.IsPresent,
+                IsActivePort = pd.IsActivePort,
+                HasPowerDeliveryContract = pd.HasPowerDeliveryContract,
+                CState = pd.CState,
+                PowerRole = pd.PowerRole,
+                DataRole = pd.DataRole,
+                CcPolarity = pd.CcPolarity,
+                VoltageVolts = pd.Voltage.Volts,
+                CurrentAmperes = pd.Current.Amperes,
+                IsVconnActive = pd.IsVconnActive,
+                IsEprActive = pd.IsEprActive,
+                IsEprSupported = pd.IsEprSupported,
+                AltModeFlags = pd.AltModeFlags,
+            });
+        }
+
+        return new PowerDeliverySnapshot { Ports = ports };
     }
 
     private void PublishPowerTelemetry(FrameworkPowerSnapshot powerSnapshot, DateTimeOffset observedAt)

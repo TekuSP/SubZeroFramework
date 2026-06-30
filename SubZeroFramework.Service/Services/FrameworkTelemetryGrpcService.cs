@@ -58,6 +58,57 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
             "fan control state stream");
     }
 
+    public override async Task WatchPowerDelivery(WatchPowerDeliveryRequest request, IServerStreamWriter<PowerDeliveryReply> responseStream, ServerCallContext context)
+    {
+        try
+        {
+            _logger.LogInformation("Opening power delivery stream.");
+
+            // The provider's snapshot stream replays the latest value on subscribe, so no separate initial write.
+            var reader = ObservableChannelBridge.CreateBoundedReader(
+                _frameworkDataProvider.PowerDeliverySnapshots, context.CancellationToken, _logger, "power delivery stream");
+
+            while (await reader.WaitToReadAsync(context.CancellationToken).ConfigureAwait(false))
+            {
+                while (reader.TryRead(out var snapshot))
+                {
+                    await responseStream.WriteAsync(MapPowerDelivery(snapshot), context.CancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+        {
+            _logger.LogDebug("Stopping power delivery stream because the request was cancelled.");
+        }
+    }
+
+    private static PowerDeliveryReply MapPowerDelivery(PowerDeliverySnapshot snapshot)
+    {
+        var reply = new PowerDeliveryReply();
+        foreach (var port in snapshot.Ports)
+        {
+            reply.Ports.Add(new PowerDeliveryPortState
+            {
+                SlotIndex = port.SlotIndex,
+                IsPresent = port.IsPresent,
+                IsActivePort = port.IsActivePort,
+                HasPowerDeliveryContract = port.HasPowerDeliveryContract,
+                CState = port.CState.ToString(),
+                PowerRole = port.PowerRole.ToString(),
+                DataRole = port.DataRole.ToString(),
+                CcPolarity = port.CcPolarity.ToString(),
+                VoltageVolts = port.VoltageVolts,
+                CurrentAmperes = port.CurrentAmperes,
+                IsVconnActive = port.IsVconnActive,
+                IsEprActive = port.IsEprActive,
+                IsEprSupported = port.IsEprSupported,
+                AltModeFlags = port.AltModeFlags,
+            });
+        }
+
+        return reply;
+    }
+
     public override Task WatchFanStates(WatchFanStatesRequest request, IServerStreamWriter<FanStateChangeBatchReply> responseStream, ServerCallContext context)
     {
         _logger.LogInformation("Opening fan state stream.");
