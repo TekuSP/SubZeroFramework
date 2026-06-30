@@ -57,6 +57,7 @@
         <PackageReference Include="DynamicData" />
         <PackageReference Include="FrameworkDotnet" />
         <PackageReference Include="Grpc.Net.Client" />
+        <PackageReference Include="IconifyBundle" />
         <PackageReference Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" />
         <PackageReference Include="Material.Icons" />
         <PackageReference Include="System.Reactive" />
