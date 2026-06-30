@@ -70,4 +70,157 @@
     <Delete Files="@(_MuiFileToRemove)" />
     <RemoveDir Directories="@(_MuiDirectoryToRemove)" />
   </Target>
+
+  <!-- ===== IconifyBundle: extract ONLY the icons we use to SVG + register as UnoImage =====
+       The IconifyBundle.<Pack> packages ship each pack as a single tab-separated `*.icondata` file
+       (name<TAB>w<TAB>h<TAB>body), not loose SVGs, and Uno.Resizetizer enforces strict asset names.
+       So we extract only the icons listed in @(IconifyIcon) (items shaped "prefix:name", declared per
+       project), wrap each in <svg>, and write it under Assets/Iconify/ with a sanitized, pack-prefixed,
+       globally unique asset name ("simple-icons:amd" -> simple_icons_amd.svg), then register those as UnoImage
+       so Resizetizer handles them for build AND publish. Incremental: re-extracts when the list, an .icondata,
+       this file, or the project changes. No-op where @(IconifyIcon) is empty. Needs GeneratePathProperty="true"
+       on the IconifyBundle.* PackageReferences.
+
+       Output lands under the project's Assets/ tree (NOT obj/) because Uno.Resizetizer derives an asset's
+       logical ms-appx path from its source location: an obj/ source yields a config/TFM-specific path like
+       ms-appx:///<proj>/obj/Debug/<tfm>/... while Assets/Iconify/foo.svg yields the clean, stable
+       ms-appx:///Assets/Iconify/foo.png the UI resolver depends on. The folder is git-ignored and fully
+       regenerated each run. -->
+  <PropertyGroup>
+    <!-- Relative dir is used for the UnoImage Include glob: a project-relative include makes Resizetizer
+         derive the clean logical path Assets/Iconify/foo.png (an absolute include adds a stray project-name
+         segment). The absolute dir is used by the extraction task so its File I/O is CWD-independent. -->
+    <_IconifyRelDir>Assets\Iconify\</_IconifyRelDir>
+    <_IconifyOutDir>$(MSBuildProjectDirectory)\$(_IconifyRelDir)</_IconifyOutDir>
+    <_IconifyStamp>$(IntermediateOutputPath)IconifyIcons.stamp</_IconifyStamp>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <_IconifyIcondata Include="$(PkgIconifyBundle_SimpleIcons)\build\*.icondata" Condition="'$(PkgIconifyBundle_SimpleIcons)' != ''" />
+    <_IconifyIcondata Include="$(PkgIconifyBundle_Logos)\build\*.icondata" Condition="'$(PkgIconifyBundle_Logos)' != ''" />
+  </ItemGroup>
+
+  <UsingTask TaskName="ExtractIcondataIcons" TaskFactory="RoslynCodeTaskFactory"
+             AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <WantedIcons ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <IcondataFiles ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <OutputDir ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Code Type="Class" Language="cs"><![CDATA[
+        using System;
+        using System.Collections.Generic;
+        using System.IO;
+        using Microsoft.Build.Framework;
+        using Microsoft.Build.Utilities;
+
+        public class ExtractIcondataIcons : Task
+        {
+            public ITaskItem[] WantedIcons { get; set; }
+            public ITaskItem[] IcondataFiles { get; set; }
+            public string OutputDir { get; set; }
+
+            public override bool Execute()
+            {
+                if (Directory.Exists(OutputDir)) Directory.Delete(OutputDir, true);
+                Directory.CreateDirectory(OutputDir);
+
+                // prefix -> (icon name -> "w\th\tbody")
+                var packs = new Dictionary<string, Dictionary<string, string>>(StringComparer.Ordinal);
+                foreach (var item in IcondataFiles)
+                {
+                    var path = item.ItemSpec;
+                    if (!File.Exists(path)) continue;
+                    string prefix = null;
+                    Dictionary<string, string> map = null;
+                    foreach (var line in File.ReadLines(path))
+                    {
+                        if (line.Length == 0) continue;
+                        if (prefix == null && line.StartsWith("prefix="))
+                        {
+                            prefix = line.Substring(7).Trim();
+                            map = new Dictionary<string, string>(StringComparer.Ordinal);
+                            packs[prefix] = map;
+                            continue;
+                        }
+                        if (line.StartsWith("class=")) continue;
+                        if (map == null) continue;
+                        var t = line.IndexOf('\t');
+                        if (t > 0) map[line.Substring(0, t)] = line.Substring(t + 1);
+                    }
+                }
+
+                int written = 0;
+                foreach (var wanted in WantedIcons)
+                {
+                    var spec = wanted.ItemSpec.Trim();
+                    var colon = spec.IndexOf(':');
+                    if (colon <= 0) { Log.LogWarning("IconifyBundle: '" + spec + "' is not in 'prefix:name' form."); continue; }
+                    var prefix = spec.Substring(0, colon);
+                    var name = spec.Substring(colon + 1);
+                    Dictionary<string, string> map;
+                    string data;
+                    if (!packs.TryGetValue(prefix, out map) || !map.TryGetValue(name, out data))
+                    {
+                        Log.LogWarning("IconifyBundle: icon '" + spec + "' not found (is the matching IconifyBundle.<Pack> referenced?).");
+                        continue;
+                    }
+                    var parts = data.Split(new[] { '\t' }, 3); // width, height, body
+                    if (parts.Length < 3) continue;
+                    var asset = Sanitize(prefix + "_" + name);
+                    var svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 "
+                        + parts[0] + " " + parts[1] + "\">" + parts[2] + "</svg>";
+                    File.WriteAllText(Path.Combine(OutputDir, asset + ".svg"), svg);
+                    written++;
+                }
+                Log.LogMessage(MessageImportance.High, "IconifyBundle: extracted " + written + " of " + WantedIcons.Length + " requested icon(s) -> " + OutputDir);
+                return true;
+            }
+
+            // Uno.Resizetizer asset names: lowercase, alnum/underscore only, must start AND end with a letter.
+            // hyphens -> '_'; a non-letter first/last char is padded with 'i'. The pack prefix guarantees a
+            // letter start and >= 2 chars.
+            static string Sanitize(string name)
+            {
+                var chars = name.ToLowerInvariant().ToCharArray();
+                for (int i = 0; i < chars.Length; i++)
+                {
+                    var c = chars[i];
+                    if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))) chars[i] = '_';
+                }
+                var s = new string(chars);
+                if (s.Length == 0) return "icon";
+                if (!(s[0] >= 'a' && s[0] <= 'z')) s = "i" + s;
+                if (!(s[s.Length - 1] >= 'a' && s[s.Length - 1] <= 'z')) s = s + "i";
+                return s;
+            }
+        }
+      ]]></Code>
+    </Task>
+  </UsingTask>
+
+  <!-- Writes the requested icon SVGs (incremental). -->
+  <Target Name="_WriteIconifyImages"
+          Condition="'@(IconifyIcon)' != '' and '@(_IconifyIcondata)' != ''"
+          Inputs="@(_IconifyIcondata);$(MSBuildThisFileFullPath);$(MSBuildProjectFullPath)"
+          Outputs="$(_IconifyStamp)">
+    <ExtractIcondataIcons WantedIcons="@(IconifyIcon)" IcondataFiles="@(_IconifyIcondata)" OutputDir="$(_IconifyOutDir)" />
+    <Touch Files="$(_IconifyStamp)" AlwaysCreate="true" />
+  </Target>
+
+  <!-- Registers the extracted SVGs as UnoImage before Resizetizer collects (build + publish). -->
+  <Target Name="_AddIconifyUnoImages"
+          Condition="'@(IconifyIcon)' != '' and '@(_IconifyIcondata)' != ''"
+          BeforeTargets="UnoResizetizeCollectItems"
+          DependsOnTargets="_WriteIconifyImages">
+    <ItemGroup>
+      <!-- Link pins the logical ms-appx path deterministically (Resizetizer captures it into its manifest):
+           ms-appx:///Assets/Iconify/<asset>.png. Without it, a glob added inside a target infers its path from
+           the build's startup dir and picks up a stray project-name segment. -->
+      <UnoImage Include="$(_IconifyRelDir)**\*.svg">
+        <Link>Assets\Iconify\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      </UnoImage>
+    </ItemGroup>
+  </Target>
 </Project>

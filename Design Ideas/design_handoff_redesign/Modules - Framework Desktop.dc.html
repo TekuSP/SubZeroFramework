@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/colors.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/typography.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/expressive.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<script src="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/_ds_bundle.js"></script>
+<style>
+  :root{
+    --app-accent:#0078D7; --app-on-accent:#ffffff; --sz-bg:#1b2727; --sz-container-low:#1f1f1f;
+    --sz-container:#2e2e2e; --sz-container-high:#383b3b; --sz-container-highest:#474b4b;
+    --sz-outline:rgba(255,255,255,0.07); --sz-outline-strong:rgba(255,255,255,0.13); --sz-violet:#8AB7E8;
+    --text-primary:#fffffa; --text-secondary:#D7D8FF; --text-tertiary:#8d8ea3;
+    --sz-ok:#6ccb5f; --sz-warn:#c5994e; --sz-danger:#d9706a; --accent-text:#8AB7E8;
+    --sz-ok-bg:rgba(108,203,95,0.12); --sz-warn-bg:rgba(197,153,78,0.14); --sz-danger-bg:rgba(217,112,106,0.14);
+  }
+  body{ margin:0; font-family:var(--font-text); color:var(--text-primary); }
+  .ftrack{ scrollbar-width:thin; scrollbar-color:var(--sz-container-highest) transparent; }
+</style>
+</helmet>
+
+<div data-screen-label="Modules" style="{{ shellStyle }}">
+
+  <div style="height:40px; display:flex; align-items:center; padding:0 0 0 16px; flex-shrink:0; border-bottom:1px solid var(--sz-outline)">
+    <span class="mdi mdi-snowflake" style="font-size:15px; color:var(--sz-violet)"></span>
+    <span style="font-size:12.5px; color:var(--text-secondary); margin-left:9px">SubZero &mdash; Framework Edition</span>
+    <span style="flex:1"></span>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-minimize" style="font-size:15px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-restore" style="font-size:13px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-close" style="font-size:15px"></span></div>
+  </div>
+
+  <div style="display:flex; min-height:0; flex:1">
+    <div style="width:56px; flex-shrink:0; display:flex; flex-direction:column; padding-top:8px; background:#000000; border-right:1px solid var(--sz-outline)">
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-view-dashboard-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-thermometer" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-flash" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-fan" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-chip" style="font-size:19px"></span></div>
+      <div style="position:relative; width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:var(--sz-container-high)">
+        <span style="position:absolute; left:-4px; top:11px; bottom:11px; width:3px; border-radius:2px; background:var(--app-accent)"></span>
+        <span class="mdi mdi-expansion-card-variant" style="font-size:19px; color:var(--accent-text)"></span>
+      </div>
+      <div style="flex:1"></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-cog-outline" style="font-size:19px"></span></div>
+    </div>
+
+    <div class="ftrack" style="flex:1; min-width:0; overflow:auto; padding:16px 26px 26px">
+      <div style="display:flex; gap:16px; margin-bottom:16px">
+        <div style="flex:2; min-width:0; height:84px; border-radius:14px; background:var(--sz-container-high); border:1px solid var(--sz-outline); display:flex; align-items:center; justify-content:center; gap:14px">
+          <span class="mdi mdi-snowflake" style="font-size:30px; color:var(--sz-violet)"></span>
+          <div style="display:flex; flex-direction:column; align-items:center">
+            <span style="{{ brandTextStyle }}">SUBZERO</span>
+            <span style="font-size:12px; color:var(--text-secondary); letter-spacing:0.18em; margin-top:-2px">FRAMEWORK EDITION</span>
+          </div>
+        </div>
+        <div style="flex:1.5; min-width:0; padding:11px 18px; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px">
+          <div style="font-family:var(--font-display); font-weight:600; font-size:15px; margin-bottom:6px">System information</div>
+          <div style="display:flex; flex-direction:column; gap:4px; font-size:12px">
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-desktop-tower" style="font-size:13px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">Model</span><span>Desktop (AMD Ryzen AI Max 300 Series)</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-expansion-card" style="font-size:13px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">Modules</span><span>2 front USB-C slots &middot; fixed rear I/O</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-chip" style="font-size:13px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">Driver</span><span>Windows tulip-4.0.1-9b2a0b1</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin:2px 2px 16px">
+        <div style="font-family:var(--font-display); font-weight:600; font-size:26px; line-height:1.1">Modules</div>
+      </div>
+
+      <!-- physical map: tower front, slots plug in from the BOTTOM -->
+      <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:22px">
+
+        <div style="width:178px; flex-shrink:0; border:2px solid var(--sz-outline-strong); border-radius:16px; background:var(--sz-container-low); display:flex; flex-direction:column; align-items:center; position:relative; padding:16px 14px 14px; box-shadow:0 18px 40px -24px rgba(0,0,0,0.8)">
+          <div style="width:100%; flex:1; min-height:230px; border-radius:8px; background-color:var(--sz-container); background-image:repeating-linear-gradient(to bottom, var(--sz-container-highest) 0px, var(--sz-container-highest) 2px, transparent 2px, transparent 6px); border:1px solid var(--sz-outline)"></div>
+          <div style="display:flex; align-items:center; justify-content:space-between; width:100%; margin-top:11px; padding:0 2px">
+            <span style="display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-secondary)"><span class="mdi mdi-snowflake" style="font-size:11px; color:var(--sz-violet)"></span>framework</span>
+            <div style="display:flex; gap:2px">
+              <div style="width:4px; height:11px; border-radius:1px; background:var(--sz-container-highest)"></div>
+              <div style="width:4px; height:11px; border-radius:1px; background:var(--sz-container-highest)"></div>
+              <div style="width:4px; height:11px; border-radius:1px; background:var(--app-accent)"></div>
+            </div>
+          </div>
+          <!-- two bay openings on the underside -->
+          <div style="position:absolute; bottom:-5px; left:44px; width:26px; height:6px; border-radius:0 0 4px 4px; background:var(--sz-container-highest); border:1px solid var(--sz-outline)"></div>
+          <div style="position:absolute; bottom:-5px; right:44px; width:26px; height:6px; border-radius:0 0 4px 4px; background:var(--sz-container-highest); border:1px solid var(--sz-outline)"></div>
+        </div>
+
+        <!-- connector: stem from tower base, branching down to each bottom slot -->
+        <div style="position:relative; width:288px; height:34px">
+          <div style="position:absolute; top:0; left:calc(50% - 1px); width:2px; height:13px; background:var(--app-accent)"></div>
+          <div style="position:absolute; top:12px; left:62px; right:62px; height:2px; background:linear-gradient(90deg, var(--app-accent), var(--sz-outline-strong), var(--app-accent))"></div>
+          <div style="position:absolute; top:12px; left:61px; width:2px; height:22px; background:var(--app-accent)"></div>
+          <div style="position:absolute; top:12px; right:61px; width:2px; height:22px; background:var(--app-accent)"></div>
+          <div style="position:absolute; bottom:-1px; left:57px; width:8px; height:8px; border-radius:50%; background:var(--app-accent); box-shadow:0 0 6px var(--app-accent)"></div>
+          <div style="position:absolute; bottom:-1px; right:57px; width:8px; height:8px; border-radius:50%; background:var(--app-accent); box-shadow:0 0 6px var(--app-accent)"></div>
+        </div>
+
+        <!-- bottom slots -->
+        <div style="display:flex; gap:40px; justify-content:center">
+          <sc-for list="{{ leftSlots }}" as="s" hint-placeholder-count="1">
+            <div style="{{ s.cardStyle }}" onClick="{{ s.select }}">
+              <div style="position:absolute; top:-7px; left:calc(50% - 8px); width:16px; height:8px; border-radius:3px 3px 0 0; background:var(--app-accent)"></div>
+              <div style="{{ s.badgeStyle }}">{{ s.num }}</div>
+              <span class="mdi mdi-{{ s.icon }}" style="font-size:30px; color:{{ s.iconColor }}; margin:4px 0"></span>
+              <div style="font-size:12px; font-weight:600; text-align:center">{{ s.type }}</div>
+              <sc-if value="{{ s.fault }}" hint-placeholder-val="{{ true }}"><span class="mdi mdi-alert" style="position:absolute; left:8px; top:8px; font-size:13px; color:var(--sz-warn)"></span></sc-if>
+            </div>
+          </sc-for>
+          <sc-for list="{{ rightSlots }}" as="s" hint-placeholder-count="1">
+            <div style="{{ s.cardStyle }}" onClick="{{ s.select }}">
+              <div style="position:absolute; top:-7px; left:calc(50% - 8px); width:16px; height:8px; border-radius:3px 3px 0 0; background:var(--app-accent)"></div>
+              <div style="{{ s.badgeStyle }}">{{ s.num }}</div>
+              <span class="mdi mdi-{{ s.icon }}" style="font-size:30px; color:{{ s.iconColor }}; margin:4px 0"></span>
+              <div style="font-size:12px; font-weight:600; text-align:center">{{ s.type }}</div>
+              <sc-if value="{{ s.fault }}" hint-placeholder-val="{{ true }}"><span class="mdi mdi-alert" style="position:absolute; right:8px; top:8px; font-size:13px; color:var(--sz-warn)"></span></sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- selected EXPANSION module detail -->
+      <div style="font-family:var(--font-display); font-weight:600; font-size:15px; margin:2px 2px 12px">Selected expansion module</div>
+      <div style="background:var(--sz-container); border:1px solid var(--sz-outline-strong); border-radius:14px; padding:20px 22px; margin-bottom:24px">
+        <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap">
+          <div style="{{ detMod.iconWrapStyle }}">
+            <span class="mdi mdi-{{ detMod.icon }}" style="font-size:26px; color:{{ detMod.iconColor }}"></span>
+          </div>
+          <div style="flex:1; min-width:0">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+              <span style="font-family:var(--font-display); font-weight:600; font-size:19px">{{ detMod.heading }}</span>
+              <span style="{{ detMod.confStyle }}">{{ detMod.confLabel }}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:8px">
+              <sc-for list="{{ detMod.flags }}" as="f" hint-placeholder-count="3">
+                <span style="{{ f.style }}"><span class="mdi mdi-{{ f.icon }}" style="font-size:12px"></span>{{ f.label }}</span>
+              </sc-for>
+              <sc-if value="{{ detMod.noFlags }}" hint-placeholder-val="{{ true }}"><span style="font-size:12px; color:var(--text-tertiary)">No status flags</span></sc-if>
+            </div>
+          </div>
+          <div style="text-align:right; flex-shrink:0">
+            <div style="font-size:11px; color:var(--text-tertiary)">Power delivery</div>
+            <div style="{{ detMod.pdStyle }}">{{ detMod.pd }}</div>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px; margin-top:16px">
+          <sc-for list="{{ detMod.tiles }}" as="t" hint-placeholder-count="6">
+            <div style="background:var(--sz-container-low); border:1px solid var(--sz-outline); border-radius:10px; padding:11px 13px">
+              <div style="display:flex; align-items:center; gap:7px"><span class="mdi mdi-{{ t.icon }}" style="font-size:13px; color:var(--sz-violet)"></span><span style="font-size:11px; color:var(--text-tertiary)">{{ t.label }}</span></div>
+              <div style="font-family:var(--font-display); font-weight:600; font-size:14px; margin-top:4px">{{ t.value }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin:2px 2px 12px">
+        <span style="font-family:var(--font-display); font-weight:600; font-size:15px; display:flex; align-items:center; gap:9px; flex-wrap:wrap">Rear I/O &amp; mainboard <span style="display:inline-flex; align-items:center; gap:5px; font-weight:600; font-size:11px; padding:2px 9px; border-radius:999px; background:var(--sz-container-high); color:var(--text-secondary); border:1px solid var(--sz-outline)"><span class="mdi mdi-lock-outline" style="font-size:12px"></span>Fixed &middot; soldered</span></span>
+      </div>
+      <div style="display:flex; gap:22px; align-items:flex-start; justify-content:center; flex-wrap:wrap; margin-bottom:22px">
+        <!-- rear I/O shield visual -->
+        <div style="width:188px; flex-shrink:0; border:2px solid var(--sz-outline-strong); border-radius:14px; background:var(--sz-container-low); padding:13px; display:flex; gap:10px">
+          <div style="flex:1; display:flex; flex-direction:column; gap:7px">
+            <sc-for list="{{ rearPorts }}" as="p" hint-placeholder-count="8">
+              <div style="{{ p.style }}" onClick="{{ p.select }}">
+                <span class="mdi mdi-{{ p.icon }}" style="font-size:17px; color:{{ p.iconColor }}; width:20px; text-align:center"></span>
+                <span style="font-size:11px; font-weight:600; color:{{ p.textColor }}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ p.short }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="width:20px; flex-shrink:0; border-radius:6px; background-image:radial-gradient(circle, var(--sz-container-highest) 1px, transparent 1.4px); background-size:6px 6px; opacity:0.6"></div>
+        </div>
+
+        <!-- selected rear port detail -->
+        <div style="flex:1; min-width:280px; background:var(--sz-container); border:1px solid var(--sz-outline-strong); border-radius:14px; padding:20px 22px">
+          <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap">
+            <div style="{{ detRear.iconWrapStyle }}">
+              <span class="mdi mdi-{{ detRear.icon }}" style="font-size:26px; color:var(--accent-text)"></span>
+            </div>
+            <div style="flex:1; min-width:0">
+              <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+                <span style="font-family:var(--font-display); font-weight:600; font-size:19px">{{ detRear.heading }}</span>
+                <span style="{{ detRear.confStyle }}">{{ detRear.confLabel }}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin-top:8px">
+                <sc-for list="{{ detRear.flags }}" as="f" hint-placeholder-count="2">
+                  <span style="{{ f.style }}"><span class="mdi mdi-{{ f.icon }}" style="font-size:12px"></span>{{ f.label }}</span>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:10px; margin-top:16px">
+            <sc-for list="{{ detRear.tiles }}" as="t" hint-placeholder-count="4">
+              <div style="background:var(--sz-container-low); border:1px solid var(--sz-outline); border-radius:10px; padding:11px 13px">
+                <div style="display:flex; align-items:center; gap:7px"><span class="mdi mdi-{{ t.icon }}" style="font-size:13px; color:var(--sz-violet)"></span><span style="font-size:11px; color:var(--text-tertiary)">{{ t.label }}</span></div>
+                <div style="font-family:var(--font-display); font-weight:600; font-size:14px; margin-top:4px">{{ t.value }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </div>
+</div>
+
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#1b2727"/><rect x="40" y="20" width="20" height="50" rx="4" fill="none" stroke="#0078D7" stroke-width="3"/><rect x="43" y="24" width="14" height="3" rx="1" fill="#8AB7E8"/><rect x="43" y="30" width="14" height="3" rx="1" fill="#8AB7E8"/><rect x="43" y="36" width="14" height="3" rx="1" fill="#8AB7E8"/><rect x="24" y="60" width="12" height="12" rx="2" fill="#8AB7E8"/><rect x="64" y="60" width="12" height="12" rx="2" fill="#8AB7E8"/></svg>
+</template>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { selMod:0, selRear:'hdmi' };
+
+  slotsData(){ return [
+    { i:0, side:'L', present:true, type:'USB-C', identity:'USB-C expansion card', icon:'usb-c-port', cardType:'USB-C (USB 3.2)', bus:'USB', kind:'Front expansion slot', conf:'Direct', flags:['Connected','Active'], pd:'No PD contract', vid:'0x32AC', pid:'0x0014', bid:'12' },
+    { i:1, side:'R', present:true, type:'USB-A', identity:'USB-A expansion card', icon:'usb-port', cardType:'USB-A (USB 3.2 Gen2x1)', bus:'USB', kind:'Front expansion slot', conf:'Direct', flags:['Connected','Active'], pd:'No PD contract', vid:'0x32AC', pid:'0x0001', bid:'2' },
+  ]; }
+
+  rearList(){ return [
+    { id:'mb', name:'Mainboard', short:'Mainboard', icon:'developer-board', conf:'Direct', flags:['BuiltIn'],
+      tiles:[ {icon:'developer-board',label:'Board',value:'Mainboard FRMW-DT'}, {icon:'chip',label:'SoC',value:'Ryzen AI Max+ 395'}, {icon:'memory',label:'Memory',value:'128 GB LPDDR5x \u00b7 soldered'}, {icon:'tag-outline',label:'BIOS',value:'v3.0.1'}, {icon:'identifier',label:'Serial',value:'FRADT2C71F08'} ] },
+    { id:'hdmi', name:'HDMI 2.1 port', short:'HDMI 2.1', icon:'video-input-hdmi', conf:'Direct', flags:['Connected','DisplayAltMode'],
+      tiles:[ {icon:'video-input-hdmi',label:'Standard',value:'HDMI 2.1'}, {icon:'chip',label:'PHY',value:'FRL8 with DSC 1.2a'}, {icon:'television',label:'Features',value:'VRR \u00b7 Full HDR'}, {icon:'shield-lock-outline',label:'Security',value:'HDCP 2.3'} ] },
+    { id:'usb4a', name:'USB4 port (top)', short:'USB4', icon:'usb-c-port', conf:'Direct', flags:['Connected','Active','DisplayAltMode'],
+      tiles:[ {icon:'usb-c-port',label:'Standard',value:'USB4 40 Gbit/s'}, {icon:'monitor',label:'Display out',value:'DP 2.1 UHBR20'}, {icon:'swap-horizontal',label:'Data',value:'USB3.2 Gen2x1 10 Gbit/s'}, {icon:'power-plug',label:'Power',value:'PD sink'} ] },
+    { id:'usb4b', name:'USB4 port (bottom)', short:'USB4', icon:'usb-c-port', conf:'Direct', flags:['Connected','Active','DisplayAltMode'],
+      tiles:[ {icon:'usb-c-port',label:'Standard',value:'USB4 40 Gbit/s'}, {icon:'monitor',label:'Display out',value:'DP 2.1 UHBR20'}, {icon:'swap-horizontal',label:'Data',value:'USB3.2 Gen2x1 10 Gbit/s'}, {icon:'power-plug',label:'Power',value:'PD sink'} ] },
+    { id:'dp1', name:'DisplayPort (left)', short:'DP 2.1', icon:'monitor', conf:'Direct', flags:['Connected','DisplayAltMode'],
+      tiles:[ {icon:'monitor',label:'Standard',value:'DisplayPort 2.1'}, {icon:'speedometer',label:'Bandwidth',value:'up to 10G (HBR10)'}, {icon:'monitor-multiple',label:'Features',value:'DSC 1.2a \u00b7 MST'}, {icon:'shield-lock-outline',label:'Security',value:'HDCP 2.3'} ] },
+    { id:'dp2', name:'DisplayPort (right)', short:'DP 2.1', icon:'monitor', conf:'Direct', flags:['Connected','DisplayAltMode'],
+      tiles:[ {icon:'monitor',label:'Standard',value:'DisplayPort 2.1'}, {icon:'speedometer',label:'Bandwidth',value:'up to 10G (HBR10)'}, {icon:'monitor-multiple',label:'Features',value:'DSC 1.2a \u00b7 MST'}, {icon:'shield-lock-outline',label:'Security',value:'HDCP 2.3'} ] },
+    { id:'usba1', name:'USB-A port (1)', short:'USB-A', icon:'usb-port', conf:'Direct', flags:['Connected','Active'],
+      tiles:[ {icon:'usb-port',label:'Standard',value:'USB3.2 Gen2x1'}, {icon:'speedometer',label:'Speed',value:'10 Gbit/s'}, {icon:'shape-outline',label:'Connector',value:'Type-A'} ] },
+    { id:'usba2', name:'USB-A port (2)', short:'USB-A', icon:'usb-port', conf:'Direct', flags:['Connected','Active'],
+      tiles:[ {icon:'usb-port',label:'Standard',value:'USB3.2 Gen2x1'}, {icon:'speedometer',label:'Speed',value:'10 Gbit/s'}, {icon:'shape-outline',label:'Connector',value:'Type-A'} ] },
+    { id:'audio', name:'Audio jack', short:'Audio', icon:'headset', conf:'Direct', flags:['BuiltIn'],
+      tiles:[ {icon:'headset',label:'Type',value:'3.5mm combo'}, {icon:'tune-vertical',label:'Function',value:'Speaker / microphone'} ] },
+    { id:'eth', name:'5G Ethernet', short:'5G LAN', icon:'ethernet', conf:'Direct', flags:['Connected','Active'],
+      tiles:[ {icon:'ethernet',label:'Standard',value:'5 Gbit Ethernet'}, {icon:'ethernet-cable',label:'Connector',value:'RJ45'}, {icon:'speedometer',label:'Speed',value:'5 Gbit/s'} ] },
+  ]; }
+
+  confChip(c){
+    const M={ Direct:['Confirmed','var(--sz-ok-bg)','var(--sz-ok)'], DerivedStrong:['Likely','rgba(0,120,215,0.18)','var(--accent-text)'], DerivedWeak:['Best guess','var(--sz-warn-bg)','var(--sz-warn)'], Unknown:['Unknown','var(--sz-container-high)','var(--text-tertiary)'] };
+    const b=M[c]||M.Unknown; return { label:b[0], style:{ fontSize:'11px', fontWeight:600, padding:'2px 9px', borderRadius:'999px', background:b[1], color:b[2] } };
+  }
+  flagChip(f){
+    const ok=['Active','Connected','Enabled'], info=['HasPdContract','DisplayAltMode','BuiltIn'];
+    const icons={ Connected:'check-network', Active:'flash', HasPdContract:'power-plug', DisplayAltMode:'monitor', Fault:'alert', BuiltIn:'lock-outline', Enabled:'power' };
+    let bg='var(--sz-container-high)', col='var(--text-secondary)', bd='1px solid var(--sz-outline)';
+    if(['Fault'].includes(f)){ bg='var(--sz-danger-bg)'; col='var(--sz-danger)'; bd='none'; }
+    else if(ok.includes(f)){ bg='var(--sz-ok-bg)'; col='var(--sz-ok)'; bd='none'; }
+    else if(info.includes(f)){ bg='rgba(0,120,215,0.16)'; col='var(--accent-text)'; bd='none'; }
+    const labels={ HasPdContract:'PD contract', DisplayAltMode:'DP alt-mode', BuiltIn:'Built-in' };
+    return { label:labels[f]||f, icon:icons[f]||'circle-small', style:{ display:'inline-flex', alignItems:'center', gap:'5px', fontSize:'11.5px', padding:'3px 9px', borderRadius:'999px', background:bg, color:col, border:bd } };
+  }
+
+  slotCard(s){
+    const self=this; const on=s.i===this.state.selMod; const present=s.present;
+    return {
+      num:s.i+1, type: present?s.type:'Empty', icon:s.icon, fault: s.flags.includes('Fault'),
+      iconColor: !present ? 'var(--text-tertiary)' : on ? 'var(--accent-text)' : 'var(--text-secondary)',
+      select:()=>self.setState({ selMod:s.i }),
+      badgeStyle:{ position:'absolute', top:'8px', right: s.side==='L'?'auto':'8px', left: s.side==='L'?'8px':'auto', fontSize:'11px', fontWeight:700, width:'18px', height:'18px', borderRadius:'5px', display:'flex', alignItems:'center', justifyContent:'center', background: on?'var(--app-accent)':'var(--sz-container-highest)', color: on?'var(--app-on-accent)':'var(--text-secondary)' },
+      cardStyle:{ position:'relative', width:'124px', minHeight:'92px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'2px', padding:'14px 12px 12px', borderRadius:'13px', cursor:'pointer',
+        background: on?'rgba(0,120,215,0.14)':'var(--sz-container)', border:'1px solid '+(on?'var(--app-accent)':'var(--sz-outline)'), opacity: present?1:0.6 },
+    };
+  }
+
+  rearDet(id){ const m=this.rearList().find(x=>x.id===id)||this.rearList()[0]; const c=this.confChip(m.conf);
+    return { heading:m.name, icon:m.icon, confLabel:c.label, confStyle:c.style,
+      iconWrapStyle:{ width:'52px', height:'52px', borderRadius:'13px', background:'var(--sz-container-high)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
+      flags:m.flags.map(f=>this.flagChip(f)), tiles:m.tiles };
+  }
+
+  renderVals(){
+    const all=this.slotsData();
+    const s=all.find(x=>x.i===this.state.selMod) || all[0];
+    const conf=this.confChip(s.conf);
+
+    const detMod = {
+      heading:'Slot '+(s.i+1)+' \u00b7 '+s.identity,
+      icon:s.icon,
+      iconWrapStyle:{ width:'52px', height:'52px', borderRadius:'13px', background:'var(--sz-container-high)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 },
+      iconColor: s.present ? 'var(--accent-text)' : 'var(--text-tertiary)',
+      confLabel:conf.label, confStyle:conf.style,
+      pd:s.pd, pdStyle:{ display:'inline-flex', alignItems:'center', marginTop:'4px', fontFamily:'var(--font-display)', fontWeight:600, fontSize:'13px', padding:'4px 12px', borderRadius:'999px', background:'var(--sz-container-high)', color:'var(--text-secondary)', border:'1px solid var(--sz-outline)' },
+      flags:s.flags.map(f=>this.flagChip(f)), noFlags:s.flags.length===0,
+      tiles:[
+        { icon:'shape-outline', label:'Card type', value:s.cardType },
+        { icon:'seal', label:'Card confidence', value:conf.label },
+        { icon:'shape', label:'Slot kind', value:s.kind },
+        { icon:'identifier', label:'Vendor ID', value:s.vid },
+        { icon:'identifier', label:'Product ID', value:s.pid },
+        { icon:'identifier', label:'Board ID', value:s.bid },
+      ],
+    };
+
+    const rearPorts=this.rearList().map(p=>{ const on=this.state.selRear===p.id;
+      return { icon:p.icon, short:p.short, select:()=>this.setState({ selRear:p.id }),
+        iconColor: on?'var(--accent-text)':'var(--text-secondary)', textColor: on?'var(--text-primary)':'var(--text-secondary)',
+        style:{ display:'flex', alignItems:'center', gap:'8px', padding:'7px 9px', borderRadius:'9px', cursor:'pointer', boxSizing:'border-box',
+          background: on?'rgba(0,120,215,0.16)':'var(--sz-container)', border:'1px solid '+(on?'var(--app-accent)':'var(--sz-outline)') } };
+    });
+
+    return {
+      shellStyle:{ display:'flex', flexDirection:'column', height:'100vh', minHeight:'900px',
+        background:'var(--sz-bg)',
+        backgroundImage:'radial-gradient(100% 80% at 100% 0%, rgba(138,183,232,0.10), transparent 55%), radial-gradient(90% 70% at 0% 100%, rgba(0,120,215,0.08), transparent 55%)',
+        color:'var(--text-primary)' },
+      brandTextStyle:{ fontFamily:'var(--font-display)', fontWeight:600, fontSize:'30px', letterSpacing:'0.06em',
+        backgroundImage:'linear-gradient(100deg,#0078D7 0%,#5AA0E0 50%,#D7D8FF 100%)', WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent' },
+      leftSlots: all.filter(x=>x.side==='L').map(x=>this.slotCard(x)),
+      rightSlots: all.filter(x=>x.side==='R').map(x=>this.slotCard(x)),
+      detMod, rearPorts, detRear: this.rearDet(this.state.selRear),
+    };
+  }
+}
+</script>
+</body>
+</html>

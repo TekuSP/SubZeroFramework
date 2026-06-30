@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/colors.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/typography.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/expressive.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<script src="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/_ds_bundle.js"></script>
+<style>
+  :root{
+    --app-accent:#0078D7; --app-accent-hover:#1f8ae6; --app-accent-press:#0063b1;
+    --app-on-accent:#ffffff; --app-accent-flood:#0078D7; --app-on-flood:#ffffff;
+    --sz-bg:#1b2727; --sz-container-lowest:#161f1f; --sz-container-low:#1f1f1f;
+    --sz-container:#2e2e2e; --sz-container-high:#383b3b; --sz-container-highest:#474b4b; --sz-container-hover:#414646;
+    --sz-outline:rgba(255,255,255,0.07); --sz-outline-strong:rgba(255,255,255,0.13); --sz-violet:#8AB7E8;
+    --text-primary:#fffffa; --text-secondary:#D7D8FF; --text-tertiary:#8d8ea3;
+    --sz-ok:#6ccb5f; --sz-warn:#c5994e; --sz-danger:#d9706a;
+    --sz-ok-bg:rgba(108,203,95,0.14); --sz-warn-bg:rgba(197,153,78,0.16); --sz-danger-bg:rgba(217,112,106,0.16);
+    --severity-nominal:var(--app-accent); --severity-ok:var(--sz-ok); --severity-caution:var(--sz-warn); --severity-critical:var(--sz-danger);
+    --accent-default:var(--app-accent); --accent-secondary:var(--app-accent-hover); --accent-tertiary:var(--app-accent-press); --accent-text:#8AB7E8;
+  }
+  html,body{ margin:0; height:100%; background:var(--sz-bg); font-family:var(--font-text); color:var(--text-primary); }
+  .ftrack{ scrollbar-width:thin; scrollbar-color:var(--sz-container-highest) transparent; }
+  .ftrack::-webkit-scrollbar{ width:11px }
+  .ftrack::-webkit-scrollbar-thumb{ background:var(--sz-container-highest); border-radius:6px; border:3px solid transparent; background-clip:padding-box }
+</style>
+</helmet>
+
+<div style="{{ windowStyle }}">
+  <!-- ===== title bar (chrome) ===== -->
+  <div style="height:40px; display:flex; align-items:center; padding:0 0 0 16px; flex-shrink:0">
+    <span class="mdi mdi-snowflake" style="font-size:15px; color:var(--sz-violet)"></span>
+    <span style="font-size:12.5px; color:var(--text-secondary); margin-left:9px">SubZero &mdash; Framework Edition</span>
+    <span style="flex:1"></span>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-minimize" style="font-size:15px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-restore" style="font-size:13px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-close" style="font-size:15px"></span></div>
+  </div>
+
+  <div style="display:flex; flex:1; min-height:0">
+    <!-- ===== icon rail (chrome) ===== -->
+    <div style="width:56px; flex-shrink:0; display:flex; flex-direction:column; padding-top:8px; background:#000000">
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-view-dashboard-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-thermometer" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-flash-outline" style="font-size:19px"></span></div>
+      <div style="position:relative; width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:var(--sz-container-high)">
+        <span style="position:absolute; left:-4px; top:11px; bottom:11px; width:3px; border-radius:2px; background:var(--app-accent)"></span>
+        <span class="mdi mdi-fan" style="font-size:19px; color:var(--app-accent)"></span>
+      </div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-expansion-card-variant" style="font-size:19px"></span></div>
+      <div style="flex:1"></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-cog-outline" style="font-size:19px"></span></div>
+    </div>
+
+    <!-- ===== scrollable content ===== -->
+    <div class="ftrack" style="flex:1; min-width:0; min-height:0; overflow:auto; display:flex; flex-direction:column; padding:16px 26px 18px">
+      <!-- brand + system info (chrome — untouched) -->
+      <div style="display:flex; gap:16px; margin-bottom:18px">
+        <div style="flex:2; min-width:0; height:96px; border-radius:14px; background:var(--sz-container-high); border:1px solid var(--sz-outline); display:flex; align-items:center; justify-content:center; gap:16px">
+          <span class="mdi mdi-snowflake" style="font-size:36px; color:var(--sz-violet)"></span>
+          <div style="display:flex; flex-direction:column; align-items:center">
+            <span style="{{ brandTextStyle }}">SUBZERO</span>
+            <span style="font-size:13px; color:var(--text-secondary); letter-spacing:0.18em; margin-top:-2px">FRAMEWORK EDITION</span>
+          </div>
+        </div>
+        <div style="flex:1.5; min-width:0; padding:14px 18px; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px">
+          <div style="font-family:var(--font-display); font-weight:600; font-size:16px; margin-bottom:8px">System information</div>
+          <div style="display:flex; flex-direction:column; gap:5px; font-size:12.5px">
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-laptop" style="font-size:14px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">Model</span><span>Framework Laptop 16</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-cpu-64-bit" style="font-size:14px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">CPU</span><span>Ryzen AI 9 HX 370</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-fan" style="font-size:14px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">Fans</span><span>4 detected</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-chip" style="font-size:14px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">Driver</span><span>tulip-4.0.1</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- master / detail -->
+      <div style="display:flex; gap:18px; align-items:stretch; flex:1; min-height:760px">
+
+        <!-- MASTER -->
+        <div style="width:380px; flex-shrink:0; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:14px; display:flex; flex-direction:column">
+          <div style="display:flex; align-items:center; justify-content:space-between; margin:2px 4px 12px">
+            <span style="font-family:var(--font-display); font-weight:600; font-size:17px">Fans</span>
+            <span style="font-size:11px; color:var(--text-tertiary)">by location</span>
+          </div>
+          <div class="ftrack" style="flex:1; min-height:0; overflow:auto; display:flex; flex-direction:column; gap:8px; padding-right:2px">
+            <sc-for list="{{ fanRows }}" as="fan" hint-placeholder-count="4">
+              <div style="{{ fan.cardStyle }}" onClick="{{ fan.select }}">
+                <div style="position:relative; width:50px; height:50px; flex-shrink:0">
+                  <svg width="50" height="50" viewBox="0 0 50 50">
+                    <path d="{{ fan.ring.track }}" fill="none" stroke="var(--sz-container-highest)" stroke-width="5" stroke-linecap="round"></path>
+                    <sc-for list="{{ fan.ring.segs }}" as="s" hint-placeholder-count="2">
+                      <path d="{{ s.d }}" fill="none" stroke="{{ s.color }}" stroke-width="5" stroke-linecap="{{ s.cap }}"></path>
+                    </sc-for>
+                  </svg>
+                  <span class="mdi mdi-fan" style="{{ fan.iconStyle }}"></span>
+                </div>
+                <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:5px">
+                  <div style="display:flex; align-items:baseline; gap:7px">
+                    <span style="font-family:var(--font-display); font-weight:600; font-size:15px; white-space:nowrap">{{ fan.loc }}</span>
+                    <span style="font-size:11px; color:var(--text-tertiary); white-space:nowrap">{{ fan.slot }}</span>
+                  </div>
+                  <div style="display:flex; align-items:baseline; gap:8px; white-space:nowrap">
+                    <span style="font-size:14px; color:var(--text-primary); font-weight:600">{{ fan.rpmStr }}</span>
+                    <span style="font-size:11px; color:var(--text-tertiary)">{{ fan.subLine }}</span>
+                  </div>
+                  <div>
+                    <span style="display:inline-block; font-size:11px; padding:1px 9px; border-radius:999px; border:1px solid var(--sz-outline-strong); color:var(--text-secondary); white-space:nowrap">{{ fan.modeLabel }}</span>
+                  </div>
+                </div>
+                <div style="display:flex; flex-direction:column; align-items:flex-end; gap:7px">
+                  <span style="{{ fan.status.style }}"><span class="mdi mdi-{{ fan.status.icon }}" style="font-size:12px"></span>{{ fan.status.label }}</span>
+                  <sc-if value="{{ fan.staged }}" hint-placeholder-val="{{ true }}">
+                    <span style="font-size:10px; font-weight:600; color:var(--app-on-accent); background:var(--app-accent); padding:2px 8px; border-radius:999px; display:flex; align-items:center; gap:4px; white-space:nowrap"><span class="mdi mdi-circle-edit-outline" style="font-size:10px"></span>Changes pending</span>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="border-top:1px solid var(--sz-outline); margin-top:12px; padding-top:13px">
+            <sc-if value="{{ hasStaged }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:11.5px; color:var(--accent-text); margin-bottom:10px; display:flex; align-items:center; gap:7px"><span class="mdi mdi-circle-edit-outline" style="font-size:14px"></span>{{ stagedLabel }}</div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap">
+                <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="danger" onClick="{{ revertAll }}" hint-size="auto,36px"><span class="mdi mdi-undo-variant" style="font-size:14px; margin-right:5px"></span>Revert all</x-import>
+                <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="accent" onClick="{{ applyAll }}" hint-size="auto,36px"><span class="mdi mdi-check" style="font-size:14px; margin-right:5px"></span>Apply all</x-import>
+                <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="standard" onClick="{{ previewAll }}" hint-size="auto,36px"><span class="mdi mdi-play" style="font-size:14px; margin-right:5px"></span>Preview all</x-import>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noStaged }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:7px"><span class="mdi mdi-check-circle" style="font-size:15px; color:var(--sz-ok)"></span>All fans up to date</div>
+            </sc-if>
+          </div>
+        </div>
+
+        <!-- DETAIL -->
+        <div style="flex:1; min-width:0; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; display:flex; flex-direction:column; overflow:hidden">
+          <!-- header -->
+          <div style="display:flex; align-items:center; gap:18px 20px; flex-wrap:wrap; padding:18px 22px 16px; border-bottom:1px solid var(--sz-outline)">
+            <div style="position:relative; width:100px; height:100px; flex-shrink:0">
+              <svg width="100" height="100" viewBox="0 0 100 100">
+                <path d="{{ headerGauge.track }}" fill="none" stroke="var(--sz-container-highest)" stroke-width="9" stroke-linecap="round"></path>
+                <sc-for list="{{ headerGauge.segs }}" as="s" hint-placeholder-count="2">
+                  <path d="{{ s.d }}" fill="none" stroke="{{ s.color }}" stroke-width="9" stroke-linecap="{{ s.cap }}"></path>
+                </sc-for>
+              </svg>
+              <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center">
+                <span style="font-family:var(--font-display); font-weight:600; font-size:22px; line-height:1">{{ selRpm }}</span>
+                <span style="font-size:10px; color:var(--text-secondary)">RPM</span>
+              </div>
+            </div>
+            <div style="flex:1; min-width:0">
+              <div style="display:flex; align-items:baseline; gap:10px">
+                <span style="font-family:var(--font-display); font-weight:600; font-size:24px; white-space:nowrap">{{ selLoc }}</span>
+                <span style="font-size:13px; color:var(--text-tertiary); white-space:nowrap">{{ selSlot }}</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:10px; margin-top:8px">
+                <span style="{{ selStatus.style }}"><span class="mdi mdi-{{ selStatus.icon }}" style="font-size:13px"></span>{{ selStatus.label }}</span>
+                <span style="font-size:12.5px; color:var(--text-secondary)">{{ headerContext }}</span>
+              </div>
+              <sc-if value="{{ showAvg }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:12px; color:var(--text-tertiary); margin-top:9px; display:flex; gap:18px">
+                  <span><span style="color:var(--text-secondary)">1-min avg</span> {{ selAvg }} RPM</span>
+                  <span><span style="color:var(--text-secondary)">peak</span> {{ selPeak }} RPM</span>
+                </div>
+              </sc-if>
+            </div>
+            <div style="flex-shrink:0; width:268px">
+              <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px; color:var(--text-tertiary); margin-bottom:3px">
+                <span>Last 60s</span>
+                <span style="display:flex; gap:11px"><span style="display:flex; align-items:center; gap:4px"><span style="width:9px; height:2px; border-radius:1px; background:var(--app-accent)"></span>rev/s</span><span style="display:flex; align-items:center; gap:4px"><span style="width:9px; height:2px; border-radius:1px; background:var(--sz-danger)"></span>Temp</span></span>
+              </div>
+              <svg width="268" height="84" viewBox="0 0 268 84" style="display:block">
+                <defs>
+                  <linearGradient id="rpmFade" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="var(--app-accent)" stop-opacity="0.06"></stop>
+                    <stop offset="100%" stop-color="var(--app-accent)" stop-opacity="1"></stop>
+                  </linearGradient>
+                  <linearGradient id="tempFade" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%" stop-color="var(--sz-danger)" stop-opacity="0.1"></stop>
+                    <stop offset="100%" stop-color="var(--sz-danger)" stop-opacity="1"></stop>
+                  </linearGradient>
+                </defs>
+                <polyline points="{{ hist.rpmStr }}" fill="none" stroke="url(#rpmFade)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>
+                <polyline points="{{ hist.tempStr }}" fill="none" stroke="url(#tempFade)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"></polyline>
+                <circle cx="{{ hist.rpmEndX }}" cy="{{ hist.rpmEndY }}" r="3" fill="var(--app-accent)"></circle>
+                <circle cx="{{ hist.tempEndX }}" cy="{{ hist.tempEndY }}" r="3" fill="var(--sz-danger)"></circle>
+              </svg>
+            </div>
+          </div>
+
+          <!-- STALLED: block all control, show prominent warning -->
+          <sc-if value="{{ stalled }}" hint-placeholder-val="{{ true }}">
+            <div style="flex:1; min-height:0; display:flex; flex-direction:column; padding:18px 22px">
+              <div style="flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:16px; padding:28px; background:var(--sz-danger-bg); border:1px solid var(--sz-danger); border-radius:14px">
+                <span class="mdi mdi-fan-alert" style="font-size:46px; color:var(--sz-danger)"></span>
+                <div style="font-family:var(--font-display); font-weight:600; font-size:21px; color:var(--text-primary)">Fan stalled &mdash; please inspect this fan</div>
+                <div style="font-size:13.5px; color:var(--text-secondary); max-width:440px; line-height:1.5">{{ selLoc }} is reporting no rotation while it is being driven. Controls are locked until it spins up again. Check for obstructions, dust, or a disconnected fan header, then re-seat or replace the fan.</div>
+                <div style="display:flex; align-items:center; gap:8px; font-size:12px; color:var(--sz-danger); margin-top:2px">0 RPM &middot; no rotation detected</div>
+                <div style="margin-top:6px">
+                  <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="standard" hint-size="auto,36px"><span class="mdi mdi-refresh" style="font-size:15px; margin-right:7px"></span>Re-check fan</x-import>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- applies-to / link fans (standalone card) -->
+          <sc-if value="{{ notStalled }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:14px 22px 2px">
+            <div style="background:var(--sz-container-low); border:1px solid var(--sz-outline); border-radius:12px; padding:13px 15px">
+              <div style="display:flex; align-items:center; gap:9px; flex-wrap:wrap">
+                <span style="font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:7px; margin-right:2px"><span class="mdi mdi-link-variant" style="font-size:14px"></span>Applies to</span>
+                <sc-for list="{{ scopeChips }}" as="c" hint-placeholder-count="4">
+                  <div style="{{ c.style }}" onClick="{{ c.toggle }}"><span class="mdi mdi-{{ c.icon }}" style="font-size:13px"></span>{{ c.label }}</div>
+                </sc-for>
+                <span style="flex:1; min-width:10px"></span>
+                <div style="{{ linkAllStyle }}" onClick="{{ linkAllAction }}"><span class="mdi mdi-{{ linkAllIcon }}" style="font-size:13px"></span>{{ linkAllLabel }}</div>
+              </div>
+              <div style="font-size:11.5px; color:var(--text-tertiary); margin-top:9px">{{ linkHint }}</div>
+            </div>
+          </div>
+
+          <!-- mode selector (pill, matches the design's segmented controls) -->
+          <div style="display:flex; align-items:center; gap:11px; padding:16px 22px 6px">
+            <span style="font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:7px"><span class="mdi mdi-tune-vertical" style="font-size:14px"></span>Mode</span>
+            <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.SegmentedControl" activeTone="app" value="{{ mode }}" onChange="{{ setMode }}" options="{{ modeOptions }}" hint-size="380px,34px"></x-import>
+          </div>
+
+          <!-- body -->
+          <div style="flex:1; min-width:0; min-height:0; overflow:auto; padding:10px 22px 16px">
+            <sc-if value="{{ isCustom }}" hint-placeholder-val="{{ true }}">
+              <div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin:10px 0 6px">
+                  <span style="font-size:12.5px; color:var(--text-secondary)">Left-click to add a point &middot; drag to move &middot; right-click to remove</span>
+                  <div style="display:flex; align-items:center; gap:14px; font-size:11.5px; color:var(--text-secondary)">
+                    <span style="display:flex; align-items:center; gap:5px"><span style="width:16px; height:0; border-top:2px dashed var(--text-tertiary)"></span>Applied</span>
+                    <span style="display:flex; align-items:center; gap:5px"><span style="width:16px; height:3px; border-radius:2px; background:var(--app-accent)"></span>Staged</span>
+                  </div>
+                </div>
+                <svg width="100%" viewBox="0 0 560 230" style="display:block">
+                  <defs>
+                    <linearGradient id="szCurveFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="var(--app-accent)" stop-opacity="0.26"></stop>
+                      <stop offset="100%" stop-color="var(--app-accent)" stop-opacity="0"></stop>
+                    </linearGradient>
+                  </defs>
+                  <sc-for list="{{ curve.gridY }}" as="g" hint-placeholder-count="5">
+                    <line x1="40" y1="{{ g.y }}" x2="546" y2="{{ g.y }}" stroke="var(--sz-outline)" stroke-width="1"></line>
+                  </sc-for>
+                  <text x="34" y="16" text-anchor="end" font-size="11" fill="var(--text-secondary)">100%</text>
+                  <text x="34" y="64" text-anchor="end" font-size="11" fill="var(--text-secondary)">75%</text>
+                  <text x="34" y="112" text-anchor="end" font-size="11" fill="var(--text-secondary)">50%</text>
+                  <text x="34" y="160" text-anchor="end" font-size="11" fill="var(--text-secondary)">25%</text>
+                  <text x="34" y="208" text-anchor="end" font-size="11" fill="var(--text-secondary)">0%</text>
+                  <text x="40" y="223" text-anchor="middle" font-size="11" fill="var(--text-secondary)">20&deg;</text>
+                  <text x="141" y="223" text-anchor="middle" font-size="11" fill="var(--text-secondary)">40&deg;</text>
+                  <text x="242" y="223" text-anchor="middle" font-size="11" fill="var(--text-secondary)">60&deg;</text>
+                  <text x="344" y="223" text-anchor="middle" font-size="11" fill="var(--text-secondary)">80&deg;</text>
+                  <text x="445" y="223" text-anchor="middle" font-size="11" fill="var(--text-secondary)">100&deg;</text>
+                  <text x="540" y="223" text-anchor="middle" font-size="11" fill="var(--text-secondary)">120&deg;</text>
+                  <polygon points="{{ curve.areaStr }}" fill="url(#szCurveFill)"></polygon>
+                  <polyline points="{{ curve.appliedStr }}" fill="none" stroke="var(--text-tertiary)" stroke-width="1.5" stroke-dasharray="5 4" opacity="0.75"></polyline>
+                  <line x1="{{ curve.markerX }}" y1="12" x2="{{ curve.markerX }}" y2="204" stroke="var(--sz-violet)" stroke-width="1" stroke-dasharray="3 3" opacity="0.85"></line>
+                  <polyline points="{{ curve.stagedStr }}" fill="none" stroke="var(--app-accent)" stroke-width="2.5" stroke-linejoin="round"></polyline>
+                  <sc-for list="{{ curve.points }}" as="p" hint-placeholder-count="5">
+                    <circle cx="{{ p.x }}" cy="{{ p.y }}" r="5.5" fill="var(--sz-container-highest)" stroke="var(--app-accent)" stroke-width="2.5"></circle>
+                  </sc-for>
+                  <circle cx="{{ curve.markerX }}" cy="{{ curve.markerY }}" r="4.5" fill="var(--sz-violet)"></circle>
+                </svg>
+                <div style="font-size:13px; color:var(--text-secondary); margin:2px 0 12px">At the current driving temperature <b style="color:var(--text-primary)">{{ curve.markerTemp }}</b>, this curve targets <b style="color:var(--text-primary)">{{ curve.markerDuty }}</b> duty.</div>
+
+                <div style="border-top:1px solid var(--sz-outline); padding:16px 2px 0; margin-top:16px">
+                  <div style="display:flex; align-items:center; justify-content:space-between; gap:10px 16px; flex-wrap:wrap; margin-bottom:12px">
+                    <span style="font-family:var(--font-display); font-weight:600; font-size:14px">Driving temperature sensors</span>
+                    <div style="display:flex; align-items:center; gap:9px">
+                      <span style="font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:7px"><span class="mdi mdi-sigma" style="font-size:14px"></span>Aggregate</span>
+                      <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.SegmentedControl" activeTone="app" value="{{ agg }}" onChange="{{ setAgg }}" options="{{ aggOptions }}" hint-size="250px,30px"></x-import>
+                    </div>
+                  </div>
+                  <div style="display:grid; grid-template-columns:repeat(8, 1fr); gap:8px">
+                    <sc-for list="{{ sensors }}" as="s" hint-placeholder-count="6">
+                      <div style="{{ s.style }}" onClick="{{ s.toggle }}">
+                        <div style="display:flex; align-items:center; justify-content:center; gap:5px"><span class="mdi mdi-{{ s.icon }}" style="font-size:12px"></span><span style="font-size:12px; font-weight:600">{{ s.label }}</span></div>
+                        <span style="font-size:10px; opacity:0.85; margin-top:3px; white-space:nowrap">{{ s.sub }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="font-size:11.5px; color:var(--text-tertiary); margin:12px 0 0; display:flex; align-items:center; gap:7px">
+                    <span class="mdi mdi-shield-alert-outline" style="font-size:14px; color:var(--sz-warn)"></span>
+                    If a driving sensor reports an error or loses power, the fan falls back to its firmware-safe curve.
+                  </div>
+                </div>
+
+                <div style="border-top:1px solid var(--sz-outline); padding:16px 2px 0; margin-top:16px">
+                  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px">
+                    <span style="font-family:var(--font-display); font-weight:600; font-size:14px; display:flex; align-items:center; gap:7px"><span class="mdi mdi-chart-line" style="font-size:14px; color:var(--sz-violet)"></span>Driving temperature &middot; last 30s</span>
+                    <span style="font-size:11.5px; color:var(--text-tertiary)">{{ tempChart.aggLabel }} of selected sensors</span>
+                  </div>
+                  <sc-if value="{{ tempChart.empty }}" hint-placeholder-val="{{ true }}">
+                    <div style="font-size:12.5px; color:var(--text-tertiary); padding:14px 0">Select a temperature sensor above to preview its readout.</div>
+                  </sc-if>
+                  <sc-if value="{{ tempChartHas }}" hint-placeholder-val="{{ true }}">
+                    <svg width="100%" viewBox="0 0 520 116" style="display:block">
+                      <sc-for list="{{ tempChart.series }}" as="s" hint-placeholder-count="2">
+                        <polyline points="{{ s.pts }}" fill="none" stroke="{{ s.color }}" stroke-width="1.5" opacity="0.5" stroke-linejoin="round"></polyline>
+                      </sc-for>
+                      <polyline points="{{ tempChart.drivingPts }}" fill="none" stroke="var(--app-accent)" stroke-width="2.5" stroke-linejoin="round"></polyline>
+                    </svg>
+                    <div style="display:flex; flex-wrap:wrap; gap:9px 18px; margin-top:10px; font-size:12px">
+                      <sc-for list="{{ tempChart.series }}" as="s" hint-placeholder-count="2">
+                        <span style="display:flex; align-items:center; gap:6px"><span style="{{ s.swatchStyle }}"></span><span style="color:var(--text-secondary)">{{ s.label }}</span><span style="font-weight:600">{{ s.current }}</span></span>
+                      </sc-for>
+                      <span style="display:flex; align-items:center; gap:6px"><span style="width:12px; height:3px; border-radius:2px; background:var(--app-accent)"></span><span style="color:var(--text-secondary)">Driving</span><span style="font-weight:600; color:var(--accent-text)">{{ tempChart.drivingCurrent }}</span></span>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isGauge }}" hint-placeholder-val="{{ true }}">
+              <div style="height:100%; display:flex; flex-direction:column; justify-content:flex-start; gap:24px; padding-top:6px">
+                <div style="display:flex; align-items:stretch; gap:30px">
+                  <div style="position:relative; width:184px; height:184px; flex-shrink:0">
+                    <svg width="184" height="184" viewBox="0 0 184 184">
+                      <sc-for list="{{ gaugeZones }}" as="z" hint-placeholder-count="3">
+                        <path d="{{ z.d }}" fill="none" stroke="{{ z.color }}" stroke-width="16" stroke-linecap="butt" opacity="0.16"></path>
+                      </sc-for>
+                      <sc-if value="{{ showGhost }}" hint-placeholder-val="{{ true }}">
+                        <path d="{{ ghostPath }}" fill="none" stroke="var(--app-accent)" stroke-width="16" stroke-linecap="round" opacity="0.3"></path>
+                      </sc-if>
+                      <sc-for list="{{ gauge.segs }}" as="s" hint-placeholder-count="2">
+                        <path d="{{ s.d }}" fill="none" stroke="{{ s.color }}" stroke-width="16" stroke-linecap="{{ s.cap }}"></path>
+                      </sc-for>
+                    </svg>
+                    <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center">
+                      <span style="font-family:var(--font-display); font-weight:600; font-size:30px; line-height:1">{{ selRpm }}</span>
+                      <span style="font-size:11px; color:var(--text-secondary)">RPM now</span>
+                      <span style="font-size:12px; color:var(--accent-text); margin-top:6px">{{ targetLabel }}</span>
+                    </div>
+                  </div>
+                  <div style="flex:1; min-width:0">
+                    <sc-if value="{{ isManual }}" hint-placeholder-val="{{ true }}">
+                      <div style="height:100%; box-sizing:border-box; display:flex; flex-direction:column; justify-content:flex-start; gap:12px; padding:18px; border-radius:12px; background:var(--sz-container-high); border:1px solid var(--sz-outline)">
+                        <div style="display:flex; align-items:center; gap:10px"><span class="mdi mdi-tune-variant" style="font-size:20px; color:var(--app-accent)"></span><span style="font-family:var(--font-display); font-weight:600; font-size:15px">Manual control</span></div>
+                        <div style="font-size:13px; color:var(--text-secondary)">Set a fixed duty cycle. The faint ghost arc previews where the fan will settle once applied.</div>
+                        <div style="display:flex; align-items:center; gap:16px">
+                          <div style="flex:1; min-width:0">
+                            <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Slider" value="{{ duty }}" onChange="{{ setDuty }}" hint-size="100%,32px"></x-import>
+                          </div>
+                          <div style="font-family:var(--font-display); font-weight:600; font-size:28px; min-width:74px; text-align:right">{{ dutyLabel }}</div>
+                        </div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ isAuto }}" hint-placeholder-val="{{ true }}">
+                      <div style="height:100%; box-sizing:border-box; display:flex; flex-direction:column; justify-content:flex-start; gap:12px; padding:18px; background:var(--sz-container-high); border:1px solid var(--sz-outline); border-radius:12px">
+                        <div style="display:flex; align-items:center; gap:10px"><span class="mdi mdi-auto-fix" style="font-size:20px; color:var(--app-accent)"></span><span style="font-family:var(--font-display); font-weight:600; font-size:15px">Auto mode active</span></div>
+                        <div style="font-size:13px; color:var(--text-secondary)">The embedded controller drives this fan from its built-in policy. No user override is active.</div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ isMax }}" hint-placeholder-val="{{ true }}">
+                      <div style="height:100%; box-sizing:border-box; display:flex; flex-direction:column; justify-content:flex-start; gap:12px; padding:18px; background:var(--sz-warn-bg); border:1px solid rgba(197,153,78,0.3); border-radius:12px">
+                        <div style="display:flex; align-items:center; gap:10px"><span class="mdi mdi-speedometer" style="font-size:20px; color:var(--sz-warn)"></span><span style="font-family:var(--font-display); font-weight:600; font-size:15px">Max mode &mdash; 100% duty</span></div>
+                        <div style="font-size:13px; color:var(--text-secondary)">Fan is commanded to full speed regardless of temperature. Expect audible noise.</div>
+                      </div>
+                    </sc-if>
+                  </div>
+                </div>
+                <sc-if value="{{ isManual }}" hint-placeholder-val="{{ true }}">
+                  <div>
+                    <div style="font-size:12px; color:var(--text-secondary); margin-bottom:9px">Quick presets</div>
+                    <div style="display:flex; gap:9px; flex-wrap:wrap">
+                      <sc-for list="{{ dutyPresets }}" as="p" hint-placeholder-count="4">
+                        <div style="{{ p.style }}" onClick="{{ p.set }}"><span style="font-weight:600">{{ p.label }}</span><span style="margin-left:7px; opacity:0.8">{{ p.pct }}</span></div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+          </div>
+          </sc-if>
+
+          <!-- action bar (per-fan): live Preview / Stop preview -->
+          <div style="{{ barStyle }}">
+            <sc-if value="{{ previewing }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex; align-items:center; gap:7px; width:100%">
+                <span style="width:9px; height:9px; border-radius:50%; background:var(--sz-warn); box-shadow:0 0 7px var(--sz-warn); flex-shrink:0"></span>
+                <span style="font-size:13px; color:var(--text-primary)">Previewing live on the fan &mdash; reverts automatically unless you apply it.</span>
+                <span style="flex:1"></span>
+                <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="danger" onClick="{{ togglePreview }}" hint-size="auto,34px"><span class="mdi mdi-stop" style="font-size:14px; margin-right:7px"></span>Stop preview</x-import>
+              </div>
+            </sc-if>
+            <sc-if value="{{ canPreview }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex; align-items:center; gap:7px; width:100%">
+                <span class="mdi mdi-circle-edit-outline" style="font-size:16px; color:var(--accent-text)"></span>
+                <span style="font-size:13px; color:var(--text-secondary)">Unsaved changes &mdash; test them live here, or commit from the fan list.</span>
+                <span style="flex:1"></span>
+                <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="subtle" onClick="{{ discardThis }}" hint-size="auto,34px">Discard</x-import>
+                <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="standard" onClick="{{ togglePreview }}" hint-size="auto,34px"><span class="mdi mdi-play" style="font-size:14px; margin-right:7px"></span>Preview</x-import>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noChanges }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex; align-items:center; gap:7px; width:100%">
+                <span class="mdi mdi-check-circle" style="font-size:16px; color:var(--sz-ok)"></span>
+                <span style="font-size:13px; color:var(--text-secondary)">{{ cleanMsg }}</span>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#1b2727"/><g transform="translate(50,50)"><circle r="20" fill="none" stroke="#0078D7" stroke-width="5" stroke-dasharray="94 126" transform="rotate(135)"/><path d="M0 -7 C5 -7 7 -3 5 1 C9 -1 13 2 11 7 M0 -7 C-5 -7 -7 -3 -5 1 C-9 -1 -13 2 -11 7" fill="#0078D7"/><circle r="3" fill="#0078D7"/></g></svg>
+</template>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#0078D7&quot;,&quot;options&quot;:[&quot;#0078D7&quot;,&quot;#6ccb5f&quot;,&quot;#A892FF&quot;,&quot;#c5994e&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;ringMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;segmented&quot;,&quot;solid&quot;],&quot;default&quot;:&quot;segmented&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;showAverages&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  state = { sel:'left', mode:'custom', duty:62, agg:'Maximum', sensors:['t0','t3'], linked:['left'], staged:['left'], previewFan:null };
+
+  polar(c, r, deg){ const a=(deg-90)*Math.PI/180; return [c+r*Math.cos(a), c+r*Math.sin(a)]; }
+  arc(c, r, a0, a1){
+    const [x0,y0]=this.polar(c,r,a0); const [x1,y1]=this.polar(c,r,a1);
+    const lg=(a1-a0)>180?1:0;
+    return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r.toFixed(2)} ${r.toFixed(2)} 0 ${lg} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  }
+  toneColor(t){ return ({ nominal:'var(--app-accent)', caution:'var(--sz-warn)', critical:'var(--sz-danger)' })[t] || 'var(--app-accent)'; }
+  // Segmented speed gauge: track + filled segments coloured by speed band.
+  gaugeSegs(size, thick, frac, solid){
+    const r=(size-thick)/2, c=size/2; const f=Math.max(0,Math.min(1,frac));
+    const A=ff=> -135 + 270*ff;
+    const track=this.arc(c,r,-135,135);
+    if(f<=0.0001) return { track, segs:[] };
+    if(solid) return { track, segs:[{ d:this.arc(c,r,A(0),A(f)), color:'var(--app-accent)', cap:'round' }] };
+    const bands=[{ to:0.6, tone:'nominal' },{ to:0.85, tone:'caution' },{ to:1, tone:'critical' }];
+    const out=[]; let from=0;
+    for(const b of bands){
+      const a1=Math.min(b.to, f);
+      if(a1>from) out.push({ from, to:a1, tone:b.tone });
+      from=b.to;
+      if(from>=f) break;
+    }
+    return { track, segs:out.map((s,i)=>({ d:this.arc(c,r,A(s.from),A(s.to)), color:this.toneColor(s.tone), cap:(i===0||i===out.length-1)?'round':'butt' })) };
+  }
+
+  gaugeZones(size, thick){
+    const r=(size-thick)/2, c=size/2; const A=f=>-135+270*f;
+    return [[0,0.6,'nominal'],[0.6,0.85,'caution'],[0.85,1,'critical']].map(z=>({ d:this.arc(c,r,A(z[0]),A(z[1])), color:this.toneColor(z[2]) }));
+  }
+  modeLabel(k){ return ({ auto:'Auto', manual:'Manual', custom:'Custom curve', max:'Max' })[k] || k; }
+
+  chip(bg, fg){ return { display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:'999px', fontSize:'11px', fontWeight:600, background:bg, color:fg }; }
+  fanStatus(st){
+    if(st==='stalled') return { style:this.chip('var(--sz-danger-bg)','var(--sz-danger)'), icon:'fan-alert', label:'Stalled' };
+    return { style:this.chip('var(--sz-ok-bg)','var(--sz-ok)'), icon:'check-circle', label:'OK' };
+  }
+
+  baseFans(){ return [
+    { id:'left',  loc:'Left fan',  slot:'Slot 0', rpm:4748, temp:69, avg:4710, peak:5020, max:8000, modeKey:'custom', state:'ok',      dirty:true },
+    { id:'right', loc:'Right fan', slot:'Slot 1', rpm:6100, temp:64, avg:5980, peak:6300, max:8000, modeKey:'auto',   state:'ok',      dirty:false },
+    { id:'apu',   loc:'APU fan',   slot:'Slot 2', rpm:3120, temp:58, avg:3100, peak:3260, max:7200, modeKey:'manual', state:'ok',      dirty:false },
+    { id:'front', loc:'Front fan', slot:'Slot 3', rpm:0,    temp:74, avg:0,    peak:0,    max:7200, modeKey:'max',    state:'stalled', dirty:false },
+  ]; }
+
+  selectFan(id){
+    const f=this.baseFans().find(x=>x.id===id);
+    this.setState({ sel:id, mode:f.modeKey, linked:[id], duty: f.modeKey==='manual' ? Math.round(f.rpm/f.max*100) : 62 });
+  }
+  stage(patch){ const s=this.state.staged.includes(this.state.sel)?this.state.staged:[...this.state.staged,this.state.sel]; this.setState({ ...patch, staged:s }); }
+  toggleSensor(id){
+    const has=this.state.sensors.includes(id);
+    const s=has ? this.state.sensors.filter(x=>x!==id) : [...this.state.sensors, id];
+    this.stage({ sensors:s });
+  }
+  applyAll(){ this.setState({ staged:[], previewFan:null }); }
+  revertAll(){ this.setState({ staged:[], previewFan:null }); }
+  discardThis(){ this.setState({ staged:this.state.staged.filter(x=>x!==this.state.sel), previewFan: this.state.previewFan===this.state.sel?null:this.state.previewFan }); }
+  togglePreview(){ this.setState({ previewFan: this.state.previewFan===this.state.sel?null:this.state.sel }); }
+  toggleLink(id){ const has=this.state.linked.includes(id); let l=has?this.state.linked.filter(x=>x!==id):[...this.state.linked,id]; if(l.length===0) l=[this.state.sel]; this.stage({ linked:l }); }
+  linkAll(){ const ids=this.baseFans().filter(f=>f.state!=='stalled').map(f=>f.id); this.stage({ linked:ids }); }
+  onlyThis(){ this.stage({ linked:[this.state.sel] }); }
+
+  sensorDefs(){ return [
+    { id:'t0', n:0, temp:69, state:'ok' },
+    { id:'t1', n:1, temp:72, state:'ok' },
+    { id:'t2', n:2, temp:58, state:'ok' },
+    { id:'t3', n:3, temp:71, state:'ok' },
+    { id:'t4', n:4, temp:64, state:'ok' },
+    { id:'t5', n:5, temp:null, state:'notpowered' },
+    { id:'t6', n:6, temp:null, state:'notcalibrated' },
+    { id:'t7', n:7, temp:null, state:'error' },
+    // a NotPresent sensor would simply be omitted from this list
+  ]; }
+  sensorMeta(st){ return ({
+    ok:           { icon:'thermometer',            sub:null,               usable:true  },
+    error:        { icon:'alert-circle-outline',   sub:'Error',            usable:false },
+    notpowered:   { icon:'power-plug-off-outline', sub:'Not powered',      usable:false },
+    notcalibrated:{ icon:'thermometer-alert',      sub:'Not calibrated',   usable:false },
+  })[st] || { icon:'thermometer', sub:null, usable:true }; }
+
+  aggOf(arr,a){ if(a==='Maximum')return Math.max(...arr); if(a==='Minimum')return Math.min(...arr); if(a==='Average')return arr.reduce((x,y)=>x+y,0)/arr.length; const s=[...arr].sort((x,y)=>x-y),m=Math.floor(s.length/2); return s.length%2?s[m]:(s[m-1]+s[m])/2; }
+  tempChart(){
+    const W=520,H=116,padL=6,padR=6,padT=10,padB=10,n=30;
+    const defs=this.sensorDefs().filter(d=>this.state.sensors.includes(d.id)&&d.state==='ok'&&d.temp!=null);
+    if(!defs.length) return { empty:true, series:[], drivingPts:'', drivingCurrent:'', aggLabel:this.state.agg };
+    const sv=defs.map((d,si)=>{ const arr=[]; for(let i=0;i<n;i++){ arr.push(d.temp + 2.2*Math.sin(i*0.5+si*1.3) + 1.1*Math.sin(i*0.9+si)); } return {d,arr}; });
+    const drive=[]; for(let i=0;i<n;i++){ drive.push(this.aggOf(sv.map(s=>s.arr[i]), this.state.agg)); }
+    const all=sv.flatMap(s=>s.arr).concat(drive); const lo=Math.min(...all)-1, hi=Math.max(...all)+1;
+    const x=i=>padL+i/(n-1)*(W-padL-padR); const y=v=>padT+(1-(v-lo)/((hi-lo)||1))*(H-padT-padB);
+    const pal=['var(--sz-violet)','var(--sz-ok)','var(--sz-warn)','#8AB7E8','#C9A1FF','#7AD6FF'];
+    const series=sv.map((s,i)=>({ label:'Temp '+s.d.n, color:pal[i%pal.length], current:Math.round(s.arr[s.arr.length-1])+'\u00B0C',
+      pts:s.arr.map((v,j)=>`${x(j).toFixed(1)},${y(v).toFixed(1)}`).join(' '),
+      swatchStyle:{ width:'10px', height:'2px', borderRadius:'1px', background:pal[i%pal.length] } }));
+    return { empty:false, series, drivingPts:drive.map((v,j)=>`${x(j).toFixed(1)},${y(v).toFixed(1)}`).join(' '), drivingCurrent:Math.round(drive[drive.length-1])+'\u00B0C', aggLabel:this.state.agg };
+  }
+  drivingTemp(){
+    const sel=this.sensorDefs().filter(d=>this.state.sensors.includes(d.id) && d.state==='ok' && d.temp!=null).map(d=>d.temp);
+    if(!sel.length) return null;
+    const a=this.state.agg;
+    if(a==='Maximum') return Math.max(...sel);
+    if(a==='Minimum') return Math.min(...sel);
+    if(a==='Average') return Math.round(sel.reduce((x,y)=>x+y,0)/sel.length);
+    const s=[...sel].sort((x,y)=>x-y), m=Math.floor(s.length/2);
+    return s.length%2 ? s[m] : Math.round((s[m-1]+s[m])/2);
+  }
+  curve(dt){
+    const W=560, H=230, padL=40, padR=14, padT=12, padB=26;
+    const x=t=> padL + (t-20)/(120-20)*(W-padL-padR);
+    const y=d=> padT + (1-d/100)*(H-padT-padB);
+    const staged =[{t:20,d:8},{t:45,d:28},{t:62,d:58},{t:80,d:100},{t:120,d:100}];
+    const applied=[{t:20,d:12},{t:50,d:24},{t:70,d:52},{t:88,d:96},{t:120,d:100}];
+    const str=ps=>ps.map(p=>`${x(p.t).toFixed(1)},${y(p.d).toFixed(1)}`).join(' ');
+    const mt=(dt==null)?69:Math.max(20,Math.min(120,dt)); let md=100;
+    for(let i=0;i<staged.length-1;i++){ const a=staged[i], b=staged[i+1]; if(mt>=a.t && mt<=b.t){ md=a.d+(b.d-a.d)*(mt-a.t)/(b.t-a.t); break; } }
+    return {
+      stagedStr:str(staged), appliedStr:str(applied),
+      areaStr:`${x(20).toFixed(1)},${y(0).toFixed(1)} ${str(staged)} ${x(120).toFixed(1)},${y(0).toFixed(1)}`,
+      points:staged.map(p=>({ x:+x(p.t).toFixed(1), y:+y(p.d).toFixed(1) })),
+      gridY:[0,25,50,75,100].map(d=>({ y:+y(d).toFixed(1) })),
+      markerX:+x(mt).toFixed(1), markerY:+y(md).toFixed(1), markerTemp:mt+'\u00B0C', markerDuty:Math.round(md)+'%'
+    };
+  }
+
+  hist(fan){
+    const W=268, H=84, padT=8, padB=8, n=30;
+    const plotH=H-padT-padB;
+    const rps=[], tmp=[];
+    for(let i=0;i<n;i++){
+      const rpm = fan.rpm>0 ? fan.rpm + fan.rpm*0.05*Math.sin(i*0.55) + fan.rpm*0.03*Math.sin(i*1.4+1) : 0;
+      rps.push(rpm/60);
+      tmp.push(fan.temp + 3*Math.sin(i*0.5+0.5) + 1.5*Math.sin(i*1.1));
+    }
+    const all=rps.concat(tmp);
+    const lo=Math.min(...all), hi=Math.max(...all);
+    const x=i=> 2 + i/(n-1)*(W-4);
+    const y=v=> padT + (1-(v-lo)/((hi-lo)||1))*plotH;
+    const sR=rps.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const sT=tmp.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    return { rpmStr:sR, tempStr:sT,
+      rpmEndX:+x(n-1).toFixed(1), rpmEndY:+y(rps[n-1]).toFixed(1),
+      tempEndX:+x(n-1).toFixed(1), tempEndY:+y(tmp[n-1]).toFixed(1) };
+  }
+
+  renderVals(){
+    const self=this;
+    const accent=this.props.accent ?? '#0078D7';
+    const solid=(this.props.ringMode ?? 'segmented')==='solid';
+    const showAvg=this.props.showAverages ?? true;
+
+    const fans=this.baseFans();
+    const sel=this.state.sel;
+    const mode=this.state.mode;
+
+    const fanRows=fans.map(f=>{
+      const frac=f.rpm/f.max; const g=this.gaugeSegs(50,5,frac,solid);
+      const selected=f.id===sel;
+      const lastColor=(g.segs.length? g.segs[g.segs.length-1].color : 'var(--app-accent)');
+      const iconColor=f.state==='stalled' ? 'var(--sz-danger)' : lastColor;
+      return {
+        loc:f.loc, slot:f.slot, modeLabel:this.modeLabel(f.modeKey),
+        rpmStr: f.rpm>0 ? f.rpm.toLocaleString()+' RPM' : 'Stopped',
+        subLine: f.state==='stalled' ? 'no rotation' : (showAvg ? '\u2300 '+f.avg.toLocaleString() : ''),
+        staged: this.state.staged.includes(f.id), ring:g,
+        select:()=>self.selectFan(f.id),
+        cardStyle:{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', borderRadius:'12px', cursor:'pointer',
+          background: selected ? 'rgba(0,120,215,0.16)' : 'var(--sz-container-low)',
+          border: '1px solid '+(selected ? 'var(--app-accent)' : 'var(--sz-outline)'),
+          boxShadow: selected ? 'inset 3px 0 0 0 var(--app-accent)' : 'none' },
+        iconStyle:{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px', color:iconColor },
+        status:this.fanStatus(f.state),
+      };
+    });
+
+    const selFan=fans.find(f=>f.id===sel) || fans[0];
+    const headerGauge=this.gaugeSegs(100,9, selFan.rpm/selFan.max, solid);
+
+    const curFrac=selFan.rpm/selFan.max;
+    const dutyFrac=this.state.duty/100;
+    const manualGauge=this.gaugeSegs(184,16,curFrac,solid);
+    const manualGhost=this.arc(92,84,-135,-135+270*Math.max(0,Math.min(1,dutyFrac)));
+
+    const context=({
+      custom:'Custom curve \u00b7 driven by '+this.state.sensors.length+' sensor'+(this.state.sensors.length===1?'':'s'),
+      manual:'Fixed '+this.state.duty+'% duty',
+      auto:'Controller policy',
+      max:'Commanded to full speed',
+    })[mode] || '';
+
+    const sensors=this.sensorDefs().map(d=>{
+      const m=this.sensorMeta(d.state);
+      const on=this.state.sensors.includes(d.id);
+      let style;
+      if(!m.usable) style={ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', padding:'8px 6px', borderRadius:'10px', background:'var(--sz-container-high)', border:'1px solid var(--sz-outline)', color:'var(--text-tertiary)', opacity:0.6, cursor:'not-allowed' };
+      else if(on)   style={ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', padding:'8px 6px', borderRadius:'10px', background:'var(--app-accent)', border:'1px solid transparent', color:'var(--app-on-accent)', cursor:'pointer' };
+      else          style={ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', padding:'8px 6px', borderRadius:'10px', background:'var(--sz-container-high)', border:'1px solid var(--sz-outline)', color:'var(--text-primary)', cursor:'pointer' };
+      return { label:'Temp '+d.n, icon:m.icon, sub: m.usable ? d.temp+'\u00B0C' : m.sub,
+        style, toggle: m.usable ? ()=>self.toggleSensor(d.id) : ()=>{} };
+    });
+
+    const linked=this.state.linked.includes(sel) ? this.state.linked : [sel, ...this.state.linked];
+    const nonStall=fans.filter(f=>f.state!=='stalled').length;
+    const allLinked=linked.length>=nonStall;
+    const scopeChips=fans.map(f=>{
+      const on=linked.includes(f.id); const locked=f.id===sel; const stalled=f.state==='stalled';
+      const base={ display:'inline-flex', alignItems:'center', gap:6, padding:'6px 11px', borderRadius:'999px', fontSize:'12px', fontWeight:600 };
+      let style;
+      if(stalled) style={ ...base, background:'var(--sz-container-low)', border:'1px solid var(--sz-outline)', color:'var(--text-tertiary)', opacity:0.5, cursor:'not-allowed' };
+      else if(on) style={ ...base, background:'var(--app-accent)', border:'1px solid transparent', color:'var(--app-on-accent)', cursor: locked?'default':'pointer' };
+      else style={ ...base, background:'var(--sz-container-high)', border:'1px solid var(--sz-outline)', color:'var(--text-primary)', cursor:'pointer' };
+      return { label:f.loc, icon: stalled?'fan-alert':(locked?'pencil':'fan'), style, toggle:(stalled||locked)?()=>{}:()=>self.toggleLink(f.id) };
+    });
+    const linkAllStyle={ display:'inline-flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:'999px', fontSize:'12px', fontWeight:600, cursor:'pointer', background: allLinked?'rgba(0,120,215,0.16)':'transparent', border:'1px solid '+(allLinked?'var(--app-accent)':'var(--sz-outline-strong)'), color: allLinked?'var(--accent-text)':'var(--text-secondary)' };
+
+    return {
+      windowStyle:{ display:'flex', flexDirection:'column', height:'100vh', width:'100%',
+        background:'var(--sz-bg)',
+        backgroundImage:'radial-gradient(90% 60% at 100% 0%, rgba(138,183,232,0.08), transparent 55%)',
+        color:'var(--text-primary)', '--app-accent':accent, '--app-accent-flood':accent, '--accent-text':accent, '--accent-default':accent },
+      brandTextStyle:{ fontFamily:'var(--font-display)', fontWeight:600, fontSize:'38px', letterSpacing:'0.06em',
+        backgroundImage:'linear-gradient(100deg,#0078D7 0%,#5AA0E0 50%,#D7D8FF 100%)', WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent' },
+      barStyle:{ display:'flex', alignItems:'center', padding:'13px 22px', borderTop:'1px solid var(--sz-outline)', background:'var(--sz-container-low)', minHeight:'34px' },
+
+      fanRows,
+      selLoc:selFan.loc, selSlot:selFan.slot, selRpm: selFan.rpm>0 ? selFan.rpm.toLocaleString() : '0',
+      selAvg:selFan.avg.toLocaleString(), selPeak:selFan.peak.toLocaleString(), showAvg,
+      headerGauge, selStatus:this.fanStatus(selFan.state), headerContext:context,
+      hist:this.hist(selFan),
+
+      scopeChips, linkAllStyle, linkAllIcon: allLinked?'link-variant-off':'link-variant-plus', linkAllLabel: allLinked?'Only this fan':'Link all', linkAllAction: allLinked?()=>self.onlyThis():()=>self.linkAll(),
+      linkHint: linked.length>1 ? linked.length+' fans linked \u2014 they share this curve and apply together.' : 'Changes apply to '+selFan.loc+' only \u2014 tap another fan to link them.',
+
+      mode,
+      modeOptions:[
+        { key:'auto', label:'Auto', mdi:'auto-fix' },
+        { key:'manual', label:'Manual', mdi:'tune-variant' },
+        { key:'custom', label:'Custom curve', mdi:'chart-bell-curve' },
+        { key:'max', label:'Max', mdi:'speedometer' },
+      ],
+      setMode:(k)=>self.stage({ mode:k }),
+      isAuto:mode==='auto', isManual:mode==='manual', isCustom:mode==='custom', isMax:mode==='max',
+
+      duty:this.state.duty, dutyLabel:this.state.duty+'%', setDuty:(v)=>self.stage({ duty:v }),
+      dutyPresets:[{ label:'Silent', pct:'25%', v:25 },{ label:'Balanced', pct:'50%', v:50 },{ label:'Performance', pct:'80%', v:80 },{ label:'Full', pct:'100%', v:100 }].map(p=>({ label:p.label, pct:p.pct, set:()=>self.stage({ duty:p.v }), style:{ padding:'7px 13px', borderRadius:'999px', cursor:'pointer', fontSize:'12.5px', border:'1px solid '+(this.state.duty===p.v?'transparent':'var(--sz-outline)'), background:(this.state.duty===p.v?'var(--app-accent)':'var(--sz-container-high)'), color:(this.state.duty===p.v?'var(--app-on-accent)':'var(--text-primary)') } })),
+      gauge:manualGauge, gaugeZones:this.gaugeZones(184,16),
+      isGauge: mode==='auto'||mode==='manual'||mode==='max',
+      showGhost: mode==='manual'||mode==='max',
+      ghostPath: mode==='max' ? this.arc(92,84,-135,135) : (mode==='manual' ? manualGhost : ''),
+      targetLabel: mode==='manual' ? ('\u2192 '+Math.round(dutyFrac*selFan.max).toLocaleString()+' target') : (mode==='max' ? '\u2192 Max target' : '\u2192 Auto target'),
+      manualGauge, manualGhost, targetRpm:Math.round(dutyFrac*selFan.max).toLocaleString(),
+
+      curve:this.curve(this.drivingTemp()),
+      drivingTempLabel: (this.drivingTemp()!=null) ? (this.drivingTemp()+'\u00B0C') : '\u2014',
+      drivingAggLabel: (this.drivingTemp()!=null) ? (this.state.agg+' of '+this.sensorDefs().filter(d=>this.state.sensors.includes(d.id)&&d.state==='ok').map(d=>'Temp '+d.n).join(', ')) : 'no usable sensor selected',
+      tempChart:this.tempChart(), tempChartHas:!this.tempChart().empty,
+      agg:this.state.agg, aggOptions:[{ key:'Maximum', label:'Maximum' },{ key:'Average', label:'Average' },{ key:'Median', label:'Median' },{ key:'Minimum', label:'Minimum' }], setAgg:(v)=>self.stage({ agg:v }),
+      sensors,
+
+      hasStaged: this.state.staged.length>0, noStaged: this.state.staged.length===0,
+      stagedLabel: (this.state.staged.length===1?'1 fan has':this.state.staged.length+' fans have')+' unsaved changes',
+      applyLabel: this.state.staged.length===1?'Apply 1 fan':'Apply all ('+this.state.staged.length+')',
+      applyAll:()=>self.applyAll(), revertAll:()=>self.revertAll(), previewAll:()=>{},
+      previewing: this.state.previewFan===sel,
+      canPreview: this.state.staged.includes(sel) && this.state.previewFan!==sel,
+      noChanges: !this.state.staged.includes(sel) && this.state.previewFan!==sel,
+      togglePreview:()=>self.togglePreview(), discardThis:()=>self.discardThis(),
+      cleanMsg: selFan.state==='stalled' ? 'Fan reported stalled \u2014 no override pending.' : 'No unsaved changes for this fan.',
+      stalled: selFan.state==='stalled', notStalled: selFan.state!=='stalled',
+    };
+  }
+}
+</script>
+</body>
+</html>

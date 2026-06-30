@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Generated brand-logo SVGs extracted from IconifyBundle packs (Directory.Build.targets)
+SubZeroFramework/Assets/Iconify/

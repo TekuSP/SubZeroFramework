@@ -49,6 +49,7 @@ public partial class MainModel : ObservableObject, IDisposable
             IsPowerTelemetryEnabled = false;
             IsFanCurveProfilesEnabled = false;
             IsDeviceCapabilitiesEnabled = false;
+            IsModulesEnabled = false;
             IsWarningIssuesEnabled = true;
 
             if (SelectedItem is NavigationViewItemBase bs && bs.Tag?.ToString() != "WarningIssues")
@@ -70,6 +71,7 @@ public partial class MainModel : ObservableObject, IDisposable
         IsPowerTelemetryEnabled = true;
         IsFanCurveProfilesEnabled = true;
         IsDeviceCapabilitiesEnabled = true;
+        IsModulesEnabled = true;
         IsWarningIssuesEnabled = false;
     }
 
@@ -95,6 +97,9 @@ public partial class MainModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     public partial bool IsDeviceCapabilitiesEnabled { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsModulesEnabled { get; set; }
 
     [ObservableProperty]
     public partial bool IsWarningIssuesEnabled { get; set; }

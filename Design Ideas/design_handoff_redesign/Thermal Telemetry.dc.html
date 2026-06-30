@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/colors.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/typography.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/expressive.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<script src="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/_ds_bundle.js"></script>
+<style>
+  :root{
+    --app-accent:#0078D7; --app-accent-hover:#1f8ae6; --app-accent-press:#0063b1;
+    --app-on-accent:#ffffff; --app-accent-flood:#0078D7; --app-on-flood:#ffffff;
+    --sz-bg:#1b2727; --sz-container-lowest:#161f1f; --sz-container-low:#1f1f1f;
+    --sz-container:#2e2e2e; --sz-container-high:#383b3b; --sz-container-highest:#474b4b;
+    --sz-outline:rgba(255,255,255,0.07); --sz-outline-strong:rgba(255,255,255,0.13); --sz-violet:#8AB7E8;
+    --text-primary:#fffffa; --text-secondary:#D7D8FF; --text-tertiary:#8d8ea3;
+    --sz-ok:#6ccb5f; --sz-warn:#c5994e; --sz-danger:#d9706a;
+    --sz-ok-bg:rgba(108,203,95,0.12); --sz-warn-bg:rgba(197,153,78,0.14); --sz-danger-bg:rgba(217,112,106,0.14);
+    --accent-text:#8AB7E8;
+  }
+  body{ margin:0; font-family:var(--font-text); color:var(--text-primary); }
+  .ftrack{ scrollbar-width:thin; scrollbar-color:var(--sz-container-highest) transparent; }
+</style>
+</helmet>
+
+<div data-screen-label="Thermal Telemetry" style="{{ shellStyle }}">
+
+  <!-- title bar -->
+  <div style="height:40px; display:flex; align-items:center; padding:0 0 0 16px; flex-shrink:0; border-bottom:1px solid var(--sz-outline)">
+    <span class="mdi mdi-snowflake" style="font-size:15px; color:var(--sz-violet)"></span>
+    <span style="font-size:12.5px; color:var(--text-secondary); margin-left:9px">SubZero &mdash; Framework Edition</span>
+    <span style="flex:1"></span>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-minimize" style="font-size:15px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-restore" style="font-size:13px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-close" style="font-size:15px"></span></div>
+  </div>
+
+  <div style="display:flex; min-height:0; flex:1">
+    <!-- icon rail -->
+    <div style="width:56px; flex-shrink:0; display:flex; flex-direction:column; padding-top:8px; background:#000000; border-right:1px solid var(--sz-outline)">
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-view-dashboard-outline" style="font-size:19px"></span></div>
+      <div style="position:relative; width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:var(--sz-container-high)">
+        <span style="position:absolute; left:-4px; top:11px; bottom:11px; width:3px; border-radius:2px; background:var(--app-accent)"></span>
+        <span class="mdi mdi-thermometer" style="font-size:19px; color:var(--accent-text)"></span>
+      </div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-flash-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-fan" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-expansion-card-variant" style="font-size:19px"></span></div>
+      <div style="flex:1"></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-alert-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-github" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-cog-outline" style="font-size:19px"></span></div>
+    </div>
+
+    <!-- content -->
+    <div class="ftrack" style="flex:1; min-width:0; overflow:auto; padding:16px 26px 26px">
+
+      <!-- brand + system info -->
+      <div style="display:flex; gap:16px; margin-bottom:18px">
+        <div style="flex:2; min-width:0; height:96px; border-radius:14px; background:var(--sz-container-high); border:1px solid var(--sz-outline); display:flex; align-items:center; justify-content:center; gap:16px">
+          <span class="mdi mdi-snowflake" style="font-size:36px; color:var(--sz-violet)"></span>
+          <div style="display:flex; flex-direction:column; align-items:center">
+            <span style="{{ brandTextStyle }}">SUBZERO</span>
+            <span style="font-size:13px; color:var(--text-secondary); letter-spacing:0.18em; margin-top:-2px">FRAMEWORK EDITION</span>
+          </div>
+        </div>
+        <div style="flex:1.5; min-width:0; padding:14px 18px; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px">
+          <div style="font-family:var(--font-display); font-weight:600; font-size:16px; margin-bottom:8px">System information</div>
+          <div style="display:flex; flex-direction:column; gap:5px; font-size:12.5px">
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-laptop" style="font-size:14px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">Model</span><span>Laptop 16 (AMD Ryzen AI 300 Series)</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-cpu-64-bit" style="font-size:14px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">CPU</span><span>Ryzen AI 9 HX 370 w/ Radeon 890M</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-memory" style="font-size:14px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">RAM</span><span>48 + 48 (96) GB</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-chip" style="font-size:14px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">Driver</span><span>Windows tulip-4.0.1-9b2a0b1</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- page title -->
+      <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin:6px 2px 16px">
+        <div>
+          <div style="font-family:var(--font-display); font-weight:600; font-size:28px; line-height:1.1">Thermal telemetry</div>
+          <div style="font-size:13.5px; color:var(--text-secondary); margin-top:6px">Compare sensor temperatures over time. Toggle a sensor to add or remove its series.</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-shrink:0">
+          <span style="font-size:12.5px; color:var(--text-secondary)">History window</span>
+          <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.SegmentedControl" activeTone="app" value="{{ window }}" onChange="{{ setWindow }}" options="{{ windowOptions }}" hint-size="280px,32px"></x-import>
+        </div>
+      </div>
+
+      <!-- system context strip -->
+      <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:4px 6px; margin-bottom:18px; display:flex; flex-wrap:wrap; align-items:stretch">
+        <sc-for list="{{ contextItems }}" as="c" hint-placeholder-count="7">
+          <div style="{{ c.style }}">
+            <div style="display:flex; align-items:center; gap:7px; margin-bottom:5px"><span class="mdi mdi-{{ c.icon }}" style="font-size:13px; color:var(--sz-violet)"></span><span style="font-size:11px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.05em">{{ c.label }}</span></div>
+            <div style="{{ c.valueStyle }}">{{ c.value }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- sensor cards: selectable readout = chart toggle -->
+      <div style="display:flex; align-items:center; justify-content:space-between; margin:2px 2px 12px">
+        <span style="font-family:var(--font-display); font-weight:600; font-size:17px">Sensors</span>
+        <div style="display:flex; align-items:center; gap:12px">
+          <span style="font-size:12px; color:var(--text-tertiary)">{{ selectedCountLabel }}</span>
+          <span style="font-size:12px; color:var(--accent-text); cursor:pointer" onClick="{{ toggleAll }}">{{ toggleAllLabel }}</span>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:20px">
+        <sc-for list="{{ sensors }}" as="s" hint-placeholder-count="8">
+          <div style="{{ s.cardStyle }}" onClick="{{ s.toggle }}">
+            <div style="position:absolute; left:0; right:0; top:0; height:3px; border-radius:14px 14px 0 0; background:{{ s.lineColor }}; opacity:{{ s.barTopOpacity }}"></div>
+            <div style="display:flex; align-items:center; gap:9px">
+              <span style="{{ s.checkStyle }}"><span class="mdi mdi-check" style="font-size:12px; opacity:{{ s.checkOpacity }}"></span></span>
+              <div style="flex:1; min-width:0">
+                <div style="font-size:13.5px; font-weight:600; line-height:1.2">Sensor {{ s.n }}</div>
+                <div style="font-size:11.5px; color:var(--text-tertiary); display:flex; align-items:center; gap:4px; margin-top:2px"><span class="mdi mdi-map-marker-outline" style="font-size:12px"></span>{{ s.loc }}</div>
+              </div>
+              <span style="width:9px; height:9px; border-radius:50%; background:{{ s.lineColor }}; opacity:{{ s.dotOpacity }}"></span>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; margin-top:12px">
+              <span style="{{ s.tempStyle }}">{{ s.temp }}</span>
+              <span style="font-size:14px; color:var(--text-tertiary)">&deg;C</span>
+            </div>
+            <div style="height:4px; border-radius:2px; background:var(--sz-container-highest); margin-top:10px; overflow:hidden"><div style="{{ s.barFillStyle }}"></div></div>
+            <div style="display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12px"><span class="mdi mdi-{{ s.statusIcon }}" style="font-size:13px; color:{{ s.statusColor }}"></span><span style="color:{{ s.statusColor }}">{{ s.statusLabel }}</span></div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- comparison chart -->
+      <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:18px 20px 14px">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:6px">
+          <span style="font-family:var(--font-display); font-weight:600; font-size:16px">Temperature comparison</span>
+          <div style="display:flex; flex-wrap:wrap; gap:8px 16px">
+            <sc-for list="{{ legend }}" as="l" hint-placeholder-count="4">
+              <span style="display:flex; align-items:center; gap:7px; font-size:12.5px"><span style="width:13px; height:3px; border-radius:2px; background:{{ l.color }}"></span><span style="color:var(--text-secondary)">Sensor {{ l.n }}</span><span style="font-weight:600">{{ l.value }}</span></span>
+            </sc-for>
+          </div>
+        </div>
+        <sc-if value="{{ hasSelection }}" hint-placeholder-val="{{ true }}">
+          <svg width="100%" viewBox="0 0 1040 360" style="display:block">
+            <sc-for list="{{ chart.gridY }}" as="g" hint-placeholder-count="7">
+              <line x1="54" y1="{{ g.y }}" x2="1024" y2="{{ g.y }}" stroke="var(--sz-outline)" stroke-width="1"></line>
+              <text x="46" y="{{ g.ty }}" text-anchor="end" font-size="11" fill="var(--text-tertiary)" font-family="var(--font-small)">{{ g.label }}</text>
+            </sc-for>
+            <sc-for list="{{ chart.gridX }}" as="g" hint-placeholder-count="6">
+              <text x="{{ g.x }}" y="352" text-anchor="middle" font-size="11" fill="var(--text-tertiary)" font-family="var(--font-small)">{{ g.label }}</text>
+            </sc-for>
+            <sc-for list="{{ chart.series }}" as="s" hint-placeholder-count="4">
+              <polyline points="{{ s.pts }}" fill="none" stroke="{{ s.color }}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline>
+              <circle cx="{{ s.endX }}" cy="{{ s.endY }}" r="3.5" fill="{{ s.color }}"></circle>
+            </sc-for>
+          </svg>
+        </sc-if>
+        <sc-if value="{{ noSelection }}" hint-placeholder-val="{{ true }}">
+          <div style="height:300px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; color:var(--text-tertiary)">
+            <span class="mdi mdi-chart-line-variant" style="font-size:34px"></span>
+            <span style="font-size:13px">Select a sensor above to plot its temperature.</span>
+          </div>
+        </sc-if>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#1b2727"/><g stroke-width="4" fill="none" stroke-linecap="round"><polyline points="20,64 36,52 50,58 66,36 82,44" stroke="#6ccb5f"/><polyline points="20,76 40,72 60,70 82,68" stroke="#5AA0E0"/></g><circle cx="50" cy="22" r="9" fill="none" stroke="#8AB7E8" stroke-width="4"/></svg>
+</template>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { window:'5m', selected:[0,1,2,3] };
+
+  palette(){ return ['#6ccb5f','#5AA0E0','#A892FF','#4FD1A5','#E0894F','#C77DFF','#8AB7E8','#F2C14E']; }
+  baseSensors(){ return [
+    { n:0, temp:54, status:'ok', loc:'CPU Tctl' }, { n:1, temp:48, status:'ok', loc:'SoC / APU' }, { n:2, temp:55, status:'ok', loc:'GPU edge' }, { n:3, temp:77, status:'ok', loc:'VRM' },
+    { n:4, temp:41, status:'ok', loc:'SSD 0' }, { n:5, temp:43, status:'ok', loc:'Battery pack' }, { n:6, temp:40, status:'ok', loc:'Chassis' }, { n:7, temp:38, status:'ok', loc:'Ambient' },
+  ]; }
+  sev(t){ return t>=85 ? 'var(--sz-danger)' : t>=70 ? 'var(--sz-warn)' : t>=50 ? 'var(--sz-ok)' : '#5AA0E0'; }
+  statusColor(s){ return s==='ok' ? 'var(--sz-ok)' : s==='warn' ? 'var(--sz-warn)' : 'var(--sz-danger)'; }
+
+  windowDefs(){ return {
+    '1m': ['1m','48s','36s','24s','12s','now'],
+    '5m': ['5m','4m','3m','2m','1m','now'],
+    '15m':['15m','12m','9m','6m','3m','now'],
+    '1h': ['60m','48m','36m','24m','12m','now'],
+  }; }
+
+  toggle(n){
+    const has=this.state.selected.includes(n);
+    this.setState({ selected: has ? this.state.selected.filter(x=>x!==n) : [...this.state.selected, n] });
+  }
+
+  chart(){
+    const W=1040,H=360,padL=54,padR=16,padT=16,padB=30,n=60, lo=35, hi=100;
+    const x=i=> padL + i/(n-1)*(W-padL-padR);
+    const y=v=> padT + (1-(v-lo)/(hi-lo))*(H-padT-padB);
+    const pal=this.palette();
+    const series=this.baseSensors().filter(s=>this.state.selected.includes(s.n)).map(s=>{
+      const arr=[];
+      for(let i=0;i<n;i++){
+        let v=s.temp + 4*Math.sin(i*0.4+s.n) + 2.4*Math.sin(i*0.13+s.n*2) + (s.n===3?5*Math.sin(i*0.21):0);
+        v=Math.max(lo,Math.min(hi,v)); arr.push(v);
+      }
+      return { color:pal[s.n%pal.length], pts:arr.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' '),
+        endX:+x(n-1).toFixed(1), endY:+y(arr[n-1]).toFixed(1) };
+    });
+    return {
+      series,
+      gridY:[40,50,60,70,80,90,100].map(v=>({ y:+y(v).toFixed(1), ty:+(y(v)+4).toFixed(1), label:v+'\u00B0C' })),
+      gridX:this.windowDefs()[this.state.window].map((lab,i,a)=>({ x:+x(i/(a.length-1)*(n-1)).toFixed(1), label:lab })),
+    };
+  }
+
+  renderVals(){
+    const self=this;
+    const pal=this.palette();
+    const sel=this.state.selected;
+
+    const sensors=this.baseSensors().map(s=>{
+      const on=sel.includes(s.n); const sevc=this.sev(s.temp); const line=pal[s.n%pal.length];
+      return {
+        n:s.n, loc:s.loc, temp:s.temp, lineColor:line, statusLabel:'OK', statusIcon:'check-circle', statusColor:this.statusColor(s.status),
+        toggle:()=>self.toggle(s.n),
+        barTopOpacity: on?1:0, dotOpacity:on?1:0.25, checkOpacity:on?1:0,
+        cardStyle:{ position:'relative', overflow:'hidden', padding:'14px 16px 13px', borderRadius:'14px', cursor:'pointer',
+          background: on?'var(--sz-container-high)':'var(--sz-container)',
+          border:'1px solid '+(on?'var(--sz-outline-strong)':'var(--sz-outline)'), opacity:on?1:0.62 },
+        checkStyle:{ width:'18px', height:'18px', borderRadius:'5px', display:'flex', alignItems:'center', justifyContent:'center',
+          background:on?'var(--app-accent)':'transparent', border:'1.5px solid '+(on?'var(--app-accent)':'var(--sz-outline-strong)'), color:'var(--app-on-accent)', flexShrink:0 },
+        tempStyle:{ fontFamily:'var(--font-display)', fontWeight:600, fontSize:'34px', lineHeight:1, color:sevc },
+        barFillStyle:{ width:Math.min(100,s.temp)+'%', height:'100%', borderRadius:'2px', background:sevc },
+      };
+    });
+
+    const ctx=[
+      { icon:'laptop', label:'Device', value:'Laptop 16 (Ryzen AI 300)' },
+      { icon:'chip', label:'Platform', value:'Framework16' },
+      { icon:'microsoft-windows', label:'Driver', value:'Windows' },
+      { icon:'memory', label:'EC build', value:'tulip-4.0.1-9b2a0b1' },
+      { icon:'clock-outline', label:'Last seen', value:'2:02:11 AM' },
+      { icon:'access-point', label:'Service', value:'Live telemetry', ok:true },
+      { icon:'alert-circle-outline', label:'Last error', value:'None', ok:true },
+    ];
+    const contextItems=ctx.map((c,i)=>({
+      icon:c.icon, label:c.label, value:c.value,
+      style:{ flex:'1 1 150px', minWidth:'130px', padding:'12px 14px', borderRight: i<ctx.length-1?'1px solid var(--sz-outline)':'none' },
+      valueStyle:{ fontSize:'13.5px', fontWeight:600, color: c.ok?'var(--sz-ok)':'var(--text-primary)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' },
+    }));
+
+    const legend=this.baseSensors().filter(s=>sel.includes(s.n)).map(s=>({ n:s.n, color:pal[s.n%pal.length], value:s.temp+'\u00B0C' }));
+
+    return {
+      shellStyle:{ display:'flex', flexDirection:'column', height:'100vh', minHeight:'860px',
+        background:'var(--sz-bg)',
+        backgroundImage:'radial-gradient(100% 80% at 100% 0%, rgba(138,183,232,0.10), transparent 55%), radial-gradient(90% 70% at 0% 100%, rgba(0,120,215,0.08), transparent 55%)',
+        color:'var(--text-primary)' },
+      brandTextStyle:{ fontFamily:'var(--font-display)', fontWeight:600, fontSize:'38px', letterSpacing:'0.06em',
+        backgroundImage:'linear-gradient(100deg,#0078D7 0%,#5AA0E0 50%,#D7D8FF 100%)', WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent' },
+
+      window:this.state.window, setWindow:(v)=>self.setState({ window:v }),
+      windowOptions:[{ key:'1m', label:'1 min' },{ key:'5m', label:'5 min' },{ key:'15m', label:'15 min' },{ key:'1h', label:'1 hour' }],
+
+      contextItems, sensors, legend,
+      selectedCountLabel: sel.length+' of 8 plotted',
+      toggleAllLabel: sel.length===8 ? 'Clear all' : 'Select all',
+      toggleAll:()=>self.setState({ selected: sel.length===8 ? [] : self.baseSensors().map(s=>s.n) }),
+      hasSelection: sel.length>0, noSelection: sel.length===0,
+      chart:this.chart(),
+    };
+  }
+}
+</script>
+</body>
+</html>

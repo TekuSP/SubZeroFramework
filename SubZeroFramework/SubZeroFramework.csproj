@@ -58,10 +58,25 @@
         <PackageReference Include="FrameworkDotnet" />
         <PackageReference Include="Grpc.Net.Client" />
         <PackageReference Include="IconifyBundle" />
+        <PackageReference Include="IconifyBundle.Logos" GeneratePathProperty="true" />
+        <PackageReference Include="IconifyBundle.SimpleIcons" GeneratePathProperty="true" />
         <PackageReference Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" />
         <PackageReference Include="Material.Icons" />
         <PackageReference Include="System.Reactive" />
         <PackageReference Include="UnitsNet" />
+    </ItemGroup>
+    <!-- Brand logos extracted from the IconifyBundle.* packs to SVG (Directory.Build.targets) and
+         rasterized by Uno.Resizetizer. Items are "prefix:name"; only these are materialized as assets.
+         Asset name = sanitized "prefix_name" (e.g. simple-icons:amd -> simple_icons_amd.svg). -->
+    <ItemGroup>
+        <IconifyIcon Include="simple-icons:amd" />
+        <IconifyIcon Include="simple-icons:nvidia" />
+        <IconifyIcon Include="simple-icons:intel" />
+        <IconifyIcon Include="simple-icons:mediatek" />
+        <IconifyIcon Include="simple-icons:teamviewer" />
+        <IconifyIcon Include="simple-icons:framework" />
+        <IconifyIcon Include="simple-icons:kingstontechnology" />
+        <IconifyIcon Include="logos:microsoft-icon" />
     </ItemGroup>
  <ItemGroup>
         <ProjectReference Include="..\SubZeroFramework.Core\SubZeroFramework.Core.csproj" />

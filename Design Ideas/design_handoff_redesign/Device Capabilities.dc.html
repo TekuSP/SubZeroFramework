@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/colors.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/typography.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/expressive.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<script src="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/_ds_bundle.js"></script>
+<script src="https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js"></script>
+<style>
+  :root{
+    --app-accent:#0078D7; --app-on-accent:#ffffff; --sz-bg:#1b2727; --sz-container-low:#1f1f1f;
+    --sz-container:#2e2e2e; --sz-container-high:#383b3b; --sz-container-highest:#474b4b;
+    --sz-outline:rgba(255,255,255,0.07); --sz-outline-strong:rgba(255,255,255,0.13); --sz-violet:#8AB7E8;
+    --text-primary:#fffffa; --text-secondary:#D7D8FF; --text-tertiary:#8d8ea3;
+    --sz-ok:#6ccb5f; --sz-warn:#c5994e; --sz-danger:#d9706a; --accent-text:#8AB7E8;
+  }
+  body{ margin:0; font-family:var(--font-text); color:var(--text-primary); }
+  .ftrack{ scrollbar-width:thin; scrollbar-color:var(--sz-container-highest) transparent; }
+</style>
+</helmet>
+
+<div data-screen-label="Device Capabilities" style="{{ shellStyle }}">
+
+  <div style="height:40px; display:flex; align-items:center; padding:0 0 0 16px; flex-shrink:0; border-bottom:1px solid var(--sz-outline)">
+    <span class="mdi mdi-snowflake" style="font-size:15px; color:var(--sz-violet)"></span>
+    <span style="font-size:12.5px; color:var(--text-secondary); margin-left:9px">SubZero &mdash; Framework Edition</span>
+    <span style="flex:1"></span>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-minimize" style="font-size:15px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-restore" style="font-size:13px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-close" style="font-size:15px"></span></div>
+  </div>
+
+  <div style="display:flex; min-height:0; flex:1">
+    <div style="width:56px; flex-shrink:0; display:flex; flex-direction:column; padding-top:8px; background:#000000; border-right:1px solid var(--sz-outline)">
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-view-dashboard-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-thermometer" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-flash" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-fan" style="font-size:19px"></span></div>
+      <div style="position:relative; width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:var(--sz-container-high)">
+        <span style="position:absolute; left:-4px; top:11px; bottom:11px; width:3px; border-radius:2px; background:var(--app-accent)"></span>
+        <span class="mdi mdi-chip" style="font-size:19px; color:var(--accent-text)"></span>
+      </div>
+      <div style="flex:1"></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-alert-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-cog-outline" style="font-size:19px"></span></div>
+    </div>
+
+    <div style="flex:1; min-width:0; display:flex; flex-direction:column; padding:16px 26px 0">
+      <div style="display:flex; gap:16px; margin-bottom:14px; flex-shrink:0">
+        <div style="flex:2; min-width:0; height:78px; border-radius:14px; background:var(--sz-container-high); border:1px solid var(--sz-outline); display:flex; align-items:center; justify-content:center; gap:14px">
+          <span class="mdi mdi-snowflake" style="font-size:28px; color:var(--sz-violet)"></span>
+          <div style="display:flex; flex-direction:column; align-items:center">
+            <span style="{{ brandTextStyle }}">SUBZERO</span>
+            <span style="font-size:11px; color:var(--text-secondary); letter-spacing:0.18em; margin-top:-2px">FRAMEWORK EDITION</span>
+          </div>
+        </div>
+        <div style="flex:1.5; min-width:0; padding:10px 18px; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px">
+          <div style="font-family:var(--font-display); font-weight:600; font-size:14px; margin-bottom:5px">System information</div>
+          <div style="display:flex; flex-direction:column; gap:3px; font-size:11.5px">
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-laptop" style="font-size:13px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">Model</span><span>Laptop 16 (AMD Ryzen AI 300 Series)</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-cpu-64-bit" style="font-size:13px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">CPU</span><span>Ryzen AI 9 HX 370 w/ Radeon 890M</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-memory" style="font-size:13px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">RAM</span><span>48 + 48 (96) GB &middot; Driver tulip-4.0.1-9b2a0b1</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin:2px 2px 12px; flex-shrink:0">
+        <div style="font-family:var(--font-display); font-weight:600; font-size:24px; line-height:1.1">Device capabilities</div>
+      </div>
+
+      <div style="display:flex; gap:18px; flex:1; min-height:0">
+        <div style="width:246px; flex-shrink:0; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:8px; display:flex; flex-direction:column; gap:2px; overflow:auto">
+          <sc-for list="{{ railItems }}" as="r" hint-placeholder-count="9">
+            <div style="{{ r.style }}" onClick="{{ r.select }}">
+              <sc-if value="{{ r.isIconify }}" hint-placeholder-val="{{ true }}"><iconify-icon icon="{{ r.iconName }}" style="font-size:17px; color:{{ r.iconColor }}"></iconify-icon></sc-if>
+              <sc-if value="{{ r.isMdi }}" hint-placeholder-val="{{ true }}"><span class="mdi mdi-{{ r.iconName }}" style="font-size:18px; color:{{ r.iconColor }}; width:20px; text-align:center"></span></sc-if>
+              <div style="flex:1; min-width:0; display:flex; flex-direction:column">
+                <span style="{{ r.labelStyle }}">{{ r.label }}</span>
+                <sc-if value="{{ r.hasSecondary }}" hint-placeholder-val="{{ true }}"><span style="font-size:11px; color:var(--text-tertiary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ r.secondary }}</span></sc-if>
+              </div>
+              <sc-if value="{{ r.hasChevron }}" hint-placeholder-val="{{ true }}"><span class="mdi mdi-{{ r.chevronIcon }}" style="font-size:16px; color:var(--text-tertiary)"></span></sc-if>
+              <sc-if value="{{ r.hasCount }}" hint-placeholder-val="{{ true }}"><span style="font-size:11px; color:var(--text-tertiary)">{{ r.count }}</span></sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:14px; min-height:0">
+          <sc-if value="{{ hasTop }}" hint-placeholder-val="{{ true }}">
+            <div style="flex-shrink:0">
+              <sc-for list="{{ topSections }}" as="s" hint-placeholder-count="1">
+                <div style="margin-bottom:12px">
+                  <div style="font-family:var(--font-display); font-weight:600; font-size:14px; margin:0 2px 9px; color:var(--text-secondary)">{{ s.title }}</div>
+                  <sc-if value="{{ s.isTiles }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(195px, 1fr)); gap:10px">
+                      <sc-for list="{{ s.tiles }}" as="t" hint-placeholder-count="3">
+                        <div style="{{ t.style }}">
+                          <div style="display:flex; align-items:center; gap:7px">
+                            <sc-if value="{{ t.hasBrand }}" hint-placeholder-val="{{ true }}"><iconify-icon icon="{{ t.brandIcon }}" style="font-size:23px; color:{{ t.brandColor }}"></iconify-icon></sc-if>
+                            <sc-if value="{{ t.hasIcon }}" hint-placeholder-val="{{ true }}"><span class="mdi mdi-{{ t.icon }}" style="font-size:13px; color:var(--sz-violet)"></span></sc-if>
+                            <span style="font-size:11px; color:var(--text-tertiary)">{{ t.label }}</span>
+                          </div>
+                          <div style="{{ t.valueStyle }}">{{ t.value }}<sc-if value="{{ t.hasBadge }}" hint-placeholder-val="{{ true }}"><span style="{{ t.badgeStyle }}">{{ t.badge }}</span></sc-if></div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ s.isBar }}" hint-placeholder-val="{{ true }}">
+                    <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:12px; padding:14px 16px">
+                      <div style="height:8px; border-radius:4px; background:var(--sz-container-highest); overflow:hidden"><div style="{{ s.barFillStyle }}"></div></div>
+                      <div style="font-size:12px; color:var(--text-secondary); margin-top:9px">{{ s.barLabel }}</div>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <div style="display:flex; gap:18px; flex:1; min-height:0">
+        <sc-if value="{{ hasSubRail }}" hint-placeholder-val="{{ true }}">
+          <div style="width:214px; flex-shrink:0; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:8px; display:flex; flex-direction:column; gap:3px; overflow:auto">
+            <div style="font-size:11px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; padding:8px 10px 5px">{{ subRailTitle }}</div>
+            <sc-for list="{{ subRailItems }}" as="si" hint-placeholder-count="2">
+              <div style="{{ si.style }}" onClick="{{ si.select }}">
+                <sc-if value="{{ si.hasBrand }}" hint-placeholder-val="{{ true }}"><iconify-icon icon="{{ si.brandIcon }}" style="font-size:38px; color:{{ si.brandColor }}"></iconify-icon></sc-if>
+                <sc-if value="{{ si.hasIcon }}" hint-placeholder-val="{{ true }}"><span class="mdi mdi-{{ si.icon }}" style="font-size:24px; color:{{ si.iconColor }}; width:30px; text-align:center"></span></sc-if>
+                <div style="display:flex; flex-direction:column; min-width:0"><span style="{{ si.labelStyle }}">{{ si.label }}</span><span style="font-size:11px; color:var(--text-tertiary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ si.sub }}</span></div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <div class="ftrack" style="flex:1; min-width:0; overflow:auto; padding-right:4px">
+          <sc-for list="{{ detailSections }}" as="s" hint-placeholder-count="3">
+            <div style="margin-bottom:18px">
+              <div style="display:flex; align-items:center; gap:9px; margin:0 2px 11px">
+                <span style="font-family:var(--font-display); font-weight:600; font-size:16px">{{ s.title }}</span>
+                <sc-if value="{{ s.hasSub }}" hint-placeholder-val="{{ true }}">
+                  <span style="font-size:12px; color:var(--text-tertiary)">{{ s.sub }}</span>
+                </sc-if>
+              </div>
+
+              <sc-if value="{{ s.isSubnav }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex; gap:10px; flex-wrap:wrap">
+                  <sc-for list="{{ s.subItems }}" as="si" hint-placeholder-count="2">
+                    <div style="{{ si.style }}" onClick="{{ si.select }}">
+                      <sc-if value="{{ si.hasBrand }}" hint-placeholder-val="{{ true }}"><iconify-icon icon="{{ si.brandIcon }}" style="font-size:34px; color:{{ si.brandColor }}"></iconify-icon></sc-if>
+                      <sc-if value="{{ si.hasIcon }}" hint-placeholder-val="{{ true }}"><span class="mdi mdi-{{ si.icon }}" style="font-size:28px; color:{{ si.iconColor }}"></span></sc-if>
+                      <div style="display:flex; flex-direction:column; min-width:0"><span style="font-size:14px; font-weight:600">{{ si.label }}</span><span style="font-size:11.5px; color:var(--text-tertiary)">{{ si.sub }}</span></div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ s.isTiles }}" hint-placeholder-val="{{ true }}">
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(195px, 1fr)); gap:10px">
+                  <sc-for list="{{ s.tiles }}" as="t" hint-placeholder-count="6">
+                    <div style="{{ t.style }}">
+                      <div style="display:flex; align-items:center; gap:7px">
+                        <sc-if value="{{ t.hasBrand }}" hint-placeholder-val="{{ true }}"><iconify-icon icon="{{ t.brandIcon }}" style="font-size:23px; color:{{ t.brandColor }}"></iconify-icon></sc-if>
+                        <sc-if value="{{ t.hasIcon }}" hint-placeholder-val="{{ true }}"><span class="mdi mdi-{{ t.icon }}" style="font-size:13px; color:var(--sz-violet)"></span></sc-if>
+                        <span style="font-size:11px; color:var(--text-tertiary)">{{ t.label }}</span>
+                      </div>
+                      <div style="{{ t.valueStyle }}">{{ t.value }}<sc-if value="{{ t.hasBadge }}" hint-placeholder-val="{{ true }}"><span style="{{ t.badgeStyle }}">{{ t.badge }}</span></sc-if></div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ s.isStatus }}" hint-placeholder-val="{{ true }}">
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:11px">
+                  <sc-for list="{{ s.items }}" as="it" hint-placeholder-count="8">
+                    <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:12px; padding:13px 15px">
+                      <div style="display:flex; align-items:center; gap:7px"><span class="mdi mdi-{{ it.icon }}" style="font-size:15px; color:{{ it.iconColor }}"></span><span style="font-size:13.5px; font-weight:600">{{ it.name }}</span></div>
+                      <sc-if value="{{ it.hasBig }}" hint-placeholder-val="{{ true }}">
+                        <div style="display:flex; align-items:baseline; gap:4px; margin-top:9px"><span style="{{ it.bigStyle }}">{{ it.big }}</span><span style="font-size:12px; color:var(--text-tertiary)">{{ it.bigUnit }}</span></div>
+                      </sc-if>
+                      <div style="display:flex; flex-direction:column; gap:6px; margin-top:10px">
+                        <sc-for list="{{ it.lines }}" as="l" hint-placeholder-count="2">
+                          <div style="display:flex; align-items:center; gap:7px; font-size:12px"><span class="mdi mdi-{{ l.icon }}" style="font-size:13px; color:{{ l.color }}"></span><span style="color:{{ l.color }}">{{ l.text }}</span></div>
+                        </sc-for>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ s.isBar }}" hint-placeholder-val="{{ true }}">
+                <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:12px; padding:14px 16px">
+                  <div style="height:8px; border-radius:4px; background:var(--sz-container-highest); overflow:hidden"><div style="{{ s.barFillStyle }}"></div></div>
+                  <div style="font-size:12px; color:var(--text-secondary); margin-top:9px">{{ s.barLabel }}</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ s.isFans }}" hint-placeholder-val="{{ true }}">
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px">
+                  <sc-for list="{{ s.fans }}" as="f" hint-placeholder-count="2">
+                    <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:12px; padding:15px 16px">
+                      <div style="font-size:13.5px; font-weight:600">{{ f.name }}</div>
+                      <div style="font-size:12px; color:var(--text-tertiary); margin-top:2px">{{ f.dims }}</div>
+                      <div style="height:88px; display:flex; align-items:center; justify-content:center; margin:6px 0 8px">
+                        <iconify-icon icon="mdi:fan" style="font-size:{{ f.iconSize }}px; color:var(--accent-text)"></iconify-icon>
+                      </div>
+                      <div style="font-size:12.5px; color:var(--text-secondary); text-align:center; font-weight:600">{{ f.thick }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ s.isCores }}" hint-placeholder-val="{{ true }}">
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:11px">
+                  <sc-for list="{{ s.cores }}" as="c" hint-placeholder-count="24">
+                    <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:11px; padding:11px 12px">
+                      <div style="display:flex; align-items:center; gap:6px"><span class="mdi mdi-cpu-64-bit" style="font-size:12px; color:var(--text-tertiary)"></span><span style="font-size:11.5px; color:var(--text-tertiary)">{{ c.label }}</span></div>
+                      <div style="{{ c.pctStyle }}">{{ c.pct }}</div>
+                      <svg width="100%" height="28" viewBox="0 0 120 28" preserveAspectRatio="none" style="display:block; margin-top:4px"><polyline points="{{ c.pts }}" fill="none" stroke="{{ c.color }}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline></svg>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <div style="height:8px"></div>
+        </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#1b2727"/><rect x="30" y="30" width="40" height="40" rx="6" fill="none" stroke="#0078D7" stroke-width="4"/><rect x="42" y="42" width="16" height="16" rx="2" fill="#8AB7E8"/><g stroke="#0078D7" stroke-width="4" stroke-linecap="round"><path d="M38 24v-8M50 24v-8M62 24v-8M38 84v-8M50 84v-8M62 84v-8M24 38h-8M24 50h-8M24 62h-8M84 38h-8M84 50h-8M84 62h-8"/></g></svg>
+</template>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { cat:'devices', sub:{} };
+
+  spark(amp, seed){ const n=14; let s=''; for(let i=0;i<n;i++){ let v=amp*0.5 + amp*0.4*Math.sin(i*0.7+seed) + amp*0.25*Math.sin(i*1.6+seed*2); v=Math.max(0.04,Math.min(0.96,v)); s+=`${(i/(n-1)*120).toFixed(1)},${(26-v*24).toFixed(1)} `; } return s.trim(); }
+  coreColor(p){ return p>85?'#d9706a':p>60?'#c5994e':p>25?'#0078D7':'#5f7d96'; }
+  sev(t){ return t>=85?'var(--sz-danger)':t>=70?'var(--sz-warn)':t>=50?'var(--sz-ok)':'#5AA0E0'; }
+
+  brandIcon(n){ const M={
+    AMD:['simple-icons:amd','#ED1C24'], NVIDIA:['simple-icons:nvidia','#76B900'], Intel:['simple-icons:intel','#0071C5'],
+    MediaTek:['simple-icons:mediatek','#EC9430'], Realtek:['mdi:ethernet','#3B82C4'], TeamViewer:['simple-icons:teamviewer','#0E72ED'],
+    Framework:['simple-icons:framework','#cfd0d8'], Kingston:['simple-icons:kingstontechnology','#E01E26'],
+    Microsoft:['logos:microsoft-icon','#ffffff'], Crucial:['mdi:memory','#8AB7E8'],
+  }; const b=M[n]; return b?{icon:b[0],color:b[1]}:{icon:'mdi:domain',color:'#8AB7E8'}; }
+
+  tStyle(){ return { background:'var(--sz-container)', border:'1px solid var(--sz-outline)', borderRadius:'11px', padding:'12px 14px' }; }
+  vStyle(c){ return { fontFamily:'var(--font-display)', fontWeight:600, fontSize:'15px', marginTop:'5px', color:c||'var(--text-primary)', wordBreak:'break-word', display:'flex', alignItems:'baseline', gap:'8px' }; }
+  ti(label,value,icon,color,badge){ return { label, value, hasIcon:true, hasBrand:false, hasBadge:!!badge, badge:badge||'', badgeStyle:{ fontSize:'10px', fontWeight:700, letterSpacing:'0.03em', padding:'2px 7px', borderRadius:'5px', background:'rgba(0,120,215,0.22)', color:'var(--accent-text)', alignSelf:'center', whiteSpace:'nowrap' }, icon:icon||'circle-medium', style:this.tStyle(), valueStyle:this.vStyle(color) }; }
+  tb(label,value,brand){ const b=this.brandIcon(brand); return { label, value, hasIcon:false, hasBrand:true, hasBadge:false, brandIcon:b.icon, brandColor:b.color, style:this.tStyle(), valueStyle:this.vStyle() }; }
+  ln(icon,text,color){ return { icon, text, color:color||'var(--text-secondary)' }; }
+  fanModule(name,t){ return { name, dims:'75 \u00d7 75 \u00d7 '+t+' mm', thick:t+' mm thick', iconSize: t*5 }; }
+  card(name,icon,iconColor,big,unit,bigColor,lines){ return { name, icon, iconColor:iconColor||'var(--sz-violet)', hasBig:!!big, big, bigUnit:unit, bigStyle:{ fontFamily:'var(--font-display)', fontWeight:600, fontSize:'26px', lineHeight:1, color:bigColor }, lines:lines||[] }; }
+  bar(pct,color,label){ return { isBar:true, title:arguments[3]||'', hasSub:false, barFillStyle:{ width:pct+'%', height:'100%', background:color, borderRadius:'4px' }, barLabel:label }; }
+
+  catList(){ return [
+    { id:'devices', label:'Onboard devices', icon:'devices', count:'11' },
+    { id:'cpu', label:'CPU', icon:'cpu-64-bit', count:'1' },
+    { id:'memory', label:'Memory', icon:'memory', count:'2' },
+    { id:'storage', label:'Storage', icon:'harddisk', count:'2' },
+    { id:'graphics', label:'Graphics', icon:'expansion-card-variant', count:'2' },
+    { id:'network', label:'Network', icon:'lan', count:'4' },
+    { id:'profile', label:'System profile', icon:'information-outline', count:'' },
+  ]; }
+
+  catData(cat){
+    if(cat==='devices'){
+      const labels=['CPU Tctl','SoC / APU','GPU edge','VRM','SSD 0','Battery pack','Chassis','Ambient'];
+      const temps=[54,48,55,77,41,43,40,38];
+      const sensors=temps.map((t,n)=>this.card('Sensor '+n,'thermometer',this.sev(t), String(t),'\u00B0C', this.sev(t), [ this.ln('map-marker-outline',labels[n]), this.ln('check-circle','OK','var(--sz-ok)') ]));
+      const fans=[['CPU fan','Left fan','4,748'],['GPU fan','Right fan','6,100']].map(f=>this.card(f[0],'fan','var(--accent-text)', f[2],'RPM','var(--accent-text)', [ this.ln('map-marker-outline',f[1]), this.ln('check-circle','OK','var(--sz-ok)') ]));
+      const bats=[ this.card('Battery 0','battery-70','var(--sz-ok)', '76','%','var(--sz-ok)', [ this.ln('battery-arrow-down-outline','Discharging \u00b7 AC + battery','var(--sz-warn)'), this.ln('heart-pulse','95.5% health','var(--sz-ok)'), this.ln('battery-sync-outline','142 cycles'), this.ln('flask-outline','Li-ion') ]) ];
+      return { global:[ {title:'Temperature sensors', isStatus:true, items:sensors}, {title:'Fans', isStatus:true, items:fans}, {title:'Batteries', isStatus:true, items:bats} ], subItems:[] };
+    }
+    if(cat==='cpu') return {
+      global:[ {title:'Runtime metrics', isTiles:true, tiles:[ this.ti('Package count','1','chip'), this.ti('Sockets','1 of 1 populated','expansion-card'), this.ti('Average clock','3,875 MHz','speedometer'), this.ti('Average max clock','2,000 MHz','speedometer-medium') ]} ],
+      subItems:[ {id:'cpu0', label:'CPU 0', sub:'AMD Ryzen AI 9 HX 370', brand:'AMD'} ], subTitle:'Packages',
+      subOf:()=>[
+        {title:'Package detail', isTiles:true, tiles:[ this.ti('Current clock','3,875 MHz','speedometer'), this.ti('Max clock','2,000 MHz','speedometer-medium'), this.ti('Socket','FP8DDR5','chip'), this.ti('Physical cores','12','cpu-64-bit'), this.ti('Logical processors','24','sitemap'), this.ti('L1 cache','960 KiB','memory'), this.ti('L2 cache','12 MiB','memory'), this.ti('L3 cache','24 MiB','memory'), this.ti('Virtualization','Firmware enabled','shield-check','var(--sz-ok)') ]},
+        {title:'Per-core detail', hasSub:true, sub:'24 logical', isCores:true, cores:[12,4,41,76,0,8,100,35,23,29,3,0,6,2,1,0,2,5,94,64,64,41,0,23].map((p,n)=>({ label:'Core '+n, pct:p.toFixed(1)+'%', color:this.coreColor(p), pts:this.spark(p/100, n*0.9+1), pctStyle:{ fontFamily:'var(--font-display)', fontWeight:600, fontSize:'18px', marginTop:'3px', color:this.coreColor(p) } }))},
+      ],
+    };
+    if(cat==='memory') return {
+      global:[ {title:'Capacity & runtime', isTiles:true, tiles:[ this.ti('Memory modules','2','memory'), this.ti('Total capacity','96 GiB','database'), this.ti('Physical total','63.79 GiB','database'), this.ti('Physical available','29 GiB','database-check'), this.ti('Swap / page total','64.57 GiB','swap-horizontal'), this.ti('Swap / page free','8.03 GiB','swap-horizontal') ]}, this.bar(55,'var(--sz-ok)','55% used (34.79 GiB / 63.79 GiB)','RAM usage') ],
+      subItems:[ {id:'a', label:'P0 Channel A', sub:'48 GiB DDR5', brand:'Crucial'}, {id:'b', label:'P0 Channel B', sub:'48 GiB DDR5', brand:'Crucial'} ], subTitle:'Installed modules',
+      subOf:(id)=>[ {title:(id==='a'?'P0 Channel A':'P0 Channel B'), isTiles:true, tiles:[ this.ti('Capacity','48 GiB','database'), this.ti('Memory type','DDR5','memory'), this.ti('Speed','5,600 MHz','speedometer'), this.ti('Data width','64-bit','arrow-expand-horizontal'), this.ti('Form factor','SODIMM','chip'), this.ti('Part number','CT48G56C46S5.M16B1','barcode'), this.ti('Serial number', id==='a'?'E91A9E62':'E91A9F4D','identifier') ]} ],
+    };
+    if(cat==='storage') return {
+      global:[ {title:'Drive summary', isTiles:true, tiles:[ this.ti('Drives','2','harddisk'), this.ti('Total capacity','2.77 TiB','database'), this.ti('Used','2.67 TiB','database-lock'), this.ti('Free','106.24 GiB','database-check','var(--sz-warn)') ]}, this.bar(96,'var(--sz-danger)','2.67 TiB used / 106.24 GiB free \u2014 96% full','Storage usage') ],
+      subItems:[ {id:'d1', label:'Drive 1', sub:'KINGSTON SKC3000D2048G', brand:'Kingston'}, {id:'d0', label:'Drive 0', sub:'CT1000P310SSD2', brand:'Crucial'} ], subTitle:'Detected drives',
+      subOf:(id)=> id==='d1'
+        ? [ {title:'KINGSTON SKC3000D2048G', isTiles:true, tiles:[ this.ti('Media type','Fixed disk','harddisk'), this.ti('Capacity','1.86 TiB','database'), this.ti('Firmware','EIFK31.6','chip'), this.ti('Used','1.83 TiB','database-lock'), this.ti('Free','38.12 GiB','database-check','var(--sz-danger)') ]}, this.bar(98,'var(--sz-danger)','1.83 TiB used / 38.12 GiB free','Usage') ]
+        : [ {title:'CT1000P310SSD2', isTiles:true, tiles:[ this.ti('Media type','Fixed disk','harddisk'), this.ti('Capacity','931.51 GiB','database'), this.ti('Firmware','V8CR001','chip'), this.ti('Used','863.4 GiB','database-lock'), this.ti('Free','68.12 GiB','database-check','var(--sz-warn)') ]}, this.bar(93,'var(--sz-warn)','863.4 GiB used / 68.12 GiB free','Usage') ],
+    };
+    if(cat==='graphics') return {
+      global:[ {title:'Adapter summary', isTiles:true, tiles:[ this.ti('Adapters','2','expansion-card-variant'), this.ti('Monitors','1','monitor'), this.ti('Active monitors','1','monitor-star'), this.ti('Primary display','NE160QDM-NZ6','monitor',null,'QHD') ]} ],
+      subItems:[ {id:'g0', label:'Adapter 0', sub:'AMD Radeon 890M', brand:'AMD'}, {id:'g1', label:'Adapter 1', sub:'RTX 5070 Laptop', brand:'NVIDIA'} ], subTitle:'Graphics adapters',
+      subOf:(id)=> id==='g0'
+        ? [ {title:'AMD Radeon 890M Graphics', isTiles:true, tiles:[ this.ti('Driver version','32.0.13074.0','package-variant'), this.ti('Driver date','2025-07-06','calendar'), this.ti('Resolution','2,560 x 1,600','monitor',null,'WQXGA'), this.ti('Refresh rate','165 Hz','sine-wave'), this.ti('Adapter RAM','32 GB','memory'), this.ti('Monitors','1','monitor') ]} ]
+        : [ {title:'NVIDIA GeForce RTX 5070 Laptop GPU', isTiles:true, tiles:[ this.ti('Driver version','32.0.16.1062','package-variant'), this.ti('Driver date','2026-06-11','calendar'), this.ti('Resolution','Unknown','monitor'), this.ti('Refresh rate','Unknown','sine-wave'), this.ti('Adapter RAM','7.96 GB','memory'), this.ti('Monitors','0','monitor') ]} ],
+    };
+    if(cat==='network') return {
+      global:[ {title:'Network adapters', isTiles:true, tiles:[ this.ti('Adapters','4','lan'), this.ti('Connected','1','check-network-outline','var(--sz-ok)'), this.ti('Fastest link','1.2 Gbps','speedometer','var(--sz-ok)'), this.ti('Internet','Connected','web','var(--sz-ok)') ]} ],
+      subItems:[ {id:'eth', label:'Ethernet 10', sub:'2.5 GbE', brand:'Realtek'}, {id:'wifi', label:'Wi-Fi 7', sub:'160 MHz', brand:'MediaTek'}, {id:'vpn', label:'Local Area Conn.', sub:'VPN', brand:'TeamViewer'}, {id:'bt', label:'Bluetooth 3', sub:'PAN', brand:'Microsoft'} ], subTitle:'Detected adapters',
+      subOf:(id)=>{
+        const M={
+          eth:[ this.ti('Product','Realtek Gaming 2.5GbE','expansion-card-variant'), this.ti('Connection','2.5 GbE','ethernet'), this.ti('Link speed','Unknown','speedometer'), this.ti('MAC address','9C:BF:0D:01:22:D6','identifier'), this.ti('IP addresses','None','ip-network-outline'), this.ti('Gateways','None','router-network') ],
+          wifi:[ this.ti('Product','RZ717 Wi-Fi 7 160 MHz','expansion-card-variant'), this.ti('Connection','Wi-Fi 7','wifi'), this.ti('Link speed','1.2 Gbps','wifi-strength-4','var(--sz-ok)'), this.ti('MAC address','AC:F2:3C:AF:55:A7','identifier'), this.ti('IP addresses','172.17.2.34','ip-network'), this.ti('Gateways','172.17.2.1','router-network') ],
+          vpn:[ this.ti('Product','TeamViewer VPN Adapter','expansion-card-variant'), this.ti('Connection','VPN','shield-lock'), this.ti('Link speed','1.0 Gbps','speedometer'), this.ti('MAC address','00:FF:93:A5:6A:8D','identifier'), this.ti('IP addresses','None','ip-network-outline'), this.ti('Gateways','None','router-network') ],
+          bt:[ this.ti('Product','Bluetooth Device (PAN)','expansion-card-variant'), this.ti('Connection','Bluetooth','bluetooth'), this.ti('Link speed','3.0 Mbps','bluetooth-audio'), this.ti('MAC address','AC:F2:3C:AF:55:A8','identifier'), this.ti('IP addresses','None','ip-network-outline'), this.ti('Gateways','None','router-network') ],
+        };
+        const titles={ eth:'Ethernet 10', wifi:'Wi-Fi 7', vpn:'Local Area Connection', bt:'Bluetooth Network Connection 3' };
+        return [ {title:titles[id], isTiles:true, tiles:M[id]} ];
+      },
+    };
+    return { global:[
+      {title:'Device identity', isTiles:true, tiles:[ this.ti('Operating system','Windows 11 Pro Insider','microsoft-windows'), this.tb('Vendor','Framework','Framework'), this.ti('Model','Laptop 16 (Ryzen AI 300)','laptop'), this.ti('OS version','10.0.29617','tag-outline'), this.ti('Product / SKU','Computer System Product','package-variant'), this.ti('System revision','A9','tag-outline'), this.ti('EC build','tulip-4.0.1-9b2a0b1','chip'), this.ti('BIOS version','INSYDE - 1','chip'), this.ti('BIOS release date','2026-06-12','calendar') ]},
+      {title:'Cooling hardware & firmware', isTiles:true, tiles:[ this.ti('Processor support','AMD Ryzen AI 300','cpu-64-bit'), this.ti('Primary CPU TIM','Liquid metal / PTM7958','water-outline'), this.ti('Expansion bay power','9 W max','flash-outline'), this.ti('Firmware limit','4,900 RPM','speedometer'), this.ti('Thermal stress max','~5,300 RPM','thermometer-high','var(--sz-warn)') ]},
+      {title:'Fan modules', hasSub:true, sub:'same 75 mm footprint, different thickness', isFans:true, fans:[ this.fanModule('Shell fan',8), this.fanModule('Graphics fan',12) ]},
+      {title:'Motherboard', isTiles:true, tiles:[ this.tb('Manufacturer','Framework','Framework'), this.ti('Product','FRANMHCP09','developer-board'), this.ti('Serial','FRANMHCPA95483007H','identifier') ]},
+    ], subItems:[] };
+  }
+
+  renderVals(){
+    const self=this;
+    const cat=this.state.cat;
+    const data=this.catData(cat);
+    const selSub=this.state.sub[cat] || (data.subItems[0] && data.subItems[0].id);
+
+    const railItems=this.catList().map(c=>{
+      const onCat=c.id===cat;
+      return { isMdi:true, isIconify:false, iconName:c.icon, iconColor: onCat?'var(--accent-text)':'var(--text-tertiary)',
+        label:c.label, hasSecondary:false, secondary:'', hasChevron:false, chevronIcon:'', hasCount:!!c.count, count:c.count,
+        labelStyle:{ fontSize:'13.5px', fontWeight: onCat?600:400, color: onCat?'var(--text-primary)':'var(--text-secondary)' },
+        select:()=>self.setState({ cat:c.id }),
+        style:{ display:'flex', alignItems:'center', gap:11, padding:'10px 12px', borderRadius:'10px', cursor:'pointer',
+          background: onCat?'rgba(0,120,215,0.16)':'transparent', boxShadow: onCat?'inset 3px 0 0 0 var(--app-accent)':'none' } };
+    });
+
+    const hasSubRail=data.subItems.length>0;
+    const subRailItems=data.subItems.map(si=>{
+      const on=si.id===selSub; const b=si.brand?self.brandIcon(si.brand):null;
+      return { hasBrand:!!si.brand, hasIcon:!si.brand && !!si.icon, brandIcon:b?b.icon:'', brandColor:b?b.color:'', icon:si.icon||'chip',
+        iconColor: on?'var(--accent-text)':'var(--text-tertiary)', label:si.label, sub:si.sub,
+        labelStyle:{ fontSize:'13px', fontWeight: on?600:500, color: on?'var(--text-primary)':'var(--text-secondary)' },
+        select:()=>self.setState({ sub:{ ...self.state.sub, [cat]:si.id } }),
+        style:{ display:'flex', alignItems:'center', gap:12, padding:'11px 12px', borderRadius:'11px', cursor:'pointer',
+          background: on?'rgba(0,120,215,0.16)':'transparent', boxShadow: on?'inset 3px 0 0 0 var(--app-accent)':'none' } };
+    });
+    const hasTop = hasSubRail && data.global.length>0;
+    const topSections = hasTop ? data.global : [];
+    const detailSections = hasSubRail ? data.subOf(selSub) : data.global;
+
+    return {
+      shellStyle:{ display:'flex', flexDirection:'column', height:'100vh', minHeight:'900px',
+        background:'var(--sz-bg)',
+        backgroundImage:'radial-gradient(100% 80% at 100% 0%, rgba(138,183,232,0.10), transparent 55%), radial-gradient(90% 70% at 0% 100%, rgba(0,120,215,0.08), transparent 55%)',
+        color:'var(--text-primary)' },
+      brandTextStyle:{ fontFamily:'var(--font-display)', fontWeight:600, fontSize:'30px', letterSpacing:'0.06em',
+        backgroundImage:'linear-gradient(100deg,#0078D7 0%,#5AA0E0 50%,#D7D8FF 100%)', WebkitBackgroundClip:'text', backgroundClip:'text', color:'transparent' },
+      railItems, subRailItems, hasSubRail, subRailTitle:(data.subTitle||'Items'), hasTop, topSections, detailSections,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -12,6 +12,7 @@ using SubZeroFramework.Presentation.MenuItems.Dashboard;
 using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.Modes;
+using SubZeroFramework.Presentation.MenuItems.Modules;
 using SubZeroFramework.Presentation.MenuItems.PowerTelemetry;
 using SubZeroFramework.Presentation.MenuItems.Settings;
 using SubZeroFramework.Presentation.MenuItems.ThermalTelemetry;
@@ -188,6 +189,7 @@ public partial class App : Application
             new ViewMap<MainPage, MainModel>(),
             new ViewMap<DashboardPage, DashboardModel>(),
             new ViewMap<DeviceCapabilitiesPage, DeviceCapabilitiesModel>(),
+            new ViewMap<ModulesPage, ModulesModel>(),
             new ViewMap<FanCurveProfilesPage, FanCurveProfilesModel>(),
             new ViewMap<FanAutoModeView, FanAutoModeModel>(),
             new ViewMap<FanManualModeView, FanManualModeModel>(),
@@ -206,6 +208,7 @@ public partial class App : Application
             [
                 new RouteMap("Dashboard", View: views.FindByViewModel<DashboardModel>()),
                 new RouteMap("DeviceCapabilities",  View: views.FindByViewModel<DeviceCapabilitiesModel>()),
+                new RouteMap("Modules",  View: views.FindByViewModel<ModulesModel>()),
                 new RouteMap("FanCurveProfiles",  View: views.FindByViewModel<FanCurveProfilesModel>(),
                 Nested:
                 [

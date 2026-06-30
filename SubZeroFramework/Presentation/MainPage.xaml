@@ -77,6 +77,11 @@
                     Content="Device Capabilities"
                     Icon="{len:FontIconStringExt Glyph={StaticResource DeviceCapabilitiesMenuIcon}}"
                     IsEnabled="{x:Bind ViewModel.IsDeviceCapabilitiesEnabled, Mode=OneWay}" />
+                <controls:NavigationMaterialViewItem
+                    uen:Region.Name="Modules"
+                    IsEnabled="{x:Bind ViewModel.IsModulesEnabled, Mode=OneWay}"
+                    MaterialIconKindName="{StaticResource ModulesMenuIcon}"
+                    Text="Modules" />
             </NavigationView.MenuItems>
             <NavigationView.FooterMenuItems>
                 <NavigationViewItem

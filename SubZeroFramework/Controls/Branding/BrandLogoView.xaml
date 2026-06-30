@@ -1,0 +1,28 @@
+<UserControl
+    x:Class="SubZeroFramework.Controls.Branding.BrandLogoView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--  Brand logo for a hardware vendor. Shows the rasterized Iconify logo when one is resolved (via Vendor or
+          an explicit IconifyId), otherwise a Material fallback glyph (default: Ethernet) tinted with FallbackBrush.
+          The image Source is set in code-behind from the resolver's ms-appx URI.  -->
+    <Grid Width="{x:Bind IconSize, Mode=OneWay}" Height="{x:Bind IconSize, Mode=OneWay}">
+        <Image
+            x:Name="LogoImage"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            Stretch="Uniform"
+            Visibility="Collapsed" />
+        <material:MaterialIcon
+            x:Name="FallbackIcon"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            Foreground="{x:Bind FallbackBrush, Mode=OneWay}"
+            Kind="{x:Bind FallbackGlyph, Mode=OneWay}"
+            Visibility="Collapsed" />
+    </Grid>
+</UserControl>
