@@ -26,14 +26,10 @@ public partial class PowerDeliveryPortViewModel : ObservableObject
 
     public int SlotIndex { get; }
 
-    /// <summary>True when this port is the Framework 16 graphics-module USB-C port rather than a numbered mainboard slot.</summary>
-    public bool IsGraphicsModulePort { get; private set; }
-
-    public string Title => IsGraphicsModulePort ? "USB-C" : $"USB-C {SlotIndex + 1}";
-
-    /// <summary>Visible only on the graphics-module port, which carries a "Graphics module" source pill.</summary>
+    /// <summary>Port title — the physical position label ("Right Back", "Graphics module", …) when framework-system
+    /// documents one for the platform, otherwise a plain "USB-C N".</summary>
     [ObservableProperty]
-    public partial Visibility SourcePillVisibility { get; private set; } = Visibility.Collapsed;
+    public partial string Title { get; private set; } = string.Empty;
 
     /// <summary>Compact badges shown inline with the title (Charging / Extended power / Cable power).</summary>
     public ObservableCollection<PowerDeliveryPortPill> Badges { get; } = [];
@@ -83,8 +79,7 @@ public partial class PowerDeliveryPortViewModel : ObservableObject
         // alt-mode) are then unreliable, so we surface only "Unknown / error" and suppress the rest.
         var isInvalid = string.Equals(status.CState, "Invalid", System.StringComparison.OrdinalIgnoreCase);
 
-        IsGraphicsModulePort = string.Equals(status.PortSource, "GraphicsModule", System.StringComparison.OrdinalIgnoreCase);
-        SourcePillVisibility = IsGraphicsModulePort ? Visibility.Visible : Visibility.Collapsed;
+        Title = string.IsNullOrEmpty(status.PortPosition) ? $"USB-C {SlotIndex + 1}" : status.PortPosition;
 
         // A slot the board documents as non-charging (e.g. FW16 slots 3 & 6, 900 mA) is a data-only USB port, not
         // a PD port — surface it by capability, without the PD-contract text or role pills.

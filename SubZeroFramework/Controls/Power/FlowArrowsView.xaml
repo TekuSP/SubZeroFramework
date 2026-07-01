@@ -36,7 +36,10 @@
         </Storyboard>
     </UserControl.Resources>
 
-    <StackPanel Orientation="Horizontal" Spacing="-3">
+    <StackPanel
+        x:Name="Root"
+        Orientation="Horizontal"
+        Spacing="-3">
         <material:MaterialIcon
             x:Name="Chevron0"
             Width="18"

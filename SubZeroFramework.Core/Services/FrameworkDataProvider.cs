@@ -1449,9 +1449,9 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     // Projects the USB-C expansion-card slots' Power Delivery state into the decoupled snapshot the gRPC
     // boundary and UI consume, dropping the rest of the (heavier) module inventory.
-    /// <summary>Distinct slot index for the expansion-bay (graphics-module) USB-C port, kept clear of the 0–5
-    /// mainboard slot indices so it dedupes as its own port in the UI.</summary>
-    private const int GraphicsModulePortIndex = 100;
+    /// <summary>UI slot index for the Framework 16 graphics-module USB-C port — EC PD index 4, after the four
+    /// mainboard PD ports (0–3).</summary>
+    private const int GraphicsModulePortIndex = 4;
 
     private static PowerDeliverySnapshot BuildPowerDeliverySnapshot(
         FrameworkModuleInventorySnapshot inventory,
@@ -1486,11 +1486,13 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 UsbAHighPower = capability.UsbAHighPowerDraw,
                 CapabilityDocumented = capability.IsDocumented,
                 PortSource = "Mainboard",
+                PortPosition = capability.PositionName,
+                PortIsLeft = capability.IsLeftSide,
             });
         }
 
-        // The Framework 16 graphics module exposes its own rear USB-C port (PD + DisplayPort). Append it after the
-        // mainboard slots, sourced from the GPU, so it appears alongside them in the Power UI.
+        // The Framework 16 graphics module adds a 5th PD port (EC index 4) with its own USB-C port. Append it
+        // after the four mainboard ports, sourced from the GPU.
         if (expansionBay is { HasUsbCPort: true, UsbCPort: { } bayPd })
         {
             var bayCapability = expansionBay.UsbCCapability;
@@ -1518,11 +1520,14 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 MaxChargeWatts = bayCapability is null ? 0 : (int)System.Math.Round(bayCapability.MaxChargePower.Watts),
                 UsbAHighPower = bayCapability?.UsbAHighPowerDraw ?? false,
                 CapabilityDocumented = bayCapability?.IsDocumented ?? false,
+                PortPosition = bayCapability?.PositionName ?? "Graphics module",
+                PortIsLeft = bayCapability?.IsLeftSide ?? false,
             });
         }
 
         return new PowerDeliverySnapshot { Ports = ports };
     }
+
 
     private void PublishPowerTelemetry(FrameworkPowerSnapshot powerSnapshot, DateTimeOffset observedAt)
     {

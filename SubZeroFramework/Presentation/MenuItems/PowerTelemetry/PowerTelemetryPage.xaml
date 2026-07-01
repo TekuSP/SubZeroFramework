@@ -55,7 +55,7 @@
                                 <TextBlock HorizontalAlignment="Center" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.AdapterDetailDisplay, Mode=OneWay}" />
                             </StackPanel>
 
-                            <powerControls:FlowArrowsView Grid.Column="1" VerticalAlignment="Center" Accent="{StaticResource TextSecondaryBrush}" />
+                            <powerControls:FlowArrowsView Grid.Column="1" VerticalAlignment="Center" Accent="{StaticResource TextSecondaryBrush}" IsActive="{x:Bind ViewModel.AdapterArrowsActive, Mode=OneWay}" />
 
                             <!--  Middle stat is flanked by the two divider lines (design: border-left + border-right).  -->
                             <Border Grid.Column="2" Padding="14,0" BorderBrush="{StaticResource SurfaceOutlineBrush}" BorderThickness="1,0,1,0">
@@ -69,7 +69,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <powerControls:FlowArrowsView Grid.Column="3" VerticalAlignment="Center" Accent="{StaticResource StatusSuccessBrush}" />
+                            <powerControls:FlowArrowsView Grid.Column="3" VerticalAlignment="Center" Accent="{x:Bind ViewModel.BatteryArrowsAccent, Mode=OneWay}" IsActive="{x:Bind ViewModel.IsBatteryAnimating, Mode=OneWay}" Reversed="{x:Bind ViewModel.BatteryArrowsReversed, Mode=OneWay}" />
 
                             <StackPanel Grid.Column="4" HorizontalAlignment="Center" Spacing="2">
                                 <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="6">
@@ -255,16 +255,16 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <controls:ElevatedCard Grid.Column="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{StaticResource SurfaceCardBrush}">
-                        <StackPanel Padding="18" Spacing="12">
+                    <controls:ElevatedCard Grid.Column="0" HorizontalContentAlignment="Stretch" VerticalAlignment="Top" HorizontalAlignment="Stretch" Background="{StaticResource SurfaceCardBrush}">
+                        <StackPanel Padding="18,16" Spacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <material:MaterialIcon Width="18" Height="18" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="BatteryLock" />
-                                <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="Charge limits" />
+                                <material:MaterialIcon Width="17" Height="17" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="BatteryLock" />
+                                <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="Charge limits" />
                             </StackPanel>
-                            <TextBlock FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="Keep the pack between a floor and a ceiling to extend its lifespan." TextWrapping="Wrap" />
+                            <TextBlock FontSize="12.5" Foreground="{StaticResource TextSecondaryBrush}" Text="Keep the pack between a floor and a ceiling to extend its lifespan." TextWrapping="Wrap" />
 
                             <ctk:RangeSelector
-                                Margin="0,4"
+                                Margin="0,-4,0,-6"
                                 Foreground="{StaticResource BrandPrimaryBrush}"
                                 Maximum="100"
                                 Minimum="0"
@@ -289,14 +289,6 @@
                                     <SolidColorBrush x:Key="AccentFillColorTertiaryBrush" Color="#FF3D9BEA" />
                                 </ctk:RangeSelector.Resources>
                             </ctk:RangeSelector>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="0%" />
-                                <TextBlock Grid.Column="1" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="100%" />
-                            </Grid>
 
                             <Grid ColumnSpacing="12">
                                 <Grid.ColumnDefinitions>
@@ -304,16 +296,16 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
-                                    <StackPanel Spacing="2">
+                                <Border Grid.Column="0" Padding="10" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="1">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Minimum" />
-                                        <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChargeMinimumDisplay, Mode=OneWay}" />
+                                        <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChargeMinimumDisplay, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Column="1" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
-                                    <StackPanel Spacing="2">
+                                <Border Grid.Column="1" Padding="10" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                    <StackPanel Spacing="1">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Maximum" />
-                                        <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChargeMaximumDisplay, Mode=OneWay}" />
+                                        <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChargeMaximumDisplay, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
                                 <Button
@@ -325,15 +317,15 @@
                                     Foreground="White" />
                             </Grid>
 
-                            <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.ChargeLimitsStatus, Mode=OneWay}" TextWrapping="Wrap" />
+                            <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.ChargeLimitsStatus, Mode=OneWay}" TextWrapping="Wrap" Visibility="{x:Bind ViewModel.ChargeLimitsStatusVisibility, Mode=OneWay}" />
                         </StackPanel>
                     </controls:ElevatedCard>
 
-                    <controls:ElevatedCard Grid.Column="1" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{StaticResource SurfaceCardBrush}">
-                        <StackPanel Padding="18" Spacing="12">
+                    <controls:ElevatedCard Grid.Column="1" HorizontalContentAlignment="Stretch" VerticalAlignment="Top" HorizontalAlignment="Stretch" Background="{StaticResource SurfaceCardBrush}">
+                        <StackPanel Padding="18,16" Spacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <material:MaterialIcon Width="18" Height="18" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="ChartLine" />
-                                <TextBlock FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="Trends · last 5 min" />
+                                <material:MaterialIcon Width="17" Height="17" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="ChartLine" />
+                                <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="Trends · last 5 min" />
                             </StackPanel>
 
                             <Grid ColumnSpacing="12">
@@ -347,12 +339,23 @@
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Charge %" />
                                         <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource StatusSuccessBrush}" Text="{x:Bind ViewModel.ChargePercentDisplay, Mode=OneWay}" />
-                                        <lvc:CartesianChart Height="44" Background="Transparent" LegendPosition="Hidden" Series="{x:Bind ViewModel.ChargeTrendSeries, Mode=OneWay}" TooltipPosition="Hidden">
+                                        <lvc:CartesianChart Height="44" AutoUpdateEnabled="True" Background="Transparent" LegendPosition="Hidden" TooltipPosition="Hidden">
+                                            <lvc:CartesianChart.Series>
+                                                <lvc:SeriesCollection>
+                                                    <lvc:XamlLineSeries
+                                                        AnimationsSpeed="0"
+                                                        Fill="{x:Null}"
+                                                        GeometryFill="{x:Null}"
+                                                        GeometryStroke="{x:Null}"
+                                                        Stroke="{lvc:SolidColorPaint Color='#FF6CCB5F', StrokeWidth='2'}"
+                                                        Values="{x:Bind ViewModel.ChargeTrendValues, Mode=OneWay}" />
+                                                </lvc:SeriesCollection>
+                                            </lvc:CartesianChart.Series>
                                             <lvc:CartesianChart.XAxes>
-                                                <lvc:AxesCollection><lvc:XamlAxis LabelsPaint="{x:Null}" ShowSeparatorLines="False" /></lvc:AxesCollection>
+                                                <lvc:AxesCollection><lvc:XamlDateTimeAxis AnimationsSpeed="0" LabelsPaint="{x:Null}" Padding="{lvc:Padding Value='0,0'}" ShowSeparatorLines="False" TextSize="0" /></lvc:AxesCollection>
                                             </lvc:CartesianChart.XAxes>
                                             <lvc:CartesianChart.YAxes>
-                                                <lvc:AxesCollection><lvc:XamlAxis LabelsPaint="{x:Null}" ShowSeparatorLines="False" /></lvc:AxesCollection>
+                                                <lvc:AxesCollection><lvc:XamlAxis AnimationsSpeed="0" LabelsPaint="{x:Null}" MaxLimit="{x:Bind ViewModel.ChargeTrendMax, Mode=OneWay}" MinLimit="{x:Bind ViewModel.ChargeTrendMin, Mode=OneWay}" Padding="{lvc:Padding Value='0,0'}" ShowSeparatorLines="False" TextSize="0" /></lvc:AxesCollection>
                                             </lvc:CartesianChart.YAxes>
                                         </lvc:CartesianChart>
                                     </StackPanel>
@@ -362,12 +365,23 @@
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Current" />
                                         <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{x:Bind ViewModel.CurrentBrush, Mode=OneWay}" Text="{x:Bind ViewModel.CurrentDisplay, Mode=OneWay}" />
-                                        <lvc:CartesianChart Height="44" Background="Transparent" LegendPosition="Hidden" Series="{x:Bind ViewModel.CurrentTrendSeries, Mode=OneWay}" TooltipPosition="Hidden">
+                                        <lvc:CartesianChart Height="44" AutoUpdateEnabled="True" Background="Transparent" LegendPosition="Hidden" TooltipPosition="Hidden">
+                                            <lvc:CartesianChart.Series>
+                                                <lvc:SeriesCollection>
+                                                    <lvc:XamlLineSeries
+                                                        AnimationsSpeed="0"
+                                                        Fill="{x:Null}"
+                                                        GeometryFill="{x:Null}"
+                                                        GeometryStroke="{x:Null}"
+                                                        Stroke="{lvc:SolidColorPaint Color='#FF6CB0FF', StrokeWidth='2'}"
+                                                        Values="{x:Bind ViewModel.CurrentTrendValues, Mode=OneWay}" />
+                                                </lvc:SeriesCollection>
+                                            </lvc:CartesianChart.Series>
                                             <lvc:CartesianChart.XAxes>
-                                                <lvc:AxesCollection><lvc:XamlAxis LabelsPaint="{x:Null}" ShowSeparatorLines="False" /></lvc:AxesCollection>
+                                                <lvc:AxesCollection><lvc:XamlDateTimeAxis AnimationsSpeed="0" LabelsPaint="{x:Null}" Padding="{lvc:Padding Value='0,0'}" ShowSeparatorLines="False" TextSize="0" /></lvc:AxesCollection>
                                             </lvc:CartesianChart.XAxes>
                                             <lvc:CartesianChart.YAxes>
-                                                <lvc:AxesCollection><lvc:XamlAxis LabelsPaint="{x:Null}" ShowSeparatorLines="False" /></lvc:AxesCollection>
+                                                <lvc:AxesCollection><lvc:XamlAxis AnimationsSpeed="0" LabelsPaint="{x:Null}" MaxLimit="{x:Bind ViewModel.CurrentTrendMax, Mode=OneWay}" MinLimit="{x:Bind ViewModel.CurrentTrendMin, Mode=OneWay}" Padding="{lvc:Padding Value='0,0'}" ShowSeparatorLines="False" TextSize="0" /></lvc:AxesCollection>
                                             </lvc:CartesianChart.YAxes>
                                         </lvc:CartesianChart>
                                     </StackPanel>
@@ -377,12 +391,23 @@
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Voltage" />
                                         <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.VoltageDisplay, Mode=OneWay}" />
-                                        <lvc:CartesianChart Height="44" Background="Transparent" LegendPosition="Hidden" Series="{x:Bind ViewModel.VoltageTrendSeries, Mode=OneWay}" TooltipPosition="Hidden">
+                                        <lvc:CartesianChart Height="44" AutoUpdateEnabled="True" Background="Transparent" LegendPosition="Hidden" TooltipPosition="Hidden">
+                                            <lvc:CartesianChart.Series>
+                                                <lvc:SeriesCollection>
+                                                    <lvc:XamlLineSeries
+                                                        AnimationsSpeed="0"
+                                                        Fill="{x:Null}"
+                                                        GeometryFill="{x:Null}"
+                                                        GeometryStroke="{x:Null}"
+                                                        Stroke="{lvc:SolidColorPaint Color='#FF6CB0FF', StrokeWidth='2'}"
+                                                        Values="{x:Bind ViewModel.VoltageTrendValues, Mode=OneWay}" />
+                                                </lvc:SeriesCollection>
+                                            </lvc:CartesianChart.Series>
                                             <lvc:CartesianChart.XAxes>
-                                                <lvc:AxesCollection><lvc:XamlAxis LabelsPaint="{x:Null}" ShowSeparatorLines="False" /></lvc:AxesCollection>
+                                                <lvc:AxesCollection><lvc:XamlDateTimeAxis AnimationsSpeed="0" LabelsPaint="{x:Null}" Padding="{lvc:Padding Value='0,0'}" ShowSeparatorLines="False" TextSize="0" /></lvc:AxesCollection>
                                             </lvc:CartesianChart.XAxes>
                                             <lvc:CartesianChart.YAxes>
-                                                <lvc:AxesCollection><lvc:XamlAxis LabelsPaint="{x:Null}" ShowSeparatorLines="False" /></lvc:AxesCollection>
+                                                <lvc:AxesCollection><lvc:XamlAxis AnimationsSpeed="0" LabelsPaint="{x:Null}" MaxLimit="{x:Bind ViewModel.VoltageTrendMax, Mode=OneWay}" MinLimit="{x:Bind ViewModel.VoltageTrendMin, Mode=OneWay}" Padding="{lvc:Padding Value='0,0'}" ShowSeparatorLines="False" TextSize="0" /></lvc:AxesCollection>
                                             </lvc:CartesianChart.YAxes>
                                         </lvc:CartesianChart>
                                     </StackPanel>
@@ -439,13 +464,7 @@
                                             <StackPanel Grid.Column="1" MinWidth="0" VerticalAlignment="Top" Spacing="8">
                                                 <!--  Title with inline badges  -->
                                                 <ctk:WrapPanel VerticalAlignment="Center" HorizontalSpacing="8" VerticalSpacing="6">
-                                                    <TextBlock VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind Title}" />
-                                                    <Border Height="22" Padding="9,0" VerticalAlignment="Center" BorderBrush="{StaticResource BrandPrimaryBrush}" BorderThickness="1" CornerRadius="11" Visibility="{x:Bind SourcePillVisibility, Mode=OneWay}">
-                                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                                            <material:MaterialIcon Width="12" Height="12" VerticalAlignment="Center" Foreground="{StaticResource BrandPrimaryBrush}" Kind="ExpansionCardVariant" />
-                                                            <TextBlock VerticalAlignment="Center" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource BrandPrimaryBrush}" Text="Graphics module" />
-                                                        </StackPanel>
-                                                    </Border>
+                                                    <TextBlock VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind Title, Mode=OneWay}" />
                                                     <ItemsControl VerticalAlignment="Center" ItemsSource="{x:Bind Badges, Mode=OneWay}">
                                                         <ItemsControl.ItemsPanel>
                                                             <ItemsPanelTemplate>

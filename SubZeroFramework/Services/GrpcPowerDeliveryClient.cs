@@ -113,6 +113,8 @@ public sealed class GrpcPowerDeliveryClient : IPowerDeliveryClient
                 UsbAHighPower = port.UsbAHighPower,
                 CapabilityDocumented = port.CapabilityDocumented,
                 PortSource = port.PortSource,
+                PortPosition = port.PortPosition,
+                PortIsLeft = port.PortIsLeft,
             });
         }
 

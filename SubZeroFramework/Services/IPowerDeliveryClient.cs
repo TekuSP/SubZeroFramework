@@ -54,6 +54,13 @@ public sealed record PowerDeliveryPortStatus
 
     /// <summary>Where the port lives: "Mainboard" (numbered slots) or "GraphicsModule" (the expansion-bay GPU port).</summary>
     public required string PortSource { get; init; }
+
+    /// <summary>Physical position label (upstream framework-system: "Right Back", "Left Middle", "Graphics module", …);
+    /// empty on platforms with no documented mapping.</summary>
+    public required string PortPosition { get; init; }
+
+    /// <summary>Whether the port is on the left side of the chassis (upstream: PD ports 2 &amp; 3 are left).</summary>
+    public required bool PortIsLeft { get; init; }
 }
 
 /// <summary>Streams the live USB-C Power Delivery port state from the service.</summary>

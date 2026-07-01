@@ -51,11 +51,13 @@ Two sources, per the handoff:
   history window (1/5/15/60, default 5 min), icon device-meta strip (green "Live telemetry"), "Sensors" header
   with "N of N plotted" + Select all, the tile grid, and a comparison chart with a custom live legend
   (swatch + Sensor N + °C). **This is the reference pattern for the remaining telemetry-redesign verticals.**
-- **Power Telemetry** — PD per-port section ✅ already built. Add: **power-flow** (adapter→system→battery, derived
-  from active PD port V×A + battery V×A), **battery charge ring** + details, **charge limits** read + a
-  `SetChargeLimits` control (gated by fan-control auth), trends.
+- **Power Telemetry — DONE.** Power-flow hero + animated arrows, battery charge ring + health/capacity, trends
+  sparklines, charge-limits EC-write (auth-gated), the 1:1 layout, and the full USB-C PD section: plain-language
+  role pills, real card types, per-port **capabilities** (data lane / DP / charging pills), **non-PD slot**
+  handling, the FW16 **4-mainboard-PD + GPU = 5** count fix, **position** labels + chassis-mirroring layout. See
+  the "Power" phasing below for the slice list.
 - **Device Capabilities** — `HardwareInfo` (CPU packages/cores, GPU, network, memory, storage, system profile) +
-  onboard fans (`FrameworkFanName` function CPU/GPU as title). Vendor logos via the mapper.
+  onboard fans (`FrameworkFanName` function CPU/GPU as title). Vendor logos via the mapper. **NOT redesigned yet.**
 - **Modules (NEW page + rail item)** — **physical-map → selected-detail** pattern, **layout chosen by
   `PlatformFamily`**: FW16 (3 input-deck variants: LED-matrix+spacers / numpad / wide-touchpad — driven by
   input-deck `Position`+`Identity`+width), FW12/13 (4 USB-C, combined input cover, touchscreen tile), FW Desktop
@@ -67,7 +69,7 @@ Two sources, per the handoff:
 1. **Foundation** — resolver DONE; Modules rail entry + stub DONE; title-bar/rail chrome restyle CANCELLED by user
    (keep the existing title bar + nav rail as-is — only page content changes).
 2. **Thermal** — DONE (see above). Proves the telemetry-redesign pattern for Power/Device-Caps/Modules.
-3. **Power** — IN PROGRESS. The page previously held ONLY the PD ports section; everything else is new here.
+3. **Power** — DONE. The page previously held ONLY the PD ports section; everything else is new here.
    - **DONE (slice 1):** wired `IBatteryTelemetryClient` into `PowerTelemetryModel`; **power-flow hero** (Adapter input ›› System draw ›› Battery, derived: adapter = active PD port V×A, battery W = V×A signed by state, system = input − battery charge) + **battery overview** (state pill, source, V, A — signed/coloured). Page title + restyled PD section kept.
    - **DONE (slice 2):** **battery charge ring** — `Controls/Power/BatteryChargeRingView` custom `Path`/`ArcSegment` 270° gauge (grey track + red 0–20% / amber 20–40% / green 40–100% zones clipped to charge, centre %), replaces the stand-in bar. (Animated dashed charging overlay still TODO — visual polish.)
    - **DONE (slice 3):** **Health & capacity** card — Design/Last full/Remaining (Wh = Ah×nominal V) · Wear% (amber) · Cycle/Chemistry/Manufacturer/Model tiles + "N% healthy" header + "Wear since new" bar. All from the battery snapshot.
@@ -77,10 +79,25 @@ Two sources, per the handoff:
    - **DONE (slice 7 — 1:1 layout):** page rebuilt to the design — power-flow hero (animated arrows), **2-col Battery | Health**, **2-col Charge limits | Trends**, battery card = ring + filled state pill (bolt) + Source (plug) + Voltage/Current pair. Ring dashes made fine.
    - **DONE (slice 8 — PD redesign):** `PowerDeliveryPortViewModel` now emits **plain-language pills** (Charging / Charging this laptop / Charger attached / Providing power / Host / Device attached / Extended power / Cable power / Nothing connected — no raw Sink/Source/DFP/UFP) with per-pill brushes; 2-col `ItemsRepeater`/`UniformGridLayout` cards, active port accent-outlined, **W** pill, alt-mode line.
    - **DONE (slice 9 — card type + polish):** PD **"Card:" type now real** — `FrameworkExpansionCardSlotSnapshot.CardType` flows Core→proto→client→UI (the inventory was already read in `BuildPowerDeliverySnapshot`); shows DisplayPort/HDMI/USB-A/USB-C/Ethernet/SD/SSD/… or "No card in slot". Dark-teal surface palette (`SurfaceCardBrush`/`SurfaceWellBrush`); fixed-height rounded-rect pills (no ovals); ring dashes thinned/sparsened so the flow reads; soft state pill; ring centre = big number + small "%".
+   - **DONE (slice 10 — FFI port capabilities):** new `FrameworkUsbCPortCapability` (data lane / DisplayPort version /
+     charging watts / USB-A note) on a per-`FrameworkPlatform` table in the **Rust FFI** + managed projection; flows
+     Core→proto→client→UI as **muted capability pills** ("USB4", "DP 2.1 UHBR10", "240 W"). Non-PD slots
+     (documented `!SupportsCharging`) render as data-only USB, not PD ports.
+   - **DONE (slice 11 — FW16 PD-port model fix):** FW16 has **4 mainboard PD ports, not 6** (`builder.rs`
+     `usb_c_slot_count` 6→4, matching upstream `power.rs` `ports = 4`; the six bays mux onto four controllers — the
+     900 mA front bays aren't PD ports). The **graphics module adds a 5th** PD port (bay probe at EC index 4),
+     appended as a distinct port. Verified on hardware via the plug-each-slot mapping.
+   - **DONE (slice 12 — positions):** `FrameworkUsbCPortPosition` enum in the FFI (upstream `fl16` mapping: Right
+     Back / Right Middle-or-Front / Left Middle-or-Front / Left Back + Graphics module); managed derives
+     `PositionName` + `IsLeftSide`. UI **titles ports by position** and orders the 2-col grid to mirror the chassis
+     (left ports left, right ports right, Back→Middle→Front). **Rust unit tests** (`cargo test`, 8 pass) + a **FW16
+     hardware test** in `FrameworkHardwareTests.cs` asserting 4 + GPU = 5. framework-dotnet crate → 0.6.2, NuGet 0.8.213.
    - **Known partial:** precise alt-mode wording ("Video + data" vs "Display detected") still approximated from `AltModeFlags`.
-4. **Device Capabilities** (mostly HardwareInfo, already partly flowing).
+4. **Device Capabilities — NEXT.** Mostly HardwareInfo, already partly flowing. Redesign pass + any missing data
+   verticals (CPU packages/cores, GPU, network, memory, storage, system profile; onboard-fan function titles; vendor logos).
 5. **Modules** (largest: new page + per-platform layouts + the most new EC plumbing) — do the **Library** first
    (static, no EC), then FW16, then FW12/13, then Desktop.
+6. **Fan Control** redesign pass (functionally built; visual pass to match the mockup) + **Dashboard** — lower priority.
 
 ## Cross-cutting
 - Every new datum = the 6-layer vertical (Core read → proto → service map/stream → client → UI); mirror the PD slice.

@@ -116,7 +116,10 @@ public sealed partial class BatteryChargeRingView : UserControl
         if (animate)
         {
             _dashStoryboard.Stop();
-            _dashAnimation.To = FlowReversed ? -DashPeriod : DashPeriod;
+            // Charging flows toward full, discharging toward empty. Reverse via swapped From/To (both kept in
+            // [0, DashPeriod]) rather than a negative StrokeDashOffset, which Uno Skia does not animate reliably.
+            _dashAnimation.From = FlowReversed ? 0d : DashPeriod;
+            _dashAnimation.To = FlowReversed ? DashPeriod : 0d;
             _dashStoryboard.Begin();
         }
         else

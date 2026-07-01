@@ -15,6 +15,13 @@ public sealed record PowerDeliveryPortSnapshot
     /// <summary>Where the port physically lives: "Mainboard" (numbered slots) or "GraphicsModule" (expansion bay).</summary>
     public required string PortSource { get; init; }
 
+    /// <summary>Physical position label per upstream framework-system (e.g. "Right Back", "Left Middle",
+    /// "Graphics module"); empty on platforms with no documented mapping.</summary>
+    public required string PortPosition { get; init; }
+
+    /// <summary>Whether the port is on the left side of the chassis (framework-system: PD ports 2 &amp; 3 are left).</summary>
+    public required bool PortIsLeft { get; init; }
+
     /// <summary>Whether the slot appears populated.</summary>
     public required bool IsPresent { get; init; }
 

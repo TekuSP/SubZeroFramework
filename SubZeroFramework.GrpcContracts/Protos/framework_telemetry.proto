@@ -847,6 +847,10 @@ message PowerDeliveryPortState {
   bool capability_documented = 21;       // Whether a documented capability matrix covers this slot.
   // Where the port lives: "Mainboard" (numbered slots) or "GraphicsModule" (the expansion-bay GPU port).
   string port_source = 22;
+  // Physical position label (upstream framework-system: "Right Back", "Left Middle", "Graphics module", …).
+  string port_position = 23;
+  // Whether the port is on the left side of the chassis (upstream: PD ports 2 & 3 are left).
+  bool port_is_left = 24;
 }
 
 message PowerDeliveryReply {

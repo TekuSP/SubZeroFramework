@@ -9,17 +9,13 @@ using DynamicData;
 
 using FrameworkDotnet.Enums;
 
-using LiveChartsCore;
-using LiveChartsCore.SkiaSharpView;
-using LiveChartsCore.SkiaSharpView.Painting;
+using LiveChartsCore.Defaults;
 
 using Material.Icons;
 
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-
-using SkiaSharp;
 
 using SubZeroFramework.Models;
 using SubZeroFramework.Services;
@@ -49,6 +45,7 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
     private PowerDeliveryPortStatus? _activePort;
     private int? _trendBatteryIndex;
     private bool _chargeLimitsLoaded;
+
 
     public PowerTelemetryModel(
         IStringLocalizer localizer,
@@ -111,14 +108,33 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
 
     // ----- Trends (last 5 min sparklines) -----
 
+    // Sparkline values, mutated in place. The XAML declares the XamlLineSeries and binds Values to these stable
+    // collections — mirroring PowerCardView's battery history charts, the proven LiveCharts pattern in this app.
+    public ObservableCollection<DateTimePoint> ChargeTrendValues { get; } = [];
+
+    public ObservableCollection<DateTimePoint> CurrentTrendValues { get; } = [];
+
+    public ObservableCollection<DateTimePoint> VoltageTrendValues { get; } = [];
+
+    // Per-metric Y-axis limits. Without these, a flat metric (e.g. charge sitting at 97% for 5 min) auto-ranges to a
+    // zero-height span and the polyline renders degenerate/invisible; the limits guarantee a visible band.
     [ObservableProperty]
-    public partial ISeries[] ChargeTrendSeries { get; set; } = [];
+    public partial double? ChargeTrendMin { get; set; }
 
     [ObservableProperty]
-    public partial ISeries[] CurrentTrendSeries { get; set; } = [];
+    public partial double? ChargeTrendMax { get; set; }
 
     [ObservableProperty]
-    public partial ISeries[] VoltageTrendSeries { get; set; } = [];
+    public partial double? CurrentTrendMin { get; set; }
+
+    [ObservableProperty]
+    public partial double? CurrentTrendMax { get; set; }
+
+    [ObservableProperty]
+    public partial double? VoltageTrendMin { get; set; }
+
+    [ObservableProperty]
+    public partial double? VoltageTrendMax { get; set; }
 
     // ----- Charge limits (EC write, gated by service authorization) -----
 
@@ -137,7 +153,11 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
     public partial bool IsChargeControlEnabled { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ChargeLimitsStatusVisibility))]
     public partial string ChargeLimitsStatus { get; set; } = string.Empty;
+
+    /// <summary>Collapses the status line until there is something to say, keeping the card compact.</summary>
+    public Visibility ChargeLimitsStatusVisibility => string.IsNullOrWhiteSpace(ChargeLimitsStatus) ? Visibility.Collapsed : Visibility.Visible;
 
     public string ChargeMinimumDisplay => $"{(int)Math.Round(ChargeLimitMinimum)}%";
 
@@ -199,6 +219,9 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(IsBatteryAnimating))]
     [NotifyPropertyChangedFor(nameof(IsBatteryDischarging))]
     [NotifyPropertyChangedFor(nameof(BatteryStateIconKind))]
+    [NotifyPropertyChangedFor(nameof(AdapterArrowsActive))]
+    [NotifyPropertyChangedFor(nameof(BatteryArrowsReversed))]
+    [NotifyPropertyChangedFor(nameof(BatteryArrowsAccent))]
     [NotifyPropertyChangedFor(nameof(SourceDisplay))]
     [NotifyPropertyChangedFor(nameof(VoltageDisplay))]
     [NotifyPropertyChangedFor(nameof(CurrentDisplay))]
@@ -224,6 +247,20 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
     private bool HasAdapter => _activePort is { HasContract: true };
 
     private double AdapterInputWatts => HasAdapter ? _activePort!.VoltageVolts * _activePort.CurrentAmperes : 0d;
+
+    /// <summary>Adapter→system arrows pulse only while an adapter is attached; static and dim when on battery.</summary>
+    public bool AdapterArrowsActive => HasAdapter;
+
+    /// <summary>Reverse the system↔battery arrows to point battery→system while discharging (draining the pack).</summary>
+    public bool BatteryArrowsReversed => _battery?.BatteryState == FrameworkBatteryState.Discharging;
+
+    /// <summary>Green flowing into the battery while charging, amber while draining, muted grey when idle / full.</summary>
+    public Brush BatteryArrowsAccent => _battery?.BatteryState switch
+    {
+        FrameworkBatteryState.Charging => AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor),
+        FrameworkBatteryState.Discharging => AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor),
+        _ => AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextSecondaryColor),
+    };
 
     private double SignedBatteryWatts
     {
@@ -476,39 +513,90 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
 
     private void UpdateTrend(TelemetryMetric metric, IReadOnlyCollection<TelemetryPoint> points)
     {
-        var values = points
+        var trend = points
             .OrderBy(point => point.ObservedAt)
             .ThenBy(point => point.SampleId)
-            .Select(point => point.NumericValue)
+            .Select(point => new DateTimePoint(point.ObservedAt.LocalDateTime, point.NumericValue))
             .ToArray();
+
+        var (min, max) = TrendLimits(trend);
 
         switch (metric)
         {
             case TelemetryMetric.BatteryChargePercent:
-                ChargeTrendSeries = [Sparkline(values, new SKColor(108, 203, 95))];
+                SynchronizePoints(ChargeTrendValues, trend);
+                (ChargeTrendMin, ChargeTrendMax) = (min, max);
                 break;
             case TelemetryMetric.BatteryPresentRateAmperes:
-                CurrentTrendSeries = [Sparkline(values, new SKColor(108, 176, 255))];
+                SynchronizePoints(CurrentTrendValues, trend);
+                (CurrentTrendMin, CurrentTrendMax) = (min, max);
                 break;
             case TelemetryMetric.BatteryPresentVoltageVolts:
-                VoltageTrendSeries = [Sparkline(values, new SKColor(108, 176, 255))];
+                SynchronizePoints(VoltageTrendValues, trend);
+                (VoltageTrendMin, VoltageTrendMax) = (min, max);
                 break;
         }
     }
 
-    private static ISeries Sparkline(double[] values, SKColor color) => new LineSeries<double>
+    /// <summary>Reconciles the sparkline's backing collection to <paramref name="source"/> in place (replace changed
+    /// points, trim, extend) so the bound series observes granular changes instead of a collection swap.</summary>
+    private static void SynchronizePoints(ObservableCollection<DateTimePoint> target, IReadOnlyList<DateTimePoint> source)
     {
-        Values = values,
-        Fill = null,
-        GeometrySize = 0,
-        LineSmoothness = 0.6,
-        Stroke = new SolidColorPaint(color, 2),
-    };
+        var commonCount = Math.Min(target.Count, source.Count);
+
+        for (var index = 0; index < commonCount; index++)
+        {
+            var current = target[index];
+            var next = source[index];
+
+            if (current.DateTime != next.DateTime || current.Value != next.Value)
+            {
+                target[index] = next;
+            }
+        }
+
+        for (var index = target.Count - 1; index >= source.Count; index--)
+        {
+            target.RemoveAt(index);
+        }
+
+        for (var index = commonCount; index < source.Count; index++)
+        {
+            target.Add(source[index]);
+        }
+    }
+
+    /// <summary>Y-axis band for a sparkline: the data range padded by 5% (or ±0.5 when perfectly flat) so a constant
+    /// series still draws a centred horizontal line instead of collapsing to a zero-height, invisible range.</summary>
+    private static (double? Min, double? Max) TrendLimits(IReadOnlyList<DateTimePoint> points)
+    {
+        var min = double.MaxValue;
+        var max = double.MinValue;
+
+        foreach (var point in points)
+        {
+            if (point.Value is not double value)
+            {
+                continue;
+            }
+
+            min = Math.Min(min, value);
+            max = Math.Max(max, value);
+        }
+
+        if (min > max)
+        {
+            return (null, null);
+        }
+
+        var pad = max - min < 1e-6 ? 0.5 : (max - min) * 0.05;
+        return (min - pad, max + pad);
+    }
 
     private void UpdatePorts(IReadOnlyList<PowerDeliveryPortStatus> ports)
     {
         var bySlot = Ports.ToDictionary(static vm => vm.SlotIndex);
-        foreach (var status in ports.OrderBy(static p => p.SlotIndex))
+        foreach (var status in ports.OrderBy(PositionSortKey).ThenBy(static p => p.SlotIndex))
         {
             if (bySlot.TryGetValue(status.SlotIndex, out var existing))
             {
@@ -534,6 +622,30 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
 
         PortsRevision++;
         FlowRevision++;
+    }
+
+    // Orders ports so the 2-column grid mirrors the chassis: left ports in the left column, right ports in the
+    // right column, top-to-bottom Back → Middle → Front. Row-major fill key = rank*2 + column (left = 0, right = 1).
+    // The graphics-module port comes last; undocumented platforms fall back to slot order.
+    private static int PositionSortKey(PowerDeliveryPortStatus port)
+    {
+        if (string.Equals(port.PortSource, "GraphicsModule", System.StringComparison.OrdinalIgnoreCase))
+        {
+            return 1000;
+        }
+
+        var position = port.PortPosition;
+        if (string.IsNullOrEmpty(position))
+        {
+            return 2000 + port.SlotIndex;
+        }
+
+        var rank = position.Contains("Back", System.StringComparison.OrdinalIgnoreCase) ? 0
+            : position.Contains("Middle", System.StringComparison.OrdinalIgnoreCase) ? 1
+            : position.Contains("Front", System.StringComparison.OrdinalIgnoreCase) ? 2
+            : 3;
+        var column = port.PortIsLeft ? 0 : 1;
+        return (rank * 2) + column;
     }
 
     public void Dispose()
