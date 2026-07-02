@@ -119,6 +119,85 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
         return reply;
     }
 
+    public override async Task WatchModuleInventory(WatchModuleInventoryRequest request, IServerStreamWriter<ModuleInventoryReply> responseStream, ServerCallContext context)
+    {
+        try
+        {
+            _logger.LogInformation("Opening module inventory stream.");
+
+            // The provider's snapshot stream replays the latest value on subscribe, so no separate initial write.
+            var reader = ObservableChannelBridge.CreateBoundedReader(
+                _frameworkDataProvider.ModuleInventorySnapshots, context.CancellationToken, _logger, "module inventory stream");
+
+            while (await reader.WaitToReadAsync(context.CancellationToken).ConfigureAwait(false))
+            {
+                while (reader.TryRead(out var snapshot))
+                {
+                    await responseStream.WriteAsync(MapModuleInventory(snapshot), context.CancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+        {
+            _logger.LogDebug("Stopping module inventory stream because the request was cancelled.");
+        }
+    }
+
+    private static ModuleInventoryReply MapModuleInventory(ModuleInventorySnapshot snapshot)
+    {
+        var reply = new ModuleInventoryReply
+        {
+            HasExpansionBay = snapshot.ExpansionBayModule is not null,
+            ExpansionBayBoard = snapshot.ExpansionBayBoard.ToString(),
+            ExpansionBayVendor = snapshot.ExpansionBayVendor.ToString(),
+            ExpansionBaySerial = snapshot.ExpansionBaySerialNumber,
+        };
+
+        foreach (var slot in snapshot.UsbCSlots)
+        {
+            reply.UsbCSlots.Add(MapModuleDescriptor(slot));
+        }
+
+        foreach (var module in snapshot.InputDeckModules)
+        {
+            reply.InputDeck.Add(MapModuleDescriptor(module));
+        }
+
+        foreach (var module in snapshot.InternalModules)
+        {
+            reply.InternalFixed.Add(MapModuleDescriptor(module));
+        }
+
+        foreach (var module in snapshot.DetachedModules)
+        {
+            reply.Detached.Add(MapModuleDescriptor(module));
+        }
+
+        if (snapshot.ExpansionBayModule is { } bayModule)
+        {
+            reply.ExpansionBay = MapModuleDescriptor(bayModule);
+        }
+
+        return reply;
+    }
+
+    private static ModuleDescriptor MapModuleDescriptor(ModuleDescriptorSnapshot descriptor) => new()
+    {
+        Identity = descriptor.Identity.ToString(),
+        Bus = descriptor.Bus.ToString(),
+        SlotKind = descriptor.SlotKind.ToString(),
+        Confidence = descriptor.Confidence.ToString(),
+        IsPresent = descriptor.IsPresent,
+        SlotIndex = descriptor.SlotIndex,
+        Flags = (uint)descriptor.Flags,
+        VendorId = descriptor.VendorId,
+        ProductId = descriptor.ProductId,
+        BoardId = descriptor.BoardId,
+        Position = descriptor.Position.ToString(),
+        CardType = descriptor.CardType.ToString(),
+        CardConfidence = descriptor.CardConfidence.ToString(),
+    };
+
     public override Task WatchFanStates(WatchFanStatesRequest request, IServerStreamWriter<FanStateChangeBatchReply> responseStream, ServerCallContext context)
     {
         _logger.LogInformation("Opening fan state stream.");

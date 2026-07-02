@@ -1,0 +1,62 @@
+<UserControl
+    x:Class="SubZeroFramework.Controls.Modules.ModuleDeckCardView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--  One FW16 input-deck module tile: small icon+name header over the real module PNG (asset rule);
+          modules without art fall back to a large glyph. Selected tile gets the accent border.  -->
+    <Border
+        Width="{x:Bind Model.CardWidth, Mode=OneWay}"
+        Padding="10"
+        Background="{StaticResource CardBackgroundBrush}"
+        BorderBrush="{x:Bind Model.CardBorderBrush, Mode=OneWay}"
+        BorderThickness="1.5"
+        CornerRadius="11">
+        <StackPanel Spacing="8">
+            <StackPanel
+                HorizontalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="6">
+                <material:MaterialIcon
+                    Width="14"
+                    Height="14"
+                    VerticalAlignment="Center"
+                    Foreground="{StaticResource StatusInfoBrush}"
+                    Kind="{x:Bind Model.IconKind, Mode=OneWay}" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="12.5"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{x:Bind Model.Name, Mode=OneWay}" />
+            </StackPanel>
+
+            <Image
+                Width="{x:Bind Model.ImageWidth, Mode=OneWay}"
+                Height="{x:Bind Model.ImageHeight, Mode=OneWay}"
+                HorizontalAlignment="Center"
+                Source="{x:Bind Model.DeckImage, Mode=OneWay}"
+                Stretch="Uniform"
+                Visibility="{x:Bind Model.DeckImageVisibility, Mode=OneWay}" />
+            <Border
+                Width="110"
+                Height="110"
+                HorizontalAlignment="Center"
+                Background="{StaticResource CardMetricBackgroundBrush}"
+                CornerRadius="10"
+                Visibility="{x:Bind Model.FallbackIconVisibility, Mode=OneWay}">
+                <material:MaterialIcon
+                    Width="36"
+                    Height="36"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Kind="{x:Bind Model.IconKind, Mode=OneWay}" />
+            </Border>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:uen="using:Uno.Extensions.Navigation.UI"
     xmlns:utu="using:Uno.Toolkit.UI"
     Background="{StaticResource AppBackgroundBrush}"
     NavigationCacheMode="Required"
@@ -19,15 +20,20 @@
                     FontWeight="SemiBold"
                     Foreground="{StaticResource TextPrimaryBrush}"
                     Text="Modules" />
-                <TextBlock
-                    FontSize="14"
-                    Foreground="{StaticResource TextSecondaryBrush}"
-                    Text="Physical module and port maps for this chassis. The interactive map and per-slot details will appear here."
-                    TextWrapping="Wrap" />
+
+                <!--  Per-platform layout bodies resolve into this sub-region (FW16 for now; FW12/13/13 Pro and
+                      Desktop follow). Platforms without a map yet keep the placeholder card.  -->
+                <ContentControl
+                    x:Name="LayoutRegionHost"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Top"
+                    uen:Region.Attached="True"
+                    Visibility="{x:Bind ViewModel.LayoutVisibility, Mode=OneWay}" />
 
                 <controls:ElevatedCard
                     HorizontalContentAlignment="Stretch"
-                    Background="{StaticResource CardBackgroundBrush}">
+                    Background="{StaticResource CardBackgroundBrush}"
+                    Visibility="{x:Bind ViewModel.PlaceholderVisibility, Mode=OneWay}">
                     <StackPanel
                         Padding="22"
                         HorizontalAlignment="Center"
@@ -49,6 +55,13 @@
                             FontSize="13"
                             Foreground="{StaticResource TextSecondaryBrush}"
                             Text="{x:Bind ViewModel.PlatformFamilyDisplay, Mode=OneWay}" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontSize="13"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="{x:Bind ViewModel.InventorySummaryDisplay, Mode=OneWay}"
+                            TextAlignment="Center"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
                 </controls:ElevatedCard>
             </StackPanel>

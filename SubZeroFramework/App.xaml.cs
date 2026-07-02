@@ -16,6 +16,7 @@ using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities.Categories;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.Modes;
 using SubZeroFramework.Presentation.MenuItems.Modules;
+using SubZeroFramework.Presentation.MenuItems.Modules.Layouts;
 using SubZeroFramework.Presentation.MenuItems.PowerTelemetry;
 using SubZeroFramework.Presentation.MenuItems.Settings;
 using SubZeroFramework.Presentation.MenuItems.ThermalTelemetry;
@@ -113,6 +114,7 @@ public partial class App : Application
                     services.AddSingleton<ITemperatureTelemetryClient, TemperatureTelemetryClient>();
                     services.AddSingleton<IBatteryTelemetryClient, BatteryTelemetryClient>();
                     services.AddSingleton<IPowerDeliveryClient, GrpcPowerDeliveryClient>();
+                    services.AddSingleton<IModuleInventoryClient, GrpcModuleInventoryClient>();
                     services.AddSingleton<IUserUnitPreferencesClient, GrpcUserUnitPreferencesClient>();
                     services.AddSingleton<IUnitFormattingService, UnitsNetUnitFormattingService>();
                     services.AddSingleton<IFrameworkFanControlClient, GrpcFrameworkFanControlClient>();
@@ -133,6 +135,9 @@ public partial class App : Application
                     // Device Capabilities category bodies bridge to the displayed page model the same way
                     // (see DeviceCapabilitiesAccessor).
                     services.AddSingleton<DeviceCapabilitiesAccessor>();
+
+                    // Modules layout bodies bridge to the displayed page model the same way (see ModulesAccessor).
+                    services.AddSingleton<ModulesAccessor>();
                 })
                 .UseNavigation(RegisterRoutes)
             );
@@ -211,6 +216,11 @@ public partial class App : Application
             new DataViewMap<DeviceCapabilitiesGraphicsMonitorDetailView, DeviceCapabilitiesGraphicsMonitorDetailModel, DeviceCapabilitiesMonitorCardModel>(),
             new DataViewMap<DeviceCapabilitiesNetworkAdapterDetailView, DeviceCapabilitiesNetworkAdapterDetailModel, DeviceCapabilitiesNetworkAdapterCardModel>(),
             new ViewMap<ModulesPage, ModulesModel>(),
+            new ViewMap<ModulesFw16View, ModulesFw16Model>(),
+            new ViewMap<ModulesFw13View, ModulesFw13Model>(),
+            new ViewMap<ModulesFw13ProView, ModulesFw13ProModel>(),
+            new ViewMap<ModulesFw12View, ModulesFw12Model>(),
+            new ViewMap<ModulesFwDesktopView, ModulesFwDesktopModel>(),
             new ViewMap<FanCurveProfilesPage, FanCurveProfilesModel>(),
             new ViewMap<FanAutoModeView, FanAutoModeModel>(),
             new ViewMap<FanManualModeView, FanManualModeModel>(),
@@ -260,7 +270,15 @@ public partial class App : Application
                     ]),
                     new RouteMap("Profile", View: views.FindByViewModel<DeviceCapabilitiesSystemProfileCategoryModel>()),
                 ]),
-                new RouteMap("Modules",  View: views.FindByViewModel<ModulesModel>()),
+                new RouteMap("Modules",  View: views.FindByViewModel<ModulesModel>(),
+                Nested:
+                [
+                    new RouteMap("ModulesFw16", View: views.FindByViewModel<ModulesFw16Model>()),
+                    new RouteMap("ModulesFw13", View: views.FindByViewModel<ModulesFw13Model>()),
+                    new RouteMap("ModulesFw13Pro", View: views.FindByViewModel<ModulesFw13ProModel>()),
+                    new RouteMap("ModulesFw12", View: views.FindByViewModel<ModulesFw12Model>()),
+                    new RouteMap("ModulesFwDesktop", View: views.FindByViewModel<ModulesFwDesktopModel>()),
+                ]),
                 new RouteMap("FanCurveProfiles",  View: views.FindByViewModel<FanCurveProfilesModel>(),
                 Nested:
                 [

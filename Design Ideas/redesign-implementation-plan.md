@@ -215,7 +215,43 @@ Two sources, per the handoff:
      tint the art). The PDFs' "View numpad/LED-matrix layout" toggle link is a mock artifact — the real deck
      arrangement comes from the live descriptors, no toggle.
 
-   **Slices:**
+   **STATUS: M1–M6 ALL DONE 2026-07-02 (FW16 verified live through many user-feedback rounds; FW12/13/13
+   Pro/Desktop build-verified only — no hardware). Iteration outcomes that are now RULES for this page:**
+   - **All spacer tiles identical**: fixed 150px card width + one 40×120 art box + ONE shared hero
+     (confidence "Inferred", State "Passive", IDs "—") for EC-inferred AND presumed spacers alike; presumed
+     spacers are ordinary `ModuleDeckCardModel`s (`CreatePresumedSpacer`), no separate control.
+   - **Spacer inference (user heuristic)**: top-row MUX position with `VendorId==0 && ProductId==0` = passive
+     spacer; adjacent identical descriptors (identity+VID+PID, NOT BoardId) collapse into one physical module.
+   - **Physical slot numbering**: left column 1..3 top→bottom (PD "Back" first, then Middle/Front, then
+     unreported), right column continues 4..6 — EC index is only the data join key.
+   - **Honest labels**: passive card with nothing plugged = "Nothing detected" (EC can't distinguish from
+     empty); FW16 pads to 6 slots with "No data" ghosts for the two 900 mA non-PD slots the FFI doesn't report.
+   - Art sizing follows physical proportions (top row one height 130, touchpad width = keyboard width 277);
+     bay banner shows the REAL GPU model (join with HardwareInfo video controllers) and is selectable (bay hero:
+     GPU, interposer board, serial, door-closed chip; `IsBaySelected` guards the auto-selection default).
+   - Cards detected over USB but not slot-resolved show in a "Detected cards · slot not resolved" strip.
+   - FW12/FW13/FW13 Pro: thin views over shared `ModulesFixedChassisView` (chassis+cover art DPs; input cover
+     hero always visible). Desktop: front slots + static rear-I/O catalog (`ModulesRearPortInfo`) via
+     `InstancePickerView`. Platform routing in `ModulesPage.SyncLayoutRegion`; **13 vs 13 Pro is ASSUMED to be
+     IntelCoreUltra1/3 platforms → Pro view (no explicit Pro member in `FrameworkPlatform`) — user to confirm.**
+
+   **framework-dotnet/FFI follow-ups that unblock the remaining data gaps (UI is ready for all three):**
+   1. Report all 6 FW16 slots — the slot loop is bounded by the EC PD-port count (4) even though
+      `capabilities::slot_capability` already describes slots 3/6 (900 mA non-PD).
+   2. USB-topology → physical-slot mapping so detected cards (Ethernet/Audio/SSD/…) pin to their slot instead
+      of the ambiguous-assignment "detached" bucket (`inventory/usb_slots.rs` assigns only when 1:1).
+   3. Add `FrameworkModuleIdentity.Microphone` + a fixed-internal inventory entry (state from the mic privacy
+      switch) so the Microphone chip can exist — then add its catalog entry in `FrameworkModuleDisplay`.
+
+   Historical slice plan (M1 + M2 verified live on the FW16 — the Modules stub showed the streamed
+   summary "4 expansion slots (3 populated) · 6 input-deck modules · 2 internal devices · expansion bay: …".
+   Implemented: `Core\Services\FrameworkModuleDisplay.cs` (+20 tests, FD0001 intentionally suppressed),
+   `Core\Models\ModuleInventorySnapshot.cs`, provider publish beside the PD projection, proto
+   `WatchModuleInventory` + `ModuleDescriptor`/`ModuleInventoryReply` (enum names as strings),
+   `FrameworkTelemetryGrpcService.WatchModuleInventory`, app `IModuleInventoryClient`/`GrpcModuleInventoryClient`
+   (parses names back to FrameworkDotnet enums) + DI + `ModulesModel.Inventory`. Gotcha: `dotnet run
+   --no-build` for the Service uses the AnyCPU Debug output — rebuild the Service project explicitly or run
+   without `--no-build` after proto changes, otherwise the RPC is "unimplemented".)**
    - **M1 — module presentation catalog** (internal, static, zero EC): a Core/UI helper mapping every
      `FrameworkModuleIdentity` + `FrameworkModuleSlotKind` to its display metadata (name, MDI icon, category,
      slot-kind label, bus/interface, PD wattage, serviceability, description) authored from the Library

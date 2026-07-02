@@ -332,5 +332,32 @@
       <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesNetworkAdapterDetailView.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>
+      <Page Update="Controls\Modules\ModuleHeroView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\Modules\ModuleSlotCardView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\Modules\ModuleDeckCardView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\Modules\Layouts\ModulesFw16View.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\Modules\ModulesFixedChassisView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\Modules\Layouts\ModulesFw12View.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\Modules\Layouts\ModulesFw13View.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\Modules\Layouts\ModulesFw13ProView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\Modules\Layouts\ModulesFwDesktopView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
     </ItemGroup>
 </Project>

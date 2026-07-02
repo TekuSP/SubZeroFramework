@@ -1,0 +1,63 @@
+<UserControl
+    x:Class="SubZeroFramework.Controls.Modules.ModuleSlotCardView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--  One numbered expansion-card slot on a chassis map: number badge, card-type icon, name; empty slots
+          render as ghosts and the selected slot gets the accent border (mockup).  -->
+    <Border
+        Width="150"
+        MinHeight="96"
+        Padding="10"
+        Background="{StaticResource CardBackgroundBrush}"
+        BorderBrush="{x:Bind Model.CardBorderBrush, Mode=OneWay}"
+        BorderThickness="1.5"
+        CornerRadius="11">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border
+                Height="18"
+                MinWidth="18"
+                Padding="5,0"
+                HorizontalAlignment="Left"
+                Background="{StaticResource CardMetricBackgroundBrush}"
+                CornerRadius="9">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontSize="10.5"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="{x:Bind Model.SlotNumberDisplay, Mode=OneWay}" />
+            </Border>
+
+            <StackPanel
+                Grid.Row="1"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Opacity="{x:Bind Model.ContentOpacity, Mode=OneWay}"
+                Spacing="6">
+                <material:MaterialIcon
+                    Width="26"
+                    Height="26"
+                    HorizontalAlignment="Center"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Kind="{x:Bind Model.IconKind, Mode=OneWay}" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontSize="12.5"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{x:Bind Model.Name, Mode=OneWay}"
+                    TextAlignment="Center"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

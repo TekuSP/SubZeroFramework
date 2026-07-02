@@ -36,6 +36,7 @@ service FrameworkTelemetryService {
   rpc WatchCurrentTelemetryValues (WatchCurrentTelemetryValuesRequest) returns (stream CurrentTelemetryValueChangeBatchReply);
   rpc WatchTelemetrySeries (WatchTelemetrySeriesRequest) returns (stream TelemetrySeriesPointChangeBatchReply);
   rpc WatchPowerDelivery (WatchPowerDeliveryRequest) returns (stream PowerDeliveryReply);
+  rpc WatchModuleInventory (WatchModuleInventoryRequest) returns (stream ModuleInventoryReply);
 }
 
 service HardwareInfoService {
@@ -869,4 +870,37 @@ message PowerDeliveryPortState {
 
 message PowerDeliveryReply {
   repeated PowerDeliveryPortState ports = 1;
+}
+
+message WatchModuleInventoryRequest {
+}
+
+// One detected or inferred module descriptor (enums carried as their FrameworkDotnet names, flags as raw bits).
+message ModuleDescriptor {
+  string identity = 1;          // FrameworkModuleIdentity name (e.g. "UsbCExpansionCard").
+  string bus = 2;               // FrameworkModuleBus name (e.g. "Ec", "Usb").
+  string slot_kind = 3;         // FrameworkModuleSlotKind name (e.g. "UsbCExpansionCardSlot").
+  string confidence = 4;        // FrameworkModuleConfidence name (e.g. "Direct").
+  bool is_present = 5;
+  int32 slot_index = 6;
+  uint32 flags = 7;             // FrameworkModuleFlags bits (BuiltIn/Active/Connected/HasPdContract/…).
+  uint32 vendor_id = 8;
+  uint32 product_id = 9;
+  int32 board_id = 10;
+  string position = 11;         // FrameworkInputModulePosition name ("TopRow0"…"Touchpad"; "Unknown" elsewhere).
+  string card_type = 12;        // FrameworkExpansionCardType name (USB-C slots only; "Unknown" elsewhere).
+  string card_confidence = 13;  // Card-type identification confidence (USB-C slots only).
+}
+
+// The full module inventory, grouped the way the Modules page renders it.
+message ModuleInventoryReply {
+  repeated ModuleDescriptor usb_c_slots = 1;      // Numbered expansion-card slots in index order.
+  repeated ModuleDescriptor input_deck = 2;       // FW16 input deck (top row + touchpad; position tells them apart).
+  repeated ModuleDescriptor internal_fixed = 3;   // Present fixed internals (keyboard/touchpad/fingerprint/touchscreen/webcam).
+  repeated ModuleDescriptor detached = 4;         // Known but currently removed modules.
+  bool has_expansion_bay = 5;
+  ModuleDescriptor expansion_bay = 6;             // Identity refined from the FW16 bay snapshot; unset when absent.
+  string expansion_bay_board = 7;                 // FrameworkExpansionBayBoard name (e.g. "DualInterposer").
+  string expansion_bay_vendor = 8;                // FrameworkExpansionBayVendor name (e.g. "AmdGpu").
+  string expansion_bay_serial = 9;
 }

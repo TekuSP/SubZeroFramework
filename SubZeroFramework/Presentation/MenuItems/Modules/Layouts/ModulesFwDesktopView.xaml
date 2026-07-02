@@ -1,0 +1,152 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.Modules.Layouts.ModulesFwDesktopView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
+    xmlns:layouts="using:SubZeroFramework.Presentation.MenuItems.Modules.Layouts"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:SubZeroFramework.Controls.Modules.Models"
+    xmlns:modules="using:SubZeroFramework.Controls.Modules"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <DataTemplate x:Key="SlotCardTemplate" x:DataType="models:ModuleSlotCardModel">
+            <modules:ModuleSlotCardView Model="{x:Bind}" Tapped="OnSlotCardTapped" />
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <!--  Framework Desktop: tower front art over the two front expansion-card slots, the selected-expansion
+          hero, then the fixed rear I/O catalog (static — soldered ports are not EC-enumerable).  -->
+    <StackPanel Spacing="16">
+        <StackPanel HorizontalAlignment="Center" Spacing="12">
+            <Image
+                Height="320"
+                HorizontalAlignment="Center"
+                Source="ms-appx:///Assets/Png/framework-desktop-front.png"
+                Stretch="Uniform" />
+            <StackPanel
+                HorizontalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="12">
+                <ItemsControl ItemTemplate="{StaticResource SlotCardTemplate}" ItemsSource="{x:Bind ViewModel.Page.LeftSlotCards, Mode=OneWay}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="12" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <ItemsControl ItemTemplate="{StaticResource SlotCardTemplate}" ItemsSource="{x:Bind ViewModel.Page.RightSlotCards, Mode=OneWay}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="12" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+            </StackPanel>
+        </StackPanel>
+
+        <TextBlock
+            FontSize="16"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource TextPrimaryBrush}"
+            Text="Selected expansion module" />
+        <modules:ModuleHeroView Source="{x:Bind ViewModel.Page.SelectedExpansionHero, Mode=OneWay}" />
+
+        <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock
+                VerticalAlignment="Center"
+                FontSize="16"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="Rear I/O &amp; mainboard" />
+            <Border
+                Height="22"
+                Padding="9,0"
+                VerticalAlignment="Center"
+                Background="{StaticResource CardMetricBackgroundBrush}"
+                CornerRadius="11">
+                <StackPanel
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="5">
+                    <material:MaterialIcon
+                        Width="12"
+                        Height="12"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Kind="Lock" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="11.5"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="Fixed · soldered" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <Grid ColumnSpacing="14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="260" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <controls:InstancePickerView
+                x:Name="RearPortPicker"
+                Title="REAR I/O"
+                EmptyText="None documented"
+                ItemsSource="{x:Bind ViewModel.RearPorts, Mode=OneWay}"
+                SelectionChanged="OnRearPortSelectionChanged">
+                <controls:InstancePickerView.ItemTemplate>
+                    <DataTemplate x:DataType="layouts:ModulesRearPortInfo">
+                        <StackPanel
+                            Margin="0,6"
+                            Orientation="Horizontal"
+                            Spacing="10">
+                            <material:MaterialIcon
+                                Width="18"
+                                Height="18"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource StatusInfoBrush}"
+                                Kind="{x:Bind IconKindResolved}" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{x:Bind Name}" />
+                        </StackPanel>
+                    </DataTemplate>
+                </controls:InstancePickerView.ItemTemplate>
+            </controls:InstancePickerView>
+
+            <StackPanel Grid.Column="1" Spacing="12">
+                <TextBlock
+                    FontSize="16"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{x:Bind ViewModel.SelectedRearPort.Name, Mode=OneWay}" />
+                <deviceCapabilitiesControls:StatTilePanel>
+                    <deviceCapabilitiesControls:StatTileView
+                        IconKind="CheckDecagram"
+                        Label="Standard"
+                        Value="{x:Bind ViewModel.SelectedRearPort.Standard, Mode=OneWay}" />
+                    <deviceCapabilitiesControls:StatTileView
+                        IconKind="Chip"
+                        Label="PHY"
+                        Value="{x:Bind ViewModel.SelectedRearPort.Phy, Mode=OneWay}" />
+                    <deviceCapabilitiesControls:StatTileView
+                        IconKind="Monitor"
+                        Label="Features"
+                        Value="{x:Bind ViewModel.SelectedRearPort.Features, Mode=OneWay}" />
+                    <deviceCapabilitiesControls:StatTileView
+                        IconKind="ShieldCheck"
+                        Label="Security"
+                        Value="{x:Bind ViewModel.SelectedRearPort.Security, Mode=OneWay}" />
+                </deviceCapabilitiesControls:StatTilePanel>
+            </StackPanel>
+        </Grid>
+    </StackPanel>
+</UserControl>

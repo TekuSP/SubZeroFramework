@@ -42,6 +42,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private readonly RetainedSnapshotStream<FrameworkFanCapabilitiesSnapshot> _fanCapabilitiesSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
     private readonly RetainedSnapshotStream<FrameworkPowerSnapshot> _powerSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
     private readonly RetainedSnapshotStream<PowerDeliverySnapshot> _powerDeliverySnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
+    private readonly RetainedSnapshotStream<ModuleInventorySnapshot> _moduleInventorySnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
     // The module-inventory read (USB-C PD source) is heavier than the per-fan/thermal reads and PD state changes
     // slowly (plug/unplug), so it is sampled on a calmer cadence than the main telemetry poll.
     private static readonly TimeSpan ModuleInventoryReadInterval = TimeSpan.FromSeconds(2);
@@ -108,6 +109,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         FanCapabilitiesSnapshots = _fanCapabilitiesSnapshots;
         PowerSnapshots = _powerSnapshots;
         PowerDeliverySnapshots = _powerDeliverySnapshots;
+        ModuleInventorySnapshots = _moduleInventorySnapshots;
         ThermalSnapshots = _thermalSnapshots;
         HardwareInfoSnapshots = _hardwareInfoSnapshots;
         _telemetryPoints
@@ -169,6 +171,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     public IObservable<FrameworkPowerSnapshot> PowerSnapshots { get; }
 
     public IObservable<PowerDeliverySnapshot> PowerDeliverySnapshots { get; }
+
+    public IObservable<ModuleInventorySnapshot> ModuleInventorySnapshots { get; }
 
     public IObservable<FrameworkThermalSnapshot> ThermalSnapshots { get; }
 
@@ -964,6 +968,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             }
 
             _powerDeliverySnapshots.Publish(BuildPowerDeliverySnapshot(moduleInventory!, expansionBay), observedAt);
+            _moduleInventorySnapshots.Publish(BuildModuleInventorySnapshot(moduleInventory!, expansionBay), observedAt);
             successfulReads += 1;
         }
 
@@ -1530,6 +1535,88 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         }
 
         return new PowerDeliverySnapshot { Ports = ports };
+    }
+
+    private static ModuleInventorySnapshot BuildModuleInventorySnapshot(
+        FrameworkModuleInventorySnapshot inventory,
+        FrameworkExpansionBaySnapshot? expansionBay)
+    {
+        static ModuleDescriptorSnapshot Map(FrameworkModuleDescriptorSnapshot descriptor) => new()
+        {
+            Identity = descriptor.Identity,
+            Bus = descriptor.Bus,
+            SlotKind = descriptor.SlotKind,
+            Confidence = descriptor.Confidence,
+            IsPresent = descriptor.IsPresent,
+            SlotIndex = descriptor.SlotIndex,
+            Flags = descriptor.Flags,
+            VendorId = descriptor.VendorId,
+            ProductId = descriptor.ProductId,
+            BoardId = descriptor.BoardId,
+            Position = descriptor.Position,
+            CardType = FrameworkExpansionCardType.Unknown,
+            CardConfidence = FrameworkModuleConfidence.Unknown,
+        };
+
+        List<ModuleDescriptorSnapshot> usbCSlots = [];
+        foreach (var slot in inventory.ReportedUsbCSlots)
+        {
+            usbCSlots.Add(new ModuleDescriptorSnapshot
+            {
+                Identity = slot.Identity,
+                Bus = slot.Bus,
+                SlotKind = slot.SlotKind,
+                Confidence = slot.Confidence,
+                IsPresent = slot.IsPresent,
+                SlotIndex = slot.SlotIndex,
+                Flags = slot.Flags,
+                VendorId = slot.VendorId,
+                ProductId = slot.ProductId,
+                BoardId = slot.BoardId,
+                Position = FrameworkInputModulePosition.Unknown,
+                CardType = slot.CardType,
+                CardConfidence = slot.CardConfidence,
+            });
+        }
+
+        List<ModuleDescriptorSnapshot> inputDeck = [.. inventory.ReportedInputTopRowModules.Select(Map)];
+        if (inventory.InputTouchpad.IsPresent)
+        {
+            inputDeck.Add(Map(inventory.InputTouchpad));
+        }
+
+        List<ModuleDescriptorSnapshot> internals = [];
+        foreach (var fixedModule in new[] { inventory.InternalKeyboard, inventory.InternalTouchpad, inventory.FingerprintReader, inventory.Touchscreen, inventory.Webcam })
+        {
+            if (fixedModule.IsPresent)
+            {
+                internals.Add(Map(fixedModule));
+            }
+        }
+
+        // The bay snapshot (FW16-only read) refines the generic inventory classification (e.g. "ExpansionBay"
+        // → "ExpansionBayAmdGpu"); keep the inventory descriptor for the IDs/flags and overlay the identity.
+        ModuleDescriptorSnapshot? bayModule = null;
+        if (inventory.ExpansionBay.IsPresent)
+        {
+            bayModule = Map(inventory.ExpansionBay);
+            if (expansionBay is { Identity: not FrameworkModuleIdentity.None } refinedBay)
+            {
+                bayModule = bayModule with { Identity = refinedBay.Identity };
+            }
+        }
+
+        return new ModuleInventorySnapshot
+        {
+            UsbCSlots = usbCSlots,
+            InputDeckModules = inputDeck,
+            InternalModules = internals,
+            DetachedModules = [.. inventory.ReportedDetachedModules.Select(Map)],
+            ExpansionBayModule = bayModule,
+            ExpansionBayBoard = expansionBay?.Board ?? FrameworkExpansionBayBoard.Unknown,
+            ExpansionBayVendor = expansionBay?.Vendor ?? FrameworkExpansionBayVendor.Unknown,
+            ExpansionBaySerialNumber = expansionBay?.SerialNumber ?? string.Empty,
+        };
     }
 
 

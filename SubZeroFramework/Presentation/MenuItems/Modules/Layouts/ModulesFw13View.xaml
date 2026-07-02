@@ -1,0 +1,15 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.Modules.Layouts.ModulesFw13View"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:modules="using:SubZeroFramework.Controls.Modules"
+    mc:Ignorable="d">
+
+    <!--  Framework 13: fixed input cover (no input-deck slots), own chassis/keyboard art (asset rule).  -->
+    <modules:ModulesFixedChassisView
+        ChassisSource="ms-appx:///Assets/Png/framework-13-top.png"
+        CoverSource="ms-appx:///Assets/Png/framework-13-keyboard.png"
+        Page="{x:Bind ViewModel.Page, Mode=OneWay}" />
+</UserControl>

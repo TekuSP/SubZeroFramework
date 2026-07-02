@@ -29,6 +29,14 @@ public interface IFrameworkDataProvider
     IObservable<SubZeroFramework.Models.PowerDeliverySnapshot> PowerDeliverySnapshots
         => System.Reactive.Linq.Observable.Empty<SubZeroFramework.Models.PowerDeliverySnapshot>();
 
+    /// <summary>
+    /// The latest full module inventory (expansion-card slots, FW16 input deck, fixed internals, expansion bay,
+    /// detached modules). Empty by default; the EC-backed provider implements it from the same module-inventory
+    /// read that feeds <see cref="PowerDeliverySnapshots"/>.
+    /// </summary>
+    IObservable<SubZeroFramework.Models.ModuleInventorySnapshot> ModuleInventorySnapshots
+        => System.Reactive.Linq.Observable.Empty<SubZeroFramework.Models.ModuleInventorySnapshot>();
+
     IObservable<FrameworkThermalSnapshot> ThermalSnapshots { get; }
 
     IObservable<IChangeSet<HistoricalRecord<FrameworkSystemStatus>, long>> ConnectSystemStatusHistory(TimeSpan historyWindow);
