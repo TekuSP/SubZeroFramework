@@ -28,6 +28,7 @@
             <controls:InstancePickerView
                 x:Name="Picker"
                 Title="INSTALLED MODULES"
+                EmptyText="None detected"
                 ItemsSource="{x:Bind ViewModel.Page.MemoryModuleCards, Mode=OneWay}"
                 SelectionChanged="OnPickerSelectionChanged">
                 <controls:InstancePickerView.ItemTemplate>

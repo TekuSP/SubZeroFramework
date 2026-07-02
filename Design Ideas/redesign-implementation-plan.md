@@ -123,7 +123,10 @@ Two sources, per the handoff:
    - Graphics (design update 2026-07-02): second **MONITORS picker** beside GRAPHICS ADAPTERS + a monitor detail
      stacked under the adapter detail in one scroll pane — both are DataViewMap sub-regions
      (`GraphicsMonitor` route, `DeviceCapabilitiesGraphicsMonitorDetailModel/View`, two `Region.Attached`
-     hosts each synced by its own navigator). Monitor tiles: green Active, type, manufacturer, resolution +
+     hosts each synced by its own navigator). The MONITORS picker is SCOPED to the picked adapter's linked
+     monitors (`SyncMonitorSource` swaps `MonitorPicker.ItemsSource` to the group's `MonitorCards`, auto-selects
+     the first, collapses the monitor detail when the adapter has none — keeps the list consistent with the
+     adapter's "Monitors" count). Monitor tiles: green Active, type, manufacturer, resolution +
      shared `DeviceCapabilitiesResolutionBadge` chip, refresh, density, product code, serial, "2024 · week 42",
      description. Monitor snapshots with no WMI mode borrow resolution/refresh from the linked adapter
      (`EnrichMonitorWithLinkedControllerMode`). Dead `MonitorSummaryCardView`/`MonitorResolutionCards` removed.

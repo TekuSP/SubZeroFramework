@@ -26,6 +26,17 @@
                 ItemsSource="{x:Bind ItemsSource, Mode=OneWay}"
                 SelectionChanged="OnListSelectionChanged"
                 SelectionMode="Single" />
+            <TextBlock
+                x:Name="EmptyTextBlock"
+                Grid.Row="1"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                FontSize="12.5"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="{x:Bind EmptyText, Mode=OneWay}"
+                TextAlignment="Center"
+                TextWrapping="WrapWholeWords"
+                Visibility="Collapsed" />
         </Grid>
     </Border>
 </UserControl>

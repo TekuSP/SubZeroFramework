@@ -28,6 +28,7 @@
             <controls:InstancePickerView
                 x:Name="Picker"
                 Title="PACKAGES"
+                EmptyText="None detected"
                 ItemsSource="{x:Bind ViewModel.Page.CpuPackageCards, Mode=OneWay}"
                 SelectionChanged="OnPickerSelectionChanged">
                 <controls:InstancePickerView.ItemTemplate>

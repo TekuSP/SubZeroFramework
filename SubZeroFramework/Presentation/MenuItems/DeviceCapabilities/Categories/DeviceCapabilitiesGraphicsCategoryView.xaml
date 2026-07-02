@@ -30,6 +30,7 @@
             <controls:InstancePickerView
                 x:Name="Picker"
                 Title="GRAPHICS ADAPTERS"
+                EmptyText="None detected"
                 ItemsSource="{x:Bind ViewModel.Page.GraphicsCardGroups, Mode=OneWay}"
                 SelectionChanged="OnPickerSelectionChanged">
                 <controls:InstancePickerView.ItemTemplate>
@@ -61,11 +62,12 @@
                 </controls:InstancePickerView.ItemTemplate>
             </controls:InstancePickerView>
 
+            <!--  ItemsSource is set from code-behind: the list is scoped to the picked adapter's monitors.  -->
             <controls:InstancePickerView
                 x:Name="MonitorPicker"
                 Grid.Column="1"
                 Title="MONITORS"
-                ItemsSource="{x:Bind ViewModel.Page.MonitorCards, Mode=OneWay}"
+                EmptyText="None detected"
                 SelectionChanged="OnMonitorPickerSelectionChanged">
                 <controls:InstancePickerView.ItemTemplate>
                             <DataTemplate x:DataType="models:DeviceCapabilitiesMonitorCardModel">

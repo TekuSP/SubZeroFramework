@@ -57,6 +57,7 @@
             <controls:InstancePickerView
                 x:Name="Picker"
                 Title="DETECTED ADAPTERS"
+                EmptyText="None detected"
                 ItemsSource="{x:Bind ViewModel.Page.NetworkAdapterCards, Mode=OneWay}"
                 SelectionChanged="OnPickerSelectionChanged">
                 <controls:InstancePickerView.ItemTemplate>

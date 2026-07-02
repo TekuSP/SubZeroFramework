@@ -28,6 +28,7 @@
             <controls:InstancePickerView
                 x:Name="Picker"
                 Title="DETECTED DRIVES"
+                EmptyText="None detected"
                 ItemsSource="{x:Bind ViewModel.Page.StorageDriveCards, Mode=OneWay}"
                 SelectionChanged="OnPickerSelectionChanged">
                 <controls:InstancePickerView.ItemTemplate>

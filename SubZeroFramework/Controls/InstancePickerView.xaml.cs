@@ -13,6 +13,7 @@ public sealed partial class InstancePickerView : UserControl
     public InstancePickerView()
     {
         this.InitializeComponent();
+        List.Items.VectorChanged += (_, _) => UpdateEmptyTextVisibility();
     }
 
     public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(
@@ -32,12 +33,26 @@ public sealed partial class InstancePickerView : UserControl
         nameof(ItemsSource),
         typeof(object),
         typeof(InstancePickerView),
-        new PropertyMetadata(null));
+        new PropertyMetadata(null, static (sender, _) => ((InstancePickerView)sender).UpdateEmptyTextVisibility()));
 
     public object? ItemsSource
     {
         get => GetValue(ItemsSourceProperty);
         set => SetValue(ItemsSourceProperty, value);
+    }
+
+    public static readonly DependencyProperty EmptyTextProperty = DependencyProperty.Register(
+        nameof(EmptyText),
+        typeof(string),
+        typeof(InstancePickerView),
+        new PropertyMetadata(string.Empty, static (sender, _) => ((InstancePickerView)sender).UpdateEmptyTextVisibility()));
+
+    /// <summary>Muted placeholder shown centered in the panel while the list has no items (e.g. "None connected");
+    /// empty (the default) disables the placeholder.</summary>
+    public string EmptyText
+    {
+        get => (string)GetValue(EmptyTextProperty);
+        set => SetValue(EmptyTextProperty, value);
     }
 
     public static readonly DependencyProperty ItemTemplateProperty = DependencyProperty.Register(
@@ -71,4 +86,9 @@ public sealed partial class InstancePickerView : UserControl
 
     private void OnListSelectionChanged(object sender, SelectionChangedEventArgs e) =>
         SelectionChanged?.Invoke(this, e);
+
+    private void UpdateEmptyTextVisibility() =>
+        EmptyTextBlock.Visibility = !string.IsNullOrEmpty(EmptyText) && List.Items.Count == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 }
