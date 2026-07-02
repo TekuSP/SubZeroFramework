@@ -20,6 +20,10 @@
                 Label="Product"
                 Value="{x:Bind ViewModel.Adapter.ProductDisplay, Mode=OneWay}" />
             <deviceCapabilitiesControls:StatTileView
+                IconKind="Factory"
+                Label="Manufacturer"
+                Value="{x:Bind ViewModel.Adapter.ManufacturerDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
                 IconKind="Ethernet"
                 Label="Connection"
                 Value="{x:Bind ViewModel.Adapter.FriendlyTypeDisplay, Mode=OneWay}" />
