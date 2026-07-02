@@ -23,6 +23,8 @@ public sealed partial class DeviceCapabilitiesCpuSectionModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CpuCount))]
+    [NotifyPropertyChangedFor(nameof(CpuCountDisplay))]
+    [NotifyPropertyChangedFor(nameof(SocketsDisplay))]
     [NotifyPropertyChangedFor(nameof(AverageClockSpeed))]
     [NotifyPropertyChangedFor(nameof(AverageMaxClockSpeed))]
     [NotifyPropertyChangedFor(nameof(AverageCpuUsageDisplay))]
@@ -37,6 +39,11 @@ public sealed partial class DeviceCapabilitiesCpuSectionModel : ObservableObject
     private partial int RefreshVersion { get; set; }
 
     public int CpuCount => _parent.CpuCount;
+
+    public string CpuCountDisplay => _parent.CpuCount.ToString();
+
+    /// <summary>HardwareInfo reports one package per socket, so populated == present (mockup "1 of 1 populated").</summary>
+    public string SocketsDisplay => $"{_parent.CpuCount} of {_parent.CpuCount} populated";
 
     public string AverageClockSpeed => _parent.AverageClockSpeed;
 

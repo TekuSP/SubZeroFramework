@@ -22,12 +22,14 @@ public sealed partial class DeviceCapabilitiesMemorySectionModel : ObservableObj
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MemoryModuleCount))]
+    [NotifyPropertyChangedFor(nameof(MemoryModuleCountDisplay))]
     [NotifyPropertyChangedFor(nameof(MemoryTotalCapacity))]
     [NotifyPropertyChangedFor(nameof(TotalPhysicalMemory))]
     [NotifyPropertyChangedFor(nameof(AvailablePhysicalMemory))]
     [NotifyPropertyChangedFor(nameof(TotalPageFileMemory))]
     [NotifyPropertyChangedFor(nameof(AvailablePageFileMemory))]
     [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsagePercent))]
+    [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsageBarBrush))]
     [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsageDisplay))]
     [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsageSuccessVisibility))]
     [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsageWarningVisibility))]
@@ -35,6 +37,8 @@ public sealed partial class DeviceCapabilitiesMemorySectionModel : ObservableObj
     private partial int SnapshotVersion { get; set; }
 
     public int MemoryModuleCount => _parent.MemoryModuleCount;
+
+    public string MemoryModuleCountDisplay => _parent.MemoryModuleCount.ToString();
 
     public string MemoryTotalCapacity => _parent.MemoryTotalCapacity;
 
@@ -47,6 +51,8 @@ public sealed partial class DeviceCapabilitiesMemorySectionModel : ObservableObj
     public string AvailablePageFileMemory => _parent.AvailablePageFileMemory;
 
     public double PhysicalMemoryUsagePercent => _parent.PhysicalMemoryUsagePercent;
+
+    public Microsoft.UI.Xaml.Media.Brush PhysicalMemoryUsageBarBrush => _parent.PhysicalMemoryUsageBarBrush;
 
     public string PhysicalMemoryUsageDisplay => _parent.PhysicalMemoryUsageDisplay;
 

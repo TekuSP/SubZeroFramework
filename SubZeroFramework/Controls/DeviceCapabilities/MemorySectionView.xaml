@@ -1,342 +1,69 @@
-﻿<UserControl
+<UserControl
     x:Class="SubZeroFramework.Controls.DeviceCapabilities.MemorySectionView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:models="using:SubZeroFramework.Controls.DeviceCapabilities.Models"
     mc:Ignorable="d">
 
-    <UserControl.Resources>
-        <Style TargetType="TextBlock">
-            <Setter Property="IsTextSelectionEnabled" Value="True" />
-        </Style>
-    </UserControl.Resources>
-
-    <StackPanel Spacing="12">
+    <!--  Mockup "simplicity" layout: plain headings + stat tiles + the RAM usage bar, no card chrome.  -->
+    <StackPanel Spacing="10">
         <TextBlock
-            Margin="15,0"
-            FontSize="28"
+            FontSize="16"
             FontWeight="SemiBold"
             Foreground="{StaticResource TextPrimaryBrush}"
-            Text="Memory" />
-        <StackPanel Margin="10,0" Spacing="12">
-            <controls:ElevatedCard
-                HorizontalContentAlignment="Stretch"
-                VerticalContentAlignment="Stretch"
-                Background="{StaticResource CardBackgroundBrush}">
-                <StackPanel Padding="14" Spacing="14">
-                    <TextBlock
-                        FontSize="22"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="Capacity &amp; Runtime" />
-                    <Grid ColumnSpacing="12" RowSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <Border
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Memory modules" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.MemoryModuleCount, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Column="1"
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Total capacity" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.MemoryTotalCapacity, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Column="2"
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Physical total" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.TotalPhysicalMemory, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Row="1"
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Physical available" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.AvailablePhysicalMemory, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Row="1"
-                            Grid.Column="1"
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Swap / page file total" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.TotalPageFileMemory, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Row="1"
-                            Grid.Column="2"
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Swap / page file free" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.AvailablePageFileMemory, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-
-                    <StackPanel Spacing="8">
-                        <TextBlock
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Text="RAM usage"
-                            TextWrapping="WrapWholeWords" />
-                        <Grid>
-                            <ProgressBar
-                                Height="10"
-                                Foreground="{StaticResource StatusSuccessBrush}"
-                                Maximum="100"
-                                Visibility="{x:Bind ViewModel.PhysicalMemoryUsageSuccessVisibility, Mode=OneWay}"
-                                Value="{x:Bind ViewModel.PhysicalMemoryUsagePercent, Mode=OneWay}" />
-                            <ProgressBar
-                                Height="10"
-                                Foreground="{StaticResource StatusWarningBrush}"
-                                Maximum="100"
-                                Visibility="{x:Bind ViewModel.PhysicalMemoryUsageWarningVisibility, Mode=OneWay}"
-                                Value="{x:Bind ViewModel.PhysicalMemoryUsagePercent, Mode=OneWay}" />
-                            <ProgressBar
-                                Height="10"
-                                Foreground="{StaticResource StatusErrorBrush}"
-                                Maximum="100"
-                                Visibility="{x:Bind ViewModel.PhysicalMemoryUsageErrorVisibility, Mode=OneWay}"
-                                Value="{x:Bind ViewModel.PhysicalMemoryUsagePercent, Mode=OneWay}" />
-                        </Grid>
-                        <Grid>
-                            <TextBlock
-                                Foreground="{StaticResource StatusSuccessBrush}"
-                                Text="{x:Bind ViewModel.PhysicalMemoryUsageDisplay, Mode=OneWay}"
-                                TextWrapping="WrapWholeWords"
-                                Visibility="{x:Bind ViewModel.PhysicalMemoryUsageSuccessVisibility, Mode=OneWay}" />
-                            <TextBlock
-                                Foreground="{StaticResource StatusWarningBrush}"
-                                Text="{x:Bind ViewModel.PhysicalMemoryUsageDisplay, Mode=OneWay}"
-                                TextWrapping="WrapWholeWords"
-                                Visibility="{x:Bind ViewModel.PhysicalMemoryUsageWarningVisibility, Mode=OneWay}" />
-                            <TextBlock
-                                Foreground="{StaticResource StatusErrorBrush}"
-                                Text="{x:Bind ViewModel.PhysicalMemoryUsageDisplay, Mode=OneWay}"
-                                TextWrapping="WrapWholeWords"
-                                Visibility="{x:Bind ViewModel.PhysicalMemoryUsageErrorVisibility, Mode=OneWay}" />
-                        </Grid>
-                    </StackPanel>
-                </StackPanel>
-            </controls:ElevatedCard>
-        </StackPanel>
+            Text="Capacity &amp; runtime" />
+        <deviceCapabilitiesControls:StatTilePanel MaxColumns="6">
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Memory"
+                Label="Memory modules"
+                Value="{x:Bind ViewModel.MemoryModuleCountDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Database"
+                Label="Total capacity"
+                Value="{x:Bind ViewModel.MemoryTotalCapacity, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Database"
+                Label="Physical total"
+                Value="{x:Bind ViewModel.TotalPhysicalMemory, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="DatabaseCheck"
+                Label="Physical available"
+                Value="{x:Bind ViewModel.AvailablePhysicalMemory, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="SwapHorizontal"
+                Label="Swap / page total"
+                Value="{x:Bind ViewModel.TotalPageFileMemory, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="SwapHorizontal"
+                Label="Swap / page free"
+                Value="{x:Bind ViewModel.AvailablePageFileMemory, Mode=OneWay}" />
+        </deviceCapabilitiesControls:StatTilePanel>
 
         <TextBlock
-            Margin="15,0"
-            FontSize="22"
+            FontSize="16"
             FontWeight="SemiBold"
             Foreground="{StaticResource TextPrimaryBrush}"
-            Text="Installed Modules" />
-        <GridView
-            Margin="10,0"
-            IsItemClickEnabled="False"
-            ItemsSource="{x:Bind ViewModel.MemoryModuleCards, Mode=OneWay}"
-            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-            ScrollViewer.HorizontalScrollMode="Disabled"
-            ScrollViewer.VerticalScrollBarVisibility="Disabled"
-            ScrollViewer.VerticalScrollMode="Disabled"
-            SelectionMode="None">
-            <GridView.ItemTemplate>
-                <DataTemplate x:DataType="models:DeviceCapabilitiesMemoryModuleCardModel">
-                    <controls:ElevatedCard
-                        Width="420"
-                        Margin="0,0,12,12"
-                        HorizontalContentAlignment="Stretch"
-                        VerticalContentAlignment="Stretch"
-                        Background="{StaticResource CardBackgroundBrush}">
-                        <StackPanel Padding="14" Spacing="10">
-                            <TextBlock
-                                FontSize="18"
-                                FontWeight="SemiBold"
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind BankLabel, FallbackValue=Unknown, TargetNullValue=Unknown}" />
-                            <Grid ColumnSpacing="8" RowSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                                <Border
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Capacity" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind DisplayCapacity, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                            TextWrapping="WrapWholeWords" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Column="1"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Memory Type" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind MemoryType, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                            TextWrapping="WrapWholeWords" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Row="1"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Speed" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind DisplaySpeed, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                            TextWrapping="WrapWholeWords" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Row="1"
-                                    Grid.Column="1"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Data Width" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind DisplayDataWidth, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                            TextWrapping="WrapWholeWords" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Row="2"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind Manufacturer, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                            TextWrapping="WrapWholeWords" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Row="2"
-                                    Grid.Column="1"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Form Factor" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind FormFactor, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                            TextWrapping="WrapWholeWords" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Row="3"
-                                    Grid.ColumnSpan="2"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Part Number" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind PartNumber, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                            TextWrapping="WrapWholeWords" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Row="4"
-                                    Grid.ColumnSpan="2"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Serial Number" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind SerialNumber, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                            TextWrapping="WrapWholeWords" />
-                                    </StackPanel>
-                                </Border>
-                            </Grid>
-                        </StackPanel>
-                    </controls:ElevatedCard>
-                </DataTemplate>
-            </GridView.ItemTemplate>
-        </GridView>
+            Text="RAM usage" />
+        <Border
+            Padding="14,12"
+            Background="{StaticResource CardBackgroundBrush}"
+            BorderBrush="{StaticResource SurfaceOutlineBrush}"
+            BorderThickness="1"
+            CornerRadius="11">
+            <StackPanel Spacing="8">
+                <ProgressBar
+                    MinHeight="6"
+                    Foreground="{x:Bind ViewModel.PhysicalMemoryUsageBarBrush, Mode=OneWay}"
+                    Maximum="100"
+                    Value="{x:Bind ViewModel.PhysicalMemoryUsagePercent, Mode=OneWay}" />
+                <TextBlock
+                    FontSize="12.5"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    IsTextSelectionEnabled="True"
+                    Text="{x:Bind ViewModel.PhysicalMemoryUsageDisplay, Mode=OneWay}" />
+            </StackPanel>
+        </Border>
     </StackPanel>
 </UserControl>

@@ -18,6 +18,7 @@ public partial class DeviceCapabilitiesVideoControllerCardModel : ObservableObje
     [NotifyPropertyChangedFor(nameof(DisplayDriverDate))]
     [NotifyPropertyChangedFor(nameof(VideoModeDescription))]
     [NotifyPropertyChangedFor(nameof(DisplayResolution))]
+    [NotifyPropertyChangedFor(nameof(ResolutionBadge))]
     [NotifyPropertyChangedFor(nameof(DisplayRefreshRate))]
     [NotifyPropertyChangedFor(nameof(DisplayAdapterRam))]
     [NotifyPropertyChangedFor(nameof(ConnectedMonitorCountDisplay))]
@@ -37,6 +38,9 @@ public partial class DeviceCapabilitiesVideoControllerCardModel : ObservableObje
     public string VideoModeDescription => FirstNonEmpty(Snapshot.VideoModeDescription) ?? "Unknown";
 
     public string DisplayResolution => Snapshot.DisplayResolution;
+
+    /// <summary>Resolution standard chip per the mockup (WQXGA / QHD / Full HD…); empty when inactive.</summary>
+    public string ResolutionBadge => DeviceCapabilitiesResolutionBadge.For(Snapshot.CurrentHorizontalResolution, Snapshot.CurrentVerticalResolution);
 
     public string DisplayRefreshRate => Snapshot.DisplayRefreshRate;
 

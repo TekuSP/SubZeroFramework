@@ -1,9 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using LiveChartsCore.Defaults;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using SubZeroFramework.Models;
 using SubZeroFramework.Presentation;
 using SubZeroFramework.Services.Units;
+using SubZeroFramework.Themes;
 using System.Collections.ObjectModel;
 using System.Collections.Generic;
 
@@ -37,6 +39,7 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(L3CacheDisplay))]
     [NotifyPropertyChangedFor(nameof(SocketDisplay))]
     [NotifyPropertyChangedFor(nameof(VirtualizationDisplay))]
+    [NotifyPropertyChangedFor(nameof(VirtualizationBrush))]
     [NotifyPropertyChangedFor(nameof(HasCpuCoreDetails))]
     [NotifyPropertyChangedFor(nameof(CpuCoreCountDisplay))]
     [NotifyPropertyChangedFor(nameof(CpuCoreDetailsVisibility))]
@@ -90,6 +93,11 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
     public string SocketDisplay => FirstNonEmpty(Snapshot.SocketDesignation) ?? "Unavailable";
 
     public string VirtualizationDisplay => BuildVirtualizationDisplay();
+
+    /// <summary>Mockup state colour: green when virtualization is firmware-enabled.</summary>
+    public Brush VirtualizationBrush => VirtualizationDisplay.Contains("enabled", StringComparison.OrdinalIgnoreCase)
+        ? AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor)
+        : AppThemeBrushes.Get("TextPrimaryBrush", AppThemeBrushes.StatusWarningColor);
 
     public bool HasCpuCoreDetails => Snapshot.HasCpuCoreDetails;
 

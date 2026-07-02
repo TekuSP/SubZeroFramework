@@ -1,0 +1,18 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.DeviceCapabilities.Categories.DeviceCapabilitiesSystemProfileCategoryView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--  Profile column with the cooling-hardware and platform-firmware blocks folded in (mockup 09).  -->
+    <ScrollViewer Padding="0,0,12,0" VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="0,0,0,14" Spacing="18">
+        <deviceCapabilitiesControls:SystemProfileSectionView ViewModel="{x:Bind ViewModel.ProfileSection, Mode=OneWay}" />
+        <deviceCapabilitiesControls:CoolingSectionView ViewModel="{x:Bind ViewModel.CoolingSection, Mode=OneWay}" />
+        <deviceCapabilitiesControls:PlatformFirmwareSectionView ViewModel="{x:Bind ViewModel.FirmwareSection, Mode=OneWay}" />
+    </StackPanel>
+    </ScrollViewer>
+</UserControl>

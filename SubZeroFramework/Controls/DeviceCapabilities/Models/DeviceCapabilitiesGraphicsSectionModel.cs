@@ -20,17 +20,30 @@ public sealed partial class DeviceCapabilitiesGraphicsSectionModel : ObservableO
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(GraphicsAdapterCount))]
+    [NotifyPropertyChangedFor(nameof(GraphicsAdapterCountDisplay))]
+    [NotifyPropertyChangedFor(nameof(MonitorCountDisplay))]
+    [NotifyPropertyChangedFor(nameof(ActiveMonitorCountDisplay))]
+    [NotifyPropertyChangedFor(nameof(PrimaryDisplayName))]
+    [NotifyPropertyChangedFor(nameof(PrimaryDisplayBadge))]
     [NotifyPropertyChangedFor(nameof(MonitorCount))]
     [NotifyPropertyChangedFor(nameof(ActiveMonitorCount))]
     private partial int SnapshotVersion { get; set; }
 
     public int GraphicsAdapterCount => _parent.GraphicsAdapterCount;
 
+    public string GraphicsAdapterCountDisplay => _parent.GraphicsAdapterCount.ToString();
+
+    public string MonitorCountDisplay => _parent.MonitorCount.ToString();
+
+    public string ActiveMonitorCountDisplay => _parent.ActiveMonitorCount.ToString();
+
+    public string PrimaryDisplayName => _parent.PrimaryDisplayName;
+
+    public string PrimaryDisplayBadge => _parent.PrimaryDisplayBadge;
+
     public int MonitorCount => _parent.MonitorCount;
 
     public int ActiveMonitorCount => _parent.ActiveMonitorCount;
-
-    public ReadOnlyObservableCollection<DeviceCapabilitiesMonitorResolutionCard> MonitorResolutionCards => _parent.MonitorResolutionCards;
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesGraphicsCardGroupModel> GraphicsCardGroups => _parent.GraphicsCardGroups;
 

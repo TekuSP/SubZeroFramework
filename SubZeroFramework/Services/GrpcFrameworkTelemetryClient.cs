@@ -327,6 +327,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             NumericValue = reply.HasNumericValue ? reply.NumericValue : null,
             TemperatureState = ParseTemperatureState(reply.TemperatureState),
             SensorName = ParseSensorName(reply.SensorName),
+            FanName = ParseFanName(reply.FanName),
             PowerSourceState = ParsePowerSourceState(reply.PowerSourceState),
             BatteryState = ParseBatteryState(reply.BatteryState),
             BatteryManufacturer = string.IsNullOrEmpty(reply.BatteryManufacturer) ? null : reply.BatteryManufacturer,
@@ -468,6 +469,24 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             _ => null,
         };
     }
+
+    // FD0001 (platform-specific enum members) is intentionally suppressed: we translate whatever fan name the
+    // device itself reported, so only the cases valid for the running platform are ever hit; the rest are inert.
+#pragma warning disable FD0001
+    private static FrameworkFanName? ParseFanName(FanNameValue value)
+    {
+        return value switch
+        {
+            FanNameValue.Generic => FrameworkFanName.Generic,
+            FanNameValue.ApuFan => FrameworkFanName.ApuFan,
+            FanNameValue.LeftFan => FrameworkFanName.LeftFan,
+            FanNameValue.RightFan => FrameworkFanName.RightFan,
+            FanNameValue.FrontFan => FrameworkFanName.FrontFan,
+            FanNameValue.ThirdFan => FrameworkFanName.ThirdFan,
+            _ => null,
+        };
+    }
+#pragma warning restore FD0001
 
     private static FrameworkSensorName? ParseSensorName(TemperatureSensorNameValue value)
     {

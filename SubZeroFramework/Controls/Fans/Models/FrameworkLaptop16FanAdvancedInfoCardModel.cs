@@ -29,6 +29,7 @@ public partial class FrameworkLaptop16FanAdvancedInfoCardModel : FanAdvancedInfo
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShellFanDimensionsDisplay))]
+    [NotifyPropertyChangedFor(nameof(ShellFanThicknessDisplay))]
     public partial double ShellFanThicknessMillimeters { get; set; }
 
     [ObservableProperty]
@@ -41,6 +42,7 @@ public partial class FrameworkLaptop16FanAdvancedInfoCardModel : FanAdvancedInfo
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(GraphicsFanDimensionsDisplay))]
+    [NotifyPropertyChangedFor(nameof(GraphicsFanThicknessDisplay))]
     public partial double GraphicsFanThicknessMillimeters { get; set; }
 
     [ObservableProperty]
@@ -57,7 +59,9 @@ public partial class FrameworkLaptop16FanAdvancedInfoCardModel : FanAdvancedInfo
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShellFanDimensionsDisplay))]
+    [NotifyPropertyChangedFor(nameof(ShellFanThicknessDisplay))]
     [NotifyPropertyChangedFor(nameof(GraphicsFanDimensionsDisplay))]
+    [NotifyPropertyChangedFor(nameof(GraphicsFanThicknessDisplay))]
     [NotifyPropertyChangedFor(nameof(ExpansionBayPowerLimitDisplay))]
     [NotifyPropertyChangedFor(nameof(StandardFirmwareMaximumDisplay))]
     [NotifyPropertyChangedFor(nameof(ApproximateThermalStressMaximumDisplay))]
@@ -67,7 +71,11 @@ public partial class FrameworkLaptop16FanAdvancedInfoCardModel : FanAdvancedInfo
 
     public string GraphicsFanDimensionsDisplay => BuildDimensionsDisplay(GraphicsFanWidthMillimeters, GraphicsFanHeightMillimeters, GraphicsFanThicknessMillimeters);
 
-    public string ExpansionBayPowerLimitDisplay => $"{_unitFormattingService.FormatPowerWatts(ExpansionBayPowerLimitWatts)} allocated maximum";
+    public string ShellFanThicknessDisplay => $"{_unitFormattingService.FormatLengthMillimeters(ShellFanThicknessMillimeters)} thick";
+
+    public string GraphicsFanThicknessDisplay => $"{_unitFormattingService.FormatLengthMillimeters(GraphicsFanThicknessMillimeters)} thick";
+
+    public string ExpansionBayPowerLimitDisplay => $"{_unitFormattingService.FormatPowerWatts(ExpansionBayPowerLimitWatts)} max";
 
     public string StandardFirmwareMaximumDisplay => _unitFormattingService.FormatFanSpeed(StandardFirmwareMaximumRpm);
 

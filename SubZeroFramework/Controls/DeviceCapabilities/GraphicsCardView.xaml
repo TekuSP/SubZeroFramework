@@ -1,217 +1,60 @@
-﻿<UserControl
+<UserControl
     x:Class="SubZeroFramework.Controls.DeviceCapabilities.GraphicsCardView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:models="using:SubZeroFramework.Controls.DeviceCapabilities.Models"
     mc:Ignorable="d">
 
-    <Border VerticalAlignment="Stretch">
-        <controls:ElevatedCard
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Stretch"
-            MinHeight="320"
-            HorizontalContentAlignment="Stretch"
-            VerticalContentAlignment="Stretch"
-            Background="{StaticResource CardBackgroundBrush}">
-            <StackPanel Padding="14" Spacing="12">
-                <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+    <!--  Adapter detail per the mockup: plain heading + six stat tiles (Resolution carries the standard badge).  -->
+    <StackPanel Spacing="12">
+        <TextBlock
+            FontSize="16"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource TextPrimaryBrush}"
+            IsTextSelectionEnabled="True"
+            Text="{x:Bind ViewModel.DisplayName, Mode=OneWay}" />
 
-                    <TextBlock
-                        FontSize="24"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="{x:Bind ViewModel.DisplayName, Mode=OneWay}"
-                        TextWrapping="WrapWholeWords" />
-                    <TextBlock
-                        Grid.Column="1"
-                        VerticalAlignment="Top"
-                        FontSize="18"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource TextSecondaryBrush}"
-                        Text="{x:Bind ViewModel.AdapterLabel, Mode=OneWay}" />
-                </Grid>
+        <deviceCapabilitiesControls:StatTilePanel Visibility="{x:Bind ViewModel.KnownGraphicsCardVisibility, Mode=OneWay}">
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Cog"
+                Label="Driver version"
+                Value="{x:Bind ViewModel.VideoController.DriverVersion, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="CalendarMonth"
+                Label="Driver date"
+                Value="{x:Bind ViewModel.VideoController.DisplayDriverDate, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Memory"
+                Label="Adapter RAM"
+                Value="{x:Bind ViewModel.VideoController.DisplayAdapterRam, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+            <deviceCapabilitiesControls:StatTileView
+                Badge="{x:Bind ViewModel.VideoController.ResolutionBadge, Mode=OneWay}"
+                IconKind="Monitor"
+                Label="Resolution"
+                Value="{x:Bind ViewModel.VideoController.DisplayResolution, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="SineWave"
+                Label="Refresh rate"
+                Value="{x:Bind ViewModel.VideoController.DisplayRefreshRate, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="MonitorMultiple"
+                Label="Monitors"
+                Value="{x:Bind ViewModel.MonitorCountDisplay, Mode=OneWay}" />
+        </deviceCapabilitiesControls:StatTilePanel>
 
-                <Grid
-                    Visibility="{x:Bind ViewModel.KnownGraphicsCardVisibility, Mode=OneWay}"
-                    ColumnSpacing="8"
-                    RowSpacing="8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <Border
-                        Padding="10"
-                        Background="{StaticResource CardMetricBackgroundBrush}"
-                        CornerRadius="10">
-                        <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
-                            <TextBlock
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.VideoController.Manufacturer, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                TextWrapping="WrapWholeWords" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border
-                        Grid.Column="1"
-                        Padding="10"
-                        Background="{StaticResource CardMetricBackgroundBrush}"
-                        CornerRadius="10">
-                        <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Video Processor" />
-                            <TextBlock
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.VideoController.VideoProcessor, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                TextWrapping="WrapWholeWords" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border
-                        Grid.Column="2"
-                        Padding="10"
-                        Background="{StaticResource CardMetricBackgroundBrush}"
-                        CornerRadius="10">
-                        <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Driver Version" />
-                            <TextBlock
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.VideoController.DriverVersion, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                TextWrapping="WrapWholeWords" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border
-                        Grid.Column="3"
-                        Padding="10"
-                        Background="{StaticResource CardMetricBackgroundBrush}"
-                        CornerRadius="10">
-                        <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Driver Date" />
-                            <TextBlock
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.VideoController.DisplayDriverDate, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                TextWrapping="WrapWholeWords" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border
-                        Grid.Row="1"
-                        Padding="10"
-                        Background="{StaticResource CardMetricBackgroundBrush}"
-                        CornerRadius="10">
-                        <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Resolution" />
-                            <TextBlock
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.VideoController.DisplayResolution, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                TextWrapping="WrapWholeWords" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border
-                        Grid.Row="1"
-                        Grid.Column="1"
-                        Padding="10"
-                        Background="{StaticResource CardMetricBackgroundBrush}"
-                        CornerRadius="10">
-                        <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Refresh Rate" />
-                            <TextBlock
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.VideoController.DisplayRefreshRate, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                TextWrapping="WrapWholeWords" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border
-                        Grid.Row="1"
-                        Grid.Column="2"
-                        Padding="10"
-                        Background="{StaticResource CardMetricBackgroundBrush}"
-                        CornerRadius="10">
-                        <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Adapter RAM" />
-                            <TextBlock
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.VideoController.DisplayAdapterRam, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}"
-                                TextWrapping="WrapWholeWords" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border
-                        Grid.Row="1"
-                        Grid.Column="3"
-                        Padding="10"
-                        Background="{StaticResource CardMetricBackgroundBrush}"
-                        CornerRadius="10">
-                        <StackPanel>
-                            <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Monitors" />
-                            <TextBlock
-                                Foreground="{StaticResource TextPrimaryBrush}"
-                                Text="{x:Bind ViewModel.MonitorCountDisplay, Mode=OneWay}"
-                                TextWrapping="WrapWholeWords" />
-                        </StackPanel>
-                    </Border>
-                </Grid>
-
-                <Border
-                    Padding="12"
-                    Background="{StaticResource CardMetricBackgroundBrush}"
-                    CornerRadius="12"
-                    Visibility="{x:Bind ViewModel.UnknownGraphicsCardVisibility, Mode=OneWay}">
-                    <TextBlock
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="Monitors in this group did not report a linked graphics card, so they are shown separately instead of being guessed onto one GPU."
-                        TextWrapping="WrapWholeWords" />
-                </Border>
-
-                <StackPanel Spacing="8">
-                    <TextBlock
-                        FontSize="18"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="Associated Monitors" />
-
-                    <TextBlock
-                        Foreground="{StaticResource TextSecondaryBrush}"
-                        Text="{x:Bind ViewModel.EmptyMonitorMessage, Mode=OneWay}"
-                        TextWrapping="WrapWholeWords"
-                        Visibility="{x:Bind ViewModel.EmptyMonitorMessageVisibility, Mode=OneWay}" />
-
-                    <ItemsControl
-                        ItemsSource="{x:Bind ViewModel.MonitorCards, Mode=OneWay}"
-                        Visibility="{x:Bind ViewModel.HasMonitorCardsVisibility, Mode=OneWay}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <controls:AutoWrapPanel
-                                    HorizontalSpacing="12"
-                                    ItemWidth="360"
-                                    VerticalSpacing="12" />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="models:DeviceCapabilitiesMonitorCardModel">
-                                <deviceCapabilitiesControls:MonitorSummaryCardView ViewModel="{x:Bind Mode=OneWay}" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </StackPanel>
-        </controls:ElevatedCard>
-    </Border>
+        <Border
+            Padding="14,12"
+            Background="{StaticResource CardBackgroundBrush}"
+            BorderBrush="{StaticResource SurfaceOutlineBrush}"
+            BorderThickness="1"
+            CornerRadius="11"
+            Visibility="{x:Bind ViewModel.UnknownGraphicsCardVisibility, Mode=OneWay}">
+            <TextBlock
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="Monitors in this group did not report a linked graphics card, so they are shown separately instead of being guessed onto one GPU."
+                TextWrapping="WrapWholeWords" />
+        </Border>
+    </StackPanel>
 </UserControl>

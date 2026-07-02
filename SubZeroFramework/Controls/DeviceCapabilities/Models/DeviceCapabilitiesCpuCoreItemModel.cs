@@ -105,44 +105,46 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
             : $"Core {candidate}";
     }
 
+    // Mockup load tiers: idle muted, light blue, busy amber, saturated red — value and sparkline share the tier.
     private static Brush GetUsageBrush(double usagePercent)
     {
-        if (usagePercent < 45d)
+        if (usagePercent <= 1d)
         {
-            return AppThemeBrushes.Get("BrandPrimaryBrush", AppThemeBrushes.TemperatureAccentColor);
+            return AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextPrimaryColor);
         }
 
-        if (usagePercent < PresentationDefaults.WarningUsagePercent)
+        if (usagePercent < 50d)
         {
-            return AppThemeBrushes.Get("TextPrimaryBrush", AppThemeBrushes.TextPrimaryColor);
+            return AppThemeBrushes.Get("StatusInfoBrush", AppThemeBrushes.TemperatureAccentColor);
         }
 
-        if (usagePercent < PresentationDefaults.ErrorUsagePercent)
+        if (usagePercent < 90d)
         {
             return AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor);
         }
 
-        return AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
+        return AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor);
     }
 
     private static string GetUsageStrokeHex(double usagePercent)
     {
-        if (usagePercent < 45d)
+        if (usagePercent <= 1d)
+        {
+            return AppThemeBrushes.ChartMutedColorHex;
+        }
+
+        if (usagePercent < 50d)
         {
             return AppThemeBrushes.ChartAccentColorHex;
         }
 
-        if (usagePercent < PresentationDefaults.WarningUsagePercent)
-        {
-            return AppThemeBrushes.ChartPrimaryColorHex;
-        }
-
-        if (usagePercent < PresentationDefaults.ErrorUsagePercent)
+        if (usagePercent < 90d)
         {
             return AppThemeBrushes.ChartWarningColorHex;
         }
 
-        return AppThemeBrushes.ChartErrorColorHex;
+        // Bright danger tone (StatusErrorTextBrush); the chart-palette error hex is too muted for the mockup.
+        return "#D9706A";
     }
 
     private static string Formatter(DateTime date)

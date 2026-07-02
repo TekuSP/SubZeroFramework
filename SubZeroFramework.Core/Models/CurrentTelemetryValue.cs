@@ -19,6 +19,9 @@ public sealed record CurrentTelemetryValue
     /// <summary>Platform role of a temperature sensor (thermal channels only); null for non-thermal channels.</summary>
     public FrameworkSensorName? SensorName { get; init; }
 
+    /// <summary>Platform role of a fan (fan channels only); null for non-fan channels.</summary>
+    public FrameworkFanName? FanName { get; init; }
+
     public FrameworkPowerSourceState? PowerSourceState { get; init; }
 
     public FrameworkBatteryState? BatteryState { get; init; }

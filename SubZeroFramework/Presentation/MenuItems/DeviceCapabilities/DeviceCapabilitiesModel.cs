@@ -1,8 +1,11 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using DynamicData;
 using FrameworkDotnet.Enums;
 using LiveChartsCore.Defaults;
+using Material.Icons;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Media;
 using SubZeroFramework.Controls.Fans.Models;
 using SubZeroFramework.Models;
 using SubZeroFramework.Services;
@@ -18,6 +21,7 @@ using Microsoft.UI.Dispatching;
 using CommunityToolkit.WinUI;
 using SubZeroFramework.Controls.DeviceCapabilities.Models;
 using SubZeroFramework.Services.Units;
+using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 
@@ -46,7 +50,6 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     private readonly ObservableCollection<DeviceCapabilitiesVideoControllerCardModel> _videoControllerCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesGraphicsCardGroupModel> _graphicsCardGroups = [];
     private readonly ObservableCollection<DeviceCapabilitiesMonitorCardModel> _monitorCards = [];
-    private readonly ObservableCollection<DeviceCapabilitiesMonitorResolutionCard> _monitorResolutionCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> _temperatureStatusItems = [];
     private readonly ObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> _fanStatusItems = [];
     private readonly ObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> _batteryStatusItems = [];
@@ -64,14 +67,23 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         nameof(MonitorCount),
         nameof(ActiveMonitorCount),
         nameof(StorageDriveCount),
+        nameof(PrimaryDisplayName),
+        nameof(PrimaryDisplayBadge),
         nameof(TotalStorageCapacity),
         nameof(TotalStorageUsedSpace),
         nameof(TotalStorageFreeSpace),
+        nameof(TotalStorageFreeBrush),
         nameof(TotalStorageUsagePercent),
         nameof(TotalStorageUsageSummary),
+        nameof(TotalStorageUsageBarBrush),
+        nameof(PhysicalMemoryUsageBarBrush),
         nameof(NetworkAdapterCount),
+        nameof(NetworkAdapterCountDisplay),
         nameof(ConnectedNetworkAdapterCount),
-        nameof(MonitorResolutionCards),
+        nameof(ConnectedNetworkAdapterCountDisplay),
+        nameof(ConnectedNetworkAdapterBrush),
+        nameof(FastestLinkDisplay),
+        nameof(FastestLinkBrush),
         nameof(SystemProfileOs),
         nameof(SystemProfileVendor),
         nameof(SystemProfileModel),
@@ -111,8 +123,6 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesMonitorCardModel> MonitorCards { get; }
 
-    public ReadOnlyObservableCollection<DeviceCapabilitiesMonitorResolutionCard> MonitorResolutionCards { get; }
-
     public ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> TemperatureStatusItems { get; }
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> FanStatusItems { get; }
@@ -136,6 +146,45 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     public DeviceCapabilitiesGraphicsSectionModel GraphicsSection { get; }
 
     public DeviceCapabilitiesNetworkSectionModel NetworkSection { get; }
+
+    // ----- Category rail (two-pane layout): Onboard · CPU · Memory · Storage · Graphics · Network · System profile -----
+
+    public ObservableCollection<DeviceCapabilitiesCategoryRailItemModel> Categories { get; } =
+    [
+        new(0, "Onboard devices", MaterialIconKind.Devices),
+        new(1, "CPU", MaterialIconKind.Chip),
+        new(2, "Memory", MaterialIconKind.Memory),
+        new(3, "Storage", MaterialIconKind.Harddisk),
+        new(4, "Graphics", MaterialIconKind.ExpansionCard),
+        new(5, "Network", MaterialIconKind.Lan),
+        new(6, "System profile", MaterialIconKind.InformationOutline),
+    ];
+
+    /// <summary>Selected rail entry; the page's code-behind mirrors it into the category navigation sub-region.</summary>
+    [ObservableProperty]
+    public partial int SelectedCategoryIndex { get; set; }
+
+    [RelayCommand]
+    private void SelectCategory(DeviceCapabilitiesCategoryRailItemModel category)
+    {
+        foreach (var entry in Categories)
+        {
+            entry.IsSelected = entry.Index == category.Index;
+        }
+
+        SelectedCategoryIndex = category.Index;
+    }
+
+    /// <summary>Refreshes the rail count badges from the live collections; must run on the dispatcher.</summary>
+    private void RefreshCategoryCounts()
+    {
+        Categories[0].Count = _temperatureStatusItems.Count + _fanStatusItems.Count + _batteryStatusItems.Count;
+        Categories[1].Count = CpuCount;
+        Categories[2].Count = MemoryModuleCount;
+        Categories[3].Count = StorageDriveCount;
+        Categories[4].Count = GraphicsAdapterCount;
+        Categories[5].Count = NetworkAdapterCount;
+    }
 
     public int CpuCount => Snapshot?.Runtime.Cpus.Length ?? 0;
 
@@ -174,6 +223,27 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     public int StorageDriveCount => Snapshot?.Inventory.Drives.Length ?? 0;
 
+    /// <summary>Primary display name + tier badge for the Graphics summary (mockup "Primary display" tile).</summary>
+    public string PrimaryDisplayName
+    {
+        get
+        {
+            var monitors = Snapshot?.Runtime.Monitors ?? [];
+            var primary = monitors.FirstOrDefault(monitor => monitor.Active) ?? monitors.FirstOrDefault();
+            return primary is null ? "Unknown" : primary.DisplayName;
+        }
+    }
+
+    public string PrimaryDisplayBadge
+    {
+        get
+        {
+            var monitors = Snapshot?.Runtime.Monitors ?? [];
+            var primary = monitors.FirstOrDefault(monitor => monitor.Active) ?? monitors.FirstOrDefault();
+            return primary is null ? string.Empty : GetDisplayTierLabel(primary);
+        }
+    }
+
     public string TotalStorageCapacity => Snapshot?.Inventory.Drives.Length > 0
         ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.Size))
         : "Unknown";
@@ -208,7 +278,64 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         ? $"{TotalStorageUsedSpace} used / {TotalStorageFreeSpace} free"
         : "Unknown";
 
+    /// <summary>Mockup state colour for the aggregate Free value (red nearly full, amber low).</summary>
+    public Brush TotalStorageFreeBrush => DeviceCapabilitiesStorageDriveCardModel.FreePercentBrush(
+        Snapshot?.Inventory.Drives.Length > 0 ? 100d - TotalStorageUsagePercent : null);
+
+    public Brush TotalStorageUsageBarBrush => UsageBarBrush(TotalStorageUsagePercent);
+
+    public Brush PhysicalMemoryUsageBarBrush => UsageBarBrush(PhysicalMemoryUsagePercent);
+
+    /// <summary>Usage-bar fill per the mockup: green when comfortable, amber when high, red when nearly full.</summary>
+    private static Brush UsageBarBrush(double percent) => percent switch
+    {
+        < 75d => AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor),
+        < 90d => AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor),
+        _ => AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor),
+    };
+
     public int NetworkAdapterCount => Snapshot?.Inventory.NetworkAdapters.Length ?? 0;
+
+    public string NetworkAdapterCountDisplay => NetworkAdapterCount.ToString();
+
+    public string ConnectedNetworkAdapterCountDisplay => ConnectedNetworkAdapterCount.ToString();
+
+    public Brush ConnectedNetworkAdapterBrush => ConnectedNetworkAdapterCount > 0
+        ? AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor)
+        : AppThemeBrushes.Get("TextPrimaryBrush", AppThemeBrushes.StatusWarningColor);
+
+    /// <summary>Fastest reported link speed across adapters ("1.2 Gbps"), for the mockup's summary tile.</summary>
+    public string FastestLinkDisplay
+    {
+        get
+        {
+            var fastest = Snapshot?.Inventory.NetworkAdapters
+                .Where(adapter => adapter.HasKnownSpeed
+                    && !DeviceCapabilitiesNetworkAdapterCardModel.IsTunnelAdapter(adapter))
+                .Select(adapter => (double)adapter.Speed)
+                .DefaultIfEmpty(0d)
+                .Max() ?? 0d;
+
+            return fastest > 0d ? _unitFormattingService.FormatBitRateBitsPerSecond(fastest) : "Unknown";
+        }
+    }
+
+    public Brush FastestLinkBrush => FastestLinkDisplay == "Unknown"
+        ? AppThemeBrushes.Get("TextPrimaryBrush", AppThemeBrushes.StatusWarningColor)
+        : AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor);
+
+    /// <summary>Coarse connectivity flag for the Network category's Internet tile; refreshed with each
+    /// HardwareInfo snapshot (HardwareInfo itself carries no internet flag).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(InternetStatusDisplay))]
+    [NotifyPropertyChangedFor(nameof(InternetStatusBrush))]
+    public partial bool IsInternetAvailable { get; set; }
+
+    public string InternetStatusDisplay => IsInternetAvailable ? "Connected" : "Offline";
+
+    public Brush InternetStatusBrush => IsInternetAvailable
+        ? AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor)
+        : AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor);
 
     public int ConnectedNetworkAdapterCount => Snapshot?.Inventory.NetworkAdapters.Count(adapter => adapter.HasAssignedAddress) ?? 0;
 
@@ -381,8 +508,12 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         IUserUnitPreferencesClient userUnitPreferencesClient,
         IUnitFormattingService unitFormattingService,
         SynchronizationContext synchronizationContext,
-        DispatcherQueue dispatcherQueue)
+        DispatcherQueue dispatcherQueue,
+        DeviceCapabilitiesAccessor accessor)
     {
+        // Publish this instance for the navigation-resolved category body VMs (see DeviceCapabilitiesAccessor).
+        accessor.Current = this;
+
         _hardwareInfoClient = hardwareInfoClient;
         _fanStateClient = fanStateClient;
         _fanTelemetryClient = fanTelemetryClient;
@@ -401,10 +532,11 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         VideoControllerCards = new ReadOnlyObservableCollection<DeviceCapabilitiesVideoControllerCardModel>(_videoControllerCards);
         GraphicsCardGroups = new ReadOnlyObservableCollection<DeviceCapabilitiesGraphicsCardGroupModel>(_graphicsCardGroups);
         MonitorCards = new ReadOnlyObservableCollection<DeviceCapabilitiesMonitorCardModel>(_monitorCards);
-        MonitorResolutionCards = new ReadOnlyObservableCollection<DeviceCapabilitiesMonitorResolutionCard>(_monitorResolutionCards);
         TemperatureStatusItems = new ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel>(_temperatureStatusItems);
         FanStatusItems = new ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel>(_fanStatusItems);
         BatteryStatusItems = new ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel>(_batteryStatusItems);
+
+        Categories[0].IsSelected = true;
 
         OnboardStatusSection = new DeviceCapabilitiesOnboardStatusSectionModel(this);
         SystemProfileSection = new DeviceCapabilitiesSystemProfileSectionModel(this);
@@ -492,9 +624,15 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     private async Task UpdateSnapshotAsync(HardwareInfoSnapshot snapshot)
     {
-        await _dispatcherQueue.EnqueueAsync(() => Snapshot = snapshot);
+        var internetAvailable = System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable();
+        await _dispatcherQueue.EnqueueAsync(() =>
+        {
+            Snapshot = snapshot;
+            IsInternetAvailable = internetAvailable;
+        });
         await RefreshSnapshotCardsAsync();
         await RefreshCpuVisualsAsync();
+        await _dispatcherQueue.EnqueueAsync(RefreshCategoryCounts);
     }
 
     private async Task UpdateCpuClockHistoryAsync(IReadOnlyCollection<HistoricalRecord<HardwareInfoSnapshot>> history)
@@ -515,6 +653,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     {
         ApplySnapshotChanges(_temperatureSnapshots, set);
         await RefreshTemperatureStatusItemsAsync();
+        await _dispatcherQueue.EnqueueAsync(RefreshCategoryCounts);
     }
 
     private async Task ApplyFanCapabilityChangesAsync(IChangeSet<FanCapabilityState, int> set)
@@ -527,6 +666,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     {
         ApplySnapshotChanges(_fanSnapshots, set);
         await RefreshFanStatusItemsAsync();
+        await _dispatcherQueue.EnqueueAsync(RefreshCategoryCounts);
     }
 
     private async Task ApplyFanStateChangesAsync(IChangeSet<FanStateSnapshot, int> set)
@@ -539,6 +679,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     {
         ApplySnapshotChanges(_batterySnapshots, set);
         await RefreshBatteryStatusItemsAsync();
+        await _dispatcherQueue.EnqueueAsync(RefreshCategoryCounts);
     }
 
     private async Task RefreshCpuVisualsAsync()
@@ -669,7 +810,6 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         await SynchronizeVideoControllerCardsAsync(Snapshot?.Runtime.VideoControllers ?? []);
         await SynchronizeMonitorCardsAsync(Snapshot?.Runtime.Monitors ?? []);
         await SynchronizeGraphicsCardGroupsAsync();
-        await SynchronizeMonitorResolutionCardsAsync(BuildMonitorResolutionCardData());
     }
 
     private DateTimePoint[] BuildCpuClockHistory()
@@ -998,15 +1138,36 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     private Task SynchronizeMonitorCardsAsync(IReadOnlyList<HardwareInfoMonitor> monitors)
     {
+        var enrichedMonitors = monitors.Select(EnrichMonitorWithLinkedControllerMode).ToArray();
+
         return SynchronizeCards(
             _monitorCards,
-            monitors,
+            enrichedMonitors,
             (index, monitor) => new DeviceCapabilitiesMonitorCardModel(index, monitor, _unitFormattingService),
             static (card, index, monitor) =>
             {
                 card.Index = index;
                 card.Snapshot = monitor;
             });
+    }
+
+    /// <summary>WMI monitors often report no display mode of their own; borrow it from the linked graphics
+    /// adapter (same fallback the display tier labels use) so the monitor detail shows the real resolution.</summary>
+    private HardwareInfoMonitor EnrichMonitorWithLinkedControllerMode(HardwareInfoMonitor monitor)
+    {
+        if (!monitor.Active
+            || (monitor.CurrentHorizontalResolution > 0 && monitor.CurrentVerticalResolution > 0)
+            || FindLinkedVideoController(monitor) is not { } linkedController)
+        {
+            return monitor;
+        }
+
+        return monitor with
+        {
+            CurrentHorizontalResolution = linkedController.CurrentHorizontalResolution,
+            CurrentVerticalResolution = linkedController.CurrentVerticalResolution,
+            CurrentRefreshRate = monitor.CurrentRefreshRate > 0 ? monitor.CurrentRefreshRate : linkedController.CurrentRefreshRate,
+        };
     }
 
     private async Task SynchronizeGraphicsCardGroupsAsync()
@@ -1113,20 +1274,6 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         });
 
         await RefreshCpuVisualsAsync();
-        await SynchronizeMonitorResolutionCardsAsync(BuildMonitorResolutionCardData());
-    }
-
-    private Task SynchronizeMonitorResolutionCardsAsync((string Title, string ResolutionTier)[] cards)
-    {
-        return SynchronizeCards(
-            _monitorResolutionCards,
-            cards,
-            static (_, card) => new DeviceCapabilitiesMonitorResolutionCard(card.Title, card.ResolutionTier),
-            static (existingCard, _, card) =>
-            {
-                existingCard.Title = card.Title;
-                existingCard.ResolutionTier = card.ResolutionTier;
-            });
     }
 
     private Task RefreshTemperatureStatusItemsAsync()
@@ -1138,17 +1285,40 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return SynchronizeCards(
             _temperatureStatusItems,
             sensors,
-            (_, snapshot) => new DeviceCapabilitiesRuntimeStatusItemModel(
-                $"Sensor {snapshot.SensorIndex}",
-                GetTemperatureStatus(snapshot),
-                GetStatusTone(GetTemperatureStatus(snapshot))),
+            (_, snapshot) =>
+            {
+                var card = new DeviceCapabilitiesRuntimeStatusItemModel(
+                    $"Sensor {snapshot.SensorIndex}",
+                    GetTemperatureStatus(snapshot),
+                    GetStatusTone(GetTemperatureStatus(snapshot)));
+                ApplyTemperatureTile(card, snapshot);
+                return card;
+            },
             (card, _, snapshot) =>
             {
                 card.Name = $"Sensor {snapshot.SensorIndex}";
                 card.Status = GetTemperatureStatus(snapshot);
                 card.StatusTone = GetStatusTone(card.Status);
+                ApplyTemperatureTile(card, snapshot);
             });
     }
+
+    private void ApplyTemperatureTile(DeviceCapabilitiesRuntimeStatusItemModel card, TemperatureTelemetrySnapshot snapshot)
+    {
+        card.IconKind = MaterialIconKind.Thermometer;
+        card.ValueDisplay = _unitFormattingService.FormatTemperature(snapshot.IsAvailable ? snapshot.TemperatureCelsius : null);
+        card.ValueBrush = GetTemperatureValueBrush(snapshot.IsAvailable ? snapshot.TemperatureCelsius : null);
+        card.Location = FrameworkSensorNameDisplay.ToLocation(snapshot.SensorName);
+    }
+
+    private static Brush GetTemperatureValueBrush(double? celsius) => celsius switch
+    {
+        null => AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.StatusErrorColor),
+        < 45d => AppThemeBrushes.Get("StatusInfoBrush", AppThemeBrushes.StatusSuccessColor),
+        < 65d => AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor),
+        < 85d => AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor),
+        _ => AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor),
+    };
 
     private Task RefreshFanStatusItemsAsync()
     {
@@ -1164,16 +1334,37 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return SynchronizeCards(
             _fanStatusItems,
             fanEntries,
-            (_, fan) => new DeviceCapabilitiesRuntimeStatusItemModel(
-                $"Fan {fan.Index}",
-                GetFanStatus(fan.Snapshot, fan.State),
-                GetStatusTone(GetFanStatus(fan.Snapshot, fan.State))),
+            (_, fan) =>
+            {
+                var card = new DeviceCapabilitiesRuntimeStatusItemModel(
+                    GetFanTileTitle(fan.Index, fan.Snapshot),
+                    GetFanStatus(fan.Snapshot, fan.State),
+                    GetStatusTone(GetFanStatus(fan.Snapshot, fan.State)));
+                ApplyFanTile(card, fan.Snapshot);
+                return card;
+            },
             (card, _, fan) =>
             {
-                card.Name = $"Fan {fan.Index}";
+                card.Name = GetFanTileTitle(fan.Index, fan.Snapshot);
                 card.Status = GetFanStatus(fan.Snapshot, fan.State);
                 card.StatusTone = GetStatusTone(card.Status);
+                ApplyFanTile(card, fan.Snapshot);
             });
+    }
+
+    // The tile leads with the cooling function ("CPU fan"); the physical location ("Left fan") becomes the
+    // sub-line. Fans without an identified function keep their location (or index) label as the title.
+    private static string GetFanTileTitle(int fanIndex, FanTelemetrySnapshot? snapshot)
+        => FrameworkFanNameDisplay.ToFunction(snapshot?.FanName)
+            ?? snapshot?.DisplayName
+            ?? $"Fan {fanIndex}";
+
+    private void ApplyFanTile(DeviceCapabilitiesRuntimeStatusItemModel card, FanTelemetrySnapshot? snapshot)
+    {
+        card.IconKind = MaterialIconKind.Fan;
+        card.ValueDisplay = _unitFormattingService.FormatFanSpeed(snapshot?.IsAvailable == true ? snapshot.SpeedRpm : null);
+        card.ValueBrush = AppThemeBrushes.Get("StatusInfoBrush", AppThemeBrushes.StatusSuccessColor);
+        card.Location = FrameworkFanNameDisplay.ToFunction(snapshot?.FanName) is null ? null : snapshot?.DisplayName;
     }
 
     private Task RefreshBatteryStatusItemsAsync()
@@ -1185,83 +1376,113 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return SynchronizeCards(
             _batteryStatusItems,
             batteries,
-            (_, snapshot) => new DeviceCapabilitiesRuntimeStatusItemModel(
-                $"Battery {snapshot.BatteryIndex}",
-                GetBatteryStatus(snapshot),
-                GetStatusTone(GetBatteryStatus(snapshot))),
+            (_, snapshot) =>
+            {
+                var card = new DeviceCapabilitiesRuntimeStatusItemModel(
+                    $"Battery {snapshot.BatteryIndex}",
+                    string.Empty,
+                    DeviceCapabilitiesStatusTone.Success);
+                ApplyBatteryTile(card, snapshot);
+                return card;
+            },
             (card, _, snapshot) =>
             {
                 card.Name = $"Battery {snapshot.BatteryIndex}";
-                card.Status = GetBatteryStatus(snapshot);
-                card.StatusTone = GetStatusTone(card.Status);
+                ApplyBatteryTile(card, snapshot);
             });
     }
 
-    private (string Title, string ResolutionTier)[] BuildMonitorResolutionCardData()
+    private void ApplyBatteryTile(DeviceCapabilitiesRuntimeStatusItemModel card, BatteryTelemetrySnapshot snapshot)
     {
-        var monitors = Snapshot?.Runtime.Monitors ?? [];
-        if (monitors.Length == 0)
-        {
-            var activeControllers = Snapshot?.Runtime.VideoControllers
-                .Where(HasActiveDisplay)
-                .ToArray()
-                ?? [];
+        card.IconKind = MaterialIconKind.BatteryHigh;
+        card.ValueDisplay = _unitFormattingService.FormatRatio(snapshot.IsAvailable ? snapshot.ChargePercent : null, decimals: 0);
+        card.ValueBrush = AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor);
+        // The mockup battery tile leads with the state line and detail rows instead of a location.
+        card.Location = null;
 
-            return [
-                .. activeControllers.Select((controller, index) => (
-                    Title: FirstNonEmpty(controller.Name, controller.Caption, controller.Description) ?? $"Adapter {index}",
-                    ResolutionTier: GetDisplayTierLabel(controller)))
-            ];
+        if (!snapshot.IsAvailable)
+        {
+            card.Status = "Unavailable";
+            card.StatusTone = DeviceCapabilitiesStatusTone.Error;
+            card.StatusIconOverride = null;
+            card.DetailLines.Clear();
+            return;
         }
 
-        return [
-            .. monitors.Select(monitor => (
-                Title: monitor.DisplayName,
-                ResolutionTier: BuildMonitorModeSummary(monitor)))
-        ];
+        var source = snapshot.PowerSourceState switch
+        {
+            FrameworkPowerSourceState.AcAndBattery => "AC + battery",
+            FrameworkPowerSourceState.AcOnly => "AC only",
+            FrameworkPowerSourceState.BatteryOnly => "Battery only",
+            _ => null,
+        };
+
+        // No "Charging" word — the charging glyph + green tone already say it, so the source alone reads cleaner.
+        var stateWord = snapshot.BatteryState switch
+        {
+            FrameworkBatteryState.Charging or FrameworkBatteryState.ChargingAndDischarging => null,
+            FrameworkBatteryState.Discharging => "Discharging",
+            FrameworkBatteryState.Critical => "Critical",
+            FrameworkBatteryState.NotPresent => "Not present",
+            _ => "Idle",
+        };
+
+        card.Status = (stateWord, source) switch
+        {
+            (null, not null) => source,
+            (null, null) => "Charging",
+            (not null, null) => stateWord,
+            _ => $"{stateWord} · {source}",
+        };
+        card.StatusTone = snapshot.BatteryState switch
+        {
+            FrameworkBatteryState.Discharging => DeviceCapabilitiesStatusTone.Warning,
+            FrameworkBatteryState.Critical or FrameworkBatteryState.NotPresent => DeviceCapabilitiesStatusTone.Error,
+            _ => DeviceCapabilitiesStatusTone.Success,
+        };
+        card.StatusIconOverride = snapshot.BatteryState switch
+        {
+            FrameworkBatteryState.Discharging => MaterialIconKind.BatteryMinus,
+            FrameworkBatteryState.Charging or FrameworkBatteryState.ChargingAndDischarging => MaterialIconKind.BatteryCharging,
+            _ => null,
+        };
+
+        card.DetailLines.Clear();
+
+        if (snapshot is { LastFullChargeCapacityAmpereHours: > 0 and double lastFull, DesignCapacityAmpereHours: > 0 and double design })
+        {
+            card.DetailLines.Add(new DeviceCapabilitiesTileLineModel(
+                MaterialIconKind.HeartPulse,
+                $"{Math.Min(lastFull / design * 100d, 100d):0.0}% health",
+                AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor)));
+        }
+
+        if (snapshot.CycleCount is uint cycles)
+        {
+            card.DetailLines.Add(new DeviceCapabilitiesTileLineModel(
+                MaterialIconKind.Counter,
+                $"{cycles:N0} cycles",
+                AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.StatusWarningColor)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.BatteryType))
+        {
+            var chemistry = snapshot.BatteryType.Trim().ToUpperInvariant() switch
+            {
+                "LION" or "LI-ION" or "LIION" => "Li-ion",
+                "LIP" or "LIPO" => "Li-po",
+                _ => snapshot.BatteryType,
+            };
+            card.DetailLines.Add(new DeviceCapabilitiesTileLineModel(
+                MaterialIconKind.Flask,
+                chemistry,
+                AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.StatusWarningColor)));
+        }
     }
 
     private bool HasActiveDisplay(HardwareInfoVideoController controller)
     {
         return controller.CurrentHorizontalResolution > 0 && controller.CurrentVerticalResolution > 0;
-    }
-
-    private string GetDisplayTierLabel(HardwareInfoVideoController controller)
-    {
-        if (!HasActiveDisplay(controller))
-        {
-            return "Inactive";
-        }
-
-        var maxDimension = Math.Max(controller.CurrentHorizontalResolution, controller.CurrentVerticalResolution);
-        var minDimension = Math.Min(controller.CurrentHorizontalResolution, controller.CurrentVerticalResolution);
-
-        if (maxDimension >= 3840 || minDimension >= 2160)
-        {
-            return "4K+";
-        }
-
-        if (maxDimension >= 2560 || minDimension >= 1440)
-        {
-            return "QHD";
-        }
-
-        if (maxDimension >= 1920 || minDimension >= 1080)
-        {
-            return "Full HD";
-        }
-
-        return maxDimension >= 1280 || minDimension >= 720
-            ? "HD"
-            : "SD";
-    }
-
-    private string BuildMonitorModeSummary(HardwareInfoMonitor monitor)
-    {
-        var resolutionTier = GetDisplayTierLabel(monitor);
-        return monitor.Active && monitor.CurrentRefreshRate > 0 && !string.Equals(resolutionTier, "Unknown", StringComparison.OrdinalIgnoreCase)
-            ? $"{resolutionTier} · {_unitFormattingService.FormatRefreshRateHertz(monitor.CurrentRefreshRate)}"
-            : resolutionTier;
     }
 
     private double? ConvertRatioValue(double? value)
@@ -1299,6 +1520,12 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         if (maxDimension >= 3840 || minDimension >= 2160)
         {
             return "4K+";
+        }
+
+        // 2,560 × 1,600 (16:10 panels, e.g. the Framework 16 display) reads as WQXGA rather than generic QHD.
+        if (maxDimension >= 2560 && minDimension >= 1600)
+        {
+            return "WQXGA";
         }
 
         if (maxDimension >= 2560 || minDimension >= 1440)
@@ -1485,56 +1712,6 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return snapshot?.IsAvailable == true
             ? "Checking"
             : "Unavailable";
-    }
-
-    private string GetBatteryStatus(BatteryTelemetrySnapshot snapshot)
-    {
-        if (!snapshot.IsAvailable)
-        {
-            return "Unavailable";
-        }
-
-        if (snapshot.BatteryState == FrameworkBatteryState.NotPresent)
-        {
-            return "Not Present";
-        }
-
-        if (snapshot.BatteryState is FrameworkBatteryState batteryState
-            && snapshot.PowerSourceState is FrameworkPowerSourceState powerSourceState
-            && powerSourceState != FrameworkPowerSourceState.None)
-        {
-            return $"{FormatBatteryState(batteryState)} / {FormatPowerSourceState(powerSourceState)}";
-        }
-
-        if (snapshot.BatteryState is FrameworkBatteryState state)
-        {
-            return FormatBatteryState(state);
-        }
-
-        return snapshot.PowerSourceState is FrameworkPowerSourceState sourceState
-            ? FormatPowerSourceState(sourceState)
-            : "OK";
-    }
-
-    private string FormatBatteryState(FrameworkBatteryState state)
-    {
-        return state switch
-        {
-            FrameworkBatteryState.NotPresent => "Not Present",
-            _ => state.ToString()
-        };
-    }
-
-    private string FormatPowerSourceState(FrameworkPowerSourceState state)
-    {
-        return state switch
-        {
-            FrameworkPowerSourceState.None => "Unknown",
-            FrameworkPowerSourceState.AcAndBattery => "AC and Battery",
-            FrameworkPowerSourceState.AcOnly => "AC Only",
-            FrameworkPowerSourceState.BatteryOnly => "Battery Only",
-            _ => "Unknown"
-        };
     }
 
     private DeviceCapabilitiesStatusTone GetStatusTone(string status)

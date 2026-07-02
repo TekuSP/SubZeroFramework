@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 
 using SubZeroFramework.Branding;
+using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.Branding;
 
@@ -65,11 +66,12 @@ public sealed partial class BrandLogoView : UserControl
         set => SetValue(IconSizeProperty, value);
     }
 
+    // Default matches the mockups' unknown-vendor treatment (blue type glyph); null would render invisibly.
     public static readonly DependencyProperty FallbackBrushProperty = DependencyProperty.Register(
         nameof(FallbackBrush),
         typeof(Brush),
         typeof(BrandLogoView),
-        new PropertyMetadata(null));
+        new PropertyMetadata(AppThemeBrushes.Get("StatusInfoBrush", AppThemeBrushes.StatusWarningColor)));
 
     /// <summary>Tint for the fallback glyph shown when the vendor has no shipped logo.</summary>
     public Brush? FallbackBrush

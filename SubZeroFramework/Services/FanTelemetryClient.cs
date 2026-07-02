@@ -115,6 +115,7 @@ public sealed class FanTelemetryClient : IFanTelemetryClient
         {
             FanIndex = value.ChannelId.Index,
             DisplayName = value.DisplayName,
+            FanName = value.FanName,
             UnitSymbol = value.UnitSymbol ?? string.Empty,
             ObservedAt = value.ObservedAt,
             SpeedRpm = value.NumericValue ?? 0,

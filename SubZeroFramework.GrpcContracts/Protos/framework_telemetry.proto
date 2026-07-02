@@ -561,6 +561,18 @@ enum TemperatureSensorNameValue {
   TEMPERATURE_SENSOR_NAME_VALUE_VIRTUAL = 17;
 }
 
+// Platform role of a fan slot (mirrors FrameworkDotnet.Enums.FrameworkFanName). UNSPECIFIED corresponds
+// to FrameworkFanName.Unknown.
+enum FanNameValue {
+  FAN_NAME_VALUE_UNSPECIFIED = 0;
+  FAN_NAME_VALUE_GENERIC = 1;
+  FAN_NAME_VALUE_APU_FAN = 2;
+  FAN_NAME_VALUE_LEFT_FAN = 3;
+  FAN_NAME_VALUE_RIGHT_FAN = 4;
+  FAN_NAME_VALUE_FRONT_FAN = 5;
+  FAN_NAME_VALUE_THIRD_FAN = 6;
+}
+
 enum PowerSourceStateValue {
   POWER_SOURCE_STATE_VALUE_UNSPECIFIED = 0;
   POWER_SOURCE_STATE_VALUE_NONE = 1;
@@ -775,6 +787,8 @@ message CurrentTelemetryValueChangeReply {
   uint32 battery_cycle_count = 25;
   // Platform role of a temperature sensor (thermal channels only); UNSPECIFIED for non-thermal or unidentified.
   TemperatureSensorNameValue sensor_name = 26;
+  // Platform role of a fan (fan channels only); UNSPECIFIED for non-fan or unidentified.
+  FanNameValue fan_name = 27;
 }
 
 message CurrentTelemetryValueChangeBatchReply {

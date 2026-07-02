@@ -20,14 +20,19 @@ public sealed partial class DeviceCapabilitiesStorageSectionModel : ObservableOb
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StorageDriveCount))]
+    [NotifyPropertyChangedFor(nameof(StorageDriveCountDisplay))]
     [NotifyPropertyChangedFor(nameof(TotalStorageCapacity))]
     [NotifyPropertyChangedFor(nameof(TotalStorageUsedSpace))]
     [NotifyPropertyChangedFor(nameof(TotalStorageFreeSpace))]
+    [NotifyPropertyChangedFor(nameof(TotalStorageFreeBrush))]
     [NotifyPropertyChangedFor(nameof(TotalStorageUsagePercent))]
+    [NotifyPropertyChangedFor(nameof(TotalStorageUsageBarBrush))]
     [NotifyPropertyChangedFor(nameof(TotalStorageUsageSummary))]
     private partial int SnapshotVersion { get; set; }
 
     public int StorageDriveCount => _parent.StorageDriveCount;
+
+    public string StorageDriveCountDisplay => _parent.StorageDriveCount.ToString();
 
     public string TotalStorageCapacity => _parent.TotalStorageCapacity;
 
@@ -35,7 +40,11 @@ public sealed partial class DeviceCapabilitiesStorageSectionModel : ObservableOb
 
     public string TotalStorageFreeSpace => _parent.TotalStorageFreeSpace;
 
+    public Microsoft.UI.Xaml.Media.Brush TotalStorageFreeBrush => _parent.TotalStorageFreeBrush;
+
     public double TotalStorageUsagePercent => _parent.TotalStorageUsagePercent;
+
+    public Microsoft.UI.Xaml.Media.Brush TotalStorageUsageBarBrush => _parent.TotalStorageUsageBarBrush;
 
     public string TotalStorageUsageSummary => _parent.TotalStorageUsageSummary;
 

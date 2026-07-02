@@ -1,193 +1,58 @@
-﻿<UserControl
+<UserControl
     x:Class="SubZeroFramework.Controls.DeviceCapabilities.SystemProfileSectionView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <UserControl.Resources>
-        <Style TargetType="TextBlock">
-            <Setter Property="IsTextSelectionEnabled" Value="True" />
-        </Style>
-    </UserControl.Resources>
-
-    <StackPanel Spacing="12">
+    <!--  Mockup "simplicity" layout: plain heading + identity stat tiles, no card chrome.  -->
+    <StackPanel Spacing="10">
         <TextBlock
-            Margin="15,0"
-            FontSize="28"
+            FontSize="16"
             FontWeight="SemiBold"
             Foreground="{StaticResource TextPrimaryBrush}"
-            Text="System Profile" />
-        <StackPanel Margin="10,0">
-            <controls:ElevatedCard
-                Margin="0"
-                HorizontalContentAlignment="Stretch"
-                VerticalContentAlignment="Stretch"
-                Background="{StaticResource CardBackgroundBrush}">
-                <StackPanel Padding="14" Spacing="14">
-                    <TextBlock
-                        FontSize="22"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="Device Identity" />
-                    <Grid ColumnSpacing="12" RowSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <Border
-                            Padding="12"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Operating system" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.SystemProfileOs, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                    TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Column="1"
-                            Padding="12"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Vendor" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.SystemProfileVendor, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                    TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Column="2"
-                            Padding="12"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Model" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.SystemProfileModel, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                    TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Row="1"
-                            Padding="12"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="OS version" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.SystemProfileOsVersion, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                    TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Row="1"
-                            Grid.Column="1"
-                            Padding="12"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Product / SKU" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.SystemProfileProductName, FallbackValue=Not separately reported, TargetNullValue=Not separately reported, Mode=OneWay}"
-                                    TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Row="1"
-                            Grid.Column="2"
-                            Padding="12"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="System revision" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.SystemProfileSystemVersion, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                    TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-
-                    <Grid ColumnSpacing="12" RowSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Border
-                            Padding="12"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="12">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="EC build" />
-                                <TextBlock
-                                    FontSize="18"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.SystemProfileEcBuildInfo, FallbackValue=Unavailable, TargetNullValue=Unavailable, Mode=OneWay}"
-                                    TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Column="1"
-                            Padding="12"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="12">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="BIOS version" />
-                                <TextBlock
-                                    FontSize="18"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.SystemProfileBiosVersion, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                    TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Column="2"
-                            Padding="12"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="12">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="BIOS release date" />
-                                <TextBlock
-                                    FontSize="18"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.SystemProfileBiosReleaseDate, FallbackValue=Unknown, TargetNullValue=Unknown, Mode=OneWay}"
-                                    TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-                </StackPanel>
-            </controls:ElevatedCard>
-        </StackPanel>
+            Text="Device identity" />
+        <!--  4 columns max (not the mockup's 6): real values run longer than the mock data, so wider tiles that
+              wrap onto extra rows on narrow panes.  -->
+        <deviceCapabilitiesControls:StatTilePanel>
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="MicrosoftWindows"
+                Label="Operating system"
+                Value="{x:Bind ViewModel.SystemProfileOs, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Factory"
+                Label="Vendor"
+                Value="{x:Bind ViewModel.SystemProfileVendor, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Laptop"
+                Label="Model"
+                Value="{x:Bind ViewModel.SystemProfileModel, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Tag"
+                Label="OS version"
+                Value="{x:Bind ViewModel.SystemProfileOsVersion, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="PackageVariant"
+                Label="Product / SKU"
+                Value="{x:Bind ViewModel.SystemProfileProductName, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Tag"
+                Label="System revision"
+                Value="{x:Bind ViewModel.SystemProfileSystemVersion, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Chip"
+                Label="EC build"
+                Value="{x:Bind ViewModel.SystemProfileEcBuildInfo, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Chip"
+                Label="BIOS version"
+                Value="{x:Bind ViewModel.SystemProfileBiosVersion, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="CalendarMonth"
+                Label="BIOS release date"
+                Value="{x:Bind ViewModel.SystemProfileBiosReleaseDate, Mode=OneWay}" />
+        </deviceCapabilitiesControls:StatTilePanel>
     </StackPanel>
 </UserControl>

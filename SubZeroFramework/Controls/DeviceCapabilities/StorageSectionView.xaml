@@ -1,285 +1,62 @@
-﻿<UserControl
+<UserControl
     x:Class="SubZeroFramework.Controls.DeviceCapabilities.StorageSectionView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:models="using:SubZeroFramework.Controls.DeviceCapabilities.Models"
     mc:Ignorable="d">
 
-    <UserControl.Resources>
-        <Style TargetType="TextBlock">
-            <Setter Property="IsTextSelectionEnabled" Value="True" />
-        </Style>
-
-        <Style x:Key="CopyableValueTextBlockStyle" TargetType="TextBlock">
-            <Setter Property="IsTextSelectionEnabled" Value="True" />
-            <Setter Property="TextWrapping" Value="WrapWholeWords" />
-        </Style>
-    </UserControl.Resources>
-
-    <StackPanel Spacing="12">
+    <!--  Mockup "simplicity" layout: plain headings + stat tiles + the storage usage bar, no card chrome.  -->
+    <StackPanel Spacing="10">
         <TextBlock
-            Margin="15,0"
-            FontSize="28"
+            FontSize="16"
             FontWeight="SemiBold"
             Foreground="{StaticResource TextPrimaryBrush}"
-            Text="Storage" />
-        <StackPanel Margin="10,0" Spacing="12">
-            <controls:ElevatedCard
-                HorizontalContentAlignment="Stretch"
-                VerticalContentAlignment="Stretch"
-                Background="{StaticResource CardBackgroundBrush}">
-                <StackPanel Padding="14" Spacing="14">
-                    <TextBlock
-                        FontSize="22"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="Drive Summary" />
-                    <Grid ColumnSpacing="12" RowSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <Border
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Drives" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Style="{StaticResource CopyableValueTextBlockStyle}"
-                                    Text="{x:Bind ViewModel.StorageDriveCount, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Column="1"
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Total capacity" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Style="{StaticResource CopyableValueTextBlockStyle}"
-                                    Text="{x:Bind ViewModel.TotalStorageCapacity, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Row="1"
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Used" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Style="{StaticResource CopyableValueTextBlockStyle}"
-                                    Text="{x:Bind ViewModel.TotalStorageUsedSpace, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Row="1"
-                            Grid.Column="1"
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Free" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Style="{StaticResource CopyableValueTextBlockStyle}"
-                                    Text="{x:Bind ViewModel.TotalStorageFreeSpace, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-
-                    <StackPanel Spacing="8">
-                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Storage usage" />
-                        <ProgressBar
-                            Height="10"
-                            Maximum="100"
-                            Value="{x:Bind ViewModel.TotalStorageUsagePercent, Mode=OneWay}" />
-                        <TextBlock
-                            Foreground="{StaticResource TextPrimaryBrush}"
-                            Style="{StaticResource CopyableValueTextBlockStyle}"
-                            Text="{x:Bind ViewModel.TotalStorageUsageSummary, Mode=OneWay}" />
-                    </StackPanel>
-                </StackPanel>
-            </controls:ElevatedCard>
-        </StackPanel>
+            Text="Drive summary" />
+        <deviceCapabilitiesControls:StatTilePanel>
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Harddisk"
+                Label="Drives"
+                Value="{x:Bind ViewModel.StorageDriveCountDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Database"
+                Label="Total capacity"
+                Value="{x:Bind ViewModel.TotalStorageCapacity, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Database"
+                Label="Used"
+                Value="{x:Bind ViewModel.TotalStorageUsedSpace, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="DatabaseCheck"
+                Label="Free"
+                Value="{x:Bind ViewModel.TotalStorageFreeSpace, Mode=OneWay}"
+                ValueBrush="{x:Bind ViewModel.TotalStorageFreeBrush, Mode=OneWay}" />
+        </deviceCapabilitiesControls:StatTilePanel>
 
         <TextBlock
-            Margin="15,0"
-            FontSize="22"
+            FontSize="16"
             FontWeight="SemiBold"
             Foreground="{StaticResource TextPrimaryBrush}"
-            Text="Detected Drives" />
-        <GridView
-            Margin="10,0"
-            IsItemClickEnabled="False"
-            ItemsSource="{x:Bind ViewModel.StorageDriveCards, Mode=OneWay}"
-            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-            ScrollViewer.HorizontalScrollMode="Disabled"
-            ScrollViewer.VerticalScrollBarVisibility="Disabled"
-            ScrollViewer.VerticalScrollMode="Disabled"
-            SelectionMode="None">
-            <GridView.ItemTemplate>
-                <DataTemplate x:DataType="models:DeviceCapabilitiesStorageDriveCardModel">
-                    <controls:ElevatedCard
-                        Width="420"
-                        Margin="0,0,12,12"
-                        HorizontalContentAlignment="Stretch"
-                        VerticalContentAlignment="Stretch"
-                        Background="{StaticResource CardBackgroundBrush}">
-                        <StackPanel Padding="14" Spacing="10">
-                            <StackPanel Spacing="2">
-                                <TextBlock
-                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                    Style="{StaticResource CopyableValueTextBlockStyle}"
-                                    Text="{x:Bind DriveLabel, Mode=OneWay}" />
-                                <TextBlock
-                                    FontSize="18"
-                                    FontWeight="SemiBold"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Style="{StaticResource CopyableValueTextBlockStyle}"
-                                    Text="{x:Bind Title, FallbackValue=Unknown drive, TargetNullValue=Unknown drive}"
-                                    TextWrapping="WrapWholeWords" />
-                            </StackPanel>
-                            <Grid ColumnSpacing="8" RowSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-
-                                <Border
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Style="{StaticResource CopyableValueTextBlockStyle}"
-                                            Text="{x:Bind ManufacturerDisplay, Mode=OneWay}" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Column="1"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Media Type" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Style="{StaticResource CopyableValueTextBlockStyle}"
-                                            Text="{x:Bind MediaTypeDisplay, Mode=OneWay}" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Row="1"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Capacity" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Style="{StaticResource CopyableValueTextBlockStyle}"
-                                            Text="{x:Bind CapacityDisplay, Mode=OneWay}" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Row="1"
-                                    Grid.Column="1"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Firmware" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Style="{StaticResource CopyableValueTextBlockStyle}"
-                                            Text="{x:Bind FirmwareRevisionDisplay, Mode=OneWay}" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Row="2"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Used" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Style="{StaticResource CopyableValueTextBlockStyle}"
-                                            Text="{x:Bind UsedSpaceDisplay, Mode=OneWay}" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Row="2"
-                                    Grid.Column="1"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel>
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Free" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Style="{StaticResource CopyableValueTextBlockStyle}"
-                                            Text="{x:Bind FreeSpaceDisplay, Mode=OneWay}" />
-                                    </StackPanel>
-                                </Border>
-
-                                <Border
-                                    Grid.Row="3"
-                                    Grid.ColumnSpan="2"
-                                    Padding="10"
-                                    Background="{StaticResource CardMetricBackgroundBrush}"
-                                    CornerRadius="10">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Usage" />
-                                        <ProgressBar
-                                            Height="10"
-                                            Maximum="100"
-                                            Value="{x:Bind UsagePercent, Mode=OneWay}" />
-                                        <TextBlock
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Style="{StaticResource CopyableValueTextBlockStyle}"
-                                            Text="{x:Bind UsageSummary, Mode=OneWay}" />
-                                    </StackPanel>
-                                </Border>
-                            </Grid>
-                        </StackPanel>
-                    </controls:ElevatedCard>
-                </DataTemplate>
-            </GridView.ItemTemplate>
-        </GridView>
+            Text="Storage usage" />
+        <Border
+            Padding="14,12"
+            Background="{StaticResource CardBackgroundBrush}"
+            BorderBrush="{StaticResource SurfaceOutlineBrush}"
+            BorderThickness="1"
+            CornerRadius="11">
+            <StackPanel Spacing="8">
+                <ProgressBar
+                    MinHeight="6"
+                    Foreground="{x:Bind ViewModel.TotalStorageUsageBarBrush, Mode=OneWay}"
+                    Maximum="100"
+                    Value="{x:Bind ViewModel.TotalStorageUsagePercent, Mode=OneWay}" />
+                <TextBlock
+                    FontSize="12.5"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    IsTextSelectionEnabled="True"
+                    Text="{x:Bind ViewModel.TotalStorageUsageSummary, Mode=OneWay}" />
+            </StackPanel>
+        </Border>
     </StackPanel>
 </UserControl>

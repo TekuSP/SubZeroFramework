@@ -1,0 +1,67 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.DeviceCapabilities.Categories.DeviceCapabilitiesStorageDriveDetailView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <StackPanel Spacing="12">
+        <TextBlock
+            FontSize="20"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource TextPrimaryBrush}"
+            Text="{x:Bind ViewModel.Drive.Title, Mode=OneWay}" />
+
+        <deviceCapabilitiesControls:StatTilePanel>
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Harddisk"
+                Label="Media type"
+                Value="{x:Bind ViewModel.Drive.MediaTypeDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Database"
+                Label="Capacity"
+                Value="{x:Bind ViewModel.Drive.CapacityDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Chip"
+                Label="Firmware"
+                Value="{x:Bind ViewModel.Drive.FirmwareRevisionDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Database"
+                Label="Used"
+                Value="{x:Bind ViewModel.Drive.UsedSpaceDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="DatabaseCheck"
+                Label="Free"
+                Value="{x:Bind ViewModel.Drive.FreeSpaceDisplay, Mode=OneWay}"
+                ValueBrush="{x:Bind ViewModel.Drive.FreeSpaceBrush, Mode=OneWay}" />
+        </deviceCapabilitiesControls:StatTilePanel>
+
+        <StackPanel Spacing="6">
+            <TextBlock
+                FontSize="16"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="Usage" />
+            <Border
+                Padding="14,12"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                BorderThickness="1"
+                CornerRadius="11">
+                <StackPanel Spacing="8">
+                    <ProgressBar
+                        MinHeight="6"
+                        Foreground="{x:Bind ViewModel.Drive.UsageBarBrush, Mode=OneWay}"
+                        Maximum="100"
+                        Value="{x:Bind ViewModel.Drive.UsagePercent, Mode=OneWay}" />
+                    <TextBlock
+                        FontSize="12.5"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.Drive.UsageSummary, Mode=OneWay}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

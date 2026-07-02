@@ -169,8 +169,14 @@
                     var parts = data.Split(new[] { '\t' }, 3); // width, height, body
                     if (parts.Length < 3) continue;
                     var asset = Sanitize(prefix + "_" + name);
+                    // Monochrome packs (e.g. simple-icons) paint with fill="currentColor", which Resizetizer
+                    // rasterizes to black — invisible on the dark theme. Optional Color metadata on the
+                    // IconifyIcon item bakes the brand color into the asset (multicolor packs omit it).
+                    var body = parts[2];
+                    var color = wanted.GetMetadata("Color");
+                    if (!string.IsNullOrEmpty(color)) body = body.Replace("currentColor", color);
                     var svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 "
-                        + parts[0] + " " + parts[1] + "\">" + parts[2] + "</svg>";
+                        + parts[0] + " " + parts[1] + "\">" + body + "</svg>";
                     File.WriteAllText(Path.Combine(OutputDir, asset + ".svg"), svg);
                     written++;
                 }

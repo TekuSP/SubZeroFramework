@@ -61,12 +61,13 @@
                             CustomSeparators="{x:Bind ViewModel.UsageSeparators, Mode=OneWay}"
                             DateFormatter="{x:Bind ViewModel.LabelsFormatter, Mode=OneWay}"
                             Interval="0:0:5"
-                            LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartDimAxisLabelColor}}"
+                            LabelsPaint="{x:Null}"
+                            Padding="{lvc:Padding Value='0,0'}"
                             MaxLimit="{x:Bind ViewModel.UsageMaxLimit, Mode=OneWay}"
                             MinLimit="{x:Bind ViewModel.UsageMinLimit, Mode=OneWay}"
                             SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                             ShowSeparatorLines="True"
-                            TextSize="7" />
+                            TextSize="0" />
                     </lvc:AxesCollection>
                 </lvc:CartesianChart.XAxes>
                 <lvc:CartesianChart.YAxes>
@@ -74,12 +75,13 @@
                         <lvc:XamlAxis
                             AnimationsSpeed="0"
                             Labeler="{x:Bind ViewModel.UsageLabelFormatter, Mode=OneWay}"
-                            LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartDimAxisLabelColor}}"
+                            LabelsPaint="{x:Null}"
+                            Padding="{lvc:Padding Value='0,0'}"
                             MaxLimit="{x:Bind ViewModel.UsageAxisMaxLimit, Mode=OneWay}"
                             MinLimit="0"
                             SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                             ShowSeparatorLines="True"
-                            TextSize="7" />
+                            TextSize="0" />
                     </lvc:AxesCollection>
                 </lvc:CartesianChart.YAxes>
             </lvc:CartesianChart>

@@ -268,6 +268,7 @@ internal static class TelemetryGrpcMapper
             NumericValue = change.Current.NumericValue ?? 0,
             TemperatureState = MapTemperatureState(change.Current.TemperatureState),
             SensorName = MapSensorName(change.Current.SensorName),
+            FanName = MapFanName(change.Current.FanName),
             PowerSourceState = MapPowerSourceState(change.Current.PowerSourceState),
             BatteryState = MapBatteryState(change.Current.BatteryState),
             BatteryManufacturer = change.Current.BatteryManufacturer ?? string.Empty,
@@ -481,6 +482,24 @@ internal static class TelemetryGrpcMapper
             _ => TemperatureStateValue.Unspecified,
         };
     }
+
+    // FD0001 (platform-specific enum members) is intentionally suppressed: we translate whatever fan name the
+    // device itself reported, so only the cases valid for the running platform are ever hit; the rest are inert.
+#pragma warning disable FD0001
+    private static FanNameValue MapFanName(FrameworkFanName? fanName)
+    {
+        return fanName switch
+        {
+            FrameworkFanName.Generic => FanNameValue.Generic,
+            FrameworkFanName.ApuFan => FanNameValue.ApuFan,
+            FrameworkFanName.LeftFan => FanNameValue.LeftFan,
+            FrameworkFanName.RightFan => FanNameValue.RightFan,
+            FrameworkFanName.FrontFan => FanNameValue.FrontFan,
+            FrameworkFanName.ThirdFan => FanNameValue.ThirdFan,
+            _ => FanNameValue.Unspecified,
+        };
+    }
+#pragma warning restore FD0001
 
     private static TemperatureSensorNameValue MapSensorName(FrameworkSensorName? sensorName)
     {

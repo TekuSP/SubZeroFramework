@@ -71,13 +71,16 @@
          rasterized by Uno.Resizetizer. Items are "prefix:name"; only these are materialized as assets.
          Asset name = sanitized "prefix_name" (e.g. simple-icons:amd -> simple_icons_amd.svg). -->
     <ItemGroup>
-        <IconifyIcon Include="simple-icons:amd" />
-        <IconifyIcon Include="simple-icons:nvidia" />
-        <IconifyIcon Include="simple-icons:intel" />
-        <IconifyIcon Include="simple-icons:mediatek" />
-        <IconifyIcon Include="simple-icons:teamviewer" />
-        <IconifyIcon Include="simple-icons:framework" />
-        <IconifyIcon Include="simple-icons:kingstontechnology" />
+        <!-- Color bakes the official brand color into the monochrome simple-icons glyphs (they ship as
+             fill="currentColor", which would rasterize black — invisible on the dark theme). logos:* packs
+             are already multicolor. -->
+        <IconifyIcon Include="simple-icons:amd" Color="#ED1C24" />
+        <IconifyIcon Include="simple-icons:nvidia" Color="#76B900" />
+        <IconifyIcon Include="simple-icons:intel" Color="#0068B5" />
+        <IconifyIcon Include="simple-icons:mediatek" Color="#EC9430" />
+        <IconifyIcon Include="simple-icons:teamviewer" Color="#0E8EE9" />
+        <IconifyIcon Include="simple-icons:framework" Color="#FFFFFF" />
+        <IconifyIcon Include="simple-icons:kingstontechnology" Color="#E4172B" />
         <IconifyIcon Include="logos:microsoft-icon" />
     </ItemGroup>
  <ItemGroup>

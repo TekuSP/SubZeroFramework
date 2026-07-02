@@ -1,6 +1,10 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+
+using Microsoft.UI.Xaml.Media;
+
 using SubZeroFramework.Models;
 using SubZeroFramework.Services.Units;
+using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
@@ -33,6 +37,10 @@ public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(DisplayCurrentRefreshRate))]
     [NotifyPropertyChangedFor(nameof(LinkedVideoControllersDisplay))]
     [NotifyPropertyChangedFor(nameof(Description))]
+    [NotifyPropertyChangedFor(nameof(StatusBrush))]
+    [NotifyPropertyChangedFor(nameof(ResolutionBadge))]
+    [NotifyPropertyChangedFor(nameof(ManufacturedDisplay))]
+    [NotifyPropertyChangedFor(nameof(PickerSubtitle))]
     public partial HardwareInfoMonitor Snapshot { get; set; } = default!;
 
     public string MonitorLabel => $"Monitor {Index}";
@@ -65,8 +73,40 @@ public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
 
     public string Description => FirstNonEmpty(Snapshot.Description) ?? "Unknown";
 
+    /// <summary>Mockup state colour for the Status value: green while the monitor is active.</summary>
+    public Brush StatusBrush => Snapshot.Active
+        ? AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor)
+        : AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.StatusWarningColor);
+
+    /// <summary>Resolution standard chip per the mockup (WQXGA / QHD …); empty when no mode is reported.</summary>
+    public string ResolutionBadge => DeviceCapabilitiesResolutionBadge.For(Snapshot.CurrentHorizontalResolution, Snapshot.CurrentVerticalResolution);
+
+    /// <summary>Manufacture stamp per the mockup, e.g. "2024 · week 12".</summary>
+    public string ManufacturedDisplay => Snapshot.YearOfManufacture == 0
+        ? "Unknown"
+        : Snapshot.WeekOfManufacture > 0
+            ? $"{Snapshot.YearOfManufacture} · week {Snapshot.WeekOfManufacture}"
+            : Snapshot.YearOfManufacture.ToString();
+
+    /// <summary>Second picker line: current mode ("2,560 x 1,600 · 165 Hz"), falling back to the manufacturer.</summary>
+    public string PickerSubtitle
+    {
+        get
+        {
+            var resolution = DisplayCurrentResolution;
+            if (resolution == "Unknown")
+            {
+                return DisplayManufacturer;
+            }
+
+            var refreshRate = DisplayCurrentRefreshRate;
+            return refreshRate == "Unknown" ? resolution : $"{resolution} · {refreshRate}";
+        }
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DisplayCurrentRefreshRate))]
+    [NotifyPropertyChangedFor(nameof(PickerSubtitle))]
     private partial int UnitFormattingRevision { get; set; }
 
     public void RefreshUnitFormatting()

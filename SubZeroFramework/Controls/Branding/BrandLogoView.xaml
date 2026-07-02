@@ -17,10 +17,12 @@
             VerticalAlignment="Stretch"
             Stretch="Uniform"
             Visibility="Collapsed" />
+        <!--  Explicit size: with Stretch alone the glyph measures under the box and renders visibly smaller
+              than the sibling logos.  -->
         <material:MaterialIcon
             x:Name="FallbackIcon"
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Stretch"
+            Width="{x:Bind IconSize, Mode=OneWay}"
+            Height="{x:Bind IconSize, Mode=OneWay}"
             Foreground="{x:Bind FallbackBrush, Mode=OneWay}"
             Kind="{x:Bind FallbackGlyph, Mode=OneWay}"
             Visibility="Collapsed" />

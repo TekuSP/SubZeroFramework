@@ -1,0 +1,48 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.DeviceCapabilities.Categories.DeviceCapabilitiesMemoryModuleDetailView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <StackPanel Spacing="12">
+        <TextBlock
+            FontSize="20"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource TextPrimaryBrush}"
+            Text="{x:Bind ViewModel.Module.BankLabel, Mode=OneWay}" />
+
+        <deviceCapabilitiesControls:StatTilePanel>
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Database"
+                Label="Capacity"
+                Value="{x:Bind ViewModel.Module.DisplayCapacity, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Chip"
+                Label="Memory type"
+                Value="{x:Bind ViewModel.Module.MemoryType, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Speedometer"
+                Label="Speed"
+                Value="{x:Bind ViewModel.Module.DisplaySpeed, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Ruler"
+                Label="Data width"
+                Value="{x:Bind ViewModel.Module.DisplayDataWidth, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Resize"
+                Label="Form factor"
+                Value="{x:Bind ViewModel.Module.FormFactor, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Barcode"
+                Label="Part number"
+                Value="{x:Bind ViewModel.Module.PartNumber, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Pound"
+                Label="Serial number"
+                Value="{x:Bind ViewModel.Module.SerialNumber, Mode=OneWay}" />
+        </deviceCapabilitiesControls:StatTilePanel>
+    </StackPanel>
+</UserControl>

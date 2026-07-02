@@ -1,108 +1,36 @@
-﻿<UserControl
+<UserControl
     x:Class="SubZeroFramework.Controls.DeviceCapabilities.CpuSectionView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:models="using:SubZeroFramework.Controls.DeviceCapabilities.Models"
     mc:Ignorable="d">
 
-    <UserControl.Resources>
-        <Style TargetType="TextBlock">
-            <Setter Property="IsTextSelectionEnabled" Value="True" />
-        </Style>
-    </UserControl.Resources>
-
-    <StackPanel Spacing="12">
+    <!--  Mockup "simplicity" layout: plain heading + a row of stat tiles, no card chrome.  -->
+    <StackPanel Spacing="10">
         <TextBlock
-            Margin="15,0"
-            FontSize="28"
+            FontSize="16"
             FontWeight="SemiBold"
             Foreground="{StaticResource TextPrimaryBrush}"
-            Text="CPU" />
-        <StackPanel Margin="10,0" Spacing="12">
-            <controls:ElevatedCard
-                HorizontalContentAlignment="Stretch"
-                VerticalContentAlignment="Stretch"
-                Background="{StaticResource CardBackgroundBrush}">
-                <StackPanel Padding="14" Spacing="14">
-                    <TextBlock
-                        FontSize="22"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="Runtime Metrics" />
-                    <Grid ColumnSpacing="12" RowSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Border
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Package count" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.CpuCount, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Column="1"
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Average clock" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.AverageClockSpeed, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-
-                        <Border
-                            Grid.Column="2"
-                            Padding="10"
-                            Background="{StaticResource CardMetricBackgroundBrush}"
-                            CornerRadius="10">
-                            <StackPanel>
-                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="Average max clock" />
-                                <TextBlock
-                                    FontSize="26"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.AverageMaxClockSpeed, Mode=OneWay}" />
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-                </StackPanel>
-            </controls:ElevatedCard>
-        </StackPanel>
-
-        <TextBlock
-            Margin="15,0"
-            FontSize="22"
-            FontWeight="SemiBold"
-            Foreground="{StaticResource TextPrimaryBrush}"
-            Text="CPU Packages" />
-        <ItemsRepeater
-            Margin="10,0"
-            ItemsSource="{x:Bind ViewModel.CpuPackageCards, Mode=OneWay}"
-            ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-            ScrollViewer.HorizontalScrollMode="Disabled"
-            ScrollViewer.VerticalScrollBarVisibility="Disabled"
-            ScrollViewer.VerticalScrollMode="Disabled">
-            <ItemsRepeater.ItemTemplate>
-                <DataTemplate x:DataType="models:DeviceCapabilitiesCpuPackageCardModel">
-                    <deviceCapabilitiesControls:CpuPackageCardView ViewModel="{x:Bind Mode=OneWay}" />
-                </DataTemplate>
-            </ItemsRepeater.ItemTemplate>
-        </ItemsRepeater>
+            Text="Runtime metrics" />
+        <deviceCapabilitiesControls:StatTilePanel>
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Memory"
+                Label="Package count"
+                Value="{x:Bind ViewModel.CpuCountDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Chip"
+                Label="Sockets"
+                Value="{x:Bind ViewModel.SocketsDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Speedometer"
+                Label="Average clock"
+                Value="{x:Bind ViewModel.AverageClockSpeed, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="SpeedometerMedium"
+                Label="Average max clock"
+                Value="{x:Bind ViewModel.AverageMaxClockSpeed, Mode=OneWay}" />
+        </deviceCapabilitiesControls:StatTilePanel>
     </StackPanel>
 </UserControl>

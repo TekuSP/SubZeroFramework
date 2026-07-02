@@ -58,9 +58,15 @@
 
             <SolidColorBrush x:Key="StatusErrorBrush" Color="#442726" />
             <SolidColorBrush x:Key="StatusErrorForegroundBrush" Color="#fffffa" />
+            <!--  Error as TEXT on dark surfaces (StatusErrorBrush is a fill tone, illegible as foreground).  -->
+            <SolidColorBrush x:Key="StatusErrorTextBrush" Color="#D9706A" />
 
             <SolidColorBrush x:Key="StatusInfoBrush" Color="#8AB7E8" />
             <SolidColorBrush x:Key="StatusInfoForegroundBrush" Color="#000000" />
+
+            <!--  Stat tiles (Device Capabilities) reuse the existing theme: icons/cool values StatusInfoBrush,
+                  tile surface CardBackgroundBrush + SurfaceOutlineBrush, states Status{Success,Warning}Brush /
+                  StatusErrorTextBrush — matching the design mockup's sz-* palette 1:1.  -->
 
             <!--  Graph brushes  -->
             <x:String x:Key="PrimaryGraphBrush">#FF0078D7</x:String>

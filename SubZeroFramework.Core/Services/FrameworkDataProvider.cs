@@ -706,11 +706,14 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 cpus = _hardwareInfo.CpuList
                     .Select(cpu =>
                     {
+                        // WMI enumerates cores in string order ("0", "1", "10", "11", … "2") — sort numerically.
                         var mappedCpuCores = cpu.CpuCoreList
                             .Where(core => !string.IsNullOrWhiteSpace(core.Name))
                             .Select(core => new HardwareInfoCpuCore(
                                 Name: core.Name,
                                 PercentProcessorTime: Math.Clamp((double)core.PercentProcessorTime, 0d, 100d)))
+                            .OrderBy(core => ParseCpuCoreOrdinal(core.Name))
+                            .ThenBy(core => core.Name, StringComparer.Ordinal)
                             .ToImmutableArray();
 
                         return new HardwareInfoCpu(
@@ -1382,7 +1385,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 displayName: displayName,
                 unitSymbol: "RPM",
                 observedAt: observedAt,
-                numericValue: fanSnapshot.Speed.RevolutionsPerMinute);
+                numericValue: fanSnapshot.Speed.RevolutionsPerMinute,
+                fanName: fanSnapshot.Name);
 
             fanIndex++;
         }
@@ -1643,6 +1647,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         double numericValue,
         FrameworkTemperatureState? temperatureState = null,
         FrameworkSensorName? sensorName = null,
+        FrameworkFanName? fanName = null,
         FrameworkPowerSourceState? powerSourceState = null,
         FrameworkBatteryState? batteryState = null,
         string? batteryManufacturer = null,
@@ -1666,6 +1671,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             NumericValue = numericValue,
             TemperatureState = temperatureState,
             SensorName = sensorName,
+            FanName = fanName,
             PowerSourceState = powerSourceState,
             BatteryState = batteryState,
             BatteryManufacturer = batteryManufacturer,
@@ -2017,6 +2023,19 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         }
 
         return historyWindow;
+    }
+
+    // WMI per-core names are "socket,core" (e.g. "0,11") or a bare index; unparsable names sort last.
+    private static int ParseCpuCoreOrdinal(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return int.MaxValue;
+        }
+
+        var commaIndex = name.LastIndexOf(',');
+        var candidate = commaIndex >= 0 ? name[(commaIndex + 1)..] : name;
+        return int.TryParse(candidate.Trim(), out var ordinal) ? ordinal : int.MaxValue;
     }
 
     private static string GetMonitorDisplayName(HardwareMonitor monitor)

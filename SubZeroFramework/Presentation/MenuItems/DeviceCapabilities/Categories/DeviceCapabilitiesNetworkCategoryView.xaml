@@ -1,0 +1,104 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.DeviceCapabilities.Categories.DeviceCapabilitiesNetworkCategoryView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:branding="using:SubZeroFramework.Controls.Branding"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:SubZeroFramework.Controls.DeviceCapabilities.Models"
+    xmlns:uen="using:Uno.Extensions.Navigation.UI"
+    mc:Ignorable="d">
+
+    <Grid RowSpacing="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <!--  Adapter summary (mockup): Adapters · Connected · Fastest link · Internet.  -->
+        <StackPanel Spacing="10">
+            <TextBlock
+                FontSize="18"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="Network adapters" />
+            <deviceCapabilitiesControls:StatTilePanel>
+                <deviceCapabilitiesControls:StatTileView
+                    IconKind="Lan"
+                    Label="Adapters"
+                    Value="{x:Bind ViewModel.Page.NetworkAdapterCountDisplay, Mode=OneWay}" />
+                <deviceCapabilitiesControls:StatTileView
+                    IconKind="Connection"
+                    Label="Connected"
+                    Value="{x:Bind ViewModel.Page.ConnectedNetworkAdapterCountDisplay, Mode=OneWay}"
+                    ValueBrush="{x:Bind ViewModel.Page.ConnectedNetworkAdapterBrush, Mode=OneWay}" />
+                <deviceCapabilitiesControls:StatTileView
+                    IconKind="Speedometer"
+                    Label="Fastest link"
+                    Value="{x:Bind ViewModel.Page.FastestLinkDisplay, Mode=OneWay}"
+                    ValueBrush="{x:Bind ViewModel.Page.FastestLinkBrush, Mode=OneWay}" />
+                <deviceCapabilitiesControls:StatTileView
+                    IconKind="Web"
+                    Label="Internet"
+                    Value="{x:Bind ViewModel.Page.InternetStatusDisplay, Mode=OneWay}"
+                    ValueBrush="{x:Bind ViewModel.Page.InternetStatusBrush, Mode=OneWay}" />
+            </deviceCapabilitiesControls:StatTilePanel>
+        </StackPanel>
+
+        <!--  Instance picker | detail sub-region resolved by data navigation  -->
+        <Grid Grid.Row="1" ColumnSpacing="14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <controls:InstancePickerView
+                x:Name="Picker"
+                Title="DETECTED ADAPTERS"
+                ItemsSource="{x:Bind ViewModel.Page.NetworkAdapterCards, Mode=OneWay}"
+                SelectionChanged="OnPickerSelectionChanged">
+                <controls:InstancePickerView.ItemTemplate>
+                            <DataTemplate x:DataType="models:DeviceCapabilitiesNetworkAdapterCardModel">
+                                <Grid Margin="0,6" ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <branding:BrandLogoView
+                                        VerticalAlignment="Center"
+                                        FallbackGlyph="{x:Bind TypeIconKind, Mode=OneWay}"
+                                        IconSize="32"
+                                        Vendor="{x:Bind LogoVendor, Mode=OneWay}" />
+                                    <StackPanel Grid.Column="1" Spacing="1">
+                                        <TextBlock
+                                            FontSize="14"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            Text="{x:Bind Title, Mode=OneWay}"
+                                            TextTrimming="CharacterEllipsis" />
+                                        <TextBlock
+                                            FontSize="12"
+                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                            Text="{x:Bind FriendlyTypeDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                </controls:InstancePickerView.ItemTemplate>
+            </controls:InstancePickerView>
+
+            <ScrollViewer
+                Grid.Column="1"
+                Padding="0,0,12,0"
+                VerticalScrollBarVisibility="Auto">
+                <ContentControl
+                    x:Name="DetailHost"
+                    Margin="0,0,0,14"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Top"
+                    uen:Region.Attached="True" />
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

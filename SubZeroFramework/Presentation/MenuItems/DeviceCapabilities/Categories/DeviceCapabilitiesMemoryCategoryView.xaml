@@ -1,0 +1,75 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.DeviceCapabilities.Categories.DeviceCapabilitiesMemoryCategoryView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:SubZeroFramework.Controls.DeviceCapabilities.Models"
+    xmlns:uen="using:Uno.Extensions.Navigation.UI"
+    mc:Ignorable="d">
+
+    <Grid RowSpacing="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <deviceCapabilitiesControls:MemorySectionView ViewModel="{x:Bind ViewModel.Section, Mode=OneWay}" />
+
+        <!--  Instance picker | detail sub-region resolved by data navigation  -->
+        <Grid Grid.Row="1" ColumnSpacing="14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <controls:InstancePickerView
+                x:Name="Picker"
+                Title="INSTALLED MODULES"
+                ItemsSource="{x:Bind ViewModel.Page.MemoryModuleCards, Mode=OneWay}"
+                SelectionChanged="OnPickerSelectionChanged">
+                <controls:InstancePickerView.ItemTemplate>
+                            <DataTemplate x:DataType="models:DeviceCapabilitiesMemoryModuleCardModel">
+                                <Grid Margin="0,6" ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <material:MaterialIcon
+                                        Width="30"
+                                        Height="30"
+                                        VerticalAlignment="Center"
+                                        Foreground="{StaticResource StatusInfoBrush}"
+                                        Kind="Memory" />
+                                    <StackPanel Grid.Column="1" Spacing="1">
+                                        <TextBlock
+                                            FontSize="14"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            Text="{x:Bind BankLabel, Mode=OneWay}" />
+                                        <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
+                                            <Run Text="{x:Bind DisplayCapacity, Mode=OneWay}" />
+                                            <Run Text="{x:Bind MemoryType, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                </controls:InstancePickerView.ItemTemplate>
+            </controls:InstancePickerView>
+
+            <ScrollViewer
+                Grid.Column="1"
+                Padding="0,0,12,0"
+                VerticalScrollBarVisibility="Auto">
+                <ContentControl
+                    x:Name="DetailHost"
+                    Margin="0,0,0,14"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Top"
+                    uen:Region.Attached="True" />
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>

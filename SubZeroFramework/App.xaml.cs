@@ -7,9 +7,12 @@ using LiveChartsCore.SkiaSharpView;
 
 using Microsoft.Extensions.Options;
 
+using SubZeroFramework.Controls.DeviceCapabilities.Models;
+using SubZeroFramework.Controls.DeviceCapabilities.Models.Categories;
 using SubZeroFramework.Controls.FanCurveProfiles.Models.Modes;
 using SubZeroFramework.Presentation.MenuItems.Dashboard;
 using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
+using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities.Categories;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.Modes;
 using SubZeroFramework.Presentation.MenuItems.Modules;
@@ -126,6 +129,10 @@ public partial class App : Application
                     // displayed instance via FanCoordinatorAccessor (set in the coordinator's ctor) instead of DI.
                     services.AddSingleton<FanCurveProfilesModel>();
                     services.AddSingleton<FanCoordinatorAccessor>();
+
+                    // Device Capabilities category bodies bridge to the displayed page model the same way
+                    // (see DeviceCapabilitiesAccessor).
+                    services.AddSingleton<DeviceCapabilitiesAccessor>();
                 })
                 .UseNavigation(RegisterRoutes)
             );
@@ -189,6 +196,20 @@ public partial class App : Application
             new ViewMap<MainPage, MainModel>(),
             new ViewMap<DashboardPage, DashboardModel>(),
             new ViewMap<DeviceCapabilitiesPage, DeviceCapabilitiesModel>(),
+            new ViewMap<DeviceCapabilitiesOnboardCategoryView, DeviceCapabilitiesOnboardCategoryModel>(),
+            new ViewMap<DeviceCapabilitiesCpuCategoryView, DeviceCapabilitiesCpuCategoryModel>(),
+            new ViewMap<DeviceCapabilitiesMemoryCategoryView, DeviceCapabilitiesMemoryCategoryModel>(),
+            new ViewMap<DeviceCapabilitiesStorageCategoryView, DeviceCapabilitiesStorageCategoryModel>(),
+            new ViewMap<DeviceCapabilitiesGraphicsCategoryView, DeviceCapabilitiesGraphicsCategoryModel>(),
+            new ViewMap<DeviceCapabilitiesNetworkCategoryView, DeviceCapabilitiesNetworkCategoryModel>(),
+            new ViewMap<DeviceCapabilitiesSystemProfileCategoryView, DeviceCapabilitiesSystemProfileCategoryModel>(),
+            // Instance detail bodies: resolved by DATA navigation — the category pickers pass the live card model.
+            new DataViewMap<DeviceCapabilitiesCpuPackageDetailView, DeviceCapabilitiesCpuPackageDetailModel, DeviceCapabilitiesCpuPackageCardModel>(),
+            new DataViewMap<DeviceCapabilitiesMemoryModuleDetailView, DeviceCapabilitiesMemoryModuleDetailModel, DeviceCapabilitiesMemoryModuleCardModel>(),
+            new DataViewMap<DeviceCapabilitiesStorageDriveDetailView, DeviceCapabilitiesStorageDriveDetailModel, DeviceCapabilitiesStorageDriveCardModel>(),
+            new DataViewMap<DeviceCapabilitiesGraphicsAdapterDetailView, DeviceCapabilitiesGraphicsAdapterDetailModel, DeviceCapabilitiesGraphicsCardGroupModel>(),
+            new DataViewMap<DeviceCapabilitiesGraphicsMonitorDetailView, DeviceCapabilitiesGraphicsMonitorDetailModel, DeviceCapabilitiesMonitorCardModel>(),
+            new DataViewMap<DeviceCapabilitiesNetworkAdapterDetailView, DeviceCapabilitiesNetworkAdapterDetailModel, DeviceCapabilitiesNetworkAdapterCardModel>(),
             new ViewMap<ModulesPage, ModulesModel>(),
             new ViewMap<FanCurveProfilesPage, FanCurveProfilesModel>(),
             new ViewMap<FanAutoModeView, FanAutoModeModel>(),
@@ -207,7 +228,38 @@ public partial class App : Application
             Nested:
             [
                 new RouteMap("Dashboard", View: views.FindByViewModel<DashboardModel>()),
-                new RouteMap("DeviceCapabilities",  View: views.FindByViewModel<DeviceCapabilitiesModel>()),
+                new RouteMap("DeviceCapabilities",  View: views.FindByViewModel<DeviceCapabilitiesModel>(),
+                Nested:
+                [
+                    new RouteMap("Onboard", View: views.FindByViewModel<DeviceCapabilitiesOnboardCategoryModel>(), IsDefault: true),
+                    new RouteMap("Cpu", View: views.FindByViewModel<DeviceCapabilitiesCpuCategoryModel>(),
+                    Nested:
+                    [
+                        new RouteMap("CpuPackage", View: views.FindByViewModel<DeviceCapabilitiesCpuPackageDetailModel>()),
+                    ]),
+                    new RouteMap("Memory", View: views.FindByViewModel<DeviceCapabilitiesMemoryCategoryModel>(),
+                    Nested:
+                    [
+                        new RouteMap("MemoryModule", View: views.FindByViewModel<DeviceCapabilitiesMemoryModuleDetailModel>()),
+                    ]),
+                    new RouteMap("Storage", View: views.FindByViewModel<DeviceCapabilitiesStorageCategoryModel>(),
+                    Nested:
+                    [
+                        new RouteMap("StorageDrive", View: views.FindByViewModel<DeviceCapabilitiesStorageDriveDetailModel>()),
+                    ]),
+                    new RouteMap("Graphics", View: views.FindByViewModel<DeviceCapabilitiesGraphicsCategoryModel>(),
+                    Nested:
+                    [
+                        new RouteMap("GraphicsAdapter", View: views.FindByViewModel<DeviceCapabilitiesGraphicsAdapterDetailModel>()),
+                        new RouteMap("GraphicsMonitor", View: views.FindByViewModel<DeviceCapabilitiesGraphicsMonitorDetailModel>()),
+                    ]),
+                    new RouteMap("Network", View: views.FindByViewModel<DeviceCapabilitiesNetworkCategoryModel>(),
+                    Nested:
+                    [
+                        new RouteMap("NetworkAdapter", View: views.FindByViewModel<DeviceCapabilitiesNetworkAdapterDetailModel>()),
+                    ]),
+                    new RouteMap("Profile", View: views.FindByViewModel<DeviceCapabilitiesSystemProfileCategoryModel>()),
+                ]),
                 new RouteMap("Modules",  View: views.FindByViewModel<ModulesModel>()),
                 new RouteMap("FanCurveProfiles",  View: views.FindByViewModel<FanCurveProfilesModel>(),
                 Nested:
