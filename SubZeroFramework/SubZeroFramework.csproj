@@ -97,6 +97,13 @@
     <ItemGroup>
         <Content Update="Assets\Fonts\Montserrat-Light.ttf">
           <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+          <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+    </ItemGroup>
+    <ItemGroup>
+        <Content Include="Assets\Png\**\*.png">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         </Content>
     </ItemGroup>
     <ItemGroup>
@@ -134,11 +141,6 @@
         </Page>
     </ItemGroup>
     <ItemGroup>
-        <Page Update="Controls\DeviceCapabilities\NetworkSectionView.xaml">
-            <Generator>MSBuild:Compile</Generator>
-        </Page>
-    </ItemGroup>
-    <ItemGroup>
         <Page Update="Controls\DeviceCapabilities\OnboardStatusSectionView.xaml">
             <Generator>MSBuild:Compile</Generator>
         </Page>
@@ -159,7 +161,7 @@
         </Page>
     </ItemGroup>
     <ItemGroup>
-      <Page Update="Controls\Dashboard\Fans\FanCardView.xaml">
+      <Page Update="Controls\Fans\FanCardView.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>
     </ItemGroup>
@@ -235,6 +237,99 @@
     </ItemGroup>
     <ItemGroup>
       <Page Update="Presentation\MenuItems\WarningsIssues\WarningIssuesPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+    <!-- Redesign-era views (shared controls, mode views, Device Capabilities categories/details). -->
+    <ItemGroup>
+      <Page Update="Controls\InstancePickerView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\Branding\BrandLogoView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\DeviceCapabilities\CpuCoreUsageCardView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\DeviceCapabilities\CpuPackageCardView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\DeviceCapabilities\GraphicsCardView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\DeviceCapabilities\StatTileView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\Power\PowerCardView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\Power\BatteryChargeRingView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\Power\FlowArrowsView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\Thermal\ThermalSensorTileView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\Thermal\ThermalSnapshotCardView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\Modules\ModulesPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\FanCurveProfiles\Modes\FanAutoModeView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\FanCurveProfiles\Modes\FanManualModeView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\FanCurveProfiles\Modes\FanMaxModeView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\FanCurveProfiles\Modes\FanCustomCurveView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\FanCurveProfiles\Modes\FanModeGaugeView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesOnboardCategoryView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesCpuCategoryView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesMemoryCategoryView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesStorageCategoryView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesGraphicsCategoryView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesNetworkCategoryView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesSystemProfileCategoryView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesCpuPackageDetailView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesMemoryModuleDetailView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesStorageDriveDetailView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesGraphicsAdapterDetailView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesGraphicsMonitorDetailView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\DeviceCapabilities\Categories\DeviceCapabilitiesNetworkAdapterDetailView.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>
     </ItemGroup>

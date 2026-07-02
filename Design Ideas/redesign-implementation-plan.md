@@ -63,16 +63,21 @@ Two sources, per the handoff:
   role pills, real card types, per-port **capabilities** (data lane / DP / charging pills), **non-PD slot**
   handling, the FW16 **4-mainboard-PD + GPU = 5** count fix, **position** labels + chassis-mirroring layout. See
   the "Power" phasing below for the slice list.
-- **Device Capabilities** — `HardwareInfo` (CPU packages/cores, GPU, network, memory, storage, system profile) +
-  onboard fans (`FrameworkFanName` function CPU/GPU as title). Vendor logos via the mapper. **NOT redesigned yet;
-  gap analysis done — see the 7-slice breakdown in Phasing §4.** All data flows already except the fan-function
-  string, the Internet flag (client-side check), and display mappings (friendly network names, resolution badges).
-- **Modules (NEW page + rail item)** — **physical-map → selected-detail** pattern, **layout chosen by
-  `PlatformFamily`**: FW16 (3 input-deck variants: LED-matrix+spacers / numpad / wide-touchpad — driven by
-  input-deck `Position`+`Identity`+width), FW12/13 (4 USB-C, combined input cover, touchscreen tile), FW Desktop
-  (tower front slots + rear I/O), + **Module Library** (static reference catalog of every identity/slot-kind).
+- **Device Capabilities — DONE** (redesigned, PDF-fidelity iteration complete + verified live 2026-07-02, incl.
+  the two-picker Graphics monitors design update, `StatTilePanel` adaptive tiles, picker empty-state text, and
+  the csproj Page-item pass). See Phasing §4.
+- **Modules (NEW page + rail item) — NEXT UP** — **physical-map → selected-detail** pattern, **one layout VIEW
+  per platform** (user instruction 2026-07-02): **FW12, FW13 and FW13 Pro each get their OWN view** (own
+  chassis/keyboard art; input deck is a fixed input cover — NO input-deck slots, keyboard only; expansion cards
+  per chassis), **FW16** (composable input deck: 2 top-row module slots flanking the keyboard — LED matrix /
+  numpad / spacer — and a touchpad row that is EITHER touchpad + 2 touchpad spacers OR a wide touchpad; any
+  combination of the two rows, driven by live `Position`+`Identity`), **FW Desktop** (tower front slots + rear
+  I/O). The **Module Library PDF is NOT a user-facing view** — it's the developer reference for how each
+  identity/slot-kind is presented (names, icons, chips, descriptions).
   Consumes: module inventory + per-slot PD + `Position` + expansion-bay GPU descriptor + privacy switches +
-  fingerprint. Most data needs the Core→proto→client vertical (only PD is wired today).
+  fingerprint. Most data needs the Core→proto→client vertical (only PD is wired today). **Real chassis/module
+  art now exists in `SubZeroFramework/Assets/Png/` and REPLACES the PDFs' placeholder shapes** — see the asset
+  mapping in Phasing §5.
 - **Dashboard** — full redesign: cooling-profile presets + per-fan quick control + thermal snapshot bars +
   power card + quick toggles. See Phasing §6. **NOT started.**
 - **Settings** — 5 sub-pages (Service / Display units / Startup & alerts / Licenses / About) via the
@@ -183,8 +188,82 @@ Two sources, per the handoff:
      restyle to global-stats-top + picker + tiles).
    - **Slice 7 — System profile:** single column (Model/SKU/System revision/EC build/BIOS version+date) + fold
      the existing Cooling + Platform-firmware sections into the mockup's **"Cooling hardware & firmware"** block.
-5. **Modules** (largest: new page + per-platform layouts + the most new EC plumbing) — do the **Library** first
-   (static, no EC), then FW16, then FW12/13, then Desktop. High-res PDFs now exist for all six views.
+5. **Modules** (largest: new page + per-platform layouts + the most new EC plumbing) — data vertical first,
+   then FW16 → FW12/13 → Desktop. High-res PDFs exist for all views (`modules-fw16-numpad`,
+   `modules-fw16-spacers`, `modules-fw16-widetouchpad`, `modules-fw12-13`, `modules-fw-desktop`).
+   **`modules-library/Modules - Library.pdf` is a DEVELOPER REFERENCE ONLY (user instruction 2026-07-02)** —
+   it documents how to present every `FrameworkModuleIdentity` / `FrameworkModuleSlotKind` (display name, icon,
+   category, slot-kind label, bus/interface, PD wattage, serviceability, one-line description); there is NO
+   user-facing Library view. That presentation data still lives in code as an internal catalog helper (identity
+   → display metadata) so every layout renders modules consistently — consult the Library PDF +
+   `Modules - Library.dc.html` when authoring it.
+
+   **Asset rule (user instruction 2026-07-02): the PDFs draw chassis/modules as simple shapes (gear-in-a-box
+   body, rectangle key grids) — the real PNG art in `SubZeroFramework/Assets/Png/` is used instead.** Mapping:
+   - Chassis body (map centre): `framework-16-top.png` / `framework-13-top.png` / `framework-13pro-top.png` /
+     `framework-12-top.png`; Desktop tower: `framework-desktop-front.png` (front slots view) +
+     `framework-desktop-back.png` (rear I/O view).
+   - FW16 input deck (picked by module `Identity` at each `FrameworkInputModulePosition`):
+     keyboard → `framework-16-keyboard.png`, numpad → `framework-16-numpad-module.png`,
+     LED matrix → `framework-16-ledmatrix-module.png`, spacer → `framework-16-spacer-module.png`,
+     touchpad → `framework-16-touchpad.png`, touchpad spacer → `framework-16-touchpad-spacer.png`,
+     wide touchpad → `framework-16-wide-touchpad.png`.
+   - FW12/13 fixed input cover: `framework-12-keyboard.png` / `framework-13-keyboard.png` /
+     `framework-13pro-keyboard.png`.
+   - PNGs under `Assets/**` are auto-included as Content by the Uno SDK — reference via
+     `ms-appx:///Assets/Png/<name>.png`; selected-module highlight = accent Border AROUND the image tile (don't
+     tint the art). The PDFs' "View numpad/LED-matrix layout" toggle link is a mock artifact — the real deck
+     arrangement comes from the live descriptors, no toggle.
+
+   **Slices:**
+   - **M1 — module presentation catalog** (internal, static, zero EC): a Core/UI helper mapping every
+     `FrameworkModuleIdentity` + `FrameworkModuleSlotKind` to its display metadata (name, MDI icon, category,
+     slot-kind label, bus/interface, PD wattage, serviceability, description) authored from the Library
+     reference. NOT a view — it's what the layout views and heroes consume so every module renders
+     consistently. Unit-test that every enum member has catalog coverage.
+   - **M2 — module-inventory vertical** (the EC plumbing; approved by user 2026-07-02). The data is FINISHED
+     in framework-dotnet — the app just never sees it because only the service talks to the EC. Source of
+     truth: `IFrameworkEcConnection.GetModuleInventorySnapshot()` (framework-dotnet
+     `FrameworkEcConnection.cs`) → `FrameworkModuleInventorySnapshot` (6 `UsbCSlots`, 5 `InputTopRowModules` +
+     `InputTouchpad`, fixed internals incl. `ExpansionBay`, 4 `DetachedModules`); each entry is a
+     `FrameworkModuleDescriptorSnapshot` whose fields map 1:1 onto the PDF hero (Identity→card type,
+     Confidence→"Confirmed" chip, SlotKind, Flags→BuiltIn/Connected/Active pills, VID/PID/BoardID tiles,
+     `Position`→FW16 deck placement). Carry it across the gRPC boundary by copying the PD vertical file-for-
+     file: **Core read** `SubZeroFramework.Core\Services\FrameworkDataProvider.cs` → Core model (twin of
+     `Core\Models\PowerDeliveryPortSnapshot.cs`) → **proto** message + mirrored enums in
+     `GrpcContracts\Protos\framework_telemetry.proto` → **service map/serve** in
+     `Service\Services\FrameworkTelemetryGrpcService.cs` (+ mapper) → **app client** twin of
+     `SubZeroFramework\Services\GrpcPowerDeliveryClient.cs`/`IPowerDeliveryClient.cs` → **VM** `ModulesModel`
+     (as `PowerTelemetryModel` consumes PD) → **Core display helpers** for enum→text (the
+     `FrameworkSensorNameDisplay` pattern, tested). Joins, not duplicates: per-slot PD state (wattage/DP pill)
+     comes from the EXISTING PD stream matched by slot index; webcam/mic privacy + fingerprint state feed the
+     internal chips row (add to this slice only if not already streamed).
+   - **M3 — FW16 layout** (`Modules - Numpad/Two spacers/Wide touchpad.pdf`): expansion-bay banner
+     (`BrandLogoView` AMD/Nvidia + variant name) over the chassis map — slots 1-3 left, 4-6 right flanking
+     `framework-16-top.png`, chassis-mirrored like the Power PD section; slot cards (number badge, card-type
+     icon, name, Empty state, selected accent) → **Selected expansion module** hero (title "Slot N · <type>
+     expansion card", Confirmed chip, flag chips, PD pill "100 W · DP alt-mode" / "No PD contract", 6
+     StatTiles). Below: **Input deck & internal modules** — webcam/mic/fingerprint status chips + the
+     PNG-based COMPOSABLE deck: **top row = 2 module slots flanking the keyboard** (each slot holds LED matrix
+     / numpad / spacer / empty), **touchpad row = touchpad + 2 touchpad spacers OR wide touchpad** — any
+     combination of the two rows, assembled from the live descriptors' `Position`+`Identity` (the three PDFs
+     are just sample combinations); **Selected input-deck module** hero (7 StatTiles: Module/State/Slot
+     kind/Confidence/VID/PID/Board ID).
+   - **M4 — FW12 / FW13 / FW13 Pro layouts — THREE SEPARATE VIEWS** (user instruction 2026-07-02;
+     `Modules - Framework 12or13.pdf` shows the shared skeleton): each uses its own chassis + keyboard art
+     (`framework-12-top/-keyboard`, `framework-13-top/-keyboard`, `framework-13pro-top/-keyboard`). **No
+     input-deck slots — the deck is a fixed input cover (keyboard only)**, accent-outlined as one unit with its
+     own hero ("Input cover (fixed)" slot kind). Expansion-card slots per chassis flank the top-down PNG;
+     internal chips row adds the Touchscreen tile on touch models (FW12). Distinguish 13 vs 13 Pro from the
+     platform/model data when picking the view.
+   - **M5 — Desktop layout** (`Modules - Framework Desktop.pdf`): `framework-desktop-front.png` with the 2
+     front slots connector-linked beneath it; **Rear I/O & mainboard** section ("Fixed · soldered" chip):
+     mainboard card + rear port list (HDMI 2.1 / USB4 ×2 / DP 2.1 ×2 / USB-A ×2 / Audio / 5G LAN — static
+     per-platform catalog like FanAdvancedInfo, no EC read) with per-port detail tiles (Standard / PHY /
+     Features / Security) — reuse `InstancePickerView` for the port list.
+   - **M6 — platform switch + verify**: Modules page picks the layout route by `PlatformFamily` (nested-region
+     navigation, accessor bridge, deferred QueueSync — the Device-Caps page pattern verbatim); 0/0 both
+     targets + tests + live verify on the FW16 (numpad deck) before moving on.
 6. **Dashboard — full redesign** (`dashboard/Dashboard.pdf`, 2 pages). Much more than a visual pass:
    - **Cooling profile presets row** (Silent · Balanced · Performance · Turbo · Custom — icon + name + one-line
      description, selected card accent-outlined + check; "applies to all N fans instantly"; header shows Average
@@ -243,6 +322,10 @@ Two sources, per the handoff:
     service); Licenses/About = plain list layouts (no new controls).
   - **Warnings**: recovery hero is a page layout, not a control — reuses buttons/cards/status brushes; the
     two info cards ≈ `StatTileView`-style Borders with line lists.
-  - **Modules**: detail card fields = `StatTileView`; confidence chip ≈ `FanStatusChipView`-style pill; flag
-    pills = the PD pill pattern from Power; vendor logos = `BrandLogoView`. The physical chassis maps are the
-    genuinely new pieces (one layout control per platform family).
+  - **Modules**: detail card fields = `StatTileView` in `StatTilePanel` (adaptive widths); confidence chip ≈
+    `FanStatusChipView`-style pill; flag pills = the PD pill pattern from Power; vendor logos = `BrandLogoView`;
+    Desktop rear-I/O list = `InstancePickerView` (with `EmptyText`). The genuinely new pieces: per-platform
+    chassis-map layout views built around the `Assets/Png/` art (see §5 asset mapping), a shared
+    **ModuleSlotCardView** (number badge + icon + name + empty/selected states, used by every map), and a shared
+    **selected-module hero** (icon + title + confidence/flag chips + PD pill + StatTilePanel — same control
+    serves both the expansion-card hero and the input-deck hero).
