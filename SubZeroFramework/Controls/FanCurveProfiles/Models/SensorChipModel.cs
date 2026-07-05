@@ -4,6 +4,8 @@ using FrameworkDotnet.Enums;
 
 using Material.Icons;
 
+using SubZeroFramework.Services.Units;
+
 namespace SubZeroFramework.Controls.FanCurveProfiles.Models;
 
 /// <summary>
@@ -13,10 +15,13 @@ namespace SubZeroFramework.Controls.FanCurveProfiles.Models;
 /// </summary>
 public partial class SensorChipModel : ObservableObject
 {
-    public SensorChipModel(int sensorIndex, string displayName)
+    private readonly IUnitFormattingService _unitFormattingService;
+
+    public SensorChipModel(int sensorIndex, string displayName, IUnitFormattingService unitFormattingService)
     {
         SensorIndex = sensorIndex;
         DisplayName = displayName;
+        _unitFormattingService = unitFormattingService;
     }
 
     public int SensorIndex { get; }
@@ -41,9 +46,9 @@ public partial class SensorChipModel : ObservableObject
     /// <summary>Only an OK sensor can be selected to drive a curve.</summary>
     public bool IsUsable => State == FrameworkTemperatureState.Ok;
 
-    /// <summary>Current reading shown under the chip name (e.g. "69°C", or "—" when unread).</summary>
+    /// <summary>Current reading shown under the chip name (e.g. "69°C", or "—" when unread), in the user's display unit.</summary>
     public string TemperatureDisplay => CurrentTemperatureCelsius is double t
-        ? $"{t:0}°C"
+        ? _unitFormattingService.FormatTemperature(t)
         : "—";
 
     /// <summary>Second line under the name: the reading when OK, otherwise the unusable-state reason.</summary>

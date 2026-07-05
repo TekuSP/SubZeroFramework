@@ -123,7 +123,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         SensorChart = new FanSensorChartModel(unitFormattingService);
         CurveChart = new FanCurveChartModel(unitFormattingService);
         LinkSection = new FanLinkSectionModel(this);
-        SensorSelection = new FanSensorSelectionModel(historyStore);
+        SensorSelection = new FanSensorSelectionModel(historyStore, unitFormattingService);
         _session = new FanEditSession(this, actuator, logger);
 
         _hub.FanAdded += OnFanAdded;

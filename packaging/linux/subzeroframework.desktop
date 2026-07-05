@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=SubZero Framework Edition
+GenericName=Fan control and telemetry
+Comment=Fan control, thermal and power telemetry for Framework computers
+Exec=/usr/bin/subzeroframework
+Icon=subzeroframework
+Terminal=false
+Categories=System;Monitor;Utility;
+Keywords=fan;thermal;framework;cooling;telemetry;
+StartupWMClass=SubZeroFramework

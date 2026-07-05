@@ -278,6 +278,33 @@
       <Page Update="Presentation\MenuItems\Modules\ModulesPage.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>
+      <Page Update="Controls\ToggleRowView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\Settings\UnitSegmentPickerView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\Dashboard\CoolingPresetCardView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Controls\Dashboard\FanQuickControlCardView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\Settings\Sections\SettingsServiceSectionView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\Settings\Sections\SettingsUnitsSectionView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\Settings\Sections\SettingsStartupSectionView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\Settings\Sections\SettingsLicensesSectionView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+      <Page Update="Presentation\MenuItems\Settings\Sections\SettingsAboutSectionView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
       <Page Update="Presentation\MenuItems\FanCurveProfiles\Modes\FanAutoModeView.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>
@@ -360,4 +387,7 @@
         <Generator>MSBuild:Compile</Generator>
       </Page>
     </ItemGroup>
+
+    <!-- Settings → Licenses page data: extracts id/version/license text of every shipped NuGet at build time. -->
+    <Import Project="Build\ThirdPartyLicenses.targets" />
 </Project>

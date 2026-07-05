@@ -1,89 +1,163 @@
-using System.Globalization;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
+using System.Globalization;
 using System.Reactive.Disposables;
 using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
+using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.WinUI;
 
+using DynamicData;
+
+using Material.Icons;
+
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 
-using SubZeroFramework.Services.Units;
+using SubZeroFramework.Controls.Settings.Models;
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Units;
+using SubZeroFramework.Themes;
+
+using Windows.UI;
 
 namespace SubZeroFramework.Presentation.MenuItems.Settings;
 
+/// <summary>
+/// Page model for the redesigned Settings page: a sub-navigation card (Service / Display units /
+/// Startup &amp; alerts / Licenses / About) with a "Service reachable" footer, and per-section bodies
+/// resolved by nested-region navigation (the Device Capabilities pattern). Publishes itself through
+/// <see cref="SettingsAccessor"/> so the section VMs bind to the displayed instance.
+/// </summary>
 public partial class SettingsModel : ObservableObject, IDisposable
 {
+    private const string SubZeroRepositoryUrl = "https://github.com/TekuSP/SubZeroFramework";
+    private const string FrameworkDotnetRepositoryUrl = "https://github.com/TekuSP/framework-dotnet";
+    private const string FfiExtensionsRepositoryUrl = "https://github.com/TekuSP/framework-system-ffi-extensions";
+    private const string FrameworkSystemRepositoryUrl = "https://github.com/FrameworkComputer/framework-system";
+
+    // Representative fallbacks shown until (or when no) live telemetry backs a sample row.
+    private const double FallbackTemperatureCelsius = 65d;
+    private const double FallbackFanRpm = 3200d;
+    private const double FallbackClockMegahertz = 3600d;
+    private const double FallbackRefreshHertz = 60d;
+    private const ulong FallbackInformationBytes = 34_359_738_368; // 32 GiB
+    private const double FallbackVoltageVolts = 15.4d;
+    private const double FallbackCurrentAmperes = 1.2d;
+    private const double FallbackChargeAmpereHours = 3.5d;
+    private const double FallbackRatioPercent = 76d;
+    private const double FallbackBitRateBitsPerSecond = 1_000_000_000d;
+    private const double FallbackPowerWatts = 18d;
+    // Length/airflow have no live telemetry source; these mirror typical FW16 fan specs.
+    private const double SampleLengthMillimeters = 75d;
+    private const double SampleAirflowCfm = 42d;
+
     private readonly CompositeDisposable _subscriptions = [];
     private readonly IFrameworkServiceControlClient _frameworkServiceControlClient;
     private readonly IFrameworkServiceConfigurationClient _frameworkServiceConfigurationClient;
     private readonly IUserUnitPreferencesClient _userUnitPreferencesClient;
+    private readonly IUnitFormattingService _unitFormattingService;
+    private readonly ILocalClientSettingsStore _clientSettings;
+    private readonly IStartupRegistrationService _startupRegistration;
     private readonly DispatcherQueue _dispatcherQueue;
-    private readonly ObservableCollection<UnitPreferenceItemModel> _unitPreferences = [];
-    private UserUnitPreferencesSnapshot _currentUnitPreferenceSnapshot = new();
+
+    private bool _suppressStartupCallbacks;
+    private double? _sampleTemperatureCelsius;
+    private double? _sampleFanRpm;
+    private double? _sampleClockMegahertz;
+    private double? _sampleRefreshHertz;
+    private ulong? _sampleInformationBytes;
+    private double? _sampleVoltageVolts;
+    private double? _sampleCurrentAmperes;
+    private double? _sampleChargeAmpereHours;
+    private double? _sampleRatioPercent;
+    private double? _sampleBitRateBitsPerSecond;
+    private double? _samplePowerWatts;
 
     public SettingsModel(
-        IStringLocalizer localizer,
-        IOptions<AppConfig> appInfo,
         IFrameworkStatusClient frameworkStatusClient,
         IFrameworkServiceControlClient frameworkServiceControlClient,
         IFrameworkServiceConfigurationClient frameworkServiceConfigurationClient,
         UnitPreferenceCatalog unitPreferenceCatalog,
         IUserUnitPreferencesClient userUnitPreferencesClient,
+        IUnitFormattingService unitFormattingService,
+        ILocalClientSettingsStore clientSettings,
+        IStartupRegistrationService startupRegistration,
+        ITemperatureTelemetryClient temperatureTelemetryClient,
+        IFanTelemetryClient fanTelemetryClient,
+        IBatteryTelemetryClient batteryTelemetryClient,
+        IHardwareInfoClient hardwareInfoClient,
+        SettingsAccessor accessor,
         DispatcherQueue dispatcherQueue)
     {
+        ArgumentNullException.ThrowIfNull(frameworkStatusClient);
         ArgumentNullException.ThrowIfNull(frameworkServiceControlClient);
         ArgumentNullException.ThrowIfNull(frameworkServiceConfigurationClient);
         ArgumentNullException.ThrowIfNull(unitPreferenceCatalog);
         ArgumentNullException.ThrowIfNull(userUnitPreferencesClient);
+        ArgumentNullException.ThrowIfNull(unitFormattingService);
+        ArgumentNullException.ThrowIfNull(clientSettings);
+        ArgumentNullException.ThrowIfNull(startupRegistration);
+        ArgumentNullException.ThrowIfNull(temperatureTelemetryClient);
+        ArgumentNullException.ThrowIfNull(fanTelemetryClient);
+        ArgumentNullException.ThrowIfNull(batteryTelemetryClient);
+        ArgumentNullException.ThrowIfNull(hardwareInfoClient);
+        ArgumentNullException.ThrowIfNull(accessor);
         ArgumentNullException.ThrowIfNull(dispatcherQueue);
 
         _frameworkServiceControlClient = frameworkServiceControlClient;
         _frameworkServiceConfigurationClient = frameworkServiceConfigurationClient;
         _userUnitPreferencesClient = userUnitPreferencesClient;
+        _unitFormattingService = unitFormattingService;
+        _clientSettings = clientSettings;
+        _startupRegistration = startupRegistration;
         _dispatcherQueue = dispatcherQueue;
 
-        EndpointValidationMessage = frameworkStatusClient.EndpointValidation.Message;
+        // Publish before any nested-region navigation constructs a section VM.
+        accessor.Current = this;
+
+        Sections =
+        [
+            new SettingsSectionRailItemModel(0, "Service", "Lifecycle & recovery", MaterialIconKind.Wrench),
+            new SettingsSectionRailItemModel(1, "Display units", "Temperature, power, speed", MaterialIconKind.Ruler),
+            new SettingsSectionRailItemModel(2, "Startup & alerts", "Launch behavior", MaterialIconKind.RocketLaunchOutline),
+            new SettingsSectionRailItemModel(3, "Licenses", "Open-source notices", MaterialIconKind.ScaleBalance),
+            new SettingsSectionRailItemModel(4, "About", "Version & links", MaterialIconKind.InformationOutline),
+        ];
+        Sections[0].IsSelected = true;
+
+        SelectSectionCommand = new RelayCommand<SettingsSectionRailItemModel>(SelectSection);
+
         LastStatusObservedAt = frameworkStatusClient.LastObservedAt is DateTimeOffset observedAt
             ? observedAt.LocalDateTime.ToString("T", CultureInfo.CurrentCulture)
-            : "No status received yet";
-        ServiceStateTitle = "Checking service health";
-        ServiceStateMessage = "Waiting for status stream updates from SubZeroFramework.Service.";
-        ServiceStateSeverity = InfoBarSeverity.Informational;
-        LastActionTitle = string.Empty;
-        LastActionMessage = string.Empty;
-        LastActionSeverity = InfoBarSeverity.Informational;
-        ConfigurationSourcePath = string.Empty;
-        UserUnitPreferencesFilePath = _userUnitPreferencesClient.PreferencesFilePath;
-
-        UnitPreferences = new ReadOnlyObservableCollection<UnitPreferenceItemModel>(_unitPreferences);
-        InitializeUnitPreferences(unitPreferenceCatalog);
-        ApplyUnitPreferenceSnapshot(unitPreferenceCatalog.Normalize(_userUnitPreferencesClient.CurrentPreferences));
+            : "waiting for status";
 
         ShutdownServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.ShutdownAsync), CanRunInstalledServiceAction);
         RestartServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.RestartAsync), CanRunInstalledServiceAction);
         InstallServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.InstallAsync), CanRunInstallAction);
         UpdateServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.UpdateAsync), CanRunUpdateAction);
         UninstallServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.UninstallAsync), CanRunUninstallAction);
-        ReinstallServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.ReinstallAsync), CanRunReinstallAction);
-        ToggleAutorunCommand = new AsyncRelayCommand(ToggleAutorunAsync, CanRunToggleAutorunAction);
+        RecheckServiceCommand = new RelayCommand(RecheckService);
         ApplyConfigurationCommand = new AsyncRelayCommand(ApplyConfigurationAsync, CanRunApplyConfigurationAction);
         SaveConfigurationCommand = new AsyncRelayCommand(SaveConfigurationAsync, CanRunSaveConfigurationAction);
-        LoadConfigurationCommand = new AsyncRelayCommand(LoadConfigurationAsync, CanRunLoadConfigurationAction);
         ResetConfigurationCommand = new RelayCommand(ResetConfiguration, CanRunResetConfigurationAction);
-        ApplyUnitPreferencesCommand = new AsyncRelayCommand(ApplyUnitPreferencesAsync, CanRunApplyUnitPreferencesAction);
-        SaveUnitPreferencesCommand = new AsyncRelayCommand(SaveUnitPreferencesAsync, CanRunSaveUnitPreferencesAction);
-        LoadUnitPreferencesCommand = new AsyncRelayCommand(LoadUnitPreferencesAsync, CanRunLoadUnitPreferencesAction);
-        ResetUnitPreferencesCommand = new RelayCommand(ResetUnitPreferencesDraft, CanRunResetUnitPreferencesAction);
-        RestoreDefaultUnitPreferencesCommand = new AsyncRelayCommand(RestoreDefaultUnitPreferencesAsync, CanRunRestoreDefaultUnitPreferencesAction);
-        RelocateConfigurationStoreCommand = new AsyncRelayCommand<string>(RelocateConfigurationStoreAsync, CanRunRelocateConfigurationAction);
-        RelocateUnitPreferencesStoreCommand = new AsyncRelayCommand<string>(RelocateUnitPreferencesStoreAsync, CanRunRelocateUnitPreferencesAction);
+        ResetUnitsCommand = new AsyncRelayCommand(ResetUnitsAsync);
+
+        UnitRows =
+        [
+            .. unitPreferenceCatalog.Definitions.Select(definition => new UnitPreferenceRowModel(definition, HandleUnitRowSelectionChanged))
+        ];
+        ApplyUnitPreferenceSnapshot(unitPreferenceCatalog.Normalize(_userUnitPreferencesClient.CurrentPreferences));
+
+        InitializeStartupToggles();
+        AboutRows = BuildAboutRows();
+        _ = LoadLicensesAsync();
 
         ApplyServiceControlInfo(_frameworkServiceControlClient.GetInfo());
 
@@ -103,57 +177,394 @@ public partial class SettingsModel : ObservableObject, IDisposable
 
         userUnitPreferencesClient
             .WatchPreferences()
-            .Select(snapshot => Observable.FromAsync(_ => UpdateUnitPreferenceSnapshotAsync(snapshot)))
+            .Select(snapshot => Observable.FromAsync(_ => _dispatcherQueue.EnqueueAsync(() => ApplyUnitPreferenceSnapshot(snapshot))))
             .Concat()
             .Subscribe()
             .DisposeWith(_subscriptions);
+
+        // Live sample feeds for the Display-units rows. Each stream reduces to one representative number;
+        // sampling caps UI churn to one refresh per two seconds.
+        temperatureTelemetryClient
+            .WatchTemperatures()
+            .QueryWhenChanged(query => query.Items.Max(sensor => sensor.TemperatureCelsius))
+            .Sample(TimeSpan.FromSeconds(2))
+            .Subscribe(celsius => UpdateSample(() => _sampleTemperatureCelsius = celsius))
+            .DisposeWith(_subscriptions);
+
+        fanTelemetryClient
+            .WatchFans()
+            .QueryWhenChanged(query => query.Items.Where(fan => fan.IsAvailable).Select(fan => (double?)fan.SpeedRpm).Max())
+            .Sample(TimeSpan.FromSeconds(2))
+            .Subscribe(rpm => UpdateSample(() => _sampleFanRpm = rpm))
+            .DisposeWith(_subscriptions);
+
+        batteryTelemetryClient
+            .WatchBatteries()
+            .QueryWhenChanged(query => query.Items.FirstOrDefault(battery => battery.IsAvailable))
+            .Sample(TimeSpan.FromSeconds(2))
+            .Subscribe(battery => UpdateSample(() =>
+            {
+                _sampleVoltageVolts = battery?.Voltage;
+                _sampleCurrentAmperes = battery?.Amperage is double amperage ? Math.Abs(amperage) : null;
+                _sampleChargeAmpereHours = battery?.RemainingCapacityAmpereHours;
+                _sampleRatioPercent = battery?.ChargePercent;
+                _samplePowerWatts = battery?.Voltage is double volts && battery?.Amperage is double amps
+                    ? Math.Abs(volts * amps)
+                    : null;
+            }))
+            .DisposeWith(_subscriptions);
+
+        hardwareInfoClient
+            .WatchHardwareInfo()
+            .Subscribe(snapshot => UpdateSample(() =>
+            {
+                _sampleClockMegahertz = snapshot.Cpus
+                    .Select(cpu => cpu.CurrentClockSpeedMHz > 0 ? (double?)cpu.CurrentClockSpeedMHz : cpu.MaxClockSpeedMHz)
+                    .FirstOrDefault(clock => clock > 0);
+                _sampleRefreshHertz = snapshot.Monitors
+                    .Select(monitor => (double?)monitor.CurrentRefreshRate)
+                    .FirstOrDefault(rate => rate > 0);
+                var totalMemoryBytes = snapshot.MemoryModules.Aggregate(0UL, (total, module) => total + module.CapacityBytes);
+                _sampleInformationBytes = totalMemoryBytes > 0 ? totalMemoryBytes : null;
+                _sampleBitRateBitsPerSecond = snapshot.NetworkAdapters
+                    .Select(adapter => (double?)adapter.Speed)
+                    .Where(speed => speed > 0)
+                    .Max();
+            }))
+            .DisposeWith(_subscriptions);
     }
 
+    // ----- Sub-navigation -----
+
+    public IReadOnlyList<SettingsSectionRailItemModel> Sections { get; }
+
     [ObservableProperty]
-    public partial string EndpointValidationMessage { get; set; }
+    public partial int SelectedSectionIndex { get; set; }
+
+    public IRelayCommand<SettingsSectionRailItemModel> SelectSectionCommand { get; }
+
+    private void SelectSection(SettingsSectionRailItemModel? section)
+    {
+        if (section is null)
+        {
+            return;
+        }
+
+        foreach (var item in Sections)
+        {
+            item.IsSelected = item.Index == section.Index;
+        }
+
+        SelectedSectionIndex = section.Index;
+    }
+
+    // ----- Service state (banner + footer) -----
 
     [ObservableProperty]
     public partial string LastStatusObservedAt { get; set; }
 
     [ObservableProperty]
-    public partial string ServiceStateTitle { get; set; }
+    public partial string BannerTitle { get; set; } = "Checking service health";
 
     [ObservableProperty]
-    public partial string ServiceStateMessage { get; set; }
+    public partial string BannerDetail { get; set; } = "Waiting for status stream updates from SubZeroFramework.Service.";
+
+    // Brushes are derived (never stored): creating a SolidColorBrush is only legal on the UI thread, and the
+    // VM may be constructed off it — computed getters evaluate at binding time instead.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BannerBackground))]
+    [NotifyPropertyChangedFor(nameof(BannerBorderBrush))]
+    [NotifyPropertyChangedFor(nameof(BannerForeground))]
+    [NotifyPropertyChangedFor(nameof(BannerIconKind))]
+    [NotifyPropertyChangedFor(nameof(FooterText))]
+    [NotifyPropertyChangedFor(nameof(FooterBrush))]
+    [NotifyPropertyChangedFor(nameof(FooterIconKind))]
+    public partial InfoBarSeverity ServiceStateSeverity { get; set; } = InfoBarSeverity.Informational;
+
+    public Brush BannerBackground => TintBrush(SeverityColor(ServiceStateSeverity), 0x24);
+
+    public Brush BannerBorderBrush => TintBrush(SeverityColor(ServiceStateSeverity), 0x55);
+
+    public Brush BannerForeground => SeverityForegroundBrush(ServiceStateSeverity);
+
+    public MaterialIconKind BannerIconKind => ServiceStateSeverity switch
+    {
+        InfoBarSeverity.Success => MaterialIconKind.CheckDecagram,
+        InfoBarSeverity.Warning => MaterialIconKind.AlertOutline,
+        InfoBarSeverity.Error => MaterialIconKind.AlertOctagonOutline,
+        _ => MaterialIconKind.InformationOutline,
+    };
+
+    public string FooterText => ServiceStateSeverity switch
+    {
+        InfoBarSeverity.Success => "Service reachable",
+        InfoBarSeverity.Warning => "Service degraded",
+        InfoBarSeverity.Error => "Service unreachable",
+        _ => "Checking service",
+    };
+
+    public Brush FooterBrush => SeverityForegroundBrush(ServiceStateSeverity);
+
+    public MaterialIconKind FooterIconKind => BannerIconKind;
+
+    private static Color SeverityColor(InfoBarSeverity severity) => severity switch
+    {
+        InfoBarSeverity.Success => AppThemeBrushes.StatusSuccessColor,
+        InfoBarSeverity.Warning => AppThemeBrushes.StatusWarningColor,
+        InfoBarSeverity.Error => AppThemeBrushes.SeverityCriticalColor,
+        _ => AppThemeBrushes.StatusInfoColor,
+    };
+
+    private static Brush SeverityForegroundBrush(InfoBarSeverity severity) => severity switch
+    {
+        InfoBarSeverity.Success => AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor),
+        InfoBarSeverity.Warning => AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor),
+        InfoBarSeverity.Error => AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.SeverityCriticalColor),
+        _ => AppThemeBrushes.Get("StatusInfoBrush", AppThemeBrushes.StatusInfoColor),
+    };
+
+    private void ApplyStatus(FrameworkSystemStatus status)
+    {
+        LastStatusObservedAt = status.ObservedAt.LocalDateTime.ToString("T", CultureInfo.CurrentCulture);
+
+        if (!status.IsGrpcActive)
+        {
+            SetServiceState(
+                InfoBarSeverity.Error,
+                IsServiceInstalled ? "Service offline" : "Service not installed",
+                IsServiceInstalled
+                    ? status.LastError ?? "The client cannot reach SubZeroFramework.Service over local gRPC IPC."
+                    : "SubZeroFramework.Service is not currently installed.");
+            return;
+        }
+
+        if (!status.IsLibraryAvailable)
+        {
+            SetServiceState(InfoBarSeverity.Error, "Service running with library issue", status.LastError ?? "The service is running, but FrameworkDotnet could not be loaded.");
+            return;
+        }
+
+        if (status.RequiresElevation)
+        {
+            SetServiceState(InfoBarSeverity.Warning, "Service requires elevation", "The service is running without the privileges required for Framework EC access.");
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(status.LastError))
+        {
+            SetServiceState(InfoBarSeverity.Warning, "Service warning", status.LastError);
+            return;
+        }
+
+        SetServiceState(InfoBarSeverity.Success, "Reachable over local gRPC", $"{ServiceIdentity} — last check {LastStatusObservedAt}");
+
+        // Live values surfaced on the About page ride the same status stream.
+        if (!string.IsNullOrWhiteSpace(status.EcBuildInfo))
+        {
+            AboutRows[1].Value = status.EcBuildInfo!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(status.ConnectionLibraryVersion) && status.ConnectionLibraryVersion != "Unknown")
+        {
+            AboutRows[2].Value = status.ConnectionLibraryVersion;
+        }
+    }
+
+    private void SetServiceState(InfoBarSeverity severity, string title, string detail)
+    {
+        BannerTitle = title;
+        BannerDetail = severity == InfoBarSeverity.Success ? detail : $"{detail} — last check {LastStatusObservedAt}";
+        ServiceStateSeverity = severity;
+    }
+
+    private static Brush TintBrush(Color color, byte alpha)
+        => new SolidColorBrush(Color.FromArgb(alpha, color.R, color.G, color.B));
+
+    // ----- Service lifecycle -----
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ServiceErrorHeroVisibility))]
-    [NotifyPropertyChangedFor(nameof(ServiceWarningHeroVisibility))]
-    [NotifyPropertyChangedFor(nameof(ServiceSuccessHeroVisibility))]
-    [NotifyPropertyChangedFor(nameof(ServiceInformationalHeroVisibility))]
-    public partial InfoBarSeverity ServiceStateSeverity { get; set; }
+    public partial string ServiceIdentity { get; set; } = "SubZeroFrameworkService";
 
     [ObservableProperty]
-    public partial string PlatformServiceManager { get; set; }
+    public partial string PrivilegePromptMessage { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string ServiceIdentity { get; set; }
+    public partial string InstallReadinessMessage { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string InstallSourceSummary { get; set; }
+    public partial string LastActionTitle { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string InstallReadinessMessage { get; set; }
+    public partial string LastActionMessage { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string PrivilegePromptMessage { get; set; }
-
-    [ObservableProperty]
-    public partial string LastActionTitle { get; set; }
-
-    [ObservableProperty]
-    public partial string LastActionMessage { get; set; }
-
-    [ObservableProperty]
-    public partial InfoBarSeverity LastActionSeverity { get; set; }
+    public partial InfoBarSeverity LastActionSeverity { get; set; } = InfoBarSeverity.Informational;
 
     [ObservableProperty]
     public partial bool IsLastActionVisible { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsOperationInProgress { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsServiceControlSupported { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsServiceInstalled { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(InstallButtonVisibility))]
+    public partial bool CanInstallService { get; set; }
+
+    [ObservableProperty]
+    public partial bool CanUpdateService { get; set; }
+
+    [ObservableProperty]
+    public partial bool CanUninstallService { get; set; }
+
+    [ObservableProperty]
+    public partial bool PackagedHelperAvailable { get; set; }
+
+    [ObservableProperty]
+    public partial bool? IsAutorunEnabled { get; set; }
+
+    public Visibility InstallButtonVisibility => CanInstallService ? Visibility.Visible : Visibility.Collapsed;
+
+    public IAsyncRelayCommand ShutdownServiceCommand { get; }
+
+    public IAsyncRelayCommand RestartServiceCommand { get; }
+
+    public IAsyncRelayCommand InstallServiceCommand { get; }
+
+    public IAsyncRelayCommand UpdateServiceCommand { get; }
+
+    public IAsyncRelayCommand UninstallServiceCommand { get; }
+
+    public IRelayCommand RecheckServiceCommand { get; }
+
+    partial void OnIsOperationInProgressChanged(bool value) => RefreshCommandStates();
+
+    partial void OnIsServiceControlSupportedChanged(bool value) => RefreshCommandStates();
+
+    partial void OnIsServiceInstalledChanged(bool value) => RefreshCommandStates();
+
+    partial void OnCanInstallServiceChanged(bool value) => RefreshCommandStates();
+
+    partial void OnCanUpdateServiceChanged(bool value) => RefreshCommandStates();
+
+    partial void OnCanUninstallServiceChanged(bool value) => RefreshCommandStates();
+
+    private void RefreshCommandStates()
+    {
+        ShutdownServiceCommand.NotifyCanExecuteChanged();
+        RestartServiceCommand.NotifyCanExecuteChanged();
+        InstallServiceCommand.NotifyCanExecuteChanged();
+        UpdateServiceCommand.NotifyCanExecuteChanged();
+        UninstallServiceCommand.NotifyCanExecuteChanged();
+        ApplyConfigurationCommand.NotifyCanExecuteChanged();
+        SaveConfigurationCommand.NotifyCanExecuteChanged();
+        ResetConfigurationCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanRunInstalledServiceAction()
+        => IsServiceControlSupported && IsServiceInstalled && !IsOperationInProgress;
+
+    private bool CanRunInstallAction()
+        => IsServiceControlSupported && CanInstallService && !IsOperationInProgress;
+
+    private bool CanRunUpdateAction()
+        => IsServiceControlSupported && CanUpdateService && !IsOperationInProgress;
+
+    private bool CanRunUninstallAction()
+        => IsServiceControlSupported && CanUninstallService && !IsOperationInProgress;
+
+    private async Task ExecuteServiceActionAsync(Func<CancellationToken, Task<FrameworkServiceCommandResult>> action)
+    {
+        if (IsOperationInProgress)
+        {
+            return;
+        }
+
+        IsOperationInProgress = true;
+
+        try
+        {
+            var result = await action(CancellationToken.None).ConfigureAwait(false);
+            await _dispatcherQueue.EnqueueAsync(() =>
+            {
+                ApplyServiceControlInfo(_frameworkServiceControlClient.GetInfo());
+                LastActionTitle = result.OperationName;
+                LastActionMessage = result.Message;
+                LastActionSeverity = MapSeverity(result.Kind);
+                IsLastActionVisible = true;
+            });
+        }
+        finally
+        {
+            await _dispatcherQueue.EnqueueAsync(() => IsOperationInProgress = false);
+        }
+    }
+
+    private void RecheckService()
+    {
+        ApplyServiceControlInfo(_frameworkServiceControlClient.GetInfo());
+        LastActionTitle = "Recheck service";
+        LastActionMessage = $"Service manager re-queried at {DateTimeOffset.Now.LocalDateTime.ToString("T", CultureInfo.CurrentCulture)}. Streamed status refreshes continuously.";
+        LastActionSeverity = InfoBarSeverity.Informational;
+        IsLastActionVisible = true;
+    }
+
+    private void ApplyServiceControlInfo(FrameworkServiceControlInfo serviceInfo)
+    {
+        ServiceIdentity = serviceInfo.ServiceIdentity;
+        PrivilegePromptMessage = serviceInfo.PrivilegePromptMessage;
+        InstallReadinessMessage = serviceInfo.InstallReadinessMessage;
+        IsServiceControlSupported = serviceInfo.IsSupported;
+        IsServiceInstalled = serviceInfo.IsInstalled;
+        CanInstallService = serviceInfo.CanInstall;
+        CanUpdateService = serviceInfo.CanUpdate;
+        CanUninstallService = serviceInfo.CanUninstall;
+        PackagedHelperAvailable = serviceInfo.PackagedHelperAvailable;
+        IsAutorunEnabled = serviceInfo.IsAutorunEnabled;
+        SyncAutorunToggle();
+    }
+
+    private Task UpdateStatusAsync(FrameworkSystemStatus status)
+        => _dispatcherQueue.EnqueueAsync(() => ApplyStatus(status));
+
+    private static InfoBarSeverity MapSeverity(FrameworkServiceCommandResultKind kind)
+        => kind switch
+        {
+            FrameworkServiceCommandResultKind.Success => InfoBarSeverity.Success,
+            FrameworkServiceCommandResultKind.Warning => InfoBarSeverity.Warning,
+            _ => InfoBarSeverity.Error,
+        };
+
+    // ----- Service runtime configuration (service-owned settings) -----
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConfigurationValidationMessage))]
+    [NotifyPropertyChangedFor(nameof(HasConfigurationValidationError))]
+    [NotifyPropertyChangedFor(nameof(ConfigurationValidationVisibility))]
+    public partial string TelemetryPollingIntervalMillisecondsText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConfigurationValidationMessage))]
+    [NotifyPropertyChangedFor(nameof(HasConfigurationValidationError))]
+    [NotifyPropertyChangedFor(nameof(ConfigurationValidationVisibility))]
+    public partial string HardwareInfoPollingIntervalMillisecondsText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool AllowFanControlCommandsDraft { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsConfigurationLoaded { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsConfigurationOperationInProgress { get; set; }
+
+    [ObservableProperty]
+    public partial bool HasUnsavedConfigurationChanges { get; set; }
 
     [ObservableProperty]
     public partial string ConfigurationActionTitle { get; set; } = string.Empty;
@@ -168,241 +579,7 @@ public partial class SettingsModel : ObservableObject, IDisposable
     public partial bool IsConfigurationActionVisible { get; set; }
 
     [ObservableProperty]
-    public partial string UnitPreferenceActionTitle { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string UnitPreferenceActionMessage { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial InfoBarSeverity UnitPreferenceActionSeverity { get; set; } = InfoBarSeverity.Informational;
-
-    [ObservableProperty]
-    public partial bool IsUnitPreferenceActionVisible { get; set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveConfigurationCommand))]
-    public partial bool HasUnsavedConfigurationChanges { get; set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
-    public partial bool HasUnsavedUnitPreferenceChanges { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanManageInstalledService))]
-    [NotifyPropertyChangedFor(nameof(CanReinstallService))]
-    [NotifyPropertyChangedFor(nameof(CanToggleAutorun))]
-    [NotifyPropertyChangedFor(nameof(CanApplyConfiguration))]
-    [NotifyPropertyChangedFor(nameof(CanResetConfiguration))]
-    [NotifyCanExecuteChangedFor(nameof(ShutdownServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RestartServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(InstallServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(UpdateServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(UninstallServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ReinstallServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ToggleAutorunCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SaveConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(LoadConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ApplyUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(LoadUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RestoreDefaultUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RelocateConfigurationStoreCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RelocateUnitPreferencesStoreCommand))]
-    public partial bool IsOperationInProgress { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanManageInstalledService))]
-    [NotifyPropertyChangedFor(nameof(CanReinstallService))]
-    [NotifyPropertyChangedFor(nameof(CanToggleAutorun))]
-    [NotifyPropertyChangedFor(nameof(CanApplyConfiguration))]
-    [NotifyPropertyChangedFor(nameof(CanResetConfiguration))]
-    [NotifyCanExecuteChangedFor(nameof(ShutdownServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RestartServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(InstallServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(UpdateServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(UninstallServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ReinstallServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ToggleAutorunCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SaveConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(LoadConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ApplyUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(LoadUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RestoreDefaultUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RelocateConfigurationStoreCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RelocateUnitPreferencesStoreCommand))]
-    public partial bool IsConfigurationOperationInProgress { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanManageInstalledService))]
-    [NotifyPropertyChangedFor(nameof(CanReinstallService))]
-    [NotifyPropertyChangedFor(nameof(CanToggleAutorun))]
-    [NotifyPropertyChangedFor(nameof(CanApplyConfiguration))]
-    [NotifyCanExecuteChangedFor(nameof(ShutdownServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RestartServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(InstallServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(UpdateServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(UninstallServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ReinstallServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ToggleAutorunCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SaveConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(LoadConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RelocateConfigurationStoreCommand))]
-    public partial bool IsServiceControlSupported { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanManageInstalledService))]
-    [NotifyPropertyChangedFor(nameof(CanReinstallService))]
-    [NotifyPropertyChangedFor(nameof(CanToggleAutorun))]
-    [NotifyCanExecuteChangedFor(nameof(ShutdownServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RestartServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ReinstallServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ToggleAutorunCommand))]
-    public partial bool IsServiceInstalled { get; set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(InstallServiceCommand))]
-    public partial bool CanInstallService { get; set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(UpdateServiceCommand))]
-    public partial bool CanUpdateService { get; set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(UninstallServiceCommand))]
-    public partial bool CanUninstallService { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanReinstallService))]
-    [NotifyCanExecuteChangedFor(nameof(ReinstallServiceCommand))]
-    public partial bool PackagedHelperAvailable { get; set; }
-
-    [ObservableProperty]
-    public partial bool IsElevatedSession { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanToggleAutorun))]
-    [NotifyPropertyChangedFor(nameof(AutorunStateTitle))]
-    [NotifyPropertyChangedFor(nameof(AutorunStateDescription))]
-    [NotifyCanExecuteChangedFor(nameof(ToggleAutorunCommand))]
-    public partial bool? IsAutorunEnabled { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanApplyConfiguration))]
-    [NotifyPropertyChangedFor(nameof(CanResetConfiguration))]
-    [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SaveConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(LoadConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetConfigurationCommand))]
-    public partial bool IsConfigurationLoaded { get; set; }
-
-    [ObservableProperty]
-    public partial string ConfigurationSourcePath { get; set; }
-
-    [ObservableProperty]
-    public partial string UserUnitPreferencesFilePath { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ApplyUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(SaveUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(LoadUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RestoreDefaultUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(RelocateUnitPreferencesStoreCommand))]
-    public partial bool IsUnitPreferenceOperationInProgress { get; set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ApplyUnitPreferencesCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetUnitPreferencesCommand))]
-    public partial bool HasUnitPreferenceChanges { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ConfigurationValidationMessage))]
-    [NotifyPropertyChangedFor(nameof(HasConfigurationValidationError))]
-    [NotifyPropertyChangedFor(nameof(HasConfigurationChanges))]
-    [NotifyPropertyChangedFor(nameof(CanApplyConfiguration))]
-    [NotifyPropertyChangedFor(nameof(CanResetConfiguration))]
-    [NotifyPropertyChangedFor(nameof(TelemetryPollingSamplesPerSecondDisplay))]
-    [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetConfigurationCommand))]
-    public partial string TelemetryPollingIntervalMillisecondsText { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ConfigurationValidationMessage))]
-    [NotifyPropertyChangedFor(nameof(HasConfigurationValidationError))]
-    [NotifyPropertyChangedFor(nameof(HasConfigurationChanges))]
-    [NotifyPropertyChangedFor(nameof(CanApplyConfiguration))]
-    [NotifyPropertyChangedFor(nameof(CanResetConfiguration))]
-    [NotifyPropertyChangedFor(nameof(HardwareInfoPollingSamplesPerSecondDisplay))]
-    [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetConfigurationCommand))]
-    public partial string HardwareInfoPollingIntervalMillisecondsText { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasConfigurationChanges))]
-    [NotifyPropertyChangedFor(nameof(CanApplyConfiguration))]
-    [NotifyPropertyChangedFor(nameof(CanResetConfiguration))]
-    [NotifyPropertyChangedFor(nameof(FanControlConfigurationWarning))]
-    [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetConfigurationCommand))]
-    public partial bool AllowFanControlCommandsDraft { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(RuntimeAuthorizationMessage))]
-    [NotifyPropertyChangedFor(nameof(FanControlConfigurationWarning))]
-    private partial FrameworkSystemStatus? ObservedServiceStatus { get; set; }
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasConfigurationChanges))]
-    [NotifyPropertyChangedFor(nameof(CanApplyConfiguration))]
-    [NotifyPropertyChangedFor(nameof(CanResetConfiguration))]
-    [NotifyCanExecuteChangedFor(nameof(ApplyConfigurationCommand))]
-    [NotifyCanExecuteChangedFor(nameof(ResetConfigurationCommand))]
-    private partial FrameworkServiceConfigurationSnapshot? CurrentConfigurationSnapshot { get; set; }
-
-    public Visibility ServiceErrorHeroVisibility => ServiceStateSeverity == InfoBarSeverity.Error ? Visibility.Visible : Visibility.Collapsed;
-
-    public Visibility ServiceWarningHeroVisibility => ServiceStateSeverity == InfoBarSeverity.Warning ? Visibility.Visible : Visibility.Collapsed;
-
-    public Visibility ServiceSuccessHeroVisibility => ServiceStateSeverity == InfoBarSeverity.Success ? Visibility.Visible : Visibility.Collapsed;
-
-    public Visibility ServiceInformationalHeroVisibility => ServiceStateSeverity == InfoBarSeverity.Informational ? Visibility.Visible : Visibility.Collapsed;
-
-    public bool CanManageInstalledService => IsServiceControlSupported && IsServiceInstalled && !IsOperationInProgress && !IsConfigurationOperationInProgress;
-
-    public bool CanReinstallService => CanManageInstalledService && PackagedHelperAvailable;
-
-    public bool CanToggleAutorun => CanManageInstalledService && IsAutorunEnabled.HasValue;
-
-    public bool CanApplyConfiguration => IsServiceControlSupported
-        && IsConfigurationLoaded
-        && !IsOperationInProgress
-        && !IsConfigurationOperationInProgress
-        && HasConfigurationChanges
-        && !HasConfigurationValidationError;
-
-    public bool CanResetConfiguration => IsConfigurationLoaded && !IsOperationInProgress && !IsConfigurationOperationInProgress && HasConfigurationChanges;
-
-    public string AutorunStateTitle => IsAutorunEnabled switch
-    {
-        true => "Autorun enabled",
-        false => "Autorun disabled",
-        _ => "Autorun state unavailable",
-    };
-
-    public string AutorunStateDescription => IsAutorunEnabled switch
-    {
-        true => "The operating system will start the service automatically during boot.",
-        false => "The service currently requires a manual start or explicit lifecycle action after boot.",
-        _ => "The current startup mode could not be determined from the local service manager.",
-    };
+    public partial FrameworkServiceConfigurationSnapshot? CurrentConfigurationSnapshot { get; set; }
 
     public string ConfigurationValidationMessage
     {
@@ -414,6 +591,8 @@ public partial class SettingsModel : ObservableObject, IDisposable
     }
 
     public bool HasConfigurationValidationError => !string.IsNullOrEmpty(ConfigurationValidationMessage);
+
+    public Visibility ConfigurationValidationVisibility => HasConfigurationValidationError ? Visibility.Visible : Visibility.Collapsed;
 
     public bool HasConfigurationChanges
     {
@@ -433,80 +612,31 @@ public partial class SettingsModel : ObservableObject, IDisposable
         }
     }
 
-    public string TelemetryPollingSamplesPerSecondDisplay => FormatSamplesPerSecondDisplay(TelemetryPollingIntervalMillisecondsText);
-
-    public string HardwareInfoPollingSamplesPerSecondDisplay => FormatSamplesPerSecondDisplay(HardwareInfoPollingIntervalMillisecondsText);
-
-    public string RuntimeAuthorizationMessage => ObservedServiceStatus?.FanControlAuthorizationMessage
-        ?? "Waiting for the service to report the current fan-control authorization state.";
-
-    public string FanControlConfigurationWarning => AllowFanControlCommandsDraft && ObservedServiceStatus is { HasCallerIdentityValidation: false }
-        ? "Warning: the current IPC transport still does not expose caller identity validation. Enabling fan-control commands allows local clients on this endpoint to issue write requests."
-        : RuntimeAuthorizationMessage;
-
-    public IAsyncRelayCommand ShutdownServiceCommand { get; }
-
-    public IAsyncRelayCommand RestartServiceCommand { get; }
-
-    public IAsyncRelayCommand InstallServiceCommand { get; }
-
-    public IAsyncRelayCommand UpdateServiceCommand { get; }
-
-    public IAsyncRelayCommand UninstallServiceCommand { get; }
-
-    public IAsyncRelayCommand ReinstallServiceCommand { get; }
-
-    public IAsyncRelayCommand ToggleAutorunCommand { get; }
-
     public IAsyncRelayCommand ApplyConfigurationCommand { get; }
 
     public IAsyncRelayCommand SaveConfigurationCommand { get; }
 
-    public IAsyncRelayCommand LoadConfigurationCommand { get; }
-
     public IRelayCommand ResetConfigurationCommand { get; }
 
-    public IAsyncRelayCommand ApplyUnitPreferencesCommand { get; }
+    partial void OnTelemetryPollingIntervalMillisecondsTextChanged(string value) => RefreshCommandStates();
 
-    public IAsyncRelayCommand SaveUnitPreferencesCommand { get; }
+    partial void OnHardwareInfoPollingIntervalMillisecondsTextChanged(string value) => RefreshCommandStates();
 
-    public IAsyncRelayCommand LoadUnitPreferencesCommand { get; }
+    partial void OnAllowFanControlCommandsDraftChanged(bool value) => RefreshCommandStates();
 
-    public IRelayCommand ResetUnitPreferencesCommand { get; }
+    partial void OnIsConfigurationLoadedChanged(bool value) => RefreshCommandStates();
 
-    public IAsyncRelayCommand RestoreDefaultUnitPreferencesCommand { get; }
+    partial void OnIsConfigurationOperationInProgressChanged(bool value) => RefreshCommandStates();
 
-    public IAsyncRelayCommand<string> RelocateConfigurationStoreCommand { get; }
-
-    public IAsyncRelayCommand<string> RelocateUnitPreferencesStoreCommand { get; }
-
-    public ReadOnlyObservableCollection<UnitPreferenceItemModel> UnitPreferences { get; }
-
-    public void Dispose()
-    {
-        _subscriptions.Dispose();
-    }
-
-    private bool CanRunInstalledServiceAction()
-        => CanManageInstalledService;
-
-    private bool CanRunInstallAction()
-        => IsServiceControlSupported && CanInstallService && !IsOperationInProgress && !IsConfigurationOperationInProgress;
-
-    private bool CanRunUpdateAction()
-        => IsServiceControlSupported && CanUpdateService && !IsOperationInProgress && !IsConfigurationOperationInProgress;
-
-    private bool CanRunUninstallAction()
-        => IsServiceControlSupported && CanUninstallService && !IsOperationInProgress && !IsConfigurationOperationInProgress;
-
-    private bool CanRunReinstallAction()
-        => CanReinstallService;
-
-    private bool CanRunToggleAutorunAction()
-        => CanToggleAutorun;
+    partial void OnHasUnsavedConfigurationChangesChanged(bool value) => RefreshCommandStates();
 
     private bool CanRunApplyConfigurationAction()
-        => CanApplyConfiguration;
+        => IsServiceControlSupported
+            && IsConfigurationLoaded
+            && !IsOperationInProgress
+            && !IsConfigurationOperationInProgress
+            && HasConfigurationChanges
+            && !HasConfigurationValidationError;
 
     private bool CanRunSaveConfigurationAction()
         => IsServiceControlSupported
@@ -515,82 +645,8 @@ public partial class SettingsModel : ObservableObject, IDisposable
             && !IsConfigurationOperationInProgress
             && HasUnsavedConfigurationChanges;
 
-    private bool CanRunLoadConfigurationAction()
-        => IsServiceControlSupported
-            && !IsOperationInProgress
-            && !IsConfigurationOperationInProgress;
-
     private bool CanRunResetConfigurationAction()
-        => CanResetConfiguration;
-
-    private bool CanRunApplyUnitPreferencesAction()
-        => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress && HasUnitPreferenceChanges;
-
-    private bool CanRunSaveUnitPreferencesAction()
-        => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress && HasUnsavedUnitPreferenceChanges;
-
-    private bool CanRunLoadUnitPreferencesAction()
-        => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress;
-
-    private bool CanRunResetUnitPreferencesAction()
-        => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress && HasUnitPreferenceChanges;
-
-    private bool CanRunRestoreDefaultUnitPreferencesAction()
-        => !IsOperationInProgress && !IsConfigurationOperationInProgress && !IsUnitPreferenceOperationInProgress;
-
-    private bool CanRunRelocateConfigurationAction(string? targetDirectory)
-        => IsServiceControlSupported
-            && !IsOperationInProgress
-            && !IsConfigurationOperationInProgress
-            && !string.IsNullOrWhiteSpace(targetDirectory);
-
-    private bool CanRunRelocateUnitPreferencesAction(string? targetDirectory)
-        => !IsOperationInProgress
-            && !IsConfigurationOperationInProgress
-            && !IsUnitPreferenceOperationInProgress
-            && !string.IsNullOrWhiteSpace(targetDirectory);
-
-    private async Task ExecuteServiceActionAsync(Func<CancellationToken, Task<FrameworkServiceCommandResult>> action)
-    {
-        if (IsOperationInProgress || IsConfigurationOperationInProgress)
-        {
-            return;
-        }
-
-        IsOperationInProgress = true;
-
-        try
-        {
-            var result = await action(CancellationToken.None).ConfigureAwait(false);
-            await _dispatcherQueue.EnqueueAsync(() =>
-            {
-                ApplyServiceControlInfo(_frameworkServiceControlClient.GetInfo());
-                ApplyActionResult(result.OperationName, result.Message, MapSeverity(result.Kind));
-
-                if (ObservedServiceStatus is not null)
-                {
-                    ApplyStatus(ObservedServiceStatus);
-                }
-            });
-        }
-        finally
-        {
-            await _dispatcherQueue.EnqueueAsync(() => IsOperationInProgress = false);
-        }
-    }
-
-    private async Task ToggleAutorunAsync()
-    {
-        if (!CanToggleAutorun || IsAutorunEnabled is null)
-        {
-            return;
-        }
-
-        await ExecuteServiceActionAsync(
-            IsAutorunEnabled.Value
-                ? _frameworkServiceControlClient.DisableAutorunAsync
-                : _frameworkServiceControlClient.EnableAutorunAsync).ConfigureAwait(false);
-    }
+        => IsConfigurationLoaded && !IsOperationInProgress && !IsConfigurationOperationInProgress && HasConfigurationChanges;
 
     private async Task ApplyConfigurationAsync()
     {
@@ -606,7 +662,22 @@ public partial class SettingsModel : ObservableObject, IDisposable
         try
         {
             var result = await _frameworkServiceConfigurationClient.ApplyConfigurationAsync(request, CancellationToken.None).ConfigureAwait(false);
-            await _dispatcherQueue.EnqueueAsync(() => HandleConfigurationOperationResult(ConfigurationOperationKind.Apply, "Apply service configuration", result));
+            await _dispatcherQueue.EnqueueAsync(() =>
+            {
+                if (result.Configuration is not null)
+                {
+                    CurrentConfigurationSnapshot = result.Configuration;
+                    IsConfigurationLoaded = true;
+
+                    if (result.Succeeded)
+                    {
+                        ApplyConfigurationDraft(result.Configuration);
+                        HasUnsavedConfigurationChanges = true;
+                    }
+                }
+
+                ApplyConfigurationActionResult("Apply service configuration", result.Message, result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+            });
         }
         catch (Exception exception)
         {
@@ -626,7 +697,15 @@ public partial class SettingsModel : ObservableObject, IDisposable
         try
         {
             var result = await _frameworkServiceConfigurationClient.SaveConfigurationAsync(CancellationToken.None).ConfigureAwait(false);
-            await _dispatcherQueue.EnqueueAsync(() => HandleConfigurationOperationResult(ConfigurationOperationKind.Save, "Save service configuration", result));
+            await _dispatcherQueue.EnqueueAsync(() =>
+            {
+                if (result.Succeeded)
+                {
+                    HasUnsavedConfigurationChanges = false;
+                }
+
+                ApplyConfigurationActionResult("Save service configuration", result.Message, result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Error);
+            });
         }
         catch (Exception exception)
         {
@@ -639,281 +718,12 @@ public partial class SettingsModel : ObservableObject, IDisposable
         }
     }
 
-    private async Task LoadConfigurationAsync()
-    {
-        IsConfigurationOperationInProgress = true;
-
-        try
-        {
-            var result = await _frameworkServiceConfigurationClient.LoadConfigurationAsync(CancellationToken.None).ConfigureAwait(false);
-            await _dispatcherQueue.EnqueueAsync(() => HandleConfigurationOperationResult(ConfigurationOperationKind.Load, "Load service configuration", result));
-        }
-        catch (Exception exception)
-        {
-            await _dispatcherQueue.EnqueueAsync(() =>
-                ApplyConfigurationActionResult("Load service configuration", exception.Message, InfoBarSeverity.Error));
-        }
-        finally
-        {
-            await _dispatcherQueue.EnqueueAsync(() => IsConfigurationOperationInProgress = false);
-        }
-    }
-
-    private void HandleConfigurationOperationResult(ConfigurationOperationKind kind, string title, FrameworkServiceConfigurationOperationResult result)
-    {
-        if (result.Configuration is not null)
-        {
-            CurrentConfigurationSnapshot = result.Configuration;
-            IsConfigurationLoaded = true;
-            ConfigurationSourcePath = result.Configuration.PersistentConfigurationPath;
-
-            if (result.Succeeded)
-            {
-                ApplyConfigurationDraft(result.Configuration);
-            }
-        }
-
-        if (result.Succeeded)
-        {
-            HasUnsavedConfigurationChanges = kind switch
-            {
-                ConfigurationOperationKind.Apply => true,
-                ConfigurationOperationKind.Save => false,
-                ConfigurationOperationKind.Load => false,
-                _ => HasUnsavedConfigurationChanges,
-            };
-        }
-
-        ApplyConfigurationActionResult(title, result.Message, result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Error);
-    }
-
-    private enum ConfigurationOperationKind
-    {
-        Apply,
-        Save,
-        Load,
-    }
-
-    private async Task ApplyUnitPreferencesAsync()
-    {
-        if (!CanRunApplyUnitPreferencesAction())
-        {
-            return;
-        }
-
-        IsUnitPreferenceOperationInProgress = true;
-
-        try
-        {
-            var snapshot = BuildDraftUnitPreferenceSnapshot();
-            var result = await _userUnitPreferencesClient.ApplyPreferencesAsync(snapshot, CancellationToken.None).ConfigureAwait(false);
-
-            await _dispatcherQueue.EnqueueAsync(() => HandleUnitPreferenceOperationResult(UnitPreferenceOperationKind.Apply, "Apply display units", result));
-        }
-        catch (Exception exception)
-        {
-            await _dispatcherQueue.EnqueueAsync(() =>
-                ApplyUnitPreferenceActionResult("Apply display units", exception.Message, InfoBarSeverity.Error));
-        }
-        finally
-        {
-            await _dispatcherQueue.EnqueueAsync(() => IsUnitPreferenceOperationInProgress = false);
-        }
-    }
-
-    private async Task SaveUnitPreferencesAsync()
-    {
-        IsUnitPreferenceOperationInProgress = true;
-
-        try
-        {
-            var result = await _userUnitPreferencesClient.SavePreferencesAsync(CancellationToken.None).ConfigureAwait(false);
-            await _dispatcherQueue.EnqueueAsync(() => HandleUnitPreferenceOperationResult(UnitPreferenceOperationKind.Save, "Save display units", result));
-        }
-        catch (Exception exception)
-        {
-            await _dispatcherQueue.EnqueueAsync(() =>
-                ApplyUnitPreferenceActionResult("Save display units", exception.Message, InfoBarSeverity.Error));
-        }
-        finally
-        {
-            await _dispatcherQueue.EnqueueAsync(() => IsUnitPreferenceOperationInProgress = false);
-        }
-    }
-
-    private async Task LoadUnitPreferencesAsync()
-    {
-        IsUnitPreferenceOperationInProgress = true;
-
-        try
-        {
-            var result = await _userUnitPreferencesClient.LoadPreferencesAsync(CancellationToken.None).ConfigureAwait(false);
-            await _dispatcherQueue.EnqueueAsync(() => HandleUnitPreferenceOperationResult(UnitPreferenceOperationKind.Load, "Load display units", result));
-        }
-        catch (Exception exception)
-        {
-            await _dispatcherQueue.EnqueueAsync(() =>
-                ApplyUnitPreferenceActionResult("Load display units", exception.Message, InfoBarSeverity.Error));
-        }
-        finally
-        {
-            await _dispatcherQueue.EnqueueAsync(() => IsUnitPreferenceOperationInProgress = false);
-        }
-    }
-
-    private void ResetUnitPreferencesDraft()
-    {
-        ApplyUnitPreferenceSnapshot(_currentUnitPreferenceSnapshot);
-    }
-
-    private async Task RestoreDefaultUnitPreferencesAsync()
-    {
-        if (!CanRunRestoreDefaultUnitPreferencesAction())
-        {
-            return;
-        }
-
-        IsUnitPreferenceOperationInProgress = true;
-
-        try
-        {
-            var result = await _userUnitPreferencesClient.ResetToDefaultsAsync(CancellationToken.None).ConfigureAwait(false);
-
-            await _dispatcherQueue.EnqueueAsync(() => HandleUnitPreferenceOperationResult(UnitPreferenceOperationKind.Apply, "Restore default units", result));
-        }
-        catch (Exception exception)
-        {
-            await _dispatcherQueue.EnqueueAsync(() =>
-                ApplyUnitPreferenceActionResult("Restore default units", exception.Message, InfoBarSeverity.Error));
-        }
-        finally
-        {
-            await _dispatcherQueue.EnqueueAsync(() => IsUnitPreferenceOperationInProgress = false);
-        }
-    }
-
-    private async Task RelocateConfigurationStoreAsync(string? targetDirectory)
-    {
-        if (string.IsNullOrWhiteSpace(targetDirectory))
-        {
-            return;
-        }
-
-        IsConfigurationOperationInProgress = true;
-
-        try
-        {
-            var result = await _frameworkServiceConfigurationClient.RelocateConfigurationStoreAsync(targetDirectory, CancellationToken.None).ConfigureAwait(false);
-            await _dispatcherQueue.EnqueueAsync(() =>
-            {
-                if (result.Configuration is not null)
-                {
-                    ConfigurationSourcePath = result.Configuration.PersistentConfigurationPath;
-                }
-
-                ApplyConfigurationActionResult(
-                    "Change configuration storage location",
-                    result.Message,
-                    result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Error);
-            });
-        }
-        catch (Exception exception)
-        {
-            await _dispatcherQueue.EnqueueAsync(() =>
-                ApplyConfigurationActionResult("Change configuration storage location", exception.Message, InfoBarSeverity.Error));
-        }
-        finally
-        {
-            await _dispatcherQueue.EnqueueAsync(() => IsConfigurationOperationInProgress = false);
-        }
-    }
-
-    private async Task RelocateUnitPreferencesStoreAsync(string? targetDirectory)
-    {
-        if (string.IsNullOrWhiteSpace(targetDirectory))
-        {
-            return;
-        }
-
-        IsUnitPreferenceOperationInProgress = true;
-
-        try
-        {
-            var result = await _userUnitPreferencesClient.RelocatePreferencesStoreAsync(targetDirectory, CancellationToken.None).ConfigureAwait(false);
-            await _dispatcherQueue.EnqueueAsync(() =>
-            {
-                if (!string.IsNullOrEmpty(result.PreferencesPath))
-                {
-                    UserUnitPreferencesFilePath = result.PreferencesPath;
-                }
-
-                ApplyUnitPreferenceActionResult(
-                    "Change unit preferences storage location",
-                    result.Message,
-                    result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Error);
-            });
-        }
-        catch (Exception exception)
-        {
-            await _dispatcherQueue.EnqueueAsync(() =>
-                ApplyUnitPreferenceActionResult("Change unit preferences storage location", exception.Message, InfoBarSeverity.Error));
-        }
-        finally
-        {
-            await _dispatcherQueue.EnqueueAsync(() => IsUnitPreferenceOperationInProgress = false);
-        }
-    }
-
-    private void HandleUnitPreferenceOperationResult(UnitPreferenceOperationKind kind, string title, UserPreferencesOperationResult result)
-    {
-        if (!string.IsNullOrEmpty(result.PreferencesPath))
-        {
-            UserUnitPreferencesFilePath = result.PreferencesPath;
-        }
-
-        if (result.Succeeded && result.Preferences is not null)
-        {
-            ApplyUnitPreferenceSnapshot(result.Preferences);
-        }
-
-        if (result.Succeeded)
-        {
-            HasUnsavedUnitPreferenceChanges = kind switch
-            {
-                UnitPreferenceOperationKind.Apply => true,
-                UnitPreferenceOperationKind.Save => false,
-                UnitPreferenceOperationKind.Load => false,
-                _ => HasUnsavedUnitPreferenceChanges,
-            };
-        }
-
-        ApplyUnitPreferenceActionResult(title, result.Message, result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Error);
-    }
-
-    private enum UnitPreferenceOperationKind
-    {
-        Apply,
-        Save,
-        Load,
-    }
-
     private void ResetConfiguration()
     {
-        if (CurrentConfigurationSnapshot is null)
+        if (CurrentConfigurationSnapshot is not null)
         {
-            return;
+            ApplyConfigurationDraft(CurrentConfigurationSnapshot);
         }
-
-        ApplyConfigurationDraft(CurrentConfigurationSnapshot);
-    }
-
-    private Task UpdateStatusAsync(FrameworkSystemStatus status)
-    {
-        return _dispatcherQueue.EnqueueAsync(() =>
-        {
-            ObservedServiceStatus = status;
-            ApplyStatus(status);
-        });
     }
 
     private Task UpdateConfigurationSnapshotAsync(FrameworkServiceConfigurationSnapshot snapshot)
@@ -924,102 +734,12 @@ public partial class SettingsModel : ObservableObject, IDisposable
 
             CurrentConfigurationSnapshot = snapshot;
             IsConfigurationLoaded = true;
-            ConfigurationSourcePath = snapshot.PersistentConfigurationPath;
 
             if (shouldRefreshDraft)
             {
                 ApplyConfigurationDraft(snapshot);
             }
         });
-    }
-
-    private Task UpdateUnitPreferenceSnapshotAsync(UserUnitPreferencesSnapshot snapshot)
-    {
-        return _dispatcherQueue.EnqueueAsync(() => ApplyUnitPreferenceSnapshot(snapshot));
-    }
-
-    private void ApplyStatus(FrameworkSystemStatus status)
-    {
-        LastStatusObservedAt = status.ObservedAt.LocalDateTime.ToString("T", CultureInfo.CurrentCulture);
-
-        if (!status.IsGrpcActive)
-        {
-            ServiceStateSeverity = InfoBarSeverity.Error;
-            ServiceStateTitle = IsServiceInstalled ? "Service offline" : "Service not installed";
-            ServiceStateMessage = IsServiceInstalled
-                ? status.LastError ?? "The client cannot reach SubZeroFramework.Service over local gRPC IPC."
-                : "SubZeroFramework.Service is not currently installed.";
-            return;
-        }
-
-        if (!status.IsLibraryAvailable)
-        {
-            ServiceStateSeverity = InfoBarSeverity.Error;
-            ServiceStateTitle = "Service running with library issue";
-            ServiceStateMessage = status.LastError ?? "The service is running, but FrameworkDotnet could not be loaded.";
-            return;
-        }
-
-        if (status.RequiresElevation)
-        {
-            ServiceStateSeverity = InfoBarSeverity.Warning;
-            ServiceStateTitle = "Service requires elevation";
-            ServiceStateMessage = "The service is running without the privileges required for Framework EC access.";
-            return;
-        }
-
-        if (!string.IsNullOrEmpty(status.LastError))
-        {
-            ServiceStateSeverity = InfoBarSeverity.Warning;
-            ServiceStateTitle = "Service warning";
-            ServiceStateMessage = status.LastError;
-            return;
-        }
-
-        ServiceStateSeverity = InfoBarSeverity.Success;
-        ServiceStateTitle = "Service reachable";
-        ServiceStateMessage = "The background service is reachable and reporting status successfully.";
-    }
-
-    private void ApplyServiceControlInfo(FrameworkServiceControlInfo serviceInfo)
-    {
-        PlatformServiceManager = serviceInfo.PlatformServiceManager;
-        ServiceIdentity = serviceInfo.ServiceIdentity;
-        InstallSourceSummary = serviceInfo.InstallSourceSummary;
-        InstallReadinessMessage = serviceInfo.InstallReadinessMessage;
-        PrivilegePromptMessage = serviceInfo.PrivilegePromptMessage;
-        IsServiceControlSupported = serviceInfo.IsSupported;
-        IsServiceInstalled = serviceInfo.IsInstalled;
-        CanInstallService = serviceInfo.CanInstall;
-        CanUpdateService = serviceInfo.CanUpdate;
-        CanUninstallService = serviceInfo.CanUninstall;
-        PackagedHelperAvailable = serviceInfo.PackagedHelperAvailable;
-        IsElevatedSession = serviceInfo.IsElevatedSession;
-        IsAutorunEnabled = serviceInfo.IsAutorunEnabled;
-    }
-
-    private void ApplyActionResult(string title, string message, InfoBarSeverity severity)
-    {
-        LastActionTitle = title;
-        LastActionMessage = message;
-        LastActionSeverity = severity;
-        IsLastActionVisible = true;
-    }
-
-    private void ApplyConfigurationActionResult(string title, string message, InfoBarSeverity severity)
-    {
-        ConfigurationActionTitle = title;
-        ConfigurationActionMessage = message;
-        ConfigurationActionSeverity = severity;
-        IsConfigurationActionVisible = true;
-    }
-
-    private void ApplyUnitPreferenceActionResult(string title, string message, InfoBarSeverity severity)
-    {
-        UnitPreferenceActionTitle = title;
-        UnitPreferenceActionMessage = message;
-        UnitPreferenceActionSeverity = severity;
-        IsUnitPreferenceActionVisible = true;
     }
 
     private void ApplyConfigurationDraft(FrameworkServiceConfigurationSnapshot snapshot)
@@ -1029,49 +749,12 @@ public partial class SettingsModel : ObservableObject, IDisposable
         AllowFanControlCommandsDraft = snapshot.AllowFanControlCommands;
     }
 
-    private void InitializeUnitPreferences(UnitPreferenceCatalog unitPreferenceCatalog)
+    private void ApplyConfigurationActionResult(string title, string message, InfoBarSeverity severity)
     {
-        foreach (var definition in unitPreferenceCatalog.Definitions)
-        {
-            var item = new UnitPreferenceItemModel(definition);
-            item.PropertyChanged += HandleUnitPreferenceItemChanged;
-            _unitPreferences.Add(item);
-        }
-    }
-
-    private void HandleUnitPreferenceItemChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(UnitPreferenceItemModel.SelectedOption)
-            || e.PropertyName == nameof(UnitPreferenceItemModel.HasChanges))
-        {
-            UpdateUnitPreferenceChangeState();
-        }
-    }
-
-    private void ApplyUnitPreferenceSnapshot(UserUnitPreferencesSnapshot snapshot)
-    {
-        _currentUnitPreferenceSnapshot = snapshot;
-
-        foreach (var item in _unitPreferences)
-        {
-            item.ApplySnapshotSelection(snapshot.GetOptionKey(item.Kind, item.DefaultOption.Key));
-        }
-
-        HasUnitPreferenceChanges = false;
-    }
-
-    private void UpdateUnitPreferenceChangeState()
-    {
-        HasUnitPreferenceChanges = _unitPreferences.Any(item => item.HasChanges);
-    }
-
-    private UserUnitPreferencesSnapshot BuildDraftUnitPreferenceSnapshot()
-    {
-        return new UserUnitPreferencesSnapshot
-        {
-            SchemaVersion = UserUnitPreferencesSnapshot.CurrentSchemaVersion,
-            Entries = [.. _unitPreferences.Select(item => item.ToEntry())]
-        };
+        ConfigurationActionTitle = title;
+        ConfigurationActionMessage = message;
+        ConfigurationActionSeverity = severity;
+        IsConfigurationActionVisible = true;
     }
 
     private bool TryBuildDraftConfiguration(out FrameworkServiceConfigurationApplyRequest request, out string validationError)
@@ -1090,15 +773,9 @@ public partial class SettingsModel : ObservableObject, IDisposable
             return false;
         }
 
-        if (pollingIntervalMilliseconds <= 0)
+        if (pollingIntervalMilliseconds <= 0 || hardwareInfoPollingIntervalMilliseconds <= 0)
         {
-            validationError = "Telemetry polling interval must be greater than zero milliseconds.";
-            return false;
-        }
-
-        if (hardwareInfoPollingIntervalMilliseconds <= 0)
-        {
-            validationError = "Hardware info polling interval must be greater than zero milliseconds.";
+            validationError = "Polling intervals must be greater than zero milliseconds.";
             return false;
         }
 
@@ -1113,27 +790,278 @@ public partial class SettingsModel : ObservableObject, IDisposable
         return true;
     }
 
-    private static InfoBarSeverity MapSeverity(FrameworkServiceCommandResultKind kind)
-        => kind switch
-        {
-            FrameworkServiceCommandResultKind.Success => InfoBarSeverity.Success,
-            FrameworkServiceCommandResultKind.Warning => InfoBarSeverity.Warning,
-            _ => InfoBarSeverity.Error,
-        };
-
     private static string FormatMilliseconds(TimeSpan timeSpan)
         => checked((long)Math.Round(timeSpan.TotalMilliseconds, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture);
 
-    private static string FormatSamplesPerSecondDisplay(string? millisecondsText)
+    // ----- Display units (client-owned) -----
+
+    public IReadOnlyList<UnitPreferenceRowModel> UnitRows { get; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UnitsStatusVisibility))]
+    public partial string UnitsStatusMessage { get; set; } = string.Empty;
+
+    public Visibility UnitsStatusVisibility => string.IsNullOrEmpty(UnitsStatusMessage) ? Visibility.Collapsed : Visibility.Visible;
+
+    public IAsyncRelayCommand ResetUnitsCommand { get; }
+
+    private void HandleUnitRowSelectionChanged(UnitPreferenceRowModel row)
     {
-        if (!long.TryParse(millisecondsText?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var milliseconds) || milliseconds <= 0)
+        var snapshot = new UserUnitPreferencesSnapshot
         {
-            return "Unavailable";
+            SchemaVersion = UserUnitPreferencesSnapshot.CurrentSchemaVersion,
+            Entries = [.. UnitRows.Select(unitRow => new UserUnitPreferenceEntry(unitRow.Kind, unitRow.SelectedKey))],
+        };
+
+        _ = PersistUnitPreferencesAsync(_userUnitPreferencesClient.ApplyPreferencesAsync(snapshot, CancellationToken.None));
+    }
+
+    private Task ResetUnitsAsync()
+        => PersistUnitPreferencesAsync(_userUnitPreferencesClient.ResetToDefaultsAsync(CancellationToken.None));
+
+    private async Task PersistUnitPreferencesAsync(Task<UserPreferencesOperationResult> operation)
+    {
+        var result = await operation.ConfigureAwait(false);
+        await _dispatcherQueue.EnqueueAsync(() => UnitsStatusMessage = result.Succeeded ? string.Empty : result.Message);
+    }
+
+    private void ApplyUnitPreferenceSnapshot(UserUnitPreferencesSnapshot snapshot)
+    {
+        foreach (var row in UnitRows)
+        {
+            row.ApplySelection(snapshot.GetOptionKey(row.Kind, row.SelectedKey));
         }
 
-        var samplesPerSecond = 1000d / milliseconds;
-        return samplesPerSecond >= 1d
-            ? $"{samplesPerSecond:0.##} samples/sec"
-            : $"1 sample every {milliseconds:N0} ms";
+        UpdateSampleTexts();
     }
+
+    private void UpdateSample(Action applyLatestValues)
+    {
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            applyLatestValues();
+            UpdateSampleTexts();
+        });
+    }
+
+    private void UpdateSampleTexts()
+    {
+        foreach (var row in UnitRows)
+        {
+            row.SampleText = row.Kind switch
+            {
+                UnitQuantityKind.Temperature => _unitFormattingService.FormatTemperature(_sampleTemperatureCelsius ?? FallbackTemperatureCelsius, decimals: 1),
+                UnitQuantityKind.FanSpeed => _unitFormattingService.FormatFanSpeed(_sampleFanRpm ?? FallbackFanRpm),
+                UnitQuantityKind.ClockFrequency => _unitFormattingService.FormatClockFrequencyMegahertz(_sampleClockMegahertz ?? FallbackClockMegahertz),
+                UnitQuantityKind.RefreshRate => _unitFormattingService.FormatRefreshRateHertz(_sampleRefreshHertz ?? FallbackRefreshHertz),
+                UnitQuantityKind.InformationSize => _unitFormattingService.FormatInformationBytes(_sampleInformationBytes ?? FallbackInformationBytes),
+                UnitQuantityKind.Voltage => _unitFormattingService.FormatVoltage(_sampleVoltageVolts ?? FallbackVoltageVolts),
+                UnitQuantityKind.Current => _unitFormattingService.FormatCurrent(_sampleCurrentAmperes ?? FallbackCurrentAmperes),
+                UnitQuantityKind.ElectricChargeCapacity => _unitFormattingService.FormatChargeCapacity(_sampleChargeAmpereHours ?? FallbackChargeAmpereHours),
+                UnitQuantityKind.Ratio => _unitFormattingService.FormatRatio(_sampleRatioPercent ?? FallbackRatioPercent),
+                UnitQuantityKind.Length => _unitFormattingService.FormatLengthMillimeters(SampleLengthMillimeters),
+                UnitQuantityKind.Airflow => _unitFormattingService.FormatAirflowCfm(SampleAirflowCfm),
+                UnitQuantityKind.BitRate => _unitFormattingService.FormatBitRateBitsPerSecond(_sampleBitRateBitsPerSecond ?? FallbackBitRateBitsPerSecond),
+                UnitQuantityKind.Power => _unitFormattingService.FormatPowerWatts(_samplePowerWatts ?? FallbackPowerWatts),
+                _ => row.SampleText,
+            };
+        }
+    }
+
+    // ----- Startup & alerts -----
+
+    [ObservableProperty]
+    public partial bool StartWithWindows { get; set; }
+
+    [ObservableProperty]
+    public partial bool StartWithWindowsSupported { get; set; }
+
+    [ObservableProperty]
+    public partial bool StartMinimized { get; set; }
+
+    [ObservableProperty]
+    public partial bool ThermalAlertsEnabled { get; set; }
+
+    [ObservableProperty]
+    public partial bool AutorunIsOn { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanToggleAutorun))]
+    public partial bool AutorunToggleAvailable { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StartupStatusVisibility))]
+    public partial string StartupStatusMessage { get; set; } = string.Empty;
+
+    public Visibility StartupStatusVisibility => string.IsNullOrEmpty(StartupStatusMessage) ? Visibility.Collapsed : Visibility.Visible;
+
+    public bool CanToggleAutorun => AutorunToggleAvailable;
+
+    private void InitializeStartupToggles()
+    {
+        _suppressStartupCallbacks = true;
+        StartWithWindowsSupported = _startupRegistration.IsSupported;
+        StartWithWindows = _startupRegistration.IsEnabled();
+        StartMinimized = _clientSettings.StartMinimized;
+        ThermalAlertsEnabled = _clientSettings.ThermalAlertsEnabled;
+        _suppressStartupCallbacks = false;
+    }
+
+    partial void OnStartWithWindowsChanged(bool value)
+    {
+        if (_suppressStartupCallbacks)
+        {
+            return;
+        }
+
+        if (!_startupRegistration.TrySetEnabled(value))
+        {
+            StartupStatusMessage = "Updating the launch-at-sign-in registration failed. The setting was not changed.";
+            _suppressStartupCallbacks = true;
+            StartWithWindows = _startupRegistration.IsEnabled();
+            _suppressStartupCallbacks = false;
+            return;
+        }
+
+        StartupStatusMessage = string.Empty;
+    }
+
+    partial void OnStartMinimizedChanged(bool value)
+    {
+        if (!_suppressStartupCallbacks)
+        {
+            _clientSettings.StartMinimized = value;
+        }
+    }
+
+    partial void OnThermalAlertsEnabledChanged(bool value)
+    {
+        if (!_suppressStartupCallbacks)
+        {
+            _clientSettings.ThermalAlertsEnabled = value;
+        }
+    }
+
+    partial void OnAutorunIsOnChanged(bool value)
+    {
+        if (_suppressStartupCallbacks || IsAutorunEnabled == value)
+        {
+            return;
+        }
+
+        _ = ExecuteServiceActionAsync(value
+            ? _frameworkServiceControlClient.EnableAutorunAsync
+            : _frameworkServiceControlClient.DisableAutorunAsync);
+    }
+
+    private void SyncAutorunToggle()
+    {
+        AutorunToggleAvailable = IsServiceControlSupported && IsServiceInstalled && IsAutorunEnabled.HasValue && !IsOperationInProgress;
+
+        if (IsAutorunEnabled is bool autorunEnabled && AutorunIsOn != autorunEnabled)
+        {
+            _suppressStartupCallbacks = true;
+            AutorunIsOn = autorunEnabled;
+            _suppressStartupCallbacks = false;
+        }
+    }
+
+    // ----- Licenses -----
+
+    public ObservableCollection<LicenseEntryModel> Licenses { get; } = [];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LicensesMessageVisibility))]
+    public partial string LicensesMessage { get; set; } = "Loading license report…";
+
+    public Visibility LicensesMessageVisibility => string.IsNullOrEmpty(LicensesMessage) ? Visibility.Collapsed : Visibility.Visible;
+
+    private async Task LoadLicensesAsync()
+    {
+        try
+        {
+            var reportPath = Path.Combine(AppContext.BaseDirectory, "Assets", "ThirdPartyLicenses", "third-party-licenses.json");
+            if (!File.Exists(reportPath))
+            {
+                await _dispatcherQueue.EnqueueAsync(() =>
+                    LicensesMessage = "The third-party license report was not generated during this build.");
+                return;
+            }
+
+            var json = await File.ReadAllTextAsync(reportPath).ConfigureAwait(false);
+            var entries = JsonSerializer.Deserialize(json, SettingsLicensesJsonContext.Default.LicenseReportEntryArray) ?? [];
+
+            await _dispatcherQueue.EnqueueAsync(() =>
+            {
+                Licenses.Clear();
+                foreach (var entry in entries.OrderBy(item => item.PackageId, StringComparer.OrdinalIgnoreCase))
+                {
+                    Licenses.Add(new LicenseEntryModel(entry.PackageId, entry.Version, entry.License, entry.Text));
+                }
+
+                LicensesMessage = Licenses.Count == 0 ? "The license report is empty." : string.Empty;
+            });
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            await _dispatcherQueue.EnqueueAsync(() =>
+                LicensesMessage = $"The third-party license report could not be read: {exception.Message}");
+        }
+    }
+
+    // ----- About -----
+
+    public IReadOnlyList<AboutRowModel> AboutRows { get; }
+
+    private static IReadOnlyList<AboutRowModel> BuildAboutRows()
+    {
+        return
+        [
+            new AboutRowModel("SubZero", ResolveAppVersion(), SubZeroRepositoryUrl),
+            new AboutRowModel("EC Build", "Waiting for service", null),
+            new AboutRowModel("framework-dotnet", ResolveFrameworkDotnetVersion(), FrameworkDotnetRepositoryUrl),
+            new AboutRowModel("framework-system-ffi-extensions", ResolveAssemblyMetadata("FrameworkSystemFfiExtensionsVersion"), FfiExtensionsRepositoryUrl),
+            new AboutRowModel("framework-system", ResolveAssemblyMetadata("FrameworkSystemVersion"), FrameworkSystemRepositoryUrl),
+        ];
+    }
+
+    private static string ResolveAppVersion()
+    {
+        var assembly = typeof(SettingsModel).Assembly;
+        var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informational))
+        {
+            // Strip the "+<commit-hash>" build-metadata suffix SourceLink appends.
+            var plusIndex = informational.IndexOf('+', StringComparison.Ordinal);
+            return plusIndex > 0 ? informational[..plusIndex] : informational;
+        }
+
+        return assembly.GetName().Version?.ToString() ?? "Unknown";
+    }
+
+    private static string ResolveFrameworkDotnetVersion()
+        => typeof(FrameworkDotnet.FrameworkSystem).Assembly.GetName().Version?.ToString() ?? "Unknown";
+
+    private static string ResolveAssemblyMetadata(string key)
+    {
+        // framework-dotnet does not embed its native component versions yet (recorded as a library
+        // follow-up); show an honest placeholder instead of a stale hardcoded number.
+        var metadata = typeof(FrameworkDotnet.FrameworkSystem).Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(attribute => string.Equals(attribute.Key, key, StringComparison.Ordinal));
+
+        return string.IsNullOrWhiteSpace(metadata?.Value) ? "Bundled with framework-dotnet" : metadata!.Value!;
+    }
+
+    public void Dispose()
+    {
+        _subscriptions.Dispose();
+    }
+
+    internal sealed record LicenseReportEntry(string PackageId, string Version, string License, string Text);
 }
+
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(SettingsModel.LicenseReportEntry[]))]
+internal sealed partial class SettingsLicensesJsonContext : JsonSerializerContext;

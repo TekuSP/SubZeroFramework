@@ -1,5 +1,7 @@
 using System.ComponentModel;
 
+using SubZeroFramework.Controls.Dashboard.Models;
+
 namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 
 public sealed partial class DashboardPage : Page, INotifyPropertyChanged
@@ -29,6 +31,15 @@ public sealed partial class DashboardPage : Page, INotifyPropertyChanged
         if (args.NewValue is DashboardModel model)
         {
             ViewModel = model;
+        }
+    }
+
+    // Tag carries the preset model because ItemsRepeater x:Bind templates have no DataContext.
+    private void OnPresetClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is CoolingPresetCardModel preset)
+        {
+            _ = ViewModel.ApplyPresetAsync(preset.Kind);
         }
     }
 }

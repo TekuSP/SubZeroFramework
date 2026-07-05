@@ -71,7 +71,9 @@ public partial class MainModel : ObservableObject, IDisposable
         IsPowerTelemetryEnabled = true;
         IsFanCurveProfilesEnabled = true;
         IsDeviceCapabilitiesEnabled = true;
-        IsModulesEnabled = true;
+        // Pre-release: the Modules page is not production-ready (FFI slot-reporting gaps); keep the tab
+        // disabled until it ships.
+        IsModulesEnabled = false;
         IsWarningIssuesEnabled = false;
     }
 

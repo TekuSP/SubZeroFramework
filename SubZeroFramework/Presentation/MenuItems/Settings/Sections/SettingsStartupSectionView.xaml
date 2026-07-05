@@ -1,0 +1,73 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.Settings.Sections.SettingsStartupSectionView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel
+            MaxWidth="980"
+            Padding="24,4,24,24"
+            HorizontalAlignment="Stretch"
+            Spacing="10">
+
+            <StackPanel Spacing="4">
+                <TextBlock
+                    FontSize="22"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Startup &amp; alerts" />
+                <TextBlock
+                    FontSize="13"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="How SubZero launches and when it notifies you." />
+            </StackPanel>
+
+            <TextBlock
+                FontSize="12.5"
+                Foreground="{StaticResource StatusWarningBrush}"
+                Text="{x:Bind ViewModel.Page.StartupStatusMessage, Mode=OneWay}"
+                TextWrapping="WrapWholeWords"
+                Visibility="{x:Bind ViewModel.Page.StartupStatusVisibility, Mode=OneWay}" />
+
+            <StackPanel>
+                <controls:ToggleRowView
+                    Margin="0,7"
+                    IconKind="RocketLaunchOutline"
+                    IsOn="{x:Bind ViewModel.Page.StartWithWindows, Mode=TwoWay}"
+                    IsToggleEnabled="{x:Bind ViewModel.Page.StartWithWindowsSupported, Mode=OneWay}"
+                    Subtitle="Launch SubZero at sign-in"
+                    Title="Start with Windows" />
+                <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />
+
+                <controls:ToggleRowView
+                    Margin="0,7"
+                    IconKind="TrayArrowDown"
+                    IsOn="{x:Bind ViewModel.Page.StartMinimized, Mode=TwoWay}"
+                    Subtitle="Run in the background on launch"
+                    Title="Start minimized" />
+                <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />
+
+                <controls:ToggleRowView
+                    Margin="0,7"
+                    IconKind="WeatherNight"
+                    IsOn="{x:Bind ViewModel.Page.AutorunIsOn, Mode=TwoWay}"
+                    IsToggleEnabled="{x:Bind ViewModel.Page.CanToggleAutorun, Mode=OneWay}"
+                    Subtitle="Keep the service running at startup"
+                    Title="Autorun service" />
+                <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />
+
+                <controls:ToggleRowView
+                    Margin="0,7"
+                    IconKind="BellOutline"
+                    IsOn="{x:Bind ViewModel.Page.ThermalAlertsEnabled, Mode=TwoWay}"
+                    Subtitle="Notify when a sensor crosses critical"
+                    Title="Thermal alerts" />
+                <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

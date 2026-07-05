@@ -1,19 +1,32 @@
 using System.ComponentModel;
 
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
+using SubZeroFramework.Controls.Settings.Models;
+using SubZeroFramework.Controls.Settings.Models.Sections;
 
-using Windows.Storage.Pickers;
+using Uno.Extensions.Navigation;
 
 namespace SubZeroFramework.Presentation.MenuItems.Settings;
 
+/// <summary>
+/// Settings page: a sub-navigation card on the left and a navigation sub-region (<c>SectionRegionHost</c>,
+/// a ContentControl) on the right that resolves the per-section body views. The region is kept in sync with
+/// the page model's <c>SelectedSectionIndex</c>, but the navigation is always deferred to a later UI tick so
+/// it never runs re-entrantly during the page's own navigation (same pattern as
+/// <c>DeviceCapabilitiesPage</c>).
+/// </summary>
 public sealed partial class SettingsPage : Page, INotifyPropertyChanged
 {
+    private int _lastNavigatedIndex = -1;
+    private bool _syncQueued;
+
     public SettingsPage()
     {
         this.InitializeComponent();
         DataContextChanged += DataContextChanged_Handler;
+        Loaded += (_, _) => QueueSectionSync();
     }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SubZeroFramework.Mvvm", "SZF0009:Avoid direct PropertyChanged event invocation", Justification = "Page exposes ViewModel as a CLR property (not a DependencyProperty) to support compiled x:Bind; direct PropertyChanged invocation is required to push DataContext updates.")]
     public SettingsModel ViewModel
@@ -22,12 +35,22 @@ public sealed partial class SettingsPage : Page, INotifyPropertyChanged
         set
         {
             if (field == value) return;
+            if (field is not null)
+            {
+                field.PropertyChanged -= OnViewModelPropertyChanged;
+            }
+
             field = value;
+
+            if (field is not null)
+            {
+                field.PropertyChanged += OnViewModelPropertyChanged;
+            }
+
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ViewModel)));
+            QueueSectionSync();
         }
     } = default!;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     private void DataContextChanged_Handler(FrameworkElement sender, DataContextChangedEventArgs args)
     {
@@ -37,43 +60,73 @@ public sealed partial class SettingsPage : Page, INotifyPropertyChanged
         }
     }
 
-    private async void OnChangeConfigurationPathClick(object sender, RoutedEventArgs e)
+    private void OnSectionItemClick(object sender, RoutedEventArgs e)
     {
-        var folder = await PickFolderAsync().ConfigureAwait(true);
-        if (folder is null)
+        if ((sender as FrameworkElement)?.DataContext is SettingsSectionRailItemModel section)
+        {
+            ViewModel.SelectSectionCommand.Execute(section);
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SettingsModel.SelectedSectionIndex))
+        {
+            QueueSectionSync();
+        }
+    }
+
+    // Coalesce + defer: navigating the child region during the page's own navigation deadlocks the UI thread.
+    // Posting to the dispatcher runs the sync once, after the current navigation/load has unwound.
+    private void QueueSectionSync()
+    {
+        if (_syncQueued)
         {
             return;
         }
 
-        await ViewModel.RelocateConfigurationStoreCommand.ExecuteAsync(folder);
+        _syncQueued = true;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _syncQueued = false;
+            SyncSectionRegion();
+        });
     }
 
-    private async void OnChangeUserPreferencesPathClick(object sender, RoutedEventArgs e)
+    private void SyncSectionRegion()
     {
-        var folder = await PickFolderAsync().ConfigureAwait(true);
-        if (folder is null)
+        if (ViewModel is null)
         {
             return;
         }
 
-        await ViewModel.RelocateUnitPreferencesStoreCommand.ExecuteAsync(folder);
+        var index = ViewModel.SelectedSectionIndex;
+        if (index == _lastNavigatedIndex)
+        {
+            return;
+        }
+
+        if (SectionRegionHost.Navigator() is not { } navigator)
+        {
+            // Region not ready yet; a later Loaded/selection change re-queues.
+            return;
+        }
+
+        _lastNavigatedIndex = index;
+        _ = NavigateAsync(navigator, index);
     }
 
-    private async Task<string?> PickFolderAsync()
+    private async Task NavigateAsync(INavigator navigator, int index)
     {
-        var picker = new FolderPicker
+        // The section VMs bind to the page-driven model via SettingsAccessor (published in the page model's
+        // ctor), so no navigation data is needed here.
+        _ = index switch
         {
-            SuggestedStartLocation = PickerLocationId.ComputerFolder,
+            1 => await navigator.NavigateViewModelAsync<SettingsUnitsSectionModel>(this),
+            2 => await navigator.NavigateViewModelAsync<SettingsStartupSectionModel>(this),
+            3 => await navigator.NavigateViewModelAsync<SettingsLicensesSectionModel>(this),
+            4 => await navigator.NavigateViewModelAsync<SettingsAboutSectionModel>(this),
+            _ => await navigator.NavigateViewModelAsync<SettingsServiceSectionModel>(this),
         };
-        picker.FileTypeFilter.Add("*");
-
-        if (Application.Current is App app && app.MainWindow is not null)
-        {
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(app.MainWindow);
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-        }
-
-        var folder = await picker.PickSingleFolderAsync();
-        return folder?.Path;
     }
 }

@@ -1,0 +1,240 @@
+<Project>
+  <!--
+    Generates Assets/ThirdPartyLicenses/third-party-licenses.json for the Settings → Licenses page.
+
+    Sources: every centrally pinned NuGet package (Directory.Packages.props → @(PackageVersion), the full
+    solution set) plus the Uno.Sdk-injected implicit references of this project (@(PackageReference) items
+    that carry their own Version). For each package the license is pulled from the installed package in the
+    global packages folder: an embedded license file when the package ships one, otherwise a canonical SPDX
+    template (Build/LicenseTexts) filled with the package's copyright/authors. Build-time and test-only
+    packages are excluded below. The report lands in the intermediate directory and is linked into the
+    output as Assets/ThirdPartyLicenses/third-party-licenses.json.
+  -->
+
+  <UsingTask TaskName="GenerateThirdPartyLicenseReport" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+    <ParameterGroup>
+      <Packages ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <AssetsFile ParameterType="System.String" />
+      <NuGetPackagesRoot ParameterType="System.String" Required="true" />
+      <TemplateDirectory ParameterType="System.String" Required="true" />
+      <ExcludedPackages ParameterType="System.String" />
+      <OutputFile ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System" />
+      <Using Namespace="System.Collections.Generic" />
+      <Using Namespace="System.IO" />
+      <Using Namespace="System.Linq" />
+      <Using Namespace="System.Text" />
+      <Using Namespace="System.Text.RegularExpressions" />
+      <Using Namespace="System.Xml.Linq" />
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+        var excluded = new HashSet<string>(
+            (ExcludedPackages ?? string.Empty).Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(entry => entry.Trim()),
+            StringComparer.OrdinalIgnoreCase);
+
+        // Resolved versions from restore ("Id/Version" keys in project.assets.json) — the only reliable
+        // version source for Uno.Sdk-injected implicit references, which carry no Version metadata.
+        var resolvedVersions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrEmpty(AssetsFile) && File.Exists(AssetsFile))
+        {
+            foreach (Match match in Regex.Matches(
+                File.ReadAllText(AssetsFile),
+                "\"([A-Za-z0-9_.\\-]+)/([0-9][^\"]*)\"\\s*:\\s*\\{[^{}]*?\"type\"\\s*:\\s*\"package\""))
+            {
+                resolvedVersions[match.Groups[1].Value] = match.Groups[2].Value;
+            }
+        }
+
+        // package id -> version; first occurrence wins (PackageVersion pins come first). The restore-resolved
+        // version beats the pin when both exist so the report matches what actually ships.
+        var packages = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in Packages)
+        {
+            var id = item.ItemSpec;
+            string resolved;
+            var version = resolvedVersions.TryGetValue(id, out resolved) ? resolved : item.GetMetadata("Version");
+            if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(version) || excluded.Contains(id) || packages.ContainsKey(id))
+            {
+                continue;
+            }
+
+            packages[id] = version;
+        }
+
+        var templates = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (Directory.Exists(TemplateDirectory))
+        {
+            foreach (var templatePath in Directory.GetFiles(TemplateDirectory, "*.txt"))
+            {
+                templates[Path.GetFileNameWithoutExtension(templatePath)] = File.ReadAllText(templatePath);
+            }
+        }
+
+        Func<string, string> jsonEscape = value =>
+        {
+            var builder = new StringBuilder(value.Length + 16);
+            foreach (var ch in value)
+            {
+                switch (ch)
+                {
+                    case '\\': builder.Append("\\\\"); break;
+                    case '"': builder.Append("\\\""); break;
+                    case '\n': builder.Append("\\n"); break;
+                    case '\r': builder.Append("\\r"); break;
+                    case '\t': builder.Append("\\t"); break;
+                    default:
+                        if (ch < ' ') builder.AppendFormat("\\u{0:x4}", (int)ch);
+                        else builder.Append(ch);
+                        break;
+                }
+            }
+
+            return builder.ToString();
+        };
+
+        var json = new StringBuilder();
+        json.Append("[\n");
+        var first = true;
+        var written = 0;
+
+        foreach (var package in packages)
+        {
+            var packageFolder = Path.Combine(NuGetPackagesRoot, package.Key.ToLowerInvariant(), package.Value);
+            var nuspecPath = Path.Combine(packageFolder, package.Key.ToLowerInvariant() + ".nuspec");
+
+            if (!Directory.Exists(packageFolder))
+            {
+                Log.LogMessage("License report: package folder not found for {0} {1}; skipping.", package.Key, package.Value);
+                continue;
+            }
+
+            string licenseDisplay = "Unknown";
+            string licenseText = null;
+            string copyright = null;
+            string authors = null;
+
+            if (File.Exists(nuspecPath))
+            {
+                var metadata = XDocument.Load(nuspecPath).Root == null
+                    ? null
+                    : XDocument.Load(nuspecPath).Root.Elements().FirstOrDefault(element => element.Name.LocalName == "metadata");
+                Func<string, string> metadataValue = name =>
+                {
+                    var element = metadata == null ? null : metadata.Elements().FirstOrDefault(child => child.Name.LocalName == name);
+                    return element == null ? null : element.Value.Trim();
+                };
+
+                copyright = metadataValue("copyright");
+                authors = metadataValue("authors");
+                var licenseElement = metadata == null ? null : metadata.Elements().FirstOrDefault(element => element.Name.LocalName == "license");
+                var licenseType = licenseElement == null ? null : (string)licenseElement.Attribute("type");
+                var licenseValue = licenseElement == null ? null : licenseElement.Value.Trim();
+                var licenseUrl = metadataValue("licenseUrl");
+
+                if (licenseType == "expression" && !string.IsNullOrEmpty(licenseValue))
+                {
+                    licenseDisplay = licenseValue;
+                }
+                else if (licenseType == "file" && !string.IsNullOrEmpty(licenseValue))
+                {
+                    licenseDisplay = "License file";
+                    var embeddedPath = Path.Combine(packageFolder, licenseValue.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar));
+                    if (File.Exists(embeddedPath))
+                    {
+                        licenseText = File.ReadAllText(embeddedPath);
+                    }
+                }
+                else if (!string.IsNullOrEmpty(licenseUrl))
+                {
+                    licenseDisplay = licenseUrl.IndexOf("/MIT", StringComparison.OrdinalIgnoreCase) >= 0 ? "MIT"
+                        : licenseUrl.IndexOf("apache", StringComparison.OrdinalIgnoreCase) >= 0 ? "Apache-2.0"
+                        : "See text";
+                    licenseText = "License: " + licenseUrl;
+                }
+            }
+
+            if (licenseText == null)
+            {
+                var licenseFile = Directory.GetFiles(packageFolder)
+                    .FirstOrDefault(file =>
+                        Path.GetFileNameWithoutExtension(file).Equals("LICENSE", StringComparison.OrdinalIgnoreCase)
+                        || Path.GetFileNameWithoutExtension(file).Equals("LICENCE", StringComparison.OrdinalIgnoreCase));
+                if (licenseFile != null)
+                {
+                    licenseText = File.ReadAllText(licenseFile);
+                }
+            }
+
+            if (licenseText == null)
+            {
+                string template;
+                if (templates.TryGetValue(licenseDisplay, out template))
+                {
+                    var copyrightLine = !string.IsNullOrEmpty(copyright)
+                        ? copyright
+                        : "Copyright (c) " + (string.IsNullOrEmpty(authors) ? package.Key : authors);
+                    licenseText = template.Replace("{{copyright}}", copyrightLine);
+                }
+                else
+                {
+                    licenseText = "The package does not embed its license text. License: " + licenseDisplay + ".";
+                }
+            }
+
+            if (!first)
+            {
+                json.Append(",\n");
+            }
+
+            first = false;
+            written++;
+            json.Append("  { \"packageId\": \"").Append(jsonEscape(package.Key))
+                .Append("\", \"version\": \"").Append(jsonEscape(package.Value))
+                .Append("\", \"license\": \"").Append(jsonEscape(licenseDisplay))
+                .Append("\", \"text\": \"").Append(jsonEscape(licenseText.Replace("\r\n", "\n").Trim()))
+                .Append("\" }");
+        }
+
+        json.Append("\n]\n");
+        Directory.CreateDirectory(Path.GetDirectoryName(OutputFile));
+        File.WriteAllText(OutputFile, json.ToString());
+        Log.LogMessage(Microsoft.Build.Framework.MessageImportance.Normal, "License report: wrote {0} packages to {1}", written, OutputFile);
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+
+  <Target Name="GenerateThirdPartyLicenseReport"
+          BeforeTargets="AssignTargetPaths"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <!-- Resolved at execution time: IntermediateOutputPath is defined by SDK targets imported after this file. -->
+    <PropertyGroup>
+      <ThirdPartyLicenseReportFile>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)third-party-licenses.json</ThirdPartyLicenseReportFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <!-- Central pins first (whole-solution set), then this project's references (covers the Uno.Sdk
+           implicit packages such as Uno.WinUI, Microsoft.WindowsAppSDK, and SkiaSharp.Views.WinUI, whose
+           versions resolve from the assets file). -->
+      <_LicensePackage Include="@(PackageVersion)" />
+      <_LicensePackage Include="@(PackageReference)" />
+      <_LicenseTemplateFile Include="$(MSBuildThisFileDirectory)LicenseTexts\*.txt" />
+    </ItemGroup>
+
+    <GenerateThirdPartyLicenseReport
+        Packages="@(_LicensePackage)"
+        AssetsFile="$(ProjectAssetsFile)"
+        NuGetPackagesRoot="$(NuGetPackageRoot)"
+        TemplateDirectory="$(MSBuildThisFileDirectory)LicenseTexts"
+        ExcludedPackages="Grpc.Tools;Uno.Resizetizer;Microsoft.Windows.SDK.BuildTools;Microsoft.Windows.SDK.BuildTools.MSIX;Microsoft.Windows.SDK.BuildTools.WinApp;Uno.UI.DevServer;Uno.WinUI.DevServer;Uno.Settings.DevServer;Uno.Sdk.Extras;Uno.UI.HotDesign;Uno.UI.App.Mcp;Microsoft.CodeAnalysis.CSharp;NUnit;NUnit3TestAdapter;Microsoft.NET.Test.Sdk"
+        OutputFile="$(ThirdPartyLicenseReportFile)" />
+
+    <ItemGroup>
+      <Content Include="$(ThirdPartyLicenseReportFile)"
+               Link="Assets\ThirdPartyLicenses\third-party-licenses.json"
+               CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
+  </Target>
+</Project>
