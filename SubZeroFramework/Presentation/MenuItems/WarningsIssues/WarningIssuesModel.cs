@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 
 using System.Reactive.Disposables;
 using System.Reactive.Disposables.Fluent;
@@ -12,6 +13,7 @@ using System.Reactive.Linq;
 using Windows.UI;
 
 using SubZeroFramework.Services;
+using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Presentation.MenuItems.WarningsIssues;
 
@@ -42,11 +44,12 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
         RestartServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.RestartAsync), CanRunInstalledServiceAction);
         InstallServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.InstallAsync), CanRunInstallAction);
         UpdateServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.UpdateAsync), CanRunUpdateAction);
-        UninstallServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_frameworkServiceControlClient.UninstallAsync), CanRunInstalledServiceAction);
+        RecheckCommand = new RelayCommand(RefreshServiceControlInfo);
 
         ApplyServiceControlInfo(serviceInfo);
 
         ApplyPageState(
+            eyebrow: "CHECKING SERVICE",
             title: "Waiting for service status",
             message: "Checking SubZeroFramework.Service health and recovery options.",
             severity: InfoBarSeverity.Informational,
@@ -74,11 +77,47 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
     public partial string StatusMessage { get; set; } = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ErrorHeroVisibility))]
-    [NotifyPropertyChangedFor(nameof(WarningHeroVisibility))]
-    [NotifyPropertyChangedFor(nameof(SuccessHeroVisibility))]
-    [NotifyPropertyChangedFor(nameof(InformationalHeroVisibility))]
+    [NotifyPropertyChangedFor(nameof(HeroAccentBrush))]
+    [NotifyPropertyChangedFor(nameof(HeroBadgeBackground))]
+    [NotifyPropertyChangedFor(nameof(HeroBadgeBorderBrush))]
+    [NotifyPropertyChangedFor(nameof(PausedCardTitle))]
     public partial InfoBarSeverity StatusSeverity { get; set; }
+
+    /// <summary>Letter-spaced mode label above the headline (e.g. "RECOVERY MODE"), set per state.</summary>
+    [ObservableProperty]
+    public partial string Eyebrow { get; set; } = "CHECKING SERVICE";
+
+    // Brushes are derived at binding time (UI thread) — never stored (see uno-vm-thread-affinity).
+    public Brush HeroAccentBrush => StatusSeverity switch
+    {
+        InfoBarSeverity.Error => AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.SeverityCriticalColor),
+        InfoBarSeverity.Warning => AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor),
+        InfoBarSeverity.Success => AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor),
+        _ => AppThemeBrushes.Get("StatusInfoBrush", AppThemeBrushes.StatusInfoColor),
+    };
+
+    public Brush HeroBadgeBackground => TintBrush(SeverityColor(StatusSeverity), 0x26);
+
+    public Brush HeroBadgeBorderBrush => TintBrush(SeverityColor(StatusSeverity), 0x55);
+
+    public string PausedCardTitle => StatusSeverity switch
+    {
+        InfoBarSeverity.Error => "Paused in recovery mode",
+        InfoBarSeverity.Warning => "Paused in limited mode",
+        InfoBarSeverity.Success => "Nothing is paused",
+        _ => "Paused in read-only mode",
+    };
+
+    private static Color SeverityColor(InfoBarSeverity severity) => severity switch
+    {
+        InfoBarSeverity.Error => AppThemeBrushes.SeverityCriticalColor,
+        InfoBarSeverity.Warning => AppThemeBrushes.StatusWarningColor,
+        InfoBarSeverity.Success => AppThemeBrushes.StatusSuccessColor,
+        _ => AppThemeBrushes.StatusInfoColor,
+    };
+
+    private static Brush TintBrush(Color color, byte alpha)
+        => new SolidColorBrush(Color.FromArgb(alpha, color.R, color.G, color.B));
 
     [ObservableProperty]
     public partial string PlatformServiceManager { get; set; } = string.Empty;
@@ -102,16 +141,28 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
     public partial string ServiceStateLineThree { get; set; } = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisabledControlOneVisibility))]
     public partial string DisabledControlOne { get; set; } = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisabledControlTwoVisibility))]
     public partial string DisabledControlTwo { get; set; } = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisabledControlThreeVisibility))]
     public partial string DisabledControlThree { get; set; } = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DisabledControlFourVisibility))]
     public partial string DisabledControlFour { get; set; } = string.Empty;
+
+    public Visibility DisabledControlOneVisibility => string.IsNullOrEmpty(DisabledControlOne) ? Visibility.Collapsed : Visibility.Visible;
+
+    public Visibility DisabledControlTwoVisibility => string.IsNullOrEmpty(DisabledControlTwo) ? Visibility.Collapsed : Visibility.Visible;
+
+    public Visibility DisabledControlThreeVisibility => string.IsNullOrEmpty(DisabledControlThree) ? Visibility.Collapsed : Visibility.Visible;
+
+    public Visibility DisabledControlFourVisibility => string.IsNullOrEmpty(DisabledControlFour) ? Visibility.Collapsed : Visibility.Visible;
 
     [ObservableProperty]
     public partial string ExplanationBody { get; set; } = string.Empty;
@@ -136,7 +187,6 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(RestartServiceCommand))]
     [NotifyCanExecuteChangedFor(nameof(InstallServiceCommand))]
     [NotifyCanExecuteChangedFor(nameof(UpdateServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(UninstallServiceCommand))]
     public partial bool IsOperationInProgress { get; set; }
 
     [ObservableProperty]
@@ -144,32 +194,44 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
     [NotifyCanExecuteChangedFor(nameof(RestartServiceCommand))]
     [NotifyCanExecuteChangedFor(nameof(InstallServiceCommand))]
     [NotifyCanExecuteChangedFor(nameof(UpdateServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(UninstallServiceCommand))]
     public partial bool IsServiceControlSupported { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanManageInstalledService))]
+    [NotifyPropertyChangedFor(nameof(RestartButtonVisibility))]
+    [NotifyPropertyChangedFor(nameof(RegistrationDisplay))]
+    [NotifyPropertyChangedFor(nameof(RegistrationBrush))]
     [NotifyCanExecuteChangedFor(nameof(RestartServiceCommand))]
-    [NotifyCanExecuteChangedFor(nameof(UninstallServiceCommand))]
     public partial bool IsServiceInstalled { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(InstallButtonVisibility))]
     [NotifyCanExecuteChangedFor(nameof(InstallServiceCommand))]
     public partial bool CanInstallService { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateButtonVisibility))]
     [NotifyCanExecuteChangedFor(nameof(UpdateServiceCommand))]
     public partial bool CanUpdateService { get; set; }
 
-    public Visibility ErrorHeroVisibility => StatusSeverity == InfoBarSeverity.Error ? Visibility.Visible : Visibility.Collapsed;
-
-    public Visibility WarningHeroVisibility => StatusSeverity == InfoBarSeverity.Warning ? Visibility.Visible : Visibility.Collapsed;
-
-    public Visibility SuccessHeroVisibility => StatusSeverity == InfoBarSeverity.Success ? Visibility.Visible : Visibility.Collapsed;
-
-    public Visibility InformationalHeroVisibility => StatusSeverity == InfoBarSeverity.Informational ? Visibility.Visible : Visibility.Collapsed;
+    [ObservableProperty]
+    public partial string ServiceIdentity { get; set; } = "SubZeroFrameworkService";
 
     public bool CanManageInstalledService => IsServiceControlSupported && IsServiceInstalled && !IsOperationInProgress;
+
+    // Detected-state card rows: registration goes red when missing, green when present (design).
+    public string RegistrationDisplay => IsServiceInstalled ? "Installed" : "Not installed";
+
+    public Brush RegistrationBrush => IsServiceInstalled
+        ? AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor)
+        : AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.SeverityCriticalColor);
+
+    // The design shows Install (primary) + Restart; Update appears only when the packaged helper is newer.
+    public Visibility InstallButtonVisibility => CanInstallService ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility RestartButtonVisibility => IsServiceInstalled ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility UpdateButtonVisibility => CanUpdateService ? Visibility.Visible : Visibility.Collapsed;
 
     public IAsyncRelayCommand RestartServiceCommand { get; }
 
@@ -177,7 +239,7 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
 
     public IAsyncRelayCommand UpdateServiceCommand { get; }
 
-    public IAsyncRelayCommand UninstallServiceCommand { get; }
+    public IRelayCommand RecheckCommand { get; }
 
     private bool CanRunServiceAction()
         => IsServiceControlSupported && !IsOperationInProgress;
@@ -239,7 +301,8 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
                 explanation: serviceIsInstalled
                     ? "SubZeroFramework.Service was not found running, or the installed service is not currently reachable over local gRPC IPC. Until it is installed and running again, the UI stays read-only so it does not surface stale telemetry or unsafe control actions."
                     : "SubZeroFramework.Service is not currently installed. Until it is installed and reachable again, the UI stays read-only so it does not surface stale telemetry or unsafe control actions.",
-                actionHint: ResolveActionHint());
+                actionHint: ResolveActionHint(),
+                eyebrow: "RECOVERY MODE");
             return;
         }
 
@@ -257,7 +320,8 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
                 disabledControlThree: "Device-specific inventory and EC-backed status",
                 disabledControlFour: "Service recovery that depends on a healthy runtime image",
                 explanation: "The service process started, but it could not load the required Framework library. That leaves the app without the native access layer it needs for Framework telemetry and EC operations, so the control surfaces remain locked down.",
-                actionHint: ResolveActionHint());
+                actionHint: ResolveActionHint(),
+                eyebrow: "RECOVERY MODE");
             return;
         }
 
@@ -275,7 +339,8 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
                 disabledControlThree: "Privilege-sensitive lifecycle recovery",
                 disabledControlFour: "Any control that requires elevated native access",
                 explanation: "The service binary is present, but the active service instance is missing the elevated privileges required for Framework EC access. Until it is restarted with the correct service-manager privileges, the app must stay in a limited read-only state.",
-                actionHint: ResolveActionHint());
+                actionHint: ResolveActionHint(),
+                eyebrow: "LIMITED MODE");
             return;
         }
 
@@ -293,7 +358,8 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
                 disabledControlThree: "Custom EC integration and write flows",
                 disabledControlFour: "Device-specific Framework control surfaces",
                 explanation: "The app can talk to the service, but the detected hardware signature is not a supported Framework device. To avoid unsafe EC access or misleading controls, SubZero stays in a restricted mode on this machine.",
-                actionHint: "Use the service actions only if you need to repair the service installation. Hardware-control features stay disabled on unsupported devices.");
+                actionHint: "Use the service actions only if you need to repair the service installation. Hardware-control features stay disabled on unsupported devices.",
+                eyebrow: "UNSUPPORTED DEVICE");
             return;
         }
 
@@ -311,7 +377,8 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
                 disabledControlThree: "Telemetry actions that depend on the failing subsystem",
                 disabledControlFour: "Recovery steps that require a stable service before proceeding",
                 explanation: "The service reported a warning condition and the client is surfacing it here instead of continuing into the normal control pages. Resolve the service warning first, then return to the regular telemetry and control views.",
-                actionHint: ResolveActionHint());
+                actionHint: ResolveActionHint(),
+                eyebrow: "SERVICE WARNING");
             return;
         }
 
@@ -329,7 +396,8 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
                 disabledControlThree: "Fan override persistence changes",
                 disabledControlFour: "Any control that mutates EC fan state",
                 explanation: "The service is online, but fan-control commands are intentionally disabled for this session or deployment. The page stays in read-only mode so you can inspect the state without surfacing unsafe or unavailable write actions.",
-                actionHint: "Lifecycle actions remain available, but fan-control commands will stay disabled until the service configuration allows them.");
+                actionHint: "Lifecycle actions remain available, but fan-control commands will stay disabled until the service configuration allows them.",
+                eyebrow: "READ-ONLY MODE");
             return;
         }
 
@@ -347,7 +415,8 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
                 disabledControlThree: "Any unsafe fallback that bypasses service authorization",
                 disabledControlFour: "Privilege-sensitive remediation that assumes validated callers",
                 explanation: "The service is online, but the current transport cannot fully validate caller identity for fan-control RPCs. The UI stays conservative and keeps those mutating controls disabled until the authorization boundary is fully trustworthy.",
-                actionHint: "You can continue with read-only diagnostics, but fan-control commands remain unavailable until caller validation is complete.");
+                actionHint: "You can continue with read-only diagnostics, but fan-control commands remain unavailable until caller validation is complete.",
+                eyebrow: "LIMITED MODE");
             return;
         }
 
@@ -363,7 +432,8 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
             disabledControlThree: string.Empty,
             disabledControlFour: string.Empty,
             explanation: "This page is intended for degraded or unsupported states. If you are seeing the healthy state here, navigation should be able to return to the standard control surfaces.",
-            actionHint: "No remediation is currently required.");
+            actionHint: "No remediation is currently required.",
+            eyebrow: "ALL CLEAR");
     }
 
     public void Dispose()
@@ -383,8 +453,10 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
         string disabledControlThree,
         string disabledControlFour,
         string explanation,
-        string actionHint)
+        string actionHint,
+        string eyebrow)
     {
+        Eyebrow = eyebrow;
         StatusTitle = title;
         StatusMessage = message;
         StatusSeverity = severity;
@@ -402,6 +474,7 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
     private void ApplyServiceControlInfo(FrameworkServiceControlInfo serviceInfo)
     {
         PlatformServiceManager = serviceInfo.PlatformServiceManager;
+        ServiceIdentity = serviceInfo.ServiceIdentity;
         InstallSourceSummary = serviceInfo.InstallSourceSummary;
         InstallReadinessMessage = serviceInfo.InstallReadinessMessage;
         PrivilegePromptMessage = serviceInfo.PrivilegePromptMessage;

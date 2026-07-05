@@ -64,8 +64,7 @@ pull_request_rules:
       - author=dependabot[bot]
       - "#commits-behind > 0"
     actions:
-       update:
-    
+      update:
   - name: Automatic update ChangeRequest pull requests if they are commits behind
     conditions:
       - author=TekuSP

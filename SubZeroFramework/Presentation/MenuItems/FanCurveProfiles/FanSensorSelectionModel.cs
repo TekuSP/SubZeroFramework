@@ -18,14 +18,16 @@ namespace SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 public sealed class FanSensorSelectionModel
 {
     private readonly IFanHistoryStore _historyStore;
+    private readonly Services.Units.IUnitFormattingService _unitFormattingService;
     private readonly ObservableCollection<SensorChipModel> _availableSensors = [];
     private readonly Dictionary<int, SensorChipModel> _sensorChipIndex = [];
     private readonly Dictionary<SensorChipModel, PropertyChangedEventHandler> _sensorChipHandlers = [];
     private bool _suppressSensorSelectionReentry;
 
-    public FanSensorSelectionModel(IFanHistoryStore historyStore)
+    public FanSensorSelectionModel(IFanHistoryStore historyStore, Services.Units.IUnitFormattingService unitFormattingService)
     {
         _historyStore = historyStore;
+        _unitFormattingService = unitFormattingService;
         AvailableSensors = new ReadOnlyObservableCollection<SensorChipModel>(_availableSensors);
     }
 
@@ -64,7 +66,7 @@ public sealed class FanSensorSelectionModel
 
         if (!_sensorChipIndex.TryGetValue(snapshot.SensorIndex, out var chip))
         {
-            chip = new SensorChipModel(snapshot.SensorIndex, chipName);
+            chip = new SensorChipModel(snapshot.SensorIndex, chipName, _unitFormattingService);
             _sensorChipIndex[snapshot.SensorIndex] = chip;
             AttachSensorChipHandler(chip);
 

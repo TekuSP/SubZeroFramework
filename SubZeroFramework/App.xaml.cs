@@ -17,8 +17,10 @@ using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.Modes;
 using SubZeroFramework.Presentation.MenuItems.Modules;
 using SubZeroFramework.Presentation.MenuItems.Modules.Layouts;
+using SubZeroFramework.Controls.Settings.Models.Sections;
 using SubZeroFramework.Presentation.MenuItems.PowerTelemetry;
 using SubZeroFramework.Presentation.MenuItems.Settings;
+using SubZeroFramework.Presentation.MenuItems.Settings.Sections;
 using SubZeroFramework.Presentation.MenuItems.ThermalTelemetry;
 using SubZeroFramework.Presentation.MenuItems.WarningsIssues;
 using SubZeroFramework.Services;
@@ -115,7 +117,9 @@ public partial class App : Application
                     services.AddSingleton<IBatteryTelemetryClient, BatteryTelemetryClient>();
                     services.AddSingleton<IPowerDeliveryClient, GrpcPowerDeliveryClient>();
                     services.AddSingleton<IModuleInventoryClient, GrpcModuleInventoryClient>();
-                    services.AddSingleton<IUserUnitPreferencesClient, GrpcUserUnitPreferencesClient>();
+                    // Display units are client-owned: selections persist in the per-user app-data folder
+                    // and never travel to the background service.
+                    services.AddSingleton<IUserUnitPreferencesClient, LocalUserUnitPreferencesClient>();
                     services.AddSingleton<IUnitFormattingService, UnitsNetUnitFormattingService>();
                     services.AddSingleton<IFrameworkFanControlClient, GrpcFrameworkFanControlClient>();
                     services.AddSingleton<IFanControlActuator, FanControlActuator>();
@@ -138,6 +142,14 @@ public partial class App : Application
 
                     // Modules layout bodies bridge to the displayed page model the same way (see ModulesAccessor).
                     services.AddSingleton<ModulesAccessor>();
+
+                    // Settings section bodies bridge to the displayed page model the same way (see SettingsAccessor).
+                    services.AddSingleton<SettingsAccessor>();
+
+                    // Client-only settings: launch behavior + alert opt-ins persist next to the display units.
+                    services.AddSingleton<ILocalClientSettingsStore, LocalClientSettingsStore>();
+                    services.AddSingleton<IStartupRegistrationService, WindowsStartupRegistrationService>();
+                    services.AddSingleton<ThermalAlertMonitor>();
                 })
                 .UseNavigation(RegisterRoutes)
             );
@@ -162,6 +174,14 @@ public partial class App : Application
         Host = await builder.NavigateAsync<Shell>();
 
         Logger = Host.Log();
+
+        // Client-only launch behavior + alert opt-ins (Settings → Startup & alerts).
+        Host.Services.GetRequiredService<ThermalAlertMonitor>().Start();
+
+        if (Host.Services.GetRequiredService<ILocalClientSettingsStore>().StartMinimized)
+        {
+            (MainWindow.AppWindow?.Presenter as OverlappedPresenter)?.Minimize();
+        }
     }
 
     private void Current_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
@@ -229,7 +249,12 @@ public partial class App : Application
             new ViewMap<PowerTelemetryPage, PowerTelemetryModel>(),
             new ViewMap<ThermalTelemetryPage, ThermalTelemetryModel>(),
             new ViewMap<WarningIssuesPage, WarningIssuesModel>(),
-            new ViewMap<SettingsPage, SettingsModel>()
+            new ViewMap<SettingsPage, SettingsModel>(),
+            new ViewMap<SettingsServiceSectionView, SettingsServiceSectionModel>(),
+            new ViewMap<SettingsUnitsSectionView, SettingsUnitsSectionModel>(),
+            new ViewMap<SettingsStartupSectionView, SettingsStartupSectionModel>(),
+            new ViewMap<SettingsLicensesSectionView, SettingsLicensesSectionModel>(),
+            new ViewMap<SettingsAboutSectionView, SettingsAboutSectionModel>()
         );
 
         routes.Register(
@@ -290,7 +315,15 @@ public partial class App : Application
                 new RouteMap("PowerTelemetry",  View: views.FindByViewModel<PowerTelemetryModel>()),
                 new RouteMap("ThermalTelemetry",  View: views.FindByViewModel<ThermalTelemetryModel>()),
                 new RouteMap("WarningIssues",  View: views.FindByViewModel<WarningIssuesModel>()),
-                new RouteMap("Settings",  View: views.FindByViewModel<SettingsModel>()),
+                new RouteMap("Settings",  View: views.FindByViewModel<SettingsModel>(),
+                Nested:
+                [
+                    new RouteMap("SettingsService", View: views.FindByViewModel<SettingsServiceSectionModel>()),
+                    new RouteMap("SettingsUnits", View: views.FindByViewModel<SettingsUnitsSectionModel>()),
+                    new RouteMap("SettingsStartup", View: views.FindByViewModel<SettingsStartupSectionModel>()),
+                    new RouteMap("SettingsLicenses", View: views.FindByViewModel<SettingsLicensesSectionModel>()),
+                    new RouteMap("SettingsAbout", View: views.FindByViewModel<SettingsAboutSectionModel>()),
+                ]),
             ])
         );
     }

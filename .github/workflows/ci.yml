@@ -84,12 +84,87 @@ jobs:
         shell: pwsh
         run: ./SubZeroFramework.Service/Scripts/package-windows-service.ps1 -RuntimeIdentifier ${{ matrix.platform }} -OutputRoot "${{ env.ARTIFACT_OUTPUT }}" -Configuration Release
 
+      - name: Build Windows installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "iscc"
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            choco install innosetup -y --no-progress
+            $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          }
+          & $iscc `
+            /DAppVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }} `
+            /DSourceDir="${{ env.ARTIFACT_OUTPUT }}" `
+            /DArch=${{ matrix.type }} `
+            /O"${{ github.workspace }}/installer" `
+            packaging/windows/subzeroframework.iss
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v7
+        continue-on-error: false
+        with:
+          name: SubZero Framework - Windows ${{ matrix.type }} Installer
+          path: ${{ github.workspace }}/installer
+          if-no-files-found: error
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         continue-on-error: false
         with:
           name: SubZero Framework - Windows ${{ matrix.type }} WinUI3
           path: ${{ env.ARTIFACT_OUTPUT }}
+          if-no-files-found: error
+
+      - name: "Cancel if failure"
+        if: ${{ failure() }}
+        uses: potiuk/cancel-workflow-runs@master
+        with:
+          cancelMode: self
+          cancelFutureDuplicates: false
+          selfPreservation: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  package_arch_binary:
+    # Builds the binary Arch packages (.pkg.tar.zst) from the AUR-format PKGBUILDs emitted by the Linux
+    # legs. Our package() is a pure binary repack (no compilation), so both architectures build on the
+    # official x86_64 archlinux container — the aarch64 leg only needs the CARCH label overridden in
+    # makepkg.conf (official Arch images are x86_64-only; Arch Linux ARM is a separate community distro).
+    name: Build Arch Linux binary package (${{ matrix.type }})
+    needs: build_and_publish_linux
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - type: x64
+            carch: x86_64
+          - type: arm64
+            carch: aarch64
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+
+    steps:
+      - name: Download Linux ${{ matrix.type }} packages artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: SubZero Framework - Linux ${{ matrix.type }} Packages
+          path: packages
+
+      - name: Build package with makepkg
+        run: |
+          sed -i 's/^CARCH=.*/CARCH="${{ matrix.carch }}"/' /etc/makepkg.conf
+          useradd -m builder
+          cp -r packages/aur /home/builder/aur
+          chown -R builder:builder /home/builder/aur
+          su builder -c "cd /home/builder/aur && makepkg -f --noconfirm"
+          mkdir -p packages/arch
+          cp /home/builder/aur/*.pkg.tar.zst packages/arch/
+
+      - name: Upload Arch package artifact
+        uses: actions/upload-artifact@v7
+        continue-on-error: false
+        with:
+          name: SubZero Framework - Arch Linux ${{ matrix.type }} Package
+          path: packages/arch
           if-no-files-found: error
 
       - name: "Cancel if failure"
@@ -153,6 +228,26 @@ jobs:
         run: |
           chmod +x ./SubZeroFramework.Service/Scripts/package-linux-service.sh
           ./SubZeroFramework.Service/Scripts/package-linux-service.sh ${{ matrix.platform }} "${{ env.ARTIFACT_OUTPUT }}" Release
+
+      - name: Build Linux packages (deb, rpm, Arch/AUR)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rpm
+          chmod +x ./packaging/linux/build-linux-packages.sh
+          ./packaging/linux/build-linux-packages.sh \
+            "${{ env.VERSION_PREFIX }}.${{ github.run_number }}" \
+            "${{ matrix.platform }}" \
+            "${{ env.ARTIFACT_OUTPUT }}" \
+            "${{ env.ARTIFACT_OUTPUT }}/service-package/linux" \
+            "${{ github.workspace }}/packages"
+
+      - name: Upload Linux packages artifact
+        uses: actions/upload-artifact@v7
+        continue-on-error: false
+        with:
+          name: SubZero Framework - Linux ${{ matrix.type }} Packages
+          path: ${{ github.workspace }}/packages
+          if-no-files-found: error
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7

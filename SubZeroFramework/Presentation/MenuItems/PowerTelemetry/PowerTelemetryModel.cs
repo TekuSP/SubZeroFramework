@@ -447,7 +447,7 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
 
     public string ModelDisplay => string.IsNullOrWhiteSpace(_battery?.ModelNumber) ? "--" : _battery!.ModelNumber!;
 
-    private string FormatWatts(double watts) => $"{Math.Round(watts):0} W";
+    private string FormatWatts(double watts) => _unitFormattingService.FormatPowerWatts(Math.Round(watts), decimals: 0);
 
     private static string FormatWattHours(double? wattHours) => wattHours is double wh ? $"{wh:0.0} Wh" : "--";
 

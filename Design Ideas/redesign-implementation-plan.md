@@ -1,5 +1,9 @@
 # SubZero redesign — implementation plan
 
+> **Release planning moved:** remaining open work (Fan Control visual pass, Modules FFI follow-ups,
+> cooling-profile enablement, library metadata versions) is tracked in [`../ReleasePlan.md`](../ReleasePlan.md)
+> (2026-07-03). This file stays as the redesign execution record and per-view reference.
+
 Source of truth: `Design Ideas/design_handoff_redesign/` (README + `.dc.html` mockups + `screenshots/`).
 **High-res PDF targets (authoritative, supersede the PNGs):** one per view under `screenshots/<area>/*.pdf` —
 device ×7 (`Device Capabilities-{onboard,cpu,memory,drives,graphics,network,system}.pdf`), modules ×6
@@ -300,7 +304,21 @@ Two sources, per the handoff:
    - **M6 — platform switch + verify**: Modules page picks the layout route by `PlatformFamily` (nested-region
      navigation, accessor bridge, deferred QueueSync — the Device-Caps page pattern verbatim); 0/0 both
      targets + tests + live verify on the FW16 (numpad deck) before moving on.
-6. **Dashboard — full redesign** (`dashboard/Dashboard.pdf`, 2 pages). Much more than a visual pass:
+6. **Dashboard — full redesign** (`dashboard/Dashboard.pdf`, 2 pages) — **DONE 2026-07-03** (live-verified:
+   preset click → both fans Manual 45% live, selection derives back from service state; restored to Auto).
+   Implemented: presets row (Silent→Auto / Balanced→Manual 45% / Performance→Manual 65% / Turbo→Max applied
+   to every fan via `IFanControlActuator`, preview:false; **Custom is a derived indicator**, selection always
+   derived from live control states so it survives restarts), `FanQuickControlCardView` (ring gauge via
+   `BandRingGaugeView` + FanCardModel, Now-driving line + duty bar, Auto/Manual/Max segments, ±5% duty
+   stepper, rocket = boost to Manual 100%), thermal snapshot bar rows (ThermalSensorModel severity brushes,
+   driving temperature = max), power card (`BatteryChargeRingView` + charging state + PD active-port adapter
+   W + time-to-full ETA from capacity gap / charge current). **The quick-toggles card was REMOVED on user
+   request 2026-07-03** ("remove bottom right settings from dashboard") — those switches live in Settings.
+   **Gotchas:** the EC charge-limit read (`GetChargeLimitsAsync`) fired from the Dashboard model ctor froze
+   the whole app at startup (Dashboard is the startup page) — do NOT issue unary EC gRPC calls during
+   startup-page VM construction; ItemsRepeater+UniformGridLayout also hung layout — use ItemsControl +
+   `StatTilePanel` as ItemsPanel for adaptive card grids.
+   Original spec (superseded):
    - **Cooling profile presets row** (Silent · Balanced · Performance · Turbo · Custom — icon + name + one-line
      description, selected card accent-outlined + check; "applies to all N fans instantly"; header shows Average
      fan speed). NEW concept: a profile = one preset applied to every fan (Custom = per-fan tuned state); needs a
@@ -313,25 +331,56 @@ Two sources, per the handoff:
      charge rate → time-to-full derivation). **Quick toggles** card: Zero-RPM idle, Sync all fans, Keep 80%
      charge limit, Start with Windows — each toggle wires to an existing capability (idle/link/charge-limit/
      startup).
-7. **Settings — new sub-page layout** (`settings/Settings-*.pdf` ×5). Same master-detail + sub-nav pattern as
-   Device Capabilities — REUSE the nested-region navigation (sub-nav card full height, "Service reachable"
-   status pinned at its bottom):
-   - **Service** (`-service.pdf`): green "Reachable over local gRPC — <service> — last check" banner + Recheck;
-     UAC note; Restart (primary) / Shut down / Update / Uninstall (danger outline) — existing lifecycle service.
-   - **Display units** (`-unitsnet.pdf`): per-quantity segmented pickers with live sample values — Temperature
-     °C/°F/K, Fan speed RPM/rev/s/%, Power W/mW, Voltage V/mV, Current A/mA, Battery capacity Wh/Ah/%, Network
-     rate Mbps/MB/s/Gbps — over the existing UnitsNet preferences service.
-   - **Startup & alerts** (`-startup.pdf`): toggles Start with Windows, Start minimized to tray, Autorun
-     service, Thermal alerts (notify on critical sensor — may need a small notification vertical).
-   - **Licenses** (`-licenses.pdf`): library list (name, version, license chip) + full license text column.
-   - **About** (`-about.pdf`): rows with versions + GitHub links — SubZero, EC build, framework-dotnet,
-     framework-system-ffi-extensions, framework-system.
-8. **Warnings & Issues — recovery-mode hero** (`warning/…-warning.pdf`): centered red fan badge + "RECOVERY
-   MODE" eyebrow + "Background service not installed" headline + explanation; **Install service** (primary) +
-   **Restart service** buttons + UAC note; two cards — "Paused in recovery mode" (list: live telemetry &
-   history, manual fan control, curve & profile changes, hardware inventory refresh) and "Detected state"
-   (Manager: Windows SCM, Registration: Not installed in red, Service name); "Recheck now" link. Drives off the
-   existing service-lifecycle status.
+7. **Settings — new sub-page layout** (`settings/Settings-*.pdf` ×5) — **DONE 2026-07-03** (live-verified,
+   all 5 panes). Master-detail nested-region navigation per Device Capabilities (SettingsAccessor bridge,
+   deferred QueueSync, sub-nav card full height with "Service reachable" pinned at its bottom):
+   - **Service** — DONE: severity-tinted "Reachable over local gRPC — <identity> — last check" banner +
+     Recheck; UAC note; Restart (primary) / Shut down / Update / Uninstall (danger outline) + Install (only
+     when installable); PLUS the kept service-owned "Runtime configuration" group (polling intervals +
+     allow-fan-control toggle + Apply/Save/Reset) since the backend still owns those settings.
+   - **Display units** — DONE: ALL 13 catalog quantities as `UnitSegmentPickerView` rows (icon + name +
+     "<where it applies> · sample <live value>" + segmented pills); changes apply LIVE and persist
+     CLIENT-ONLY to `%LOCALAPPDATA%\SubZeroFramework\display-unit-preferences.json`
+     (`LocalUserUnitPreferencesClient`); the backend user-preferences gRPC vertical was REMOVED (proto svc +
+     store + manager). Samples feed from live telemetry (temp/fan/battery/hardware-info) with representative
+     fallbacks. "Reset to defaults" pill in the header.
+   - **Startup & alerts** — DONE: ToggleRowView ×4 — Start with Windows (HKCU Run key,
+     `WindowsStartupRegistrationService`), Start minimized (client setting, applied on launch via
+     OverlappedPresenter.Minimize), Autorun service (existing lifecycle client, gated on installed+supported),
+     Thermal alerts (client setting + `ThermalAlertMonitor`: ≥85 °C latch/cooldown → AppNotification toast on
+     the Windows target, log-only elsewhere; toast Register() fails gracefully unpackaged-without-runtime).
+     Client toggles persist to `%LOCALAPPDATA%\SubZeroFramework\client-settings.json` (`LocalClientSettingsStore`).
+   - **Licenses** — DONE: `Build/ThirdPartyLicenses.targets` (RoslynCodeTaskFactory inline task) generates
+     `Assets/ThirdPartyLicenses/third-party-licenses.json` at build time from @(PackageVersion) ∪
+     @(PackageReference) with versions resolved from project.assets.json (covers Uno.Sdk implicit packages);
+     license text = embedded package license file, else SPDX template (`Build/LicenseTexts/`) + nuspec
+     copyright. 39 packages currently. Page = name/version/chip column + full text column.
+   - **About** — DONE: SubZero version + EC Build (live `status.EcBuildInfo`) + framework-dotnet (live
+     `status.ConnectionLibraryVersion`) + ffi-extensions/framework-system rows ("Bundled with framework-dotnet"
+     until the library embeds component versions — recorded below) + GitHub links.
+   - **Hard-won gotchas**: (1) NEVER create Brushes (or anything DependencyObject) in VM field initializers
+     or static fields — Uno constructs page VMs off the UI thread and the failure is SILENT (page shows, VM
+     never attaches); compute brushes in getters at bind time. (2) ItemsRepeater does NOT set DataContext for
+     x:Bind templates — Click handlers reading DataContext need ItemsControl. (3) UnitsNet display audit:
+     SensorChipModel, PowerTelemetryModel.FormatWatts, PD WattText/MaxCharge pills now flow through
+     IUnitFormattingService.
+   - **Library follow-up**: framework-dotnet should embed `AssemblyMetadata("FrameworkSystemFfiExtensionsVersion")`
+     + `("FrameworkSystemVersion")` so About can show real native component versions.
+8. **Warnings & Issues — recovery-mode hero** (`warning/…-warning.pdf`) — **DONE 2026-07-03** (live-verified:
+   service killed → red RECOVERY MODE hero exactly per design, service restarted → app auto-returns to
+   Dashboard). ONE centered hero layout, themed per state severity, serving **every** message variant the
+   model distinguishes (all 9 kept): waiting (CHECKING SERVICE), offline/not-installed + library-missing
+   (RECOVERY MODE, red), elevation + validation-limited (LIMITED MODE, amber), unsupported device
+   (UNSUPPORTED DEVICE), service warning (SERVICE WARNING), fan-control disabled (READ-ONLY MODE, blue),
+   healthy (ALL CLEAR, green). Severity drives badge tint/eyebrow/paused-card title via computed brushes
+   (bind-time, per uno-vm-thread-affinity). Buttons honestly gated: Install only when the packaged helper is
+   discoverable, Restart only when registered, Update only when newer. Cards: paused-capabilities rows (hide
+   when empty) + Detected state (Manager / Registration red-or-green / Service identity). Uninstall moved to
+   Settings only. Recheck re-queries GetInfo().
+   **Also fixed here: the startup freeze root cause** — the old Dashboard model subscribed 1-hour fan/
+   thermal/battery HISTORY streams whose replay saturated the UI thread once the service had been running a
+   while (intermittent "constantly freezing on startup"); the redesigned dashboard renders live values only,
+   so all history subscriptions were removed from DashboardModel.
 9. **Fan Control** redesign pass (functionally built; visual pass to match its PDF/mockup) — lower priority.
 
 ## Cross-cutting

@@ -1,0 +1,52 @@
+<UserControl
+    x:Class="SubZeroFramework.Controls.ToggleRowView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid MinHeight="56" ColumnSpacing="14">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+
+        <material:MaterialIcon
+            Grid.Column="0"
+            Width="18"
+            Height="18"
+            VerticalAlignment="Center"
+            Foreground="{StaticResource StatusInfoBrush}"
+            Kind="{x:Bind IconKind, Mode=OneWay}" />
+
+        <StackPanel
+            Grid.Column="1"
+            VerticalAlignment="Center"
+            Spacing="2">
+            <TextBlock
+                FontSize="14"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="{x:Bind Title, Mode=OneWay}" />
+            <TextBlock
+                FontSize="12"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="{x:Bind Subtitle, Mode=OneWay}"
+                TextWrapping="WrapWholeWords" />
+        </StackPanel>
+
+        <!--  OnContent/OffContent are cleared so the switch renders as a bare pill, per the design.  -->
+        <ToggleSwitch
+            Grid.Column="2"
+            MinWidth="0"
+            Margin="0,0,-12,0"
+            VerticalAlignment="Center"
+            IsEnabled="{x:Bind IsToggleEnabled, Mode=OneWay}"
+            IsOn="{x:Bind IsOn, Mode=TwoWay}"
+            OffContent=""
+            OnContent="" />
+    </Grid>
+</UserControl>

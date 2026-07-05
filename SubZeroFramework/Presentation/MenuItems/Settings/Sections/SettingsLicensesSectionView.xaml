@@ -1,0 +1,91 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.Settings.Sections.SettingsLicensesSectionView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:SubZeroFramework.Controls.Settings.Models"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <!--  One library: identity column (name, version, license chip) | full license text.  -->
+        <DataTemplate x:Key="LicenseEntryTemplate" x:DataType="models:LicenseEntryModel">
+            <StackPanel>
+                <Grid Margin="0,14" ColumnSpacing="20">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="220" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Spacing="6">
+                        <TextBlock
+                            FontSize="14.5"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind Name}"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="{x:Bind Version}" />
+                        <!--  License chip (pill rule: fixed height + half-height corners).  -->
+                        <Border
+                            Height="26"
+                            Padding="12,0"
+                            HorizontalAlignment="Left"
+                            Background="{StaticResource CardBackgroundBrush}"
+                            BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                            BorderThickness="1"
+                            CornerRadius="13">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind License}" />
+                        </Border>
+                    </StackPanel>
+
+                    <TextBlock
+                        Grid.Column="1"
+                        FontFamily="Consolas"
+                        FontSize="12"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        IsTextSelectionEnabled="True"
+                        Text="{x:Bind Text}"
+                        TextWrapping="Wrap" />
+                </Grid>
+                <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel
+            MaxWidth="1180"
+            Padding="24,4,24,24"
+            HorizontalAlignment="Stretch"
+            Spacing="10">
+
+            <StackPanel Spacing="4">
+                <TextBlock
+                    FontSize="22"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Used libraries &amp; licenses" />
+                <TextBlock
+                    FontSize="13"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="Third-party open-source software included in SubZero, with full license texts." />
+            </StackPanel>
+
+            <TextBlock
+                FontSize="13"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="{x:Bind ViewModel.Page.LicensesMessage, Mode=OneWay}"
+                TextWrapping="WrapWholeWords"
+                Visibility="{x:Bind ViewModel.Page.LicensesMessageVisibility, Mode=OneWay}" />
+
+            <ItemsControl ItemTemplate="{StaticResource LicenseEntryTemplate}" ItemsSource="{x:Bind ViewModel.Page.Licenses, Mode=OneWay}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

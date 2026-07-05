@@ -1,0 +1,322 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.Settings.Sections.SettingsServiceSectionView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <Style x:Key="ServiceActionButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="42" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="{StaticResource CardBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel
+            MaxWidth="980"
+            Padding="24,4,24,24"
+            HorizontalAlignment="Stretch"
+            Spacing="14">
+
+            <StackPanel Spacing="4">
+                <TextBlock
+                    FontSize="22"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Background service" />
+                <TextBlock
+                    FontSize="13"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="Manage the packaged service that drives fan control and telemetry." />
+            </StackPanel>
+
+            <!--  Reachability banner: severity-tinted fill + border driven by the live status stream.  -->
+            <Border
+                Padding="16,12"
+                Background="{x:Bind ViewModel.Page.BannerBackground, Mode=OneWay}"
+                BorderBrush="{x:Bind ViewModel.Page.BannerBorderBrush, Mode=OneWay}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <material:MaterialIcon
+                        Grid.Column="0"
+                        Width="22"
+                        Height="22"
+                        VerticalAlignment="Center"
+                        Foreground="{x:Bind ViewModel.Page.BannerForeground, Mode=OneWay}"
+                        Kind="{x:Bind ViewModel.Page.BannerIconKind, Mode=OneWay}" />
+                    <StackPanel
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        Spacing="2">
+                        <TextBlock
+                            FontSize="14.5"
+                            FontWeight="SemiBold"
+                            Foreground="{x:Bind ViewModel.Page.BannerForeground, Mode=OneWay}"
+                            Text="{x:Bind ViewModel.Page.BannerTitle, Mode=OneWay}" />
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="{x:Bind ViewModel.Page.BannerDetail, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                    <Button
+                        Grid.Column="2"
+                        Height="34"
+                        Padding="14,0"
+                        VerticalAlignment="Center"
+                        Background="{StaticResource CardBackgroundBrush}"
+                        BorderThickness="0"
+                        Command="{x:Bind ViewModel.Page.RecheckServiceCommand, Mode=OneWay}"
+                        CornerRadius="17">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <material:MaterialIcon
+                                Width="14"
+                                Height="14"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Kind="Refresh" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="Recheck" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <TextBlock
+                FontSize="13"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="Install, update, restart, and recover the packaged service without elevating the app. Lifecycle actions prompt for administrator via UAC."
+                TextWrapping="WrapWholeWords" />
+
+            <Grid ColumnSpacing="10" RowSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Button
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Background="{StaticResource BrandPrimaryBrush}"
+                    Command="{x:Bind ViewModel.Page.RestartServiceCommand, Mode=OneWay}"
+                    Style="{StaticResource ServiceActionButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <material:MaterialIcon
+                            Width="16"
+                            Height="16"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Kind="Restart" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="Restart service" />
+                    </StackPanel>
+                </Button>
+
+                <Button
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    Command="{x:Bind ViewModel.Page.ShutdownServiceCommand, Mode=OneWay}"
+                    Style="{StaticResource ServiceActionButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <material:MaterialIcon
+                            Width="16"
+                            Height="16"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Kind="Power" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="Shut down" />
+                    </StackPanel>
+                </Button>
+
+                <Button
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    Command="{x:Bind ViewModel.Page.UpdateServiceCommand, Mode=OneWay}"
+                    Style="{StaticResource ServiceActionButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <material:MaterialIcon
+                            Width="16"
+                            Height="16"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Kind="Update" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="Update service" />
+                    </StackPanel>
+                </Button>
+
+                <Button
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    Background="Transparent"
+                    BorderBrush="{StaticResource StatusErrorTextBrush}"
+                    BorderThickness="1"
+                    Command="{x:Bind ViewModel.Page.UninstallServiceCommand, Mode=OneWay}"
+                    Style="{StaticResource ServiceActionButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <material:MaterialIcon
+                            Width="16"
+                            Height="16"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource StatusErrorTextBrush}"
+                            Kind="TrashCanOutline" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource StatusErrorTextBrush}"
+                            Text="Uninstall" />
+                    </StackPanel>
+                </Button>
+
+                <!--  Shown only while the packaged service is installable (not registered yet).  -->
+                <Button
+                    Grid.Row="2"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="2"
+                    Background="{StaticResource BrandPrimaryBrush}"
+                    Command="{x:Bind ViewModel.Page.InstallServiceCommand, Mode=OneWay}"
+                    Style="{StaticResource ServiceActionButtonStyle}"
+                    Visibility="{x:Bind ViewModel.Page.InstallButtonVisibility, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <material:MaterialIcon
+                            Width="16"
+                            Height="16"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Kind="Download" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="Install service" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <InfoBar
+                Title="{x:Bind ViewModel.Page.LastActionTitle, Mode=OneWay}"
+                IsClosable="True"
+                IsOpen="{x:Bind ViewModel.Page.IsLastActionVisible, Mode=TwoWay}"
+                Message="{x:Bind ViewModel.Page.LastActionMessage, Mode=OneWay}"
+                Severity="{x:Bind ViewModel.Page.LastActionSeverity, Mode=OneWay}" />
+
+            <!--  Service-owned runtime configuration (stored by the backend, not the client).  -->
+            <StackPanel Margin="0,10,0,0" Spacing="4">
+                <TextBlock
+                    FontSize="17"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Runtime configuration" />
+                <TextBlock
+                    FontSize="13"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="These settings live on the service and apply to every client. Apply pushes them to the running service; Save persists them across restarts."
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0" Spacing="6">
+                    <TextBlock
+                        FontSize="12.5"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="Telemetry polling interval (ms)" />
+                    <TextBox
+                        IsEnabled="{x:Bind ViewModel.Page.IsConfigurationLoaded, Mode=OneWay}"
+                        Text="{x:Bind ViewModel.Page.TelemetryPollingIntervalMillisecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock
+                        FontSize="12.5"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="Hardware info polling interval (ms)" />
+                    <TextBox
+                        IsEnabled="{x:Bind ViewModel.Page.IsConfigurationLoaded, Mode=OneWay}"
+                        Text="{x:Bind ViewModel.Page.HardwareInfoPollingIntervalMillisecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                </StackPanel>
+            </Grid>
+
+            <controls:ToggleRowView
+                IconKind="Fan"
+                IsOn="{x:Bind ViewModel.Page.AllowFanControlCommandsDraft, Mode=TwoWay}"
+                IsToggleEnabled="{x:Bind ViewModel.Page.IsConfigurationLoaded, Mode=OneWay}"
+                Subtitle="Let clients on this machine issue fan-control writes"
+                Title="Allow fan control commands" />
+
+            <TextBlock
+                FontSize="12.5"
+                Foreground="{StaticResource StatusWarningBrush}"
+                Text="{x:Bind ViewModel.Page.ConfigurationValidationMessage, Mode=OneWay}"
+                TextWrapping="WrapWholeWords"
+                Visibility="{x:Bind ViewModel.Page.ConfigurationValidationVisibility, Mode=OneWay}" />
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button
+                    MinHeight="38"
+                    Padding="18,0"
+                    Background="{StaticResource BrandPrimaryBrush}"
+                    BorderThickness="0"
+                    Command="{x:Bind ViewModel.Page.ApplyConfigurationCommand, Mode=OneWay}"
+                    Content="Apply"
+                    CornerRadius="8"
+                    Foreground="{StaticResource TextPrimaryBrush}" />
+                <Button
+                    MinHeight="38"
+                    Padding="18,0"
+                    Background="{StaticResource CardBackgroundBrush}"
+                    BorderThickness="0"
+                    Command="{x:Bind ViewModel.Page.SaveConfigurationCommand, Mode=OneWay}"
+                    Content="Save to disk"
+                    CornerRadius="8"
+                    Foreground="{StaticResource TextPrimaryBrush}" />
+                <Button
+                    MinHeight="38"
+                    Padding="18,0"
+                    Background="Transparent"
+                    BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                    BorderThickness="1"
+                    Command="{x:Bind ViewModel.Page.ResetConfigurationCommand, Mode=OneWay}"
+                    Content="Reset"
+                    CornerRadius="8"
+                    Foreground="{StaticResource TextSecondaryBrush}" />
+            </StackPanel>
+
+            <InfoBar
+                Title="{x:Bind ViewModel.Page.ConfigurationActionTitle, Mode=OneWay}"
+                IsClosable="True"
+                IsOpen="{x:Bind ViewModel.Page.IsConfigurationActionVisible, Mode=TwoWay}"
+                Message="{x:Bind ViewModel.Page.ConfigurationActionMessage, Mode=OneWay}"
+                Severity="{x:Bind ViewModel.Page.ConfigurationActionSeverity, Mode=OneWay}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

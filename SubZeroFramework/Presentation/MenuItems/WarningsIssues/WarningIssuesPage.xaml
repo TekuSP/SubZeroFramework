@@ -1,10 +1,8 @@
-﻿<Page
+<Page
     x:Class="SubZeroFramework.Presentation.MenuItems.WarningsIssues.WarningIssuesPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:local="using:SubZeroFramework.Presentation.MenuItems.WarningsIssues"
     xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:utu="using:Uno.Toolkit.UI"
@@ -13,300 +11,374 @@
     mc:Ignorable="d">
 
     <Page.Resources>
-        <Style x:Key="WarningCardTitleStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="20" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+        <Style x:Key="RecoveryActionButtonStyle" TargetType="Button">
+            <Setter Property="MinHeight" Value="42" />
+            <Setter Property="Padding" Value="20,0" />
+            <Setter Property="Background" Value="{StaticResource CardBackgroundBrush}" />
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
-        </Style>
-
-        <Style x:Key="WarningCardBodyStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
-            <Setter Property="TextWrapping" Value="WrapWholeWords" />
-        </Style>
-
-        <Style x:Key="WarningCardValueStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
-            <Setter Property="TextWrapping" Value="WrapWholeWords" />
-        </Style>
-
-        <Style x:Key="DisabledCardValueStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16" />
-            <Setter Property="Foreground" Value="{StaticResource SecondaryDisabledBrush}" />
-            <Setter Property="TextWrapping" Value="WrapWholeWords" />
-            <Setter Property="TextDecorations" Value="Strikethrough" />
-        </Style>
-
-        <Style x:Key="WarningSmallLabelStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
-            <Setter Property="FontSize" Value="13" />
-        </Style>
-
-        <Style x:Key="WarningActionButtonStyle" TargetType="Button">
-            <Setter Property="MinHeight" Value="44" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="CornerRadius" Value="8" />
         </Style>
     </Page.Resources>
 
     <Grid utu:SafeArea.Insets="VisibleBounds">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel Padding="0,0,0,20">
-                <StackPanel Margin="10,0,0,12">
+            <!--  Centered recovery hero: one layout, themed per state severity (recovery / limited /
+                  read-only / all-clear), so every distinct warning and error message reuses it.  -->
+            <StackPanel
+                MaxWidth="760"
+                Padding="24,48,24,32"
+                HorizontalAlignment="Center"
+                Spacing="0">
+
+                <!--  Severity-tinted fan badge  -->
+                <Grid
+                    Width="92"
+                    Height="92"
+                    HorizontalAlignment="Center">
+                    <Ellipse
+                        Fill="{x:Bind ViewModel.HeroBadgeBackground, Mode=OneWay}"
+                        Stroke="{x:Bind ViewModel.HeroBadgeBorderBrush, Mode=OneWay}"
+                        StrokeThickness="1" />
+                    <material:MaterialIcon
+                        Width="38"
+                        Height="38"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Foreground="{x:Bind ViewModel.HeroAccentBrush, Mode=OneWay}"
+                        Kind="Fan" />
+                </Grid>
+
+                <!--  Eyebrow: dot + letter-spaced mode label  -->
+                <StackPanel
+                    Margin="0,22,0,0"
+                    HorizontalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="8">
+                    <Ellipse
+                        Width="7"
+                        Height="7"
+                        VerticalAlignment="Center"
+                        Fill="{x:Bind ViewModel.HeroAccentBrush, Mode=OneWay}" />
                     <TextBlock
-                        FontSize="28"
+                        VerticalAlignment="Center"
+                        CharacterSpacing="200"
+                        FontSize="12"
                         FontWeight="SemiBold"
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="Warnings and Issues" />
+                        Foreground="{x:Bind ViewModel.HeroAccentBrush, Mode=OneWay}"
+                        Text="{x:Bind ViewModel.Eyebrow, Mode=OneWay}" />
                 </StackPanel>
 
-                <controls:ElevatedCard
-                    Margin="5,0,0,5"
-                    Padding="0"
-                    HorizontalContentAlignment="Stretch"
-                    VerticalContentAlignment="Stretch"
-                    Background="{StaticResource CardBackgroundBrush}"
-                    CornerRadius="16">
-                    <Grid MinHeight="252">
-                        <Border
-                            Background="{StaticResource StatusErrorBrush}"
-                            CornerRadius="16"
-                            Visibility="{x:Bind ViewModel.ErrorHeroVisibility, Mode=OneWay}" />
-                        <Border
-                            Background="{StaticResource StatusWarningBrush}"
-                            CornerRadius="16"
-                            Visibility="{x:Bind ViewModel.WarningHeroVisibility, Mode=OneWay}" />
-                        <Border
-                            Background="{StaticResource StatusSuccessBrush}"
-                            CornerRadius="16"
-                            Visibility="{x:Bind ViewModel.SuccessHeroVisibility, Mode=OneWay}" />
-                        <Border
-                            Background="{StaticResource BrandPrimaryBrush}"
-                            CornerRadius="16"
-                            Visibility="{x:Bind ViewModel.InformationalHeroVisibility, Mode=OneWay}" />
+                <TextBlock
+                    Margin="0,10,0,0"
+                    HorizontalAlignment="Center"
+                    FontSize="32"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{x:Bind ViewModel.StatusTitle, Mode=OneWay}"
+                    TextAlignment="Center"
+                    TextWrapping="WrapWholeWords" />
 
-                        <Grid
-                            Padding="22,20"
-                            HorizontalAlignment="Stretch"
-                            VerticalAlignment="Stretch"
-                            ColumnSpacing="18">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="146" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
+                <TextBlock
+                    MaxWidth="540"
+                    Margin="0,12,0,0"
+                    HorizontalAlignment="Center"
+                    FontSize="14"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+                    TextAlignment="Center"
+                    TextWrapping="WrapWholeWords" />
 
-                            <Grid
-                                Width="128"
-                                Height="128"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Center">
-                                <Border
-                                    Width="100"
-                                    Height="100"
-                                    HorizontalAlignment="Left"
-                                    VerticalAlignment="Top"
-                                    Background="#14000000"
-                                    BorderBrush="{StaticResource BrandPrimaryBrush}"
-                                    BorderThickness="5"
-                                    CornerRadius="50">
-                                    <TextBlock
-                                        Margin="0,-6,0,0"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        FontFamily="{StaticResource MontserratFont}"
-                                        FontSize="66"
-                                        FontWeight="Bold"
-                                        Foreground="{StaticResource BrandPrimaryBrush}"
-                                        Text="i" />
-                                </Border>
-
-                                <Border
-                                    Width="56"
-                                    Height="56"
-                                    Margin="0,0,4,8"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Bottom"
-                                    Background="#16000000"
-                                    BorderBrush="{StaticResource BrandPrimaryBrush}"
-                                    BorderThickness="4"
-                                    CornerRadius="28">
-                                    <Grid>
-                                        <material:MaterialIcon
-                                            Width="30"
-                                            Height="30"
-                                            Margin="0,0,0,0"
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Kind="Fan" />
-                                        <Line
-                                            HorizontalAlignment="Stretch"
-                                            VerticalAlignment="Stretch"
-                                            Stroke="{StaticResource BrandPrimaryBrush}"
-                                            StrokeEndLineCap="Round"
-                                            StrokeStartLineCap="Round"
-                                            StrokeThickness="4"
-                                            X1="43"
-                                            X2="9"
-                                            Y1="9"
-                                            Y2="43" />
-                                    </Grid>
-                                </Border>
-                            </Grid>
-
-                            <StackPanel
-                                Grid.Column="1"
-                                HorizontalAlignment="Left"
+                <!--  Lifecycle actions: Install (primary) appears only when installable; Update only when
+                      the packaged helper is newer than the registration.  -->
+                <StackPanel
+                    Margin="0,26,0,0"
+                    HorizontalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="10">
+                    <Button
+                        Background="{StaticResource BrandPrimaryBrush}"
+                        Command="{x:Bind ViewModel.InstallServiceCommand, Mode=OneWay}"
+                        Style="{StaticResource RecoveryActionButtonStyle}"
+                        Visibility="{x:Bind ViewModel.InstallButtonVisibility, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <material:MaterialIcon
+                                Width="15"
+                                Height="15"
                                 VerticalAlignment="Center"
-                                Spacing="8">
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Kind="Download" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="Install service" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        Command="{x:Bind ViewModel.RestartServiceCommand, Mode=OneWay}"
+                        Style="{StaticResource RecoveryActionButtonStyle}"
+                        Visibility="{x:Bind ViewModel.RestartButtonVisibility, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <material:MaterialIcon
+                                Width="15"
+                                Height="15"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Kind="Restart" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="Restart service" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        Command="{x:Bind ViewModel.UpdateServiceCommand, Mode=OneWay}"
+                        Style="{StaticResource RecoveryActionButtonStyle}"
+                        Visibility="{x:Bind ViewModel.UpdateButtonVisibility, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <material:MaterialIcon
+                                Width="15"
+                                Height="15"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Kind="Update" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="Update service" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <!--  UAC / readiness hint  -->
+                <StackPanel
+                    MaxWidth="560"
+                    Margin="0,14,0,0"
+                    HorizontalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="7">
+                    <material:MaterialIcon
+                        Width="13"
+                        Height="13"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Kind="ShieldCheckOutline" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.ActionHint, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+
+                <InfoBar
+                    Title="{x:Bind ViewModel.LastActionTitle, Mode=OneWay}"
+                    MaxWidth="620"
+                    Margin="0,16,0,0"
+                    IsClosable="True"
+                    IsOpen="{x:Bind ViewModel.IsLastActionVisible, Mode=TwoWay}"
+                    Message="{x:Bind ViewModel.LastActionMessage, Mode=OneWay}"
+                    Severity="{x:Bind ViewModel.LastActionSeverity, Mode=OneWay}" />
+
+                <!--  Paused capabilities | detected state  -->
+                <StackPanel
+                    Margin="0,26,0,0"
+                    HorizontalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="14">
+                    <Border
+                        Width="270"
+                        Padding="16,14"
+                        Background="{StaticResource SurfaceCardBrush}"
+                        BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                        <StackPanel Spacing="10">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <material:MaterialIcon
+                                    Width="14"
+                                    Height="14"
+                                    VerticalAlignment="Center"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Kind="PauseCircleOutline" />
                                 <TextBlock
-                                    FontSize="40"
-                                    FontWeight="Bold"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.StatusTitle, Mode=OneWay}"
-                                    TextAlignment="Left"
-                                    TextWrapping="WrapWholeWords" />
+                                    VerticalAlignment="Center"
+                                    FontSize="12.5"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="{x:Bind ViewModel.PausedCardTitle, Mode=OneWay}" />
+                            </StackPanel>
 
+                            <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind ViewModel.DisabledControlOneVisibility, Mode=OneWay}">
+                                <material:MaterialIcon
+                                    Width="12"
+                                    Height="12"
+                                    VerticalAlignment="Center"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Kind="Minus" />
                                 <TextBlock
-                                    FontSize="19"
+                                    MaxWidth="215"
+                                    VerticalAlignment="Center"
+                                    FontSize="12.5"
                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
-                                    TextAlignment="Left"
+                                    Text="{x:Bind ViewModel.DisabledControlOne, Mode=OneWay}"
                                     TextWrapping="WrapWholeWords" />
                             </StackPanel>
-                        </Grid>
-                    </Grid>
-                </controls:ElevatedCard>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind ViewModel.DisabledControlTwoVisibility, Mode=OneWay}">
+                                <material:MaterialIcon
+                                    Width="12"
+                                    Height="12"
+                                    VerticalAlignment="Center"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Kind="Minus" />
+                                <TextBlock
+                                    MaxWidth="215"
+                                    VerticalAlignment="Center"
+                                    FontSize="12.5"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.DisabledControlTwo, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind ViewModel.DisabledControlThreeVisibility, Mode=OneWay}">
+                                <material:MaterialIcon
+                                    Width="12"
+                                    Height="12"
+                                    VerticalAlignment="Center"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Kind="Minus" />
+                                <TextBlock
+                                    MaxWidth="215"
+                                    VerticalAlignment="Center"
+                                    FontSize="12.5"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.DisabledControlThree, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind ViewModel.DisabledControlFourVisibility, Mode=OneWay}">
+                                <material:MaterialIcon
+                                    Width="12"
+                                    Height="12"
+                                    VerticalAlignment="Center"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Kind="Minus" />
+                                <TextBlock
+                                    MaxWidth="215"
+                                    VerticalAlignment="Center"
+                                    FontSize="12.5"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind ViewModel.DisabledControlFour, Mode=OneWay}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
 
-                <Grid Margin="5,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-
-                    <controls:ElevatedCard
-                        Grid.Row="0"
-                        Grid.Column="0"
-                        MinHeight="200"
-                        HorizontalContentAlignment="Stretch"
-                        VerticalContentAlignment="Stretch"
-                        Background="{StaticResource CardBackgroundBrush}">
-                        <StackPanel Margin="15" Spacing="14">
+                    <Border
+                        Width="300"
+                        Padding="16,14"
+                        Background="{StaticResource SurfaceCardBrush}"
+                        BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                        <StackPanel Spacing="10">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <material:MaterialIcon
-                                    Width="24"
-                                    Height="24"
+                                    Width="14"
+                                    Height="14"
+                                    VerticalAlignment="Center"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Kind="InformationOutline" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="12.5"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="Detected state" />
+                            </StackPanel>
+
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    FontSize="12.5"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="Manager" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    FontSize="12.5"
+                                    FontWeight="SemiBold"
                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                    Kind="LanConnect" />
-                                <TextBlock Style="{StaticResource WarningCardTitleStyle}" Text="Detected Service State" />
-                            </StackPanel>
-
-                            <TextBlock Style="{StaticResource WarningCardValueStyle}" Text="{x:Bind ViewModel.ServiceStateLineOne, Mode=OneWay}" />
-                            <TextBlock Style="{StaticResource WarningCardValueStyle}" Text="{x:Bind ViewModel.ServiceStateLineTwo, Mode=OneWay}" />
-                            <TextBlock Style="{StaticResource WarningCardValueStyle}" Text="{x:Bind ViewModel.ServiceStateLineThree, Mode=OneWay}" />
-                        </StackPanel>
-                    </controls:ElevatedCard>
-
-                    <controls:ElevatedCard
-                        Grid.Row="0"
-                        Grid.Column="1"
-                        MinHeight="200"
-                        HorizontalContentAlignment="Stretch"
-                        VerticalContentAlignment="Stretch"
-                        Background="{StaticResource CardBackgroundBrush}">
-                        <StackPanel Margin="15" Spacing="14">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <material:MaterialIcon
-                                    Width="24"
-                                    Height="24"
+                                    Text="{x:Bind ViewModel.PlatformServiceManager, Mode=OneWay}" />
+                            </Grid>
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    FontSize="12.5"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="Registration" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    FontSize="12.5"
+                                    FontWeight="SemiBold"
+                                    Foreground="{x:Bind ViewModel.RegistrationBrush, Mode=OneWay}"
+                                    Text="{x:Bind ViewModel.RegistrationDisplay, Mode=OneWay}" />
+                            </Grid>
+                            <Grid ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    FontSize="12.5"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="Service" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    FontSize="12.5"
+                                    FontWeight="SemiBold"
                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                    Kind="AlertCircleOutline" />
-                                <TextBlock Style="{StaticResource WarningCardTitleStyle}" Text="Disabled Controls" />
-                            </StackPanel>
-
-                            <TextBlock Style="{StaticResource DisabledCardValueStyle}" Text="{x:Bind ViewModel.DisabledControlOne, Mode=OneWay}" />
-                            <TextBlock Style="{StaticResource DisabledCardValueStyle}" Text="{x:Bind ViewModel.DisabledControlTwo, Mode=OneWay}" />
-                            <TextBlock Style="{StaticResource DisabledCardValueStyle}" Text="{x:Bind ViewModel.DisabledControlThree, Mode=OneWay}" />
-                            <TextBlock Style="{StaticResource DisabledCardValueStyle}" Text="{x:Bind ViewModel.DisabledControlFour, Mode=OneWay}" />
+                                    Text="{x:Bind ViewModel.ServiceIdentity, Mode=OneWay}" />
+                            </Grid>
                         </StackPanel>
-                    </controls:ElevatedCard>
+                    </Border>
+                </StackPanel>
 
-                    <controls:ElevatedCard
-                        Grid.Row="1"
-                        Grid.Column="0"
-                        MinHeight="200"
-                        HorizontalContentAlignment="Stretch"
-                        VerticalContentAlignment="Stretch"
-                        Background="{StaticResource CardBackgroundBrush}">
-                        <StackPanel Margin="15" Spacing="14">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <material:MaterialIcon
-                                    Width="24"
-                                    Height="24"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Kind="TextBoxOutline" />
-                                <TextBlock Style="{StaticResource WarningCardTitleStyle}" Text="Explanation" />
-                            </StackPanel>
+                <!--  Full explanation for the current state (every message variant keeps its detail text)  -->
+                <TextBlock
+                    MaxWidth="640"
+                    Margin="0,22,0,0"
+                    HorizontalAlignment="Center"
+                    FontSize="12"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Opacity="0.8"
+                    Text="{x:Bind ViewModel.ExplanationBody, Mode=OneWay}"
+                    TextAlignment="Center"
+                    TextWrapping="WrapWholeWords" />
 
-                            <TextBlock Style="{StaticResource WarningCardBodyStyle}" Text="{x:Bind ViewModel.ExplanationBody, Mode=OneWay}" />
-                        </StackPanel>
-                    </controls:ElevatedCard>
-
-                    <controls:ElevatedCard
-                        Grid.Row="1"
-                        Grid.Column="1"
-                        MinHeight="200"
-                        HorizontalContentAlignment="Stretch"
-                        VerticalContentAlignment="Stretch"
-                        Background="{StaticResource CardBackgroundBrush}">
-                        <StackPanel Margin="15" Spacing="14">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <material:MaterialIcon
-                                    Width="24"
-                                    Height="24"
-                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                    Kind="WrenchOutline" />
-                                <TextBlock Style="{StaticResource WarningCardTitleStyle}" Text="Actions" />
-                            </StackPanel>
-
-                            <StackPanel Spacing="10">
-                                <Button
-                                    Command="{x:Bind ViewModel.RestartServiceCommand, Mode=OneWay}"
-                                    Content="Restart service"
-                                    IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}"
-                                    Style="{StaticResource WarningActionButtonStyle}" />
-                                <Button
-                                    Command="{x:Bind ViewModel.InstallServiceCommand, Mode=OneWay}"
-                                    Content="Install service"
-                                    IsEnabled="{x:Bind ViewModel.CanInstallService, Mode=OneWay}"
-                                    Style="{StaticResource WarningActionButtonStyle}" />
-                                <Button
-                                    Command="{x:Bind ViewModel.UpdateServiceCommand, Mode=OneWay}"
-                                    Content="Update service"
-                                    IsEnabled="{x:Bind ViewModel.CanUpdateService, Mode=OneWay}"
-                                    Style="{StaticResource WarningActionButtonStyle}" />
-                                <Button
-                                    Command="{x:Bind ViewModel.UninstallServiceCommand, Mode=OneWay}"
-                                    Content="Uninstall service"
-                                    IsEnabled="{x:Bind ViewModel.CanManageInstalledService, Mode=OneWay}"
-                                    Style="{StaticResource WarningActionButtonStyle}" />
-                            </StackPanel>
-
-                            <TextBlock Style="{StaticResource WarningCardBodyStyle}" Text="{x:Bind ViewModel.ActionHint, Mode=OneWay}" />
-
-                            <InfoBar
-                                Title="{x:Bind ViewModel.LastActionTitle, Mode=OneWay}"
-                                IsClosable="True"
-                                IsOpen="{x:Bind ViewModel.IsLastActionVisible, Mode=TwoWay}"
-                                Message="{x:Bind ViewModel.LastActionMessage, Mode=OneWay}"
-                                Severity="{x:Bind ViewModel.LastActionSeverity, Mode=OneWay}" />
-                        </StackPanel>
-                    </controls:ElevatedCard>
-                </Grid>
+                <Button
+                    Margin="0,18,0,0"
+                    Padding="12,6"
+                    HorizontalAlignment="Center"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Command="{x:Bind ViewModel.RecheckCommand, Mode=OneWay}"
+                    CornerRadius="8">
+                    <StackPanel Orientation="Horizontal" Spacing="7">
+                        <material:MaterialIcon
+                            Width="13"
+                            Height="13"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Kind="Refresh" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="12.5"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Recheck now" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </ScrollViewer>
     </Grid>

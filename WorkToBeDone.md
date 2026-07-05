@@ -1,5 +1,9 @@
 # Work To Be Done
 
+> **Superseded for release planning:** the open items below were merged into [`ReleasePlan.md`](ReleasePlan.md)
+> (2026-07-03), which is now the single planning document toward the first public release. Keep this file as
+> the historical status tracker; add new planning work to `ReleasePlan.md`.
+
 Use this document as the execution roadmap and status tracker for the repo.
 
 Use `FunctionalitySpecification.md` as the source of truth for intended menu-item and page behavior when deciding what each UI surface should do.

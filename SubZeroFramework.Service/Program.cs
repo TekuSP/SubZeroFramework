@@ -11,7 +11,6 @@ using SubZeroFramework.Service.Models;
 using SubZeroFramework.Service.Services;
 using SubZeroFramework.Service.Services.Hosting;
 using SubZeroFramework.Services;
-using SubZeroFramework.Services.Units;
 
 namespace SubZeroFramework.Service;
 
@@ -28,10 +27,8 @@ public static class Program
         var builder = WebApplication.CreateBuilder(args);
         var socketPath = FrameworkGrpcSocketPath.GetPath();
         var persistentConfigurationPath = FrameworkServiceConfigurationPaths.GetPersistentConfigurationPath();
-        var userPreferencesPath = FrameworkServiceConfigurationPaths.GetUserPreferencesPath();
 
         builder.Configuration.AddJsonFile(persistentConfigurationPath, optional: true, reloadOnChange: true);
-        builder.Configuration.AddJsonFile(userPreferencesPath, optional: true, reloadOnChange: false);
 
         builder.Services.AddWindowsService(options =>
         {
@@ -73,9 +70,6 @@ public static class Program
         builder.Services.AddSingleton<FrameworkFanControlAuthorizationService>();
         builder.Services.AddSingleton<FrameworkServiceConfigurationStore>();
         builder.Services.AddSingleton<FrameworkServiceConfigurationManager>();
-        builder.Services.AddSingleton<UnitPreferenceCatalog>();
-        builder.Services.AddSingleton<FrameworkUserPreferencesStore>();
-        builder.Services.AddSingleton<FrameworkUserPreferencesManager>();
         builder.Services.AddHostedService(static services => services.GetRequiredService<FrameworkShutdownCoordinator>());
         builder.Services.AddHostedService<FrameworkTelemetryWorker>();
         // Registered after the telemetry worker so it stops first (LIFO) on shutdown, ceasing EC writes
@@ -88,11 +82,10 @@ public static class Program
         app.Logger.LogInformation("Starting SubZeroFramework service on socket {SocketPath}. FanControlCommandsEnabled={FanControlCommandsEnabled}.", socketPath, serviceOptions.AllowFanControlCommands);
         app.MapGrpcService<FrameworkStatusGrpcService>();
         app.MapGrpcService<FrameworkServiceConfigurationGrpcService>();
-        app.MapGrpcService<FrameworkUserPreferencesGrpcService>();
         app.MapGrpcService<FrameworkTelemetryGrpcService>();
         app.MapGrpcService<HardwareInfoGrpcService>();
         app.MapGrpcService<FrameworkFanControlGrpcService>();
-        app.Logger.LogInformation("Mapped gRPC services for status, service configuration, user preferences, telemetry, hardware info, and fan control.");
+        app.Logger.LogInformation("Mapped gRPC services for status, service configuration, telemetry, hardware info, and fan control.");
 
         try
         {

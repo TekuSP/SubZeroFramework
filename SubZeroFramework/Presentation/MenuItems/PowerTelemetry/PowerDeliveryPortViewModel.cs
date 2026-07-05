@@ -96,7 +96,9 @@ public partial class PowerDeliveryPortViewModel : ObservableObject
         }
 
         var watts = status.VoltageVolts * status.CurrentAmperes;
-        WattText = status.HasContract && !isInvalid && watts > 0d ? $"{System.Math.Round(watts):0} W" : string.Empty;
+        WattText = status.HasContract && !isInvalid && watts > 0d
+            ? _unitFormattingService.FormatPowerWatts(System.Math.Round(watts), decimals: 0)
+            : string.Empty;
         WattVisibility = WattText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         AltModeText = status.AltModeFlags != 0 && !isInvalid ? "DisplayPort" : "No alt-mode";
@@ -191,7 +193,7 @@ public partial class PowerDeliveryPortViewModel : ObservableObject
     }
 
     // Build the static capability as individual pills (data lane / DisplayPort / charging / USB-A note).
-    private static IEnumerable<PowerDeliveryPortPill> BuildCapabilityPills(PowerDeliveryPortStatus status)
+    private IEnumerable<PowerDeliveryPortPill> BuildCapabilityPills(PowerDeliveryPortStatus status)
     {
         if (!status.CapabilityDocumented)
         {
@@ -212,7 +214,9 @@ public partial class PowerDeliveryPortViewModel : ObservableObject
 
         if (status.SupportsCharging)
         {
-            yield return PowerDeliveryPortPill.Muted(status.MaxChargeWatts > 0 ? $"{status.MaxChargeWatts} W" : "Charging");
+            yield return PowerDeliveryPortPill.Muted(status.MaxChargeWatts > 0
+                ? _unitFormattingService.FormatPowerWatts(status.MaxChargeWatts, decimals: 0)
+                : "Charging");
         }
         else
         {
