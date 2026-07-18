@@ -144,30 +144,11 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             _fanControlStateStore.SetCustomCurve(request.FanIndex, points, aggregationMode, sensors);
 
             // A preview actuates the EC live (and streams to clients via the in-memory store) but is not
-            // written to the configuration store, so it does not survive a service restart.
-            if (!request.Preview)
-            {
-                // Committing the curve releases any open preview hold so the watchdog won't revert it.
-                _previewWatchdog.Release(request.FanIndex);
-
-                try
-                {
-                    await _configurationStore.UpsertFanControlStateAsync(
-                        new FanControlStateOptions
-                        {
-                            FanIndex = request.FanIndex,
-                            Mode = FanControlMode.CustomCurve,
-                            CustomCurvePoints = points,
-                            DrivingTemperatureAggregation = aggregationMode,
-                            DrivingSensorIndices = sensors,
-                        },
-                        context.CancellationToken).ConfigureAwait(false);
-                }
-                catch (Exception persistenceException)
-                {
-                    _logger.LogWarning(persistenceException, "Applied SetFanCustomCurve for fan {FanIndex} but failed to persist the curve to the service configuration store. The curve will not survive a service restart.", request.FanIndex);
-                }
-            }
+            // written to the configuration store, so it does not survive a service restart. The commit path
+            // persists the full BuildFanControlOptions snapshot — hand-building a legacy options object here
+            // used to REPLACE the fan's persisted entry, silently wiping its curve profile slots, fan link,
+            // and CPU usage modifier from disk.
+            await PersistFanControlStateAsync(request.FanIndex, request.Preview, context.CancellationToken).ConfigureAwait(false);
 
             _logger.LogInformation("Applied SetFanCustomCurve command for fan {FanIndex} (preview={Preview}).", request.FanIndex, request.Preview);
 
@@ -495,6 +476,15 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         {
             _logger.LogInformation("Received SetFanUsageModifier for fan {FanIndex}. CpuStrength={CpuStrength}.", request.FanIndex, request.CpuUsageModifierStrength);
             _authorizationService.EnsureCommandAccess();
+
+            // Persisting this command snapshots the fan's live in-memory state — during an open preview hold
+            // that state contains the uncommitted preview, so persisting would commit the preview and release
+            // the watchdog that exists to revert it. Reject instead; the client applies the modifier after
+            // committing or discarding the preview (matching the page's Stage -> Preview -> Apply model).
+            if (_previewWatchdog.HasOpenHold(request.FanIndex))
+            {
+                throw new InvalidOperationException($"Fan {request.FanIndex} has a live preview open. Apply or discard the preview before changing its usage modifier.");
+            }
 
             // NaN is the wire encoding for "disabled"; anything else must be a sane duty-point strength.
             double? strength = double.IsNaN(request.CpuUsageModifierStrength) ? null : request.CpuUsageModifierStrength;

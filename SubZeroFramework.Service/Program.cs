@@ -36,6 +36,14 @@ public static class Program
         });
         builder.Services.AddSystemd();
 
+        builder.Services.Configure<HostOptions>(options =>
+        {
+            // Fan restore-to-auto on stop is a handful of EC writes (sub-second), but leave generous
+            // headroom for a contended EC. Matches the systemd unit's TimeoutStopSec=90; on Windows the
+            // service lifetime requests the same additional stop time from the SCM (default is only 30 s).
+            options.ShutdownTimeout = TimeSpan.FromSeconds(90);
+        });
+
         if (OperatingSystem.IsWindows())
         {
             LoggerProviderOptions.RegisterProviderOptions<EventLogSettings, EventLogLoggerProvider>(builder.Services);
@@ -65,6 +73,7 @@ public static class Program
         builder.Services.AddSingleton<FrameworkFanControlSafetyTracker>();
         builder.Services.AddSingleton<IFrameworkDataProvider, FrameworkDataProvider>();
         builder.Services.AddSingleton<FrameworkShutdownCoordinator>();
+        builder.Services.AddSingleton<FrameworkFatalExitHandler>();
         builder.Services.AddSingleton<FrameworkFanControlStateStore>();
         builder.Services.AddSingleton<FanPreviewWatchdog>();
         builder.Services.AddSingleton<FrameworkFanControlAuthorizationService>();
@@ -91,6 +100,15 @@ public static class Program
         {
             await app.RunAsync().ConfigureAwait(false);
             return 0;
+        }
+        catch (Exception exception)
+        {
+            // A crashed host must exit NON-ZERO so the SCM/systemd restart-on-failure recovery engages
+            // (a clean exit 0 reads as a normal stop and is never restarted). Restore fans first —
+            // StopTelemetryLoops is idempotent with the ProcessExit hook, so double handling is safe.
+            app.Logger.LogCritical(exception, "SubZeroFramework service host crashed.");
+            app.Services.GetRequiredService<FrameworkShutdownCoordinator>().StopTelemetryLoops("Program.Main host crash");
+            return FrameworkFatalExitHandler.FatalExitCode;
         }
         finally
         {

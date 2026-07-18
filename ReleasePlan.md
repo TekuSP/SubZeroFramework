@@ -38,14 +38,16 @@ historical trackers and reference.
    and our `--service-management` CLI already does exactly what the MS docs prescribe (`sc.exe create` /
    `config` / `failure …restart/5000×3` / `delete` on Windows; systemd unit + `systemctl` on Linux). So
    this item is validation + gaps, not new plumbing:
-   - **Fatal-exit audit (found 2026-07-03, feeds #2):** since .NET 6 an unhandled `BackgroundService`
-     exception stops the host **cleanly (exit 0)** — SCM treats that as a normal stop and our configured
-     restart-on-failure never triggers. Per MS guidance, fatal worker paths must call
-     `Environment.Exit(non-zero)` (after fan-restore) so recovery kicks in. The service currently has no
-     such path; add it to `FrameworkShutdownCoordinator`/workers.
-   - Audit `HostOptions.ShutdownTimeout` (default 30 s) vs. worst-case fan restore-to-auto on stop; the
-     SCM wait is also ~30 s (`WindowsServiceLifetime` derives from `ServiceBase` — request additional time
-     if restore can exceed it).
+   - ✅ **Fatal-exit audit — DONE 2026-07-18:** `FrameworkFatalExitHandler` (restore fans via
+     `StopTelemetryLoops`, then `Environment.Exit(1)`; no-ops while the host is already stopping so clean
+     stops never read as failures). Wired into the curve worker's two Rx stream-fault handlers (previously
+     log-only — a faulted stream left actuation dead while an EC override could still be applied) and a
+     host-crash catch in `Program.Main` (log critical → restore → return 1). Unit-tested incl. the
+     restore-before-terminate ordering (`FrameworkFatalExitHandlerTests`). Recovery engagement end-to-end
+     (SCM actually restarting on the non-zero exit) is validated by #2's induced-failure soak.
+   - ✅ `HostOptions.ShutdownTimeout` — set explicitly to **90 s** (was default 30 s) matching the systemd
+     unit's `TimeoutStopSec=90`; on .NET 8+ `WindowsServiceLifetime` requests the same additional stop time
+     from the SCM. Fan restore itself is sub-second; the headroom covers a contended EC.
    - Make the packaged helper discoverable from the installed app (decide + document the release folder
      layout so `FrameworkServiceControlInfo.PackagedHelperAvailable` turns true outside CI artifacts).
    - Validate install → status turns healthy → update → uninstall → recovery page, on a clean machine, via
@@ -165,7 +167,30 @@ the live validation of both pipelines.
 - **GPU usage modifier: deliberately not implemented** (user decision 2026-07-18). Hardware.Info has no GPU
   utilization; adding it later needs a source (Windows WDDM "GPU Engine" perf counters / Linux amdgpu
   `gpu_busy_percent`) plus a deliberate proto/API extension. No dormant GPU fields were added.
-- **No UI yet** for the modifier — pending decision on placement/behavior on the Fan Curve Profiles page.
+- **CPU boost UI (2026-07-18)**: card on the Fan Curve Profiles detail pane between "Applies to" and Mode,
+  visible **only for Custom curve** (applied or editing — `IsCustomBodyVisible`) since the modifier has no
+  effect in other modes. Toggle + 5–100 slider; strength text goes through `IUnitFormattingService.FormatRatio`
+  so the Display-units ratio preference applies. Staged like fan links (`FanBoostSectionModel` mirrors
+  `FanLinkSectionModel`): staged per fan, flushed on Apply AFTER the mode/curve commit (so no preview hold is
+  open when `SetFanUsageModifier` runs), discarded on Revert. `ManualDutyDisplay` also routed through
+  FormatRatio in passing.
+- **Custom-curve activation staging (2026-07-18, user-reported)**: switching a non-curve-driven fan into
+  Custom curve now stages immediately (`IsCustomActivationStaged`) — pending pill + Preview/Revert light up
+  with the loaded curve, no need to move a point first. Revert of a staged activation exits the editor back
+  to the applied mode.
+- **Adversarial review pass (2026-07-18)** confirmed and fixed: (1) stale CPU readings — the worker now
+  rejects hardware-info snapshots that are unavailable or >10 s old, so a failed/stopped poll decays the
+  boost instead of freezing it; (2) the legacy `SetFanCustomCurve` commit path hand-built its persisted
+  options and **replaced the fan's whole config entry, wiping stored curve profiles, fan link, and modifier
+  from disk** (reachable today via Discard test) — it now persists via `BuildFanControlOptions` like every
+  other command; (3) `SetFanUsageModifier` during an open preview hold would have committed the volatile
+  preview and disarmed the revert watchdog — it now rejects with FailedPrecondition
+  (`FanPreviewWatchdog.HasOpenHold`), matching the Stage → Preview → Apply model; (4) read-modify-write
+  races in `FrameworkFanControlStateStore` (e.g. worker `RecordAppliedDuty` vs a command) — all
+  lookup→mutate→publish sequences now serialize under one lock; (5) the worker rounds target duty to the
+  whole percent the EC takes *before* the 1% change threshold, so idle CPU jitter cannot cause write churn;
+  (6) a sustained missing usage source with modifiers configured now logs a warning instead of being
+  silently inert.
 
 ## P1 — shortly after MVP
 
@@ -192,6 +217,10 @@ the live validation of both pipelines.
    file) (carried ⏳).
 8. **Fan safety hardening** (carried ⏳/🟡): restore-to-auto from unhandled-termination paths, operator
    policy when restore fails, multi-instance command coordination semantics, watchdog/heartbeat decision.
+   *Added 2026-07-18 (review finding, pre-existing):* any persisting command triggers a `reloadOnChange`
+   config reload whose `ApplyConfiguredStates` overlay re-applies persisted state to **all** fans, which can
+   clobber another fan's live volatile preview mid-session. Affects every persist path, not just the new
+   modifier; fix direction: skip fans with an open preview hold during the overlay.
 9. **Linux service path** (carried ⏳/🟡): systemd end-to-end validation (root/EC access), journald
    guidance, unit hardening options.
 10. **Explicit Rx throttling policy** for UI subscriptions where still missing (carried 🟡). Note the

@@ -30,6 +30,12 @@ public sealed class FanPreviewWatchdog
     public void Release(int fanIndex) => _holds.TryRemove(fanIndex, out _);
 
     /// <summary>
+    /// Whether the fan currently has a live preview hold open. Commands that would persist the fan's
+    /// in-memory state (which reflects the volatile preview) without meaning to commit it check this first.
+    /// </summary>
+    public bool HasOpenHold(int fanIndex) => _holds.ContainsKey(fanIndex);
+
+    /// <summary>
     /// Atomically takes a fan's captured pre-preview state for reverting. Returns false when the hold was
     /// already released (committed / restored) — in which case the caller must not revert.
     /// </summary>

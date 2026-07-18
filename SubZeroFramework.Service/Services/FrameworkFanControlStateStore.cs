@@ -18,6 +18,12 @@ public sealed class FrameworkFanControlStateStore : IDisposable
     public const int MaxCurveProfileSlots = 5;
 
     private readonly SourceCache<FanControlStateSnapshot, int> _fanControlStates = new(state => state.FanIndex);
+
+    // Serializes every lookup -> mutate -> publish sequence. SourceCache.AddOrUpdate is individually
+    // thread-safe, but two concurrent read-modify-writes (e.g. the curve worker's RecordAppliedDuty vs a
+    // gRPC command like SetCpuUsageModifier) can interleave so the later publish resurrects the earlier
+    // lookup's stale fields, silently reverting a just-applied change (and persisting the reverted value).
+    private readonly Lock _stateLock = new();
     private readonly CompositeDisposable _subscriptions = [];
     private readonly FrameworkFanControlSafetyTracker _fanControlSafetyTracker;
     private readonly IOptionsMonitor<FrameworkServiceOptions> _optionsMonitor;
@@ -79,7 +85,11 @@ public sealed class FrameworkFanControlStateStore : IDisposable
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(state);
-        PublishState(ApplySafetyState(NormalizeProfiles(state) with { ObservedAt = DateTimeOffset.UtcNow }), "preview revert");
+
+        lock (_stateLock)
+        {
+            PublishState(ApplySafetyState(NormalizeProfiles(state) with { ObservedAt = DateTimeOffset.UtcNow }), "preview revert");
+        }
     }
 
     public void MarkManual(int fanIndex)
@@ -260,13 +270,19 @@ public sealed class FrameworkFanControlStateStore : IDisposable
     /// <summary>Builds a persistable options snapshot of a fan's profiles, or null if the fan is unknown.</summary>
     public FanControlStateOptions? BuildFanControlOptions(int fanIndex)
     {
-        var lookup = _fanControlStates.Lookup(fanIndex);
-        if (!lookup.HasValue)
+        FanControlStateSnapshot state;
+        lock (_stateLock)
         {
-            return null;
+            var lookup = _fanControlStates.Lookup(fanIndex);
+            if (!lookup.HasValue)
+            {
+                return null;
+            }
+
+            state = lookup.Value;
         }
 
-        var state = NormalizeProfiles(lookup.Value);
+        state = NormalizeProfiles(state);
         return new FanControlStateOptions
         {
             FanIndex = fanIndex,
@@ -306,12 +322,23 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
         // A fan cannot be grouped under itself.
         var normalizedLeader = leaderIndex == fanIndex ? null : leaderIndex;
-        if (lookup.Value.LinkedLeaderIndex == normalizedLeader)
+
+        lock (_stateLock)
         {
-            return true;
+            lookup = _fanControlStates.Lookup(fanIndex);
+            if (!lookup.HasValue)
+            {
+                return false;
+            }
+
+            if (lookup.Value.LinkedLeaderIndex == normalizedLeader)
+            {
+                return true;
+            }
+
+            PublishState(lookup.Value with { LinkedLeaderIndex = normalizedLeader }, "fan link change");
         }
 
-        PublishState(lookup.Value with { LinkedLeaderIndex = normalizedLeader }, "fan link change");
         return true;
     }
 
@@ -325,19 +352,24 @@ public sealed class FrameworkFanControlStateStore : IDisposable
     {
         ThrowIfDisposed();
 
-        var lookup = _fanControlStates.Lookup(fanIndex);
-        if (!lookup.HasValue)
-        {
-            return false;
-        }
-
         var normalized = SanitizeModifierStrength(strength);
-        if (lookup.Value.CpuUsageModifierStrength == normalized)
+
+        lock (_stateLock)
         {
-            return true;
+            var lookup = _fanControlStates.Lookup(fanIndex);
+            if (!lookup.HasValue)
+            {
+                return false;
+            }
+
+            if (lookup.Value.CpuUsageModifierStrength == normalized)
+            {
+                return true;
+            }
+
+            PublishState(lookup.Value with { CpuUsageModifierStrength = normalized, ObservedAt = DateTimeOffset.UtcNow }, "cpu usage modifier change");
         }
 
-        PublishState(lookup.Value with { CpuUsageModifierStrength = normalized, ObservedAt = DateTimeOffset.UtcNow }, "cpu usage modifier change");
         return true;
     }
 
@@ -365,14 +397,17 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
         _logger.LogDebug("Applying configured fan control state overlays for {ConfiguredFanCount} configured fan(s).", optionsByFanIndex.Count);
 
-        foreach (var existingState in _fanControlStates.Items.ToArray())
+        lock (_stateLock)
         {
-            if (!optionsByFanIndex.TryGetValue(existingState.FanIndex, out var configuredState))
+            foreach (var existingState in _fanControlStates.Items.ToArray())
             {
-                continue;
-            }
+                if (!optionsByFanIndex.TryGetValue(existingState.FanIndex, out var configuredState))
+                {
+                    continue;
+                }
 
-            PublishState(ApplySafetyState(ApplyConfiguredState(existingState, configuredState)), "configured state refresh");
+                PublishState(ApplySafetyState(ApplyConfiguredState(existingState, configuredState)), "configured state refresh");
+            }
         }
     }
 
@@ -385,45 +420,52 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         {
             if (change.Reason == ChangeReason.Remove)
             {
-                RemoveState(change.Key, "fan state removal");
+                lock (_stateLock)
+                {
+                    RemoveState(change.Key, "fan state removal");
+                }
+
                 continue;
             }
 
-            var currentLookup = _fanControlStates.Lookup(change.Key);
-            FanControlStateSnapshot updated;
-            if (currentLookup.HasValue)
+            lock (_stateLock)
             {
-                // Already-tracked fan: a telemetry tick only refreshes live fields. The mode / curve / link are
-                // owned by commands at runtime — the persisted config is a startup seed, NOT a per-tick authority.
-                // Re-applying the config overlay here every poll would clobber a just-issued command (e.g. Max)
-                // back to the stale persisted Mode before/while it persists, so the command never sticks.
-                updated = currentLookup.Value with
+                var currentLookup = _fanControlStates.Lookup(change.Key);
+                FanControlStateSnapshot updated;
+                if (currentLookup.HasValue)
                 {
-                    DisplayName = change.Current.DisplayName,
-                    ObservedAt = change.Current.ObservedAt,
-                    IsAvailable = change.Current.IsAvailable,
-                };
-            }
-            else
-            {
-                // First time we see this fan: seed it from the persisted configured state (if any).
-                var seed = new FanControlStateSnapshot
+                    // Already-tracked fan: a telemetry tick only refreshes live fields. The mode / curve / link are
+                    // owned by commands at runtime — the persisted config is a startup seed, NOT a per-tick authority.
+                    // Re-applying the config overlay here every poll would clobber a just-issued command (e.g. Max)
+                    // back to the stale persisted Mode before/while it persists, so the command never sticks.
+                    updated = currentLookup.Value with
+                    {
+                        DisplayName = change.Current.DisplayName,
+                        ObservedAt = change.Current.ObservedAt,
+                        IsAvailable = change.Current.IsAvailable,
+                    };
+                }
+                else
                 {
-                    FanIndex = change.Key,
-                    DisplayName = change.Current.DisplayName,
-                    Mode = FanControlMode.Auto,
-                    DrivingTemperatureAggregation = TemperatureAggregationMode.Maximum,
-                    DrivingSensorIndices = [],
-                    ObservedAt = change.Current.ObservedAt,
-                    IsAvailable = change.Current.IsAvailable,
-                };
+                    // First time we see this fan: seed it from the persisted configured state (if any).
+                    var seed = new FanControlStateSnapshot
+                    {
+                        FanIndex = change.Key,
+                        DisplayName = change.Current.DisplayName,
+                        Mode = FanControlMode.Auto,
+                        DrivingTemperatureAggregation = TemperatureAggregationMode.Maximum,
+                        DrivingSensorIndices = [],
+                        ObservedAt = change.Current.ObservedAt,
+                        IsAvailable = change.Current.IsAvailable,
+                    };
 
-                updated = optionsByFanIndex.TryGetValue(change.Key, out var configuredState)
-                    ? ApplyConfiguredState(seed, configuredState)
-                    : seed;
+                    updated = optionsByFanIndex.TryGetValue(change.Key, out var configuredState)
+                        ? ApplyConfiguredState(seed, configuredState)
+                        : seed;
+                }
+
+                PublishState(ApplySafetyState(updated), currentLookup.HasValue ? "fan state update" : "fan state initialization");
             }
-
-            PublishState(ApplySafetyState(updated), currentLookup.HasValue ? "fan state update" : "fan state initialization");
         }
     }
 
@@ -570,22 +612,25 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
     private void UpsertState(int fanIndex, Func<FanControlStateSnapshot, FanControlStateSnapshot> update, string reason)
     {
-        var existingLookup = _fanControlStates.Lookup(fanIndex);
-        var existing = existingLookup.HasValue
-            ? existingLookup.Value
-            : new FanControlStateSnapshot
+        lock (_stateLock)
         {
-            FanIndex = fanIndex,
-            DisplayName = $"Fan {fanIndex}",
-            Mode = FanControlMode.Auto,
-            CustomCurvePoints = ImmutableSortedDictionary<int, double>.Empty,
-            DrivingTemperatureAggregation = TemperatureAggregationMode.Maximum,
-            DrivingSensorIndices = [],
-            ObservedAt = DateTimeOffset.UtcNow,
-            IsAvailable = true,
-        };
+            var existingLookup = _fanControlStates.Lookup(fanIndex);
+            var existing = existingLookup.HasValue
+                ? existingLookup.Value
+                : new FanControlStateSnapshot
+            {
+                FanIndex = fanIndex,
+                DisplayName = $"Fan {fanIndex}",
+                Mode = FanControlMode.Auto,
+                CustomCurvePoints = ImmutableSortedDictionary<int, double>.Empty,
+                DrivingTemperatureAggregation = TemperatureAggregationMode.Maximum,
+                DrivingSensorIndices = [],
+                ObservedAt = DateTimeOffset.UtcNow,
+                IsAvailable = true,
+            };
 
-        PublishState(ApplySafetyState(update(existing)), reason);
+            PublishState(ApplySafetyState(update(existing)), reason);
+        }
     }
 
     private void PublishState(FanControlStateSnapshot state, string reason)

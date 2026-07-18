@@ -79,8 +79,10 @@
                 Foreground="{StaticResource TextPrimaryBrush}"
                 Text="Settings" />
 
-            <!--  Two-pane body: sub-nav card | section body sub-region resolved by navigation (Device-Caps pattern).
-                  The sub-nav card stretches to the window bottom with the service status pinned at its foot.  -->
+            <!--
+                Two-pane body: sub-nav card | section body sub-region resolved by navigation (Device-Caps pattern).
+                The sub-nav card stretches to the window bottom with the service status pinned at its foot.
+            -->
             <Grid Grid.Row="1" ColumnSpacing="14">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="250" />
@@ -122,12 +124,14 @@
                     </Grid>
                 </Border>
 
-                <!--  No page-level ScrollViewer: section bodies manage their own scrolling so the sub-nav card
-                      can stretch to the window bottom (full-height side-panel rule).  -->
+                <!--
+                    No page-level ScrollViewer: section bodies manage their own scrolling so the sub-nav card
+                    can stretch to the window bottom (full-height side-panel rule).
+                -->
                 <ContentControl
                     x:Name="SectionRegionHost"
                     Grid.Column="1"
-                    HorizontalContentAlignment="Stretch"
+                    HorizontalContentAlignment="Left"
                     VerticalContentAlignment="Stretch"
                     uen:Region.Attached="True" />
             </Grid>

@@ -320,6 +320,73 @@
                     </StackPanel>
                 </Border>
 
+                <!--  CPU boost — the per-fan usage modifier: extra duty on top of the curve when the CPU is
+                      pinned, ramping fans before heat reaches the sensors. Staged like links; saved on Apply.
+                      Only shown for Custom curve (applied or editing) — it has no effect in the other modes.  -->
+                <Border
+                    Padding="16,12"
+                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                    CornerRadius="10"
+                    Visibility="{x:Bind ViewModel.IsCustomBodyVisible, Mode=OneWay}">
+                    <StackPanel Spacing="8">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal"
+                                Spacing="10">
+                                <material:MaterialIcon
+                                    Width="16"
+                                    Height="16"
+                                    VerticalAlignment="Center"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Kind="Speedometer" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="13"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="CPU boost" />
+                            </StackPanel>
+                            <ToggleSwitch
+                                Grid.Column="1"
+                                MinWidth="0"
+                                VerticalAlignment="Center"
+                                IsEnabled="{x:Bind ViewModel.CanCommandFanMode, Mode=OneWay}"
+                                IsOn="{x:Bind ViewModel.BoostSection.IsBoostEnabled, Mode=TwoWay}"
+                                OffContent=""
+                                OnContent="" />
+                            <Slider
+                                Grid.Column="2"
+                                VerticalAlignment="Center"
+                                IsEnabled="{x:Bind ViewModel.BoostSection.IsBoostEnabled, Mode=OneWay}"
+                                Maximum="100"
+                                Minimum="5"
+                                StepFrequency="5"
+                                TickFrequency="25"
+                                Value="{x:Bind ViewModel.BoostSection.BoostStrength, Mode=TwoWay}" />
+                            <TextBlock
+                                Grid.Column="3"
+                                MinWidth="64"
+                                VerticalAlignment="Center"
+                                FontSize="15"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{x:Bind ViewModel.BoostSection.BoostStrengthDisplay, Mode=OneWay}"
+                                TextAlignment="Right" />
+                        </Grid>
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="{x:Bind ViewModel.BoostSection.BoostSummaryText, Mode=OneWay}"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
                 <!--  Stalled-fan lockdown: replaces all controls with a full-width warning panel  -->
                 <Border
                     Padding="28"

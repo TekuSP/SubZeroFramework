@@ -123,6 +123,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         SensorChart = new FanSensorChartModel(unitFormattingService);
         CurveChart = new FanCurveChartModel(unitFormattingService);
         LinkSection = new FanLinkSectionModel(this);
+        BoostSection = new FanBoostSectionModel(this, unitFormattingService);
         SensorSelection = new FanSensorSelectionModel(historyStore, unitFormattingService);
         _session = new FanEditSession(this, actuator, logger);
 
@@ -230,6 +231,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
     /// <summary>The "Applies to" link group (chips + per-leader link sets). Driven by this coordinator.</summary>
     public FanLinkSectionModel LinkSection { get; }
 
+    public FanBoostSectionModel BoostSection { get; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFollowing))]
     [NotifyPropertyChangedFor(nameof(CurveEditorVisibility))]
@@ -289,6 +292,13 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
     /// <summary>True while the custom editor / curve mode is the active staging surface.</summary>
     private bool IsCustomStaging => ShowCustomEditor || SelectedFanMode == FanControlMode.CustomCurve;
 
+    /// <summary>
+    /// True when Custom curve is the staging surface but the service is not driving this fan with a custom
+    /// curve yet: switching into Custom curve is itself a staged mode change, so the pending pill and
+    /// Preview/Revert light up immediately — the user should not have to move a curve point first.
+    /// </summary>
+    private bool IsCustomActivationStaged => IsCustomStaging && ServiceFanMode != FanControlMode.CustomCurve;
+
     /// <summary>True when a simple mode (Auto/Manual/Max) is staged but not yet applied (differs from live).</summary>
     private bool HasStagedSimpleMode
     {
@@ -315,11 +325,12 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         }
     }
 
-    // Pending = unsaved custom edits, a staged simple mode, OR a live preview in progress.
-    private bool HasPendingFanWork => CurrentFanHasStagedEdits || HasStagedSimpleMode || LinkSection.HasStagedLinks || IsTesting;
+    // Pending = unsaved custom edits, a staged Custom-curve activation, a staged simple mode, OR a live
+    // preview in progress.
+    private bool HasPendingFanWork => CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode || LinkSection.HasStagedLinks || BoostSection.HasStagedBoosts || IsTesting;
 
-    // Staged but not yet previewing — the action bar shows Discard + Preview (covers custom + simple modes + links).
-    private bool HasStagedNotPreviewing => (CurrentFanHasStagedEdits || HasStagedSimpleMode || LinkSection.HasStagedLinks) && !IsTesting;
+    // Staged but not yet previewing — the action bar shows Discard + Preview (covers custom + simple modes + links + boost).
+    private bool HasStagedNotPreviewing => (CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode || LinkSection.HasStagedLinks || BoostSection.HasStagedBoosts) && !IsTesting;
 
     public Microsoft.UI.Xaml.Visibility StagedFooterVisibility =>
         HasPendingFanWork ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
@@ -489,6 +500,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         UpdateSelectedFanStalled();
         RebuildFollowOptions();
         LinkSection.RebuildLinkChips();
+        BoostSection.RefreshFromSelection();
         RecomputeDirty();
         RefreshPredictedDuty();
     }
@@ -515,6 +527,11 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
 
         ShowCustomEditor = true;
         LoadSelectedSlot();
+
+        // Entering the editor on a fan the service is not curve-driving stages the activation itself, even
+        // with a clean draft — surface the pending pill and enable Preview/Revert right away.
+        RefreshStagedPill();
+        NotifyCommandStates();
     }
 
     private bool CanCancelCustomEditor() => ShowCustomEditor;
@@ -540,6 +557,11 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         RefreshAppliedOverlay();
         RecomputeDirty();
         RefreshPredictedDuty();
+
+        // Closing the editor clears a staged Custom-curve activation (RecomputeDirty only notifies when the
+        // draft's dirty flag actually changed, which a clean activation never touches).
+        RefreshStagedPill();
+        NotifyCommandStates();
     }
 
     // Apply (master footer "Apply all" / commit): commits the staged change for the selected fan. Routes to
@@ -556,6 +578,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
             await _session.ApplySimpleModeAsync(cancellationToken).ConfigureAwait(true);
             // Persist any staged "Applies to" link changes (the link is grouping-only when no mode is staged).
             await LinkSection.FlushStagedLinksAsync(cancellationToken).ConfigureAwait(true);
+            // Boost flushes after the commit above so no preview hold is open (the service rejects otherwise).
+            await BoostSection.FlushStagedBoostsAsync(cancellationToken).ConfigureAwait(true);
             return;
         }
 
@@ -635,6 +659,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
 
         // Persist any staged "Applies to" link changes alongside the applied curve.
         await LinkSection.FlushStagedLinksAsync(cancellationToken).ConfigureAwait(true);
+        // Boost flushes after the profile commit so no preview hold is open (the service rejects otherwise).
+        await BoostSection.FlushStagedBoostsAsync(cancellationToken).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -705,8 +731,9 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
     [RelayCommand(CanExecute = nameof(CanRevertStaged))]
     private async Task RevertToAppliedAsync(CancellationToken cancellationToken)
     {
-        // Drop any pending "Applies to" link changes (they were never saved to the service).
+        // Drop any pending "Applies to" link and CPU boost changes (they were never saved to the service).
         LinkSection.DiscardStagedLinks();
+        BoostSection.DiscardStagedBoosts();
 
         // While previewing, Revert stops the live test and restores the fan's prior state.
         if (IsTesting)
@@ -719,6 +746,16 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         if (!IsCustomStaging)
         {
             _session.ClearStagedSimpleMode();
+            ReportStatus("Discarded the staged change.", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Informational);
+            return;
+        }
+
+        // Reverting a staged Custom-curve activation (the fan is not curve-driven yet) exits the editor back
+        // to the applied mode's view — the pending change IS the activation, so reloading the draft alone
+        // would leave it staged forever.
+        if (IsCustomActivationStaged)
+        {
+            CancelCustomEditor();
             ReportStatus("Discarded the staged change.", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Informational);
             return;
         }
@@ -982,6 +1019,41 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         NotifyCommandStates();
     }
 
+    /// <summary>
+    /// Persists one fan's CPU boost (usage modifier) to the service; null clears it. Called from
+    /// <see cref="FanBoostSectionModel.FlushStagedBoostsAsync"/> on Apply — after the staged mode/curve has
+    /// committed, so no preview hold is open (the service rejects modifier writes during a live preview).
+    /// The change streams back as the fan's control-state CpuUsageModifierStrength.
+    /// </summary>
+    internal async Task PersistFanBoostAsync(int fanIndex, double? strength, CancellationToken cancellationToken = default)
+    {
+        if (!CanIssueFanCommands)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _fanControlClient.SetUsageModifierAsync(fanIndex, strength, cancellationToken).ConfigureAwait(true);
+            if (!result.Succeeded)
+            {
+                ReportStatus($"Service rejected the CPU boost change: {result.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to persist CPU boost for fan {FanIndex}", fanIndex);
+            ReportStatus($"Failed to save the CPU boost: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+        }
+    }
+
+    /// <summary>The boost section staged or discarded a pending boost change — refresh the staged pill + command states.</summary>
+    internal void OnStagedBoostsChanged()
+    {
+        RefreshStagedPill();
+        NotifyCommandStates();
+    }
+
     private FollowOption? FindFollowOption(int? fanIndex)
         => _followOptions.FirstOrDefault(option => option.FanIndex == fanIndex)
             ?? _followOptions.FirstOrDefault(static option => option.FanIndex is null);
@@ -1176,6 +1248,12 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
             return;
         }
 
+        // The applied baseline changed (e.g. an Apply activated the curve, or another client switched the
+        // mode) — a staged Custom-curve activation may have just become moot, so re-derive the pending pill
+        // and command enablement.
+        RefreshStagedPill();
+        NotifyCommandStates();
+
         if (!ShowCustomEditor && SelectedFanMode != FanControlMode.CustomCurve)
         {
             _session.AppliedBaseline = newBaseline;
@@ -1250,8 +1328,10 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         _hub.ApplyControlStateChanges(changes);
         RefreshAllDrivingTemperatureHistory();
         // LinkedLeaderIndex rides on the control state, so re-derive the link chips + row-disabling when it streams
-        // in (covers persisted groups loaded at startup and links written by another client).
+        // in (covers persisted groups loaded at startup and links written by another client). The CPU boost
+        // strength rides on the control state too.
         LinkSection.UpdateLinkChipStates();
+        BoostSection.RefreshFromSelection();
 
         if (SelectedFan is not null)
         {
@@ -1570,17 +1650,18 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
     // Apply commits the staged change, and is only enabled once it is being previewed live: the flow is
     // strictly Stage → Preview → Apply. A custom draft additionally must be valid.
     private bool CanApplyStaged => HasSelectedFan && CanIssueFanCommands
-        && ((IsTesting && (!IsCustomStaging || HasValidDraft)) || LinkSection.HasStagedLinks);
+        && ((IsTesting && (!IsCustomStaging || HasValidDraft)) || LinkSection.HasStagedLinks || BoostSection.HasStagedBoosts);
 
     // Revert stops a live preview (restoring the prior state) or clears a staged-but-unpreviewed change.
     private bool CanRevertStaged => HasSelectedFan && CanIssueFanCommands
-        && (IsTesting || CurrentFanHasStagedEdits || HasStagedSimpleMode || LinkSection.HasStagedLinks);
+        && (IsTesting || CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode || LinkSection.HasStagedLinks || BoostSection.HasStagedBoosts);
 
-    // Preview tries the staged change live (volatile). Custom needs a valid self-driven draft; simple needs a
-    // staged mode. Never offered while a preview is already running.
+    // Preview tries the staged change live (volatile). Custom needs a valid self-driven draft that is either
+    // edited or not yet driving the fan (activation staged); simple needs a staged mode. Never offered while
+    // a preview is already running.
     private bool CanPreviewStaged => HasSelectedFan && CanIssueFanCommands && !IsTesting
         && (IsCustomStaging
-            ? CurrentFanHasStagedEdits && !IsFollowing && HasValidDraft
+            ? (CurrentFanHasStagedEdits || IsCustomActivationStaged) && !IsFollowing && HasValidDraft
             : HasStagedSimpleMode);
 
     private bool CanClearProfile => HasSelectedFan && !IsTesting && CanIssueFanCommands && _session.AppliedBaseline is not null;
@@ -2123,7 +2204,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
     };
 
     /// <summary>Big duty readout shown beside the Manual slider (e.g. "43%").</summary>
-    public string ManualDutyDisplay => $"{ManualDutyPercent:0}%";
+    public string ManualDutyDisplay => _unitFormattingService.FormatRatio(ManualDutyPercent);
 
     public string SelectedFanHeading => SelectedFan is null
         ? "Select a fan"

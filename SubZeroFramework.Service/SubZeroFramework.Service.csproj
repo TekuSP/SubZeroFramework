@@ -10,6 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--  Test seam access (e.g. FrameworkFatalExitHandler's terminate-process injection point).  -->
+    <InternalsVisibleTo Include="SubZeroFramework.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Grpc.AspNetCore" />
     <PackageReference Include="Hardware.Info.Aot" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" />

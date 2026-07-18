@@ -35,9 +35,19 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
     // spikes do not make the fans surge and drop.
     private static readonly TimeSpan CpuUsageDecayHalfLife = TimeSpan.FromSeconds(5);
 
+    // A hardware-info snapshot older than this is a stalled poll, not a reading. Hardware.Info retains the
+    // last successful CPU readings across failed refreshes, so without an age/availability guard a stale
+    // "95% busy" would keep re-feeding the filter's fast-attack path and pin the boost forever.
+    private static readonly TimeSpan MaxCpuUsageSnapshotAge = TimeSpan.FromSeconds(10);
+
+    // How many consecutive no-usage evaluations (~1 s each) to tolerate before warning that configured
+    // modifiers are inert. Covers Hardware.Info's slow first refresh at service start without noise.
+    private const int MissingUsageWarningThreshold = 30;
+
     private readonly IFrameworkDataProvider _frameworkDataProvider;
     private readonly FrameworkFanControlStateStore _fanControlStateStore;
     private readonly FrameworkFanControlAuthorizationService _authorizationService;
+    private readonly FrameworkFatalExitHandler _fatalExitHandler;
     private readonly ILogger<FrameworkFanCurveControlWorker> _logger;
     private readonly CancellationTokenRegistration _applicationStoppingRegistration;
 
@@ -50,6 +60,8 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
     // Smoothed CPU usage for the usage modifier. Only touched inside the serialized evaluation.
     private readonly FanUsageSmoothingFilter _cpuUsageFilter = new(CpuUsageDecayHalfLife);
     private long _lastCpuUsageSampleTimestamp;
+    private int _consecutiveMissingUsageEvaluations;
+    private bool _missingUsageWarningLogged;
 
     private readonly CompositeDisposable _subscriptions = [];
 
@@ -57,12 +69,14 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
         IFrameworkDataProvider frameworkDataProvider,
         FrameworkFanControlStateStore fanControlStateStore,
         FrameworkFanControlAuthorizationService authorizationService,
+        FrameworkFatalExitHandler fatalExitHandler,
         IHostApplicationLifetime applicationLifetime,
         ILogger<FrameworkFanCurveControlWorker> logger)
     {
         _frameworkDataProvider = frameworkDataProvider;
         _fanControlStateStore = fanControlStateStore;
         _authorizationService = authorizationService;
+        _fatalExitHandler = fatalExitHandler;
         _logger = logger;
         _applicationStoppingRegistration = applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
     }
@@ -74,12 +88,16 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
             EvaluationInterval,
             DutyChangeThresholdPercent);
 
+        // A faulted stream is fatal, not loggable-and-ignorable: it permanently stops curve actuation while
+        // the EC may still hold a duty this worker applied. Restarting the service (which re-seeds the
+        // persisted control state) is the safe recovery — and only a non-zero exit makes SCM/systemd do it.
+
         // Track the authoritative per-fan control state published by the store.
         _fanControlStateStore
             .Connect()
             .Subscribe(
                 ApplyControlStateChanges,
-                exception => _logger.LogError(exception, "The fan control state stream faulted inside the curve control loop."))
+                exception => _fatalExitHandler.HandleFatalFault(exception, "FrameworkFanCurveControlWorker control-state stream"))
             .DisposeWith(_subscriptions);
 
         // Evaluate curves on a sampled thermal cadence; Concat serializes evaluations so EC writes never overlap.
@@ -89,7 +107,7 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
             .Concat()
             .Subscribe(
                 static _ => { },
-                exception => _logger.LogError(exception, "The fan curve control loop faulted."))
+                exception => _fatalExitHandler.HandleFatalFault(exception, "FrameworkFanCurveControlWorker evaluation loop"))
             .DisposeWith(_subscriptions);
 
         return Task.CompletedTask;
@@ -139,6 +157,7 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
 
         // One smoothed CPU reading per evaluation pass so every fan boosts from the same sample.
         var cpuUsageFraction = SampleSmoothedCpuUsage();
+        ReportMissingUsageIfModifiersInert(cpuUsageFraction);
 
         foreach (var state in _controlStates.Values)
         {
@@ -151,12 +170,16 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
             // per-slot link to a leader); Max is 100%; Manual holds its last duty; Auto (or unresolved) yields
             // null so the EC keeps native control. Re-asserting Max/Manual here is what restores a persisted
             // simple override to the EC after a service restart — the gRPC handlers only actuate on a live command.
-            if (ResolveTargetDuty(state.FanIndex, thermalSnapshot, cpuUsageFraction, []) is not double targetDuty)
+            if (ResolveTargetDuty(state.FanIndex, thermalSnapshot, cpuUsageFraction, []) is not double resolvedDuty)
             {
                 // Not driven by us (Auto / unresolved): forget the last applied duty so re-entry re-applies at once.
                 _lastAppliedDuty.Remove(state.FanIndex);
                 continue;
             }
+
+            // Round to the whole percent the EC actually takes BEFORE the change-threshold check, so
+            // sub-point boost jitter from idle CPU noise cannot trigger a write every evaluation.
+            var targetDuty = Math.Round(resolvedDuty, MidpointRounding.AwayFromZero);
 
             if (_lastAppliedDuty.TryGetValue(state.FanIndex, out var lastDuty)
                 && Math.Abs(targetDuty - lastDuty) < DutyChangeThresholdPercent)
@@ -260,7 +283,17 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
 
     private double? ReadCpuUsageFraction()
     {
-        var cpus = _frameworkDataProvider.GetLatestHardwareInfoSnapshot().Runtime.Cpus;
+        var snapshot = _frameworkDataProvider.GetLatestHardwareInfoSnapshot();
+
+        // Hardware.Info retains the last successful readings across failed refreshes, and a stopped
+        // hardware-info poll keeps the last snapshot forever. Treat unavailable or stale snapshots as
+        // "no reading" so the smoothing filter decays the boost instead of pinning it to a frozen value.
+        if (!snapshot.IsAvailable || DateTimeOffset.UtcNow - snapshot.ObservedAt > MaxCpuUsageSnapshotAge)
+        {
+            return null;
+        }
+
+        var cpus = snapshot.Runtime.Cpus;
         var readings = new List<double>(cpus.Length);
         foreach (var cpu in cpus)
         {
@@ -271,6 +304,36 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
         }
 
         return readings.Count > 0 ? readings.Average() / 100d : null;
+    }
+
+    // Warns once when fans have a usage modifier configured but no CPU usage reading has been available
+    // for a sustained stretch — otherwise the modifier is silently inert (enabled on the wire, zero effect).
+    private void ReportMissingUsageIfModifiersInert(double? cpuUsageFraction)
+    {
+        if (cpuUsageFraction is not null)
+        {
+            if (_missingUsageWarningLogged)
+            {
+                _logger.LogInformation("CPU usage readings are available again. Fan usage modifiers are active.");
+            }
+
+            _consecutiveMissingUsageEvaluations = 0;
+            _missingUsageWarningLogged = false;
+            return;
+        }
+
+        if (_missingUsageWarningLogged || _controlStates.Values.All(static state => state.CpuUsageModifierStrength is null))
+        {
+            return;
+        }
+
+        if (++_consecutiveMissingUsageEvaluations >= MissingUsageWarningThreshold)
+        {
+            _missingUsageWarningLogged = true;
+            _logger.LogWarning(
+                "No CPU usage reading has been available for {Evaluations} evaluations, but at least one fan has a CPU usage modifier configured. The modifier is inactive until hardware-info readings return.",
+                _consecutiveMissingUsageEvaluations);
+        }
     }
 
     private static double? AggregateDrivingTemperature(FrameworkThermalSnapshot snapshot, ImmutableArray<int> sensorIndices, TemperatureAggregationMode aggregation)

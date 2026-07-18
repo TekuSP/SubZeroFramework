@@ -121,6 +121,27 @@ public class FanPreviewWatchdogTests
         Assert.Throws<ArgumentNullException>(() => watchdog.Begin(0, null!));
     }
 
+    [Test]
+    public void HasOpenHold_TracksTheHoldLifecycle()
+    {
+        // Commands that persist a fan's live state (e.g. SetFanUsageModifier) check this to avoid
+        // committing an uncommitted preview and disarming the revert watchdog.
+        FanPreviewWatchdog watchdog = new();
+
+        Assert.That(watchdog.HasOpenHold(0), Is.False);
+
+        watchdog.Begin(0, Snapshot(0, FanControlMode.Auto));
+        Assert.That(watchdog.HasOpenHold(0), Is.True);
+        Assert.That(watchdog.HasOpenHold(1), Is.False, "A hold must be tracked per fan.");
+
+        watchdog.Release(0);
+        Assert.That(watchdog.HasOpenHold(0), Is.False);
+
+        watchdog.Begin(0, Snapshot(0, FanControlMode.Auto));
+        watchdog.TryTakeForRevert(0, out _);
+        Assert.That(watchdog.HasOpenHold(0), Is.False, "Taking the hold for revert must also close it.");
+    }
+
     private static FanControlStateSnapshot Snapshot(int fanIndex, FanControlMode mode, double? lastDutyPercent = null)
         => new()
         {
