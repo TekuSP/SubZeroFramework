@@ -14,6 +14,7 @@
   <UsingTask TaskName="GenerateThirdPartyLicenseReport" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
       <Packages ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <StaticPackages ParameterType="Microsoft.Build.Framework.ITaskItem[]" />
       <AssetsFile ParameterType="System.String" />
       <NuGetPackagesRoot ParameterType="System.String" Required="true" />
       <TemplateDirectory ParameterType="System.String" Required="true" />
@@ -197,6 +198,42 @@
                 .Append("\" }");
         }
 
+        // Non-NuGet components bundled inside a package (e.g. the native framework-system bits vendored in
+        // FrameworkDotnet): their license texts live in Build/StaticLicenses and are appended verbatim.
+        // An entry with no Version metadata reports the version of the FrameworkDotnet package it ships in.
+        if (StaticPackages != null)
+        {
+            string bundledInVersion;
+            packages.TryGetValue("FrameworkDotnet", out bundledInVersion);
+
+            foreach (var item in StaticPackages)
+            {
+                var version = item.GetMetadata("Version");
+                if (string.IsNullOrEmpty(version))
+                {
+                    version = string.IsNullOrEmpty(bundledInVersion) ? "bundled" : "bundled in FrameworkDotnet " + bundledInVersion;
+                }
+
+                var textFile = item.GetMetadata("TextFile");
+                var text = File.Exists(textFile)
+                    ? File.ReadAllText(textFile)
+                    : "License text file missing: " + Path.GetFileName(textFile ?? string.Empty);
+
+                if (!first)
+                {
+                    json.Append(",\n");
+                }
+
+                first = false;
+                written++;
+                json.Append("  { \"packageId\": \"").Append(jsonEscape(item.ItemSpec))
+                    .Append("\", \"version\": \"").Append(jsonEscape(version))
+                    .Append("\", \"license\": \"").Append(jsonEscape(item.GetMetadata("License")))
+                    .Append("\", \"text\": \"").Append(jsonEscape(text.Replace("\r\n", "\n").Trim()))
+                    .Append("\" }");
+            }
+        }
+
         json.Append("\n]\n");
         Directory.CreateDirectory(Path.GetDirectoryName(OutputFile));
         File.WriteAllText(OutputFile, json.ToString());
@@ -221,10 +258,22 @@
       <_LicensePackage Include="@(PackageVersion)" />
       <_LicensePackage Include="@(PackageReference)" />
       <_LicenseTemplateFile Include="$(MSBuildThisFileDirectory)LicenseTexts\*.txt" />
+
+      <!-- Native components vendored inside the FrameworkDotnet package — not NuGet packages, so the
+           extraction above cannot see them. Texts are kept verbatim in Build/StaticLicenses. -->
+      <_StaticLicensePackage Include="framework-system-ffi-extensions">
+        <License>MIT</License>
+        <TextFile>$(MSBuildThisFileDirectory)StaticLicenses\framework-system-ffi-extensions.txt</TextFile>
+      </_StaticLicensePackage>
+      <_StaticLicensePackage Include="framework-system">
+        <License>BSD-3-Clause</License>
+        <TextFile>$(MSBuildThisFileDirectory)StaticLicenses\framework-system.txt</TextFile>
+      </_StaticLicensePackage>
     </ItemGroup>
 
     <GenerateThirdPartyLicenseReport
         Packages="@(_LicensePackage)"
+        StaticPackages="@(_StaticLicensePackage)"
         AssetsFile="$(ProjectAssetsFile)"
         NuGetPackagesRoot="$(NuGetPackageRoot)"
         TemplateDirectory="$(MSBuildThisFileDirectory)LicenseTexts"

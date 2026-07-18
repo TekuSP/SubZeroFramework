@@ -871,13 +871,10 @@ public partial class SettingsModel : ObservableObject, IDisposable
     // ----- Startup & alerts -----
 
     [ObservableProperty]
-    public partial bool StartWithWindows { get; set; }
+    public partial bool StartWithSystemBoot { get; set; }
 
     [ObservableProperty]
-    public partial bool StartWithWindowsSupported { get; set; }
-
-    [ObservableProperty]
-    public partial bool StartMinimized { get; set; }
+    public partial bool StartWithSystemBootSupported { get; set; }
 
     [ObservableProperty]
     public partial bool ThermalAlertsEnabled { get; set; }
@@ -900,14 +897,15 @@ public partial class SettingsModel : ObservableObject, IDisposable
     private void InitializeStartupToggles()
     {
         _suppressStartupCallbacks = true;
-        StartWithWindowsSupported = _startupRegistration.IsSupported;
-        StartWithWindows = _startupRegistration.IsEnabled();
-        StartMinimized = _clientSettings.StartMinimized;
-        ThermalAlertsEnabled = _clientSettings.ThermalAlertsEnabled;
+        StartWithSystemBootSupported = _startupRegistration.IsSupported;
+        StartWithSystemBoot = _startupRegistration.IsEnabled();
+        // Thermal alerts are disabled for the MVP (toast delivery is unreliable — see ThermalAlertMonitor's
+        // remarks); the toggle reads off regardless of any previously persisted opt-in.
+        ThermalAlertsEnabled = false;
         _suppressStartupCallbacks = false;
     }
 
-    partial void OnStartWithWindowsChanged(bool value)
+    partial void OnStartWithSystemBootChanged(bool value)
     {
         if (_suppressStartupCallbacks)
         {
@@ -918,20 +916,12 @@ public partial class SettingsModel : ObservableObject, IDisposable
         {
             StartupStatusMessage = "Updating the launch-at-sign-in registration failed. The setting was not changed.";
             _suppressStartupCallbacks = true;
-            StartWithWindows = _startupRegistration.IsEnabled();
+            StartWithSystemBoot = _startupRegistration.IsEnabled();
             _suppressStartupCallbacks = false;
             return;
         }
 
         StartupStatusMessage = string.Empty;
-    }
-
-    partial void OnStartMinimizedChanged(bool value)
-    {
-        if (!_suppressStartupCallbacks)
-        {
-            _clientSettings.StartMinimized = value;
-        }
     }
 
     partial void OnThermalAlertsEnabledChanged(bool value)

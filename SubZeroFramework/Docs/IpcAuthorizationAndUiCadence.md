@@ -27,6 +27,22 @@ The current Kestrel-over-UDS stack does not expose a portable, supported per-req
 
 That means the service cannot currently prove, in a cross-platform way, which local user or process issued a mutating fan-control command.
 
+### Shipped posture (decided 2026-07-03, release blocker P0-3)
+
+**The first public release ships with `HasCallerIdentityValidation = false`.** This is a deliberate,
+documented decision, not an oversight. Rationale:
+
+- The transport is local-only (Unix domain socket) with expected-path validation, symlink/reparse
+  protection, permission checks, and a machine-scoped socket location — a remote attacker has no route to
+  the endpoint, and local path-hijack risk is mitigated by the checks above.
+- Mutating fan-control RPCs are **fail-closed**: denied unless `AllowFanControlCommands` is explicitly
+  enabled in the service configuration.
+- The limitation is honestly surfaced: the service reports it in its status, and the UI shows the
+  "validation limited" state on the Warnings & Issues page.
+
+Post-MVP hardening options (tracked, not scheduled): `SO_PEERCRED` on Linux; on Windows either a
+named-pipe transport with client impersonation or socket-ACL ownership checks.
+
 ## Fan-command authorization policy
 
 Because peer identity is not currently available in a portable way, fan-control RPCs are treated more strictly than read-only status and telemetry RPCs.

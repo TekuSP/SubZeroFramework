@@ -131,7 +131,7 @@
                 <ContentControl
                     x:Name="SectionRegionHost"
                     Grid.Column="1"
-                    HorizontalContentAlignment="Left"
+                    HorizontalContentAlignment="Stretch"
                     VerticalContentAlignment="Stretch"
                     uen:Region.Attached="True" />
             </Grid>

@@ -12,8 +12,6 @@ public interface ILocalClientSettingsStore
 {
     string SettingsFilePath { get; }
 
-    bool StartMinimized { get; set; }
-
     bool ThermalAlertsEnabled { get; set; }
 }
 
@@ -32,12 +30,6 @@ public sealed class LocalClientSettingsStore : ILocalClientSettingsStore
     }
 
     public string SettingsFilePath { get; }
-
-    public bool StartMinimized
-    {
-        get => _current.StartMinimized;
-        set => Update(_current with { StartMinimized = value });
-    }
 
     public bool ThermalAlertsEnabled
     {
@@ -81,10 +73,10 @@ public sealed class LocalClientSettingsStore : ILocalClientSettingsStore
         return new StoredClientSettings();
     }
 
+    // "Start minimized" was removed 2026-07-18 (no tray icon, so a hidden launch had no way back);
+    // an old startMinimized JSON property is simply ignored on read.
     internal sealed record StoredClientSettings
     {
-        public bool StartMinimized { get; init; }
-
         public bool ThermalAlertsEnabled { get; init; }
     }
 }

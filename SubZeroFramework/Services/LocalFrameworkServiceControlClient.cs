@@ -486,7 +486,14 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
             _options.WindowsServiceExecutablePath,
             Path.Combine(AppContext.BaseDirectory, "service-package", "windows", "SubZeroFramework.Service.exe"),
             Path.Combine(AppContext.BaseDirectory, "SubZeroFramework.Service.exe"),
-            Path.Combine(AppContext.BaseDirectory, "SubZeroFramework.Service", "SubZeroFramework.Service.exe"));
+            Path.Combine(AppContext.BaseDirectory, "SubZeroFramework.Service", "SubZeroFramework.Service.exe"),
+#if DEBUG
+            // Dev-checkout fallback: the sibling service project's build output, so the whole lifecycle
+            // (install → autorun → update → uninstall) is exercisable from an F5 build. Debug-only so an
+            // installed Release app can never bind the SCM entry to a stray repo path.
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "SubZeroFramework.Service", "bin", "Debug", "net10.0", "SubZeroFramework.Service.exe"),
+#endif
+            null);
 
     private string? ResolveLinuxServiceExecutablePath()
         => ResolveExistingFile(
@@ -494,7 +501,12 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
             _options.LinuxServicePublishDirectory is null ? null : Path.Combine(_options.LinuxServicePublishDirectory, "SubZeroFramework.Service"),
             Path.Combine(AppContext.BaseDirectory, "service-package", "linux", "SubZeroFramework.Service"),
             Path.Combine(AppContext.BaseDirectory, "SubZeroFramework.Service", "SubZeroFramework.Service"),
-            Path.Combine(AppContext.BaseDirectory, "publish", "SubZeroFramework.Service", "SubZeroFramework.Service"));
+            Path.Combine(AppContext.BaseDirectory, "publish", "SubZeroFramework.Service", "SubZeroFramework.Service"),
+#if DEBUG
+            // Dev-checkout fallback (see the Windows twin above).
+            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "SubZeroFramework.Service", "bin", "Debug", "net10.0", "SubZeroFramework.Service"),
+#endif
+            null);
 
     private string? ResolveLinuxServicePublishDirectory()
         => ResolveExistingDirectory(

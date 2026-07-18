@@ -19,7 +19,6 @@
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel
-            MaxWidth="980"
             Padding="24,4,24,24"
             HorizontalAlignment="Stretch"
             Spacing="10">

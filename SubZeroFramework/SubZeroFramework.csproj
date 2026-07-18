@@ -12,8 +12,8 @@
         <ApplicationTitle>SubZero Framework</ApplicationTitle>
         <!-- App Identifier -->
         <ApplicationId>tekusp.SubZeroFramework</ApplicationId>
-        <!-- Versions -->
-        <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+        <!-- Versions: display version tracks the shared <Version> in Directory.Build.props (P0-5). -->
+        <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
         <ApplicationVersion>1</ApplicationVersion>
         <!-- Package Publisher -->
         <ApplicationPublisher>Richard "TekuSP" Torhan</ApplicationPublisher>
@@ -51,7 +51,14 @@
         </UnoFeatures>
         <Platforms>x64;ARM64</Platforms>
     </PropertyGroup>
+    <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0-desktop' ">
+        <PackageReference Include="DesktopNotificationsFixed.FreeDesktop" />
+    </ItemGroup>
+    <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0-windows10.0.26100' ">
+        <PackageReference Include="DesktopNotificationsFixed.Windows" />
+    </ItemGroup>
     <ItemGroup>
+        <PackageReference Include="AutoLaunch" />
         <PackageReference Include="CommunityToolkit.WinUI.Controls.Primitives" />
         <PackageReference Include="CommunityToolkit.WinUI.Controls.RangeSelector" />
         <PackageReference Include="CommunityToolkit.WinUI.Controls.Segmented" />
@@ -64,7 +71,9 @@
         <PackageReference Include="IconifyBundle.SimpleIcons" GeneratePathProperty="true" />
         <PackageReference Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" />
         <PackageReference Include="Material.Icons" />
+        <PackageReference Include="System.Drawing.Common" />
         <PackageReference Include="System.Reactive" />
+        <PackageReference Include="Tmds.DBus" />
         <PackageReference Include="UnitsNet" />
     </ItemGroup>
     <!-- Brand logos extracted from the IconifyBundle.* packs to SVG (Directory.Build.targets) and

@@ -24,7 +24,7 @@ historical trackers and reference.
 |---|---|
 | Service | 🟡 Reachability banner + Recheck: **works**. Restart/Shut down: **works when the service is registered**. Install/Update/Uninstall: wired but **gated on packaged-helper discovery** — in a dev checkout the packaged executable is not discoverable, so they stay disabled (see P0-1). Runtime configuration (polling intervals, allow-fan-control) Apply/Save/Reset: **works**. |
 | Display units | ✅ **Fully works.** All 13 UnitsNet quantities, live samples, applies instantly app-wide, persists client-only to `%LOCALAPPDATA%\SubZeroFramework\display-unit-preferences.json`. |
-| Startup & alerts | 🟡 Start with Windows (HKCU Run key): **works**. Start minimized: **works**. Autorun service: **works only when the service is registered** (disabled otherwise — correct gating). Thermal alerts: toggle + monitor **work**; the Windows toast itself currently fails to register in the unpackaged dev run (`Microsoft.WindowsAppRuntime.Insights.Resource.dll` missing) and falls back to log-only — needs release-layout validation (P0-4). |
+| Startup & alerts | 🟡 Reworked 2026-07-18/19: **"Start with system boot"** (renamed from "Start with Windows") — now backed by the **AutoLaunch** NuGet library (`AutoLaunchStartupRegistrationService`, MIT, zero deps on modern .NET): HKCU Run key on Windows (**verified end-to-end**, incl. seamless migration of the pre-library Run entry via matching value name), freedesktop autostart on Linux, LaunchAgent on macOS for free. **"Start minimized" removed** (no tray icon — a hidden launch had no way back; old JSON key ignored). Autorun service: wired to `enable/disable-autorun` on both platforms, enabled once the service is registered — now exercisable in dev via the Debug-only packaged-helper fallback (see P0-1 note; the Warnings recovery page's "Install service" button verified enabled with it). **Thermal alerts: DISABLED for MVP** (toggle inert, "Coming soon" — see P0-4 for the delivery findings and the D-Bus/legacy revival directions). |
 | Licenses | ✅ **Fully works.** Build target extracts all 39 shipped packages with real license texts. |
 | About | 🟡 SubZero version, live EC build + framework-dotnet version: **work**. framework-system-ffi-extensions / framework-system rows show "Bundled with framework-dotnet" until the library embeds component versions (P1-6). |
 
@@ -50,6 +50,9 @@ historical trackers and reference.
      from the SCM. Fan restore itself is sub-second; the headroom covers a contended EC.
    - Make the packaged helper discoverable from the installed app (decide + document the release folder
      layout so `FrameworkServiceControlInfo.PackagedHelperAvailable` turns true outside CI artifacts).
+     *2026-07-18:* a **Debug-only** fallback now also discovers the sibling `SubZeroFramework.Service`
+     build output from a dev checkout, so install → autorun → update → uninstall is exercisable from an
+     F5 build; Release builds still require the packaged layout / config override.
    - Validate install → status turns healthy → update → uninstall → recovery page, on a clean machine, via
      both Settings → Service and the Warnings recovery page (UAC prompts included).
    - Validate service account requirements for EC access on Windows (LocalSystem expected OK; verify).
@@ -63,23 +66,29 @@ historical trackers and reference.
    protection, permission checks, and machine-scoped socket location; fan-control RPCs are fail-closed
    behind explicit service configuration; the UI already surfaces the authorization message and the
    Warnings "validation limited" state. Post-MVP hardening options: `SO_PEERCRED` on Linux; on Windows
-   either named-pipe transport with client impersonation or socket-ACL ownership checks. Document this in
-   `SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md` as the shipped posture.
-4. **Thermal-alert toast — direction decided 2026-07-03: use `ToastNotificationManagerCompat`, not
-   `AppNotificationManager`.** Research: Uno's own `Windows.UI.Notifications.ToastNotificationManager` is
-   *not implemented* on Skia/desktop targets, so there is no Uno-provided path; community wrappers
-   (ToastNotification.Uno) delegate to the Windows Community Toolkit. `AppNotificationManager.Register()`
-   fails for **self-contained unpackaged** apps exactly as we hit (WindowsAppSDK issue #6071, missing
-   `Microsoft.WindowsAppRuntime.Insights.Resource.dll`) unless the WinAppSDK runtime is installed
-   machine-wide or the app gains package identity. `ToastNotificationManagerCompat`
-   (CommunityToolkit.WinUI.Notifications) explicitly supports Win32 non-MSIX apps with no shortcut/COM
-   registration and fits our fire-and-forget alerts. Swap `ThermalAlertMonitor`'s Windows-target toast
-   path to Compat; desktop (Skia) target stays log-only for MVP (libnotify/D-Bus later). Longer-term
-   alternative if richer notifications are ever needed: package identity via "packaging with external
-   location" (sparse package, requires signing).
-5. **Versioning + release presentation.** Set a real app version (About currently shows the assembly
-   default `1.0`), align service/UI versions, update `CHANGELOG.md`, and document the update strategy
-   (carried 🟡 from Packaging).
+   either named-pipe transport with client impersonation or socket-ACL ownership checks. ✅ Documented as
+   the shipped posture in `SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md` (2026-07-18) — this item
+   is now fully closed.
+4. ✅ **Thermal alerts — DISABLED for the MVP (user decision 2026-07-19).** The Settings toggle renders
+   inert ("Coming soon"), `ThermalAlertMonitor` is neither registered nor started, and any previously
+   persisted opt-in reads as off. Investigation trail (2026-07-18): WinAppSDK 2.3.1 fixed the old
+   `Register()` failure (#6071) — registration verifiably succeeds (AUMID + `NotificationGUID` recreated
+   on launch) — but **`Show()` is silently dropped** for the self-contained unpackaged app: no toast, no
+   Action Center entry, and Windows never creates the per-app
+   `HKCU\...\CurrentVersion\Notifications\Settings` entry that first delivery produces. Adding a
+   `DisplayName` to the AUMID didn't help; global toasts on; no DND. `ToastNotificationManagerCompat` was
+   rejected (archived package; critical NU1904 advisory via `System.Drawing.Common 4.7.0`). Revival
+   directions (documented in `ThermalAlertMonitor` remarks): **Linux — `org.freedesktop.Notifications`
+   `Notify` over the session D-Bus** (every desktop implements it, no toolkit dependency); Windows —
+   resolve the self-contained WinAppSDK delivery or fall back to legacy `Windows.UI.Notifications` with
+   our own AUMID registration (working prototype in git history, 2026-07-18).
+5. ✅ **Versioning + release presentation — DONE 2026-07-18 (user decision: `0.1.0`, single shared
+   version).** `<Version>0.1.0</Version>` in `Directory.Build.props` stamps UI, service, and Core alike
+   (verified in the built assemblies); `ApplicationDisplayVersion` tracks it; About reads it via
+   `AssemblyInformationalVersion`. CI already stamps `0.1.<run-number>` (`VERSION_PREFIX: '0.1'` in ci.yml —
+   keep it in sync with the props major.minor). `CHANGELOG.md` rewritten with the full 0.1.0 MVP section.
+   Update strategy: reinstall over the top (installer re-points the service via `--service-management
+   update`); no in-app updater for MVP.
 6. **Manual deployment checklist** for Windows (Linux can trail): install, autorun, update, uninstall,
    recovery, fan-safety restore on stop/shutdown (checklist exists at
    `SubZeroFramework/Docs/FanSafetyShutdownChecklist.md` — fold service lifecycle into it) (carried ⏳).

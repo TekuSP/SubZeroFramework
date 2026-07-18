@@ -2,29 +2,74 @@
 
 All notable changes to this repository should be documented in this file.
 
-## [Unreleased] - 2026-05-24
+## [0.1.0] - Unreleased (first public MVP)
+
+First public release. Ships the redesigned app with fan control (Auto / Manual / Max / Custom curve with
+staging + live preview safety holds), live thermal/power telemetry, device capabilities, client-local
+display units, and a hardened background service with installers for Windows and Linux.
+
+Deliberately gated for the MVP: the Modules tab is disabled (FFI slot-reporting gaps), Dashboard cooling
+profile presets render grayed (not supported yet), and the Dashboard is a read-only overview — fan control
+lives on Fan Curve Profiles.
 
 ### Added
 
-- Client-local display-unit preferences for temperature, fan speed, clock frequency, refresh rate, information size, voltage, current, charge capacity, ratio or fraction, length, airflow, network bitrate, and power.
-- A Units section in Settings with save, reset-draft, and restore-default flows backed by local preference persistence.
-- UnitsNet-backed formatting and conversion services for UI cards, inventory surfaces, cooling hardware summaries, and chart axis labelers.
+- **Fan Curve Profiles** page: per-fan curve profile slots (up to 5), driving-sensor selection with
+  aggregation modes, follow links ("Applies to" fan groups), Stage → Preview → Apply flow with a
+  service-side preview watchdog that reverts uncommitted previews if the client disappears.
+- **Service-side curve drive**: the background service actuates stored curves against live temperatures
+  (identical interpolation to the client preview), restores persisted Manual/Max overrides after restart,
+  and returns fans to automatic EC control on every shutdown path.
+- **CPU boost (usage modifier)**: optional per-fan exponential feed-forward — up to a configured extra duty
+  on top of the curve as CPU load rises, smoothed fast-attack/slow-decay so fans ramp before heat reaches
+  the sensors without oscillating. Configurable from the Fan Curve Profiles page in Custom curve mode.
+- **Redesigned pages**: Dashboard (live overview), Thermal Telemetry, Power Telemetry (incl. battery charge
+  limits and USB-C PD ports), Device Capabilities, Settings (Service / Display units / Startup & alerts /
+  Licenses / About), and Warnings & Issues (recovery hero covering all service states).
+- Client-local **display-unit preferences** for 13 quantities (temperature, fan speed, ratio, power, …)
+  applied instantly app-wide and persisted per-user; all UI values route through UnitsNet formatting.
+- **Start with system boot**: launch-at-sign-in registration on Windows (Run key) and Linux (freedesktop
+  autostart), backed by the cross-platform AutoLaunch library.
+- **Settings → Licenses**: build-time extraction of every shipped NuGet package with real license texts.
+- **Thermal alerts (disabled for now)**: the monitoring/toast pipeline exists but ships gated off — toast
+  delivery proved unreliable for the self-contained unpackaged app, so the Settings toggle renders
+  "Coming soon" until notification delivery lands (Linux direction: `org.freedesktop.Notifications` over
+  D-Bus).
+- **Service lifecycle management**: `--service-management` CLI (install / update / uninstall / restart /
+  autorun) used by both the in-app Settings/Warnings actions and the installers; SCM restart-on-failure
+  configured on install.
+- **Packaging & CI**: Windows Inno Setup installer (x64/arm64) that lays down the app + packaged service
+  and registers it through the service's own CLI; Linux `.deb`/`.rpm`/tarball/AUR packages with systemd
+  enable-on-install; unit tests gate all publish jobs; a Windows startup smoke test runs on the artifact.
 
 ### Changed
 
-- Dashboard, Thermal Telemetry, Power, fan cards, cooling hardware views, and Device Capabilities surfaces now render converted values and unit-aware axis labels while service contracts remain in canonical units.
-- Unit formatting and unit preference contracts now live under `SubZeroFramework/Services/Units` instead of `SubZeroFramework/Presentation/Units`, matching their DI/service role and keeping presentation folders focused on view models and pages.
-- Device Capabilities graphics and network presentation now uses explicit Adapter labels, numbered monitor subcards, left-aligned wrap-friendly layouts, and auto-height network cards.
-- Bindable display refresh paths now use analyzer-friendly dependent observable-property wiring instead of manual refresh-oriented notifications, keeping the solution warning-clean.
+- Fan control commands are fail-closed behind explicit service configuration
+  (`FrameworkService:AllowFanControlCommands`) over a local-only Unix domain socket with endpoint
+  hardening; the shipped caller-identity posture is documented in `Docs/IpcAuthorizationAndUiCadence.md`.
+- Service host hardening: fatal worker faults restore fans to automatic control and terminate with a
+  non-zero exit code so SCM/systemd recovery restarts the service (a clean .NET host stop would otherwise
+  never trigger recovery); shutdown timeout raised to 90 s to guarantee the fan restore completes.
+- UI + service + installer share a single version stamped from one property (`Directory.Build.props`).
 
 ### Fixed
 
-- Desktop fan acoustic-noise displays now normalize to dB(A) and show max acoustic values when reported.
-- Sentinel network link speeds now render as Unknown instead of bogus max-value bitrates.
-- Dashboard fan mini-chart axes now add headroom so peak history lines do not clip while gauge maximums remain exact.
-- Local unit-preference persistence now serializes writes under `Lock`.
+- The curve worker's interpolated duties are rounded to the whole percent the EC accepts — previously every
+  fractional write failed silently and stored curves were reported active but never actuated.
+- The legacy custom-curve commit path no longer wipes a fan's stored profile slots, link, and CPU boost
+  from the persisted configuration (it now persists the full control state like every other command).
+- Setting a CPU boost during a live preview is rejected instead of silently committing the uncommitted
+  preview and disarming its safety revert.
+- Stale CPU readings (failed or stopped hardware polling) decay the CPU boost instead of freezing it at the
+  last value; a sustained missing usage source with modifiers configured logs a warning.
+- Switching a fan into Custom curve now stages immediately (pending pill + Preview) without requiring a
+  curve-point edit first; discarding a staged activation exits the editor cleanly.
+- Windows toast registration works for the self-contained unpackaged app on WindowsAppSDK 2.3.1 (the 1.x
+  `Register()` failure is gone).
 
-### Validation
+### From the earlier unreleased log (2026-05-24, folded into 0.1.0)
 
-- Clean full solution build completed successfully.
-- Regression tests passed successfully.
+- Client-local display-unit preferences and the Units section in Settings.
+- UnitsNet-backed formatting/conversion across cards, inventory surfaces, cooling summaries, chart axes.
+- Desktop fan acoustic-noise normalization to dB(A); sentinel network link speeds render as Unknown;
+  dashboard mini-chart axis headroom; serialized unit-preference writes.

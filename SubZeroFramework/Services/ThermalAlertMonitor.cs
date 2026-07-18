@@ -12,6 +12,19 @@ namespace SubZeroFramework.Services;
 /// critical band, honoring the client-only "Thermal alerts" opt-in from Settings → Startup &amp; alerts.
 /// Per-sensor hysteresis + cooldown keep a sensor hovering at the threshold from spamming notifications.
 /// </summary>
+/// <remarks>
+/// DISABLED for the MVP (2026-07-19, user decision): the monitor is not started and the Settings toggle is
+/// inert. Windows toast delivery via <c>AppNotificationManager</c> is silently dropped for this
+/// self-contained unpackaged app — <c>Register()</c> and <c>Show()</c> both succeed, but the shell never
+/// accepts the notification (no Action Center entry, and Windows never creates the per-app entry under
+/// <c>HKCU\...\CurrentVersion\Notifications\Settings</c> that first delivery produces). Linux has no
+/// implementation at all. Future direction when this is revived:
+///   - Linux: post straight to the session bus — <c>org.freedesktop.Notifications</c> (the <c>Notify</c>
+///     method) is a tiny D-Bus call that every desktop environment implements; no toolkit dependency.
+///   - Windows: either resolve the WinAppSDK self-contained delivery, or fall back to legacy
+///     <c>Windows.UI.Notifications.ToastNotificationManager.CreateToastNotifier(aumid)</c> with our own
+///     AppUserModelId registration (a working prototype exists in this file's git history, 2026-07-18).
+/// </remarks>
 public sealed class ThermalAlertMonitor : IDisposable
 {
     // Mirrors the critical band of the thermal page (ThermalSensorModel tints values >= 85 °C critical);
@@ -107,24 +120,36 @@ public sealed class ThermalAlertMonitor : IDisposable
         var reading = _unitFormattingService.FormatTemperature(celsius);
         _logger.LogWarning("Thermal alert: sensor {SensorName} reached {Reading} (critical).", sensorName, reading);
 
+        // Notification delivery is best-effort; the warning above already reached the log.
+        TryShowToast("Thermal alert", $"{sensorName} reached {reading} — the sensor crossed the critical band.");
+    }
+
+    private bool TryShowToast(string title, string body)
+    {
 #if WINDOWS10_0_26100_0_OR_GREATER
         try
         {
-            if (Microsoft.Windows.AppNotifications.AppNotificationManager.IsSupported())
+            if (!Microsoft.Windows.AppNotifications.AppNotificationManager.IsSupported())
             {
-                var notification = new Microsoft.Windows.AppNotifications.Builder.AppNotificationBuilder()
-                    .AddText("Thermal alert")
-                    .AddText($"{sensorName} reached {reading} — the sensor crossed the critical band.")
-                    .BuildNotification();
-
-                Microsoft.Windows.AppNotifications.AppNotificationManager.Default.Show(notification);
+                return false;
             }
+
+            var notification = new Microsoft.Windows.AppNotifications.Builder.AppNotificationBuilder()
+                .AddText(title)
+                .AddText(body)
+                .BuildNotification();
+
+            Microsoft.Windows.AppNotifications.AppNotificationManager.Default.Show(notification);
+            return true;
         }
         catch (Exception exception)
         {
-            // Notification delivery is best-effort; the warning above already reached the log.
-            _logger.LogWarning(exception, "Failed to show the thermal alert notification.");
+            _logger.LogWarning(exception, "Failed to show the {Title} notification.", title);
+            return false;
         }
+#else
+        // Desktop (Skia) target: log-only for MVP.
+        return false;
 #endif
     }
 

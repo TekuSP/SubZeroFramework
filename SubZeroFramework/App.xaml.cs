@@ -148,8 +148,12 @@ public partial class App : Application
 
                     // Client-only settings: launch behavior + alert opt-ins persist next to the display units.
                     services.AddSingleton<ILocalClientSettingsStore, LocalClientSettingsStore>();
-                    services.AddSingleton<IStartupRegistrationService, WindowsStartupRegistrationService>();
-                    services.AddSingleton<ThermalAlertMonitor>();
+                    // Cross-platform launch-at-sign-in via the AutoLaunch library (HKCU Run key /
+                    // freedesktop autostart / LaunchAgent behind one API).
+                    services.AddSingleton<IStartupRegistrationService, AutoLaunchStartupRegistrationService>();
+                    // ThermalAlertMonitor is deliberately not registered/started for the MVP — toast
+                    // delivery is unreliable (see the remarks on the class for the findings and the
+                    // org.freedesktop.Notifications D-Bus direction for Linux).
                 })
                 .UseNavigation(RegisterRoutes)
             );
@@ -175,13 +179,6 @@ public partial class App : Application
 
         Logger = Host.Log();
 
-        // Client-only launch behavior + alert opt-ins (Settings → Startup & alerts).
-        Host.Services.GetRequiredService<ThermalAlertMonitor>().Start();
-
-        if (Host.Services.GetRequiredService<ILocalClientSettingsStore>().StartMinimized)
-        {
-            (MainWindow.AppWindow?.Presenter as OverlappedPresenter)?.Minimize();
-        }
     }
 
     private void Current_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)

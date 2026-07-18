@@ -1,5 +1,9 @@
 <Project>
     <PropertyGroup>
+        <!-- Single shared version for the UI, service, and installer (release plan P0-5). CI overrides it
+             with -p:Version=0.1.<run-number> (ci.yml VERSION_PREFIX must track the major.minor here);
+             local builds carry the .0 patch. About reads it via AssemblyInformationalVersion. -->
+        <Version>0.1.0</Version>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>

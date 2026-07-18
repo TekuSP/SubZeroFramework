@@ -14,11 +14,14 @@
     <WinAppSdkBuildToolsVersion>10.0.28000.2270</WinAppSdkBuildToolsVersion>
   </PropertyGroup>
   <ItemGroup>
+    <PackageVersion Include="AutoLaunch" Version="1.0.1" />
     <PackageVersion Include="CodeBrix.Platform.LinuxDBus.MitLicenseForever" Version="1.0.117" />
-    <PackageVersion Include="CommunityToolkit.WinUI.Controls.Primitives" Version="8.2.250402" />
-    <PackageVersion Include="CommunityToolkit.WinUI.Controls.RangeSelector" Version="8.2.250402" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Controls.Primitives" Version="8.2.251219" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Controls.RangeSelector" Version="8.2.251219" />
     <PackageVersion Include="CommunityToolkit.WinUI.Controls.Segmented" Version="8.2.251219" />
     <PackageVersion Include="CommunityToolkit.WinUI.Extensions" Version="8.2.251219" />
+    <PackageVersion Include="DesktopNotificationsFixed.FreeDesktop" Version="1.0.1" />
+    <PackageVersion Include="DesktopNotificationsFixed.Windows" Version="1.0.0" />
     <PackageVersion Include="DynamicData" Version="9.4.33" />
     <PackageVersion Include="FrameworkDotnet" Version="0.8.213" />
     <PackageVersion Include="Google.Protobuf" Version="3.35.1" />
@@ -41,7 +44,9 @@
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
     <PackageVersion Include="NUnit" Version="4.6.1" />
     <PackageVersion Include="NUnit3TestAdapter" Version="6.2.0" />
+    <PackageVersion Include="System.Drawing.Common" Version="10.0.10" />
     <PackageVersion Include="System.Reactive" Version="7.0.0" />
-    <PackageVersion Include="UnitsNet" Version="5.75.0" />
+    <PackageVersion Include="Tmds.DBus" Version="0.94.2" />
+    <PackageVersion Include="UnitsNet" Version="5.75.1" />
   </ItemGroup>
 </Project>
