@@ -48,6 +48,10 @@ service FrameworkFanControlService {
   // "Applies to" group membership: set (or clear, when linked_leader_index is unset) which fan this one is
   // grouped under. Persisted so the grouping survives restarts and streams back via linked_leader_index.
   rpc SetFanLink (SetFanLinkRequest) returns (FanCurveProfileOperationReply);
+  // Per-fan CPU usage modifier: extra duty points added on top of the active custom curve when the CPU is
+  // busy, ramping exponentially so fans spin up before heat reaches the sensors. Persisted; streams back
+  // via cpu_usage_modifier_strength on the control state.
+  rpc SetFanUsageModifier (SetFanUsageModifierRequest) returns (SetFanUsageModifierReply);
   // Preview safety lease: the client keeps this server stream open while a volatile preview is live. The
   // service captures the fan's pre-preview state when the stream opens, and if the stream breaks before the
   // preview is committed (Apply) or explicitly released, it reverts the fan to that captured state. This
@@ -428,6 +432,19 @@ message FanCurveProfileOperationReply {
   string message = 4;
 }
 
+message SetFanUsageModifierRequest {
+  int32 fan_index = 1;
+  // Duty points (0-100) added on top of the curve at 100% smoothed CPU usage; the ramp between idle and
+  // full usage is exponential (see FanUsageModifierMath). NaN disables the modifier.
+  double cpu_usage_modifier_strength = 2;
+}
+
+message SetFanUsageModifierReply {
+  int32 fan_index = 1;
+  bool succeeded = 2;
+  string message = 3;
+}
+
 message GetChargeLimitsRequest {
 }
 
@@ -690,6 +707,9 @@ message FanControlStateChangeReply {
   // The fan this one is grouped under ("Applies to" link). Persisted by the service so the grouping survives
   // restarts and is authoritative across clients. Unset means the fan is independent (or a leader itself).
   optional int32 linked_leader_index = 20;
+  // Duty points added on top of the active custom curve at 100% smoothed CPU usage (exponential ramp).
+  // Unset means the modifier is disabled.
+  optional double cpu_usage_modifier_strength = 21;
 }
 
 message FanControlStateChangeBatchReply {

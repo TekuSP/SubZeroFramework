@@ -489,6 +489,47 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         }
     }
 
+    public override async Task<SetFanUsageModifierReply> SetFanUsageModifier(SetFanUsageModifierRequest request, ServerCallContext context)
+    {
+        try
+        {
+            _logger.LogInformation("Received SetFanUsageModifier for fan {FanIndex}. CpuStrength={CpuStrength}.", request.FanIndex, request.CpuUsageModifierStrength);
+            _authorizationService.EnsureCommandAccess();
+
+            // NaN is the wire encoding for "disabled"; anything else must be a sane duty-point strength.
+            double? strength = double.IsNaN(request.CpuUsageModifierStrength) ? null : request.CpuUsageModifierStrength;
+            if (strength is double value && (!double.IsFinite(value) || value is < 0d or > 100d))
+            {
+                throw new ArgumentOutOfRangeException(nameof(request.CpuUsageModifierStrength), "The CPU usage modifier strength must be between 0 and 100 duty points, or NaN to disable it.");
+            }
+
+            if (!_fanControlStateStore.SetCpuUsageModifier(request.FanIndex, strength))
+            {
+                throw new ArgumentOutOfRangeException(nameof(request.FanIndex), $"Fan {request.FanIndex} is not known to the fan control state store.");
+            }
+
+            await PersistFanControlStateAsync(request.FanIndex, preview: false, context.CancellationToken).ConfigureAwait(false);
+
+            _logger.LogInformation("Applied SetFanUsageModifier for fan {FanIndex}. CpuStrength={CpuStrength}.", request.FanIndex, strength);
+            return new SetFanUsageModifierReply
+            {
+                FanIndex = request.FanIndex,
+                Succeeded = true,
+                Message = string.Empty,
+            };
+        }
+        catch (ArgumentOutOfRangeException exception)
+        {
+            _logger.LogWarning(exception, "Rejected SetFanUsageModifier for fan {FanIndex} because the request was invalid.", request.FanIndex);
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Rejected SetFanUsageModifier for fan {FanIndex} because the service was not in a writable state.", request.FanIndex);
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
+    }
+
     private static FanCurveProfileOperationReply SucceededProfileReply(int fanIndex, int slot)
         => new() { FanIndex = fanIndex, Slot = slot, Succeeded = true, Message = string.Empty };
 

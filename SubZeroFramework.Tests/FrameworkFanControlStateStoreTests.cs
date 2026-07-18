@@ -124,6 +124,92 @@ public class FrameworkFanControlStateStoreTests
         Assert.That(store.GetState(1)!.Mode, Is.EqualTo(FanControlMode.Max));
     }
 
+    [Test]
+    public void SetCpuUsageModifier_ForUnknownFan_ReturnsFalse()
+    {
+        using var store = CreateStore();
+
+        Assert.That(store.SetCpuUsageModifier(0, 25d), Is.False);
+    }
+
+    [Test]
+    public void SetCpuUsageModifier_RoundTripsThroughStateAndOptions()
+    {
+        using var store = CreateStore();
+
+        store.MarkMax(1);
+        Assert.That(store.SetCpuUsageModifier(1, 25d), Is.True);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(store.GetState(1)!.CpuUsageModifierStrength, Is.EqualTo(25d));
+            Assert.That(store.BuildFanControlOptions(1)!.CpuUsageModifierStrength, Is.EqualTo(25d));
+        });
+    }
+
+    [Test]
+    public void SetCpuUsageModifier_WithNullOrNaN_ClearsTheModifier()
+    {
+        using var store = CreateStore();
+
+        store.MarkMax(1);
+        store.SetCpuUsageModifier(1, 25d);
+
+        store.SetCpuUsageModifier(1, double.NaN);
+        Assert.That(store.GetState(1)!.CpuUsageModifierStrength, Is.Null);
+
+        store.SetCpuUsageModifier(1, 25d);
+        store.SetCpuUsageModifier(1, null);
+        Assert.That(store.GetState(1)!.CpuUsageModifierStrength, Is.Null);
+    }
+
+    [Test]
+    public void SetCpuUsageModifier_ClampsIntoDutyRange()
+    {
+        using var store = CreateStore();
+
+        store.MarkMax(1);
+        store.SetCpuUsageModifier(1, 250d);
+
+        Assert.That(store.GetState(1)!.CpuUsageModifierStrength, Is.EqualTo(100d));
+    }
+
+    [Test]
+    public void SetCpuUsageModifier_SurvivesModeSwitches()
+    {
+        using var store = CreateStore();
+
+        // The modifier is per-fan: switching Auto -> Max -> Auto must not drop it, so re-activating a
+        // curve later still boosts on CPU load without the user re-entering the strength.
+        store.MarkAuto(1);
+        store.SetCpuUsageModifier(1, 30d);
+
+        store.MarkMax(1);
+        store.MarkAuto(1);
+
+        Assert.That(store.GetState(1)!.CpuUsageModifierStrength, Is.EqualTo(30d));
+    }
+
+    [Test]
+    public void ConfiguredState_SeedsTheCpuUsageModifier()
+    {
+        var provider = new StubFrameworkDataProvider();
+        var options = new TestOptionsMonitor<FrameworkServiceOptions>(new FrameworkServiceOptions
+        {
+            FanControlStates = [new FanControlStateOptions { FanIndex = 1, Mode = FanControlMode.Auto, CpuUsageModifierStrength = 42d }],
+        });
+
+        using var store = new FrameworkFanControlStateStore(
+            provider,
+            new FrameworkFanControlSafetyTracker(),
+            options,
+            NullLogger<FrameworkFanControlStateStore>.Instance);
+
+        provider.FanStateSource.AddOrUpdate(NewFanState(1, DateTimeOffset.UtcNow));
+
+        Assert.That(store.GetState(1)!.CpuUsageModifierStrength, Is.EqualTo(42d));
+    }
+
     private static FanStateSnapshot NewFanState(int fanIndex, DateTimeOffset observedAt) => new()
     {
         FanIndex = fanIndex,

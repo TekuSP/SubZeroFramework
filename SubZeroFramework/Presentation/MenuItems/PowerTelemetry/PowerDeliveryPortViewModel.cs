@@ -61,7 +61,7 @@ public partial class PowerDeliveryPortViewModel : ObservableObject
 
     /// <summary>Port-glyph chip fill — accent when this port is actively charging, recessed dark otherwise.</summary>
     [ObservableProperty]
-    public partial Brush PortIconBackground { get; private set; } = AppThemeBrushes.Get("SurfaceWellBrush", AppThemeBrushes.BrandDisabledColor);
+    public partial Brush PortIconBackground { get; private set; } = AppThemeBrushes.Get("CardSecondaryBackgroundBrush", AppThemeBrushes.BrandDisabledColor);
 
     [ObservableProperty]
     public partial Brush PortIconForeground { get; private set; } = AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextSecondaryColor);
@@ -112,7 +112,7 @@ public partial class PowerDeliveryPortViewModel : ObservableObject
         CardBorderThickness = isActive ? new Thickness(1.5) : new Thickness(1);
         PortIconBackground = isActive
             ? AppThemeBrushes.Get("BrandPrimaryBrush", AppThemeBrushes.CardSelectedBackgroundColor)
-            : AppThemeBrushes.Get("SurfaceWellBrush", AppThemeBrushes.BrandDisabledColor);
+            : AppThemeBrushes.Get("CardSecondaryBackgroundBrush", AppThemeBrushes.BrandDisabledColor);
         PortIconForeground = isActive
             ? new SolidColorBrush(Microsoft.UI.Colors.White)
             : AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextSecondaryColor);

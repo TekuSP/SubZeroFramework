@@ -287,6 +287,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     }),
             ],
             LinkedLeaderIndex = state.LinkedLeaderIndex,
+            CpuUsageModifierStrength = state.CpuUsageModifierStrength,
         };
     }
 
@@ -313,6 +314,36 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         PublishState(lookup.Value with { LinkedLeaderIndex = normalizedLeader }, "fan link change");
         return true;
     }
+
+    /// <summary>
+    /// Sets (or clears, when <paramref name="strength"/> is null or NaN) the fan's CPU usage modifier: the
+    /// duty points added on top of the active custom curve at 100% smoothed CPU usage. The modifier is
+    /// per-fan — it survives mode switches and applies whenever a custom curve drives the fan. Updates the
+    /// in-memory snapshot and streams the change; the caller persists it. Returns false when the fan is unknown.
+    /// </summary>
+    public bool SetCpuUsageModifier(int fanIndex, double? strength)
+    {
+        ThrowIfDisposed();
+
+        var lookup = _fanControlStates.Lookup(fanIndex);
+        if (!lookup.HasValue)
+        {
+            return false;
+        }
+
+        var normalized = SanitizeModifierStrength(strength);
+        if (lookup.Value.CpuUsageModifierStrength == normalized)
+        {
+            return true;
+        }
+
+        PublishState(lookup.Value with { CpuUsageModifierStrength = normalized, ObservedAt = DateTimeOffset.UtcNow }, "cpu usage modifier change");
+        return true;
+    }
+
+    // Null/NaN/infinite means disabled; a stored strength is always a finite 0-100 duty-point value.
+    private static double? SanitizeModifierStrength(double? strength)
+        => strength is double value && double.IsFinite(value) ? Math.Clamp(value, 0d, 100d) : null;
 
     public void Dispose()
     {
@@ -433,6 +464,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
             ActiveCurveSlot = Math.Clamp(configuredState.ActiveCurveSlot, 0, MaxCurveProfileSlots - 1),
             CurveProfiles = BuildProfilesFromOptions(configuredState),
             LinkedLeaderIndex = configuredState.LinkedLeaderIndex,
+            CpuUsageModifierStrength = SanitizeModifierStrength(configuredState.CpuUsageModifierStrength),
         };
 
         return SyncActiveCurveFields(NormalizeProfiles(next));

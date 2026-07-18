@@ -212,6 +212,11 @@ internal static class TelemetryGrpcMapper
             reply.LinkedLeaderIndex = linkedLeaderIndex;
         }
 
+        if (change.Current.CpuUsageModifierStrength is double cpuUsageModifierStrength)
+        {
+            reply.CpuUsageModifierStrength = cpuUsageModifierStrength;
+        }
+
         return reply;
     }
 

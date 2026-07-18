@@ -1075,7 +1075,12 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         }
 
         var connection = EnsureWritableConnection();
-        FrameworkSetFanDutyResponse response = connection.SetFanDuty(fanIndex, Ratio.FromPercent(dutyPercent));
+
+        // The EC duty register takes a whole percent; FrameworkEcConnection.SetFanDuty throws on a
+        // fractional value. Curve interpolation against fractional sensor temperatures (and the CPU usage
+        // boost) produces fractional duties, so round here at the single choke point before the EC write.
+        var wholeDutyPercent = Math.Round(dutyPercent, MidpointRounding.AwayFromZero);
+        FrameworkSetFanDutyResponse response = connection.SetFanDuty(fanIndex, Ratio.FromPercent(wholeDutyPercent));
         _fanControlSafetyTracker.MarkOverrideActive(response.FanIndex);
 
         return Task.FromResult(new FrameworkFanDutyCommandResult

@@ -1,4 +1,4 @@
-<Page
+﻿<Page
     x:Class="SubZeroFramework.Presentation.MenuItems.Dashboard.DashboardPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -53,7 +53,7 @@
                 <ProgressBar
                     Grid.Column="1"
                     VerticalAlignment="Center"
-                    Background="{StaticResource SurfaceWellBrush}"
+                    Background="{StaticResource CardSecondaryBackgroundBrush}"
                     Foreground="{x:Bind TemperatureBrush, Mode=OneWay}"
                     Maximum="100"
                     Value="{x:Bind GaugeValue, Mode=OneWay}" />
@@ -73,8 +73,10 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Padding="15,0,15,24" Spacing="16">
 
-                <!--  Cooling profile presets: not supported yet — the whole section renders grayed and inert
-                      (feature-flagged off in the model too, so nothing actuates or derives selection).  -->
+                <!--
+                    Cooling profile presets: not supported yet — the whole section renders grayed and inert
+                    (feature-flagged off in the model too, so nothing actuates or derives selection).
+                -->
                 <StackPanel
                     IsHitTestVisible="False"
                     Opacity="0.4"
@@ -174,7 +176,7 @@
                     <Border
                         Padding="18,14"
                         VerticalAlignment="Stretch"
-                        Background="{StaticResource SurfaceCardBrush}"
+                        Background="{StaticResource CardBackgroundBrush}"
                         BorderBrush="{StaticResource SurfaceOutlineBrush}"
                         BorderThickness="1"
                         CornerRadius="12">
@@ -238,13 +240,15 @@
                         </Grid>
                     </Border>
 
-                    <!--  Power: stretches to match the thermal card so the two bottoms align; content centers
-                          in the extra space. The ring gets full 120px so its centre text never clips.  -->
+                    <!--
+                        Power: stretches to match the thermal card so the two bottoms align; content centers
+                        in the extra space. The ring gets full 120px so its centre text never clips.
+                    -->
                     <Border
                         Grid.Column="1"
                         Padding="18,14"
                         VerticalAlignment="Stretch"
-                        Background="{StaticResource SurfaceCardBrush}"
+                        Background="{StaticResource CardBackgroundBrush}"
                         BorderBrush="{StaticResource SurfaceOutlineBrush}"
                         BorderThickness="1"
                         CornerRadius="12">
@@ -277,8 +281,8 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
                                 <powerControls:BatteryChargeRingView
-                                    Width="120"
-                                    Height="120"
+                                    Width="160"
+                                    Height="160"
                                     ChargeFraction="{x:Bind ViewModel.BatteryChargeFraction, Mode=OneWay}"
                                     ChargeText="{x:Bind ViewModel.BatteryChargeText, Mode=OneWay}"
                                     IsAnimating="{x:Bind ViewModel.IsBatteryCharging, Mode=OneWay}" />

@@ -32,8 +32,55 @@ permissions:
   actions: write
 
 jobs:
+  run_tests:
+    # Gate: every publish/package job requires a green test suite. The test project targets plain
+    # net10.0 (Core + Service + GrpcContracts + analyzers) — no Uno workloads needed here.
+    name: Run tests (${{ matrix.os }})
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: Windows
+            runsOn: windows-latest
+          - os: Linux
+            runsOn: ubuntu-latest
+
+    runs-on: ${{ matrix.runsOn }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Add GitHub Package Registry as a NuGet Source
+        run: dotnet nuget add source --store-password-in-clear-text --name "GitHub" https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --username "${{ github.actor }}" --password "${{ env.GITHUB_TOKEN }}"
+
+      - name: Run tests
+        run: dotnet test ./SubZeroFramework.Tests/SubZeroFramework.Tests.csproj -c Release -v normal --logger "trx;LogFileName=test-results.trx" --results-directory "${{ github.workspace }}/test-results"
+
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: Test results (${{ matrix.os }})
+          path: ${{ github.workspace }}/test-results
+          if-no-files-found: ignore
+
+      - name: "Cancel if failure"
+        if: ${{ failure() }}
+        uses: potiuk/cancel-workflow-runs@master
+        with:
+          cancelMode: self
+          cancelFutureDuplicates: false
+          selfPreservation: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   build_and_publish_windows:
     name: Build and publish app on Windows - (${{ matrix.type }})
+    needs: run_tests
     strategy:
       fail-fast: true
       matrix:
@@ -176,8 +223,48 @@ jobs:
           selfPreservation: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  smoke_test_windows:
+    # Startup smoke test on a clean machine: the published app must launch, create its main window, and
+    # keep a responsive UI thread. Runners have no service or Framework EC, so the app landing on the
+    # recovery page is the expected healthy outcome — this guards against the startup-crash/startup-hang
+    # class of regressions, which real UI automation on runners cannot do much better without hardware.
+    name: Windows startup smoke test (x64)
+    needs: build_and_publish_windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Download Windows x64 artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: SubZero Framework - Windows x64 WinUI3
+          path: app
+
+      - name: Launch app and verify it stays responsive
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path app -Filter SubZeroFramework.exe -Recurse | Select-Object -First 1
+          if (-not $exe) { throw "SubZeroFramework.exe not found in the downloaded artifact" }
+          $p = Start-Process -FilePath $exe.FullName -PassThru
+          Start-Sleep -Seconds 45
+          $p.Refresh()
+          if ($p.HasExited) { throw "App exited during startup with code $($p.ExitCode)" }
+          if ($p.MainWindowHandle -eq 0) { throw "App is running but never created a main window" }
+          if (-not $p.Responding) { throw "App main window is not responding (startup hang)" }
+          Write-Host "App started, window created, UI thread responsive."
+          Stop-Process -Id $p.Id -Force
+
+      - name: "Cancel if failure"
+        if: ${{ failure() }}
+        uses: potiuk/cancel-workflow-runs@master
+        with:
+          cancelMode: self
+          cancelFutureDuplicates: false
+          selfPreservation: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   build_and_publish_linux:
     name: Build and publish app on Linux - (${{ matrix.type }})
+    needs: run_tests
     strategy:
       fail-fast: true
       matrix:

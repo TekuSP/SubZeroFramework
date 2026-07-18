@@ -150,6 +150,9 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
             ActiveCurveSlot = reply.ActiveCurveSlot,
             CurveProfiles = [.. reply.CurveProfiles.Select(ParseCurveProfile)],
             LinkedLeaderIndex = reply.HasLinkedLeaderIndex ? reply.LinkedLeaderIndex : null,
+            CpuUsageModifierStrength = reply.HasCpuUsageModifierStrength && double.IsFinite(reply.CpuUsageModifierStrength)
+                ? reply.CpuUsageModifierStrength
+                : null,
             ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
             IsAvailable = reply.IsAvailable,
         });

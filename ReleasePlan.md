@@ -146,6 +146,27 @@ the live validation of both pipelines.
 - Do **not** `PublishTrimmed` the Uno UI (reflection/XAML breakage risk); trimming the worker is optional.
 - Prerequisite either way: P1 Linux systemd E2E validation (root EC access) must pass first.
 
+## Service-side fan curve drive + CPU usage modifier (landed 2026-07-18)
+
+- The curve worker (`FrameworkFanCurveControlWorker`) drives stored curves server-side against live
+  driving-sensor temperatures (interpolation identical to the client preview). **Fixed 2026-07-18:** the
+  EC duty register only accepts whole percents and `FrameworkEcConnection.SetFanDuty` throws on fractional
+  values, so every worker write of an interpolated (fractional) duty silently failed at Warning level —
+  curves were reported active but never actuated. `FrameworkDataProvider.SetFanDutyAsync` now rounds at
+  the single choke point before the EC write.
+- **Per-fan CPU usage modifier** (user spec: strength float, NaN = disabled): duty points added on top of
+  the curve duty, `strength × (e^(4·usage) − 1)/(e^4 − 1)` (`FanUsageModifierMath` in Core), so fans ramp
+  before heat reaches the sensors. Usage comes from the service's existing 1 s Hardware.Info poll, smoothed
+  fast-attack / slow-decay (5 s half-life, `FanUsageSmoothingFilter`). Set via `SetFanUsageModifier` RPC
+  (NaN on the wire = disable), persisted in `service-settings.json`, survives mode switches, streamed back
+  as `cpu_usage_modifier_strength` (proto `optional`, absent = disabled). Followers inherit the leader's
+  already-boosted duty. Client surface: `IFrameworkFanControlClient.SetUsageModifierAsync`. Live-verified
+  2026-07-18: idle 69% → 100% within ~3 s of pinning all cores → exponential decay back over ~15 s.
+- **GPU usage modifier: deliberately not implemented** (user decision 2026-07-18). Hardware.Info has no GPU
+  utilization; adding it later needs a source (Windows WDDM "GPU Engine" perf counters / Linux amdgpu
+  `gpu_busy_percent`) plus a deliberate proto/API extension. No dormant GPU fields were added.
+- **No UI yet** for the modifier — pending decision on placement/behavior on the Fan Curve Profiles page.
+
 ## P1 — shortly after MVP
 
 1. **Cooling profiles** (flip `CoolingProfilesEnabled`): preset semantics are implemented (Silent→Auto,
@@ -159,7 +180,12 @@ the live validation of both pipelines.
 4. **Fan Control page visual pass** to its PDF (functionally complete; redesign plan §9).
 5. **Remaining integration tests** (carried ⏳): status reconnect after service restart, long-lived stream
    startup/cancellation, telemetry contract parsing/history-window validation, broader startup/config
-   binding coverage.
+   binding coverage. *CI note 2026-07-03:* the pipeline now gates all publish/package jobs on the unit
+   suite (Windows + Linux matrix) and runs a Windows **startup smoke test** (launch published app on a
+   clean runner → window created → UI thread responsive; recovery page is the expected state without
+   hardware). A real UI-automation suite (FlaUI is the right tool for WinUI 3; Uno.UITest targets
+   WASM/mobile and WinAppDriver is unmaintained) stays post-MVP — runner flakiness + no Framework EC on
+   runners limit its value versus on-device manual QA.
 6. **framework-dotnet metadata versions**: embed `AssemblyMetadata("FrameworkSystemFfiExtensionsVersion")`
    and `("FrameworkSystemVersion")` so About shows real native component versions.
 7. **Diagnostics UX**: open-logs / copy-diagnostics actions; production logging guidance (Event Log /

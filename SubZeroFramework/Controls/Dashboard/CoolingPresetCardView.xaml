@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="SubZeroFramework.Controls.Dashboard.CoolingPresetCardView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -10,7 +10,7 @@
     <Border
         MinHeight="96"
         Padding="16,12"
-        Background="{StaticResource SurfaceCardBrush}"
+        Background="{StaticResource CardBackgroundBrush}"
         BorderBrush="{x:Bind Model.CardBorderBrush, Mode=OneWay}"
         BorderThickness="1.5"
         CornerRadius="12">

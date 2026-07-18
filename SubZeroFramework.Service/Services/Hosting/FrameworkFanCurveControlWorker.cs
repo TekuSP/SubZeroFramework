@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Reactive.Disposables;
 using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
@@ -15,10 +16,11 @@ namespace SubZeroFramework.Service.Services.Hosting;
 
 /// <summary>
 /// Drives the embedded controller to match each fan's control state: a <see cref="FanControlMode.CustomCurve"/>
-/// fan is evaluated against the current driving-sensor temperature, while Max (100%) and Manual (last duty) are
-/// re-asserted so a persisted simple override is restored to the EC after a service restart (the gRPC handlers
-/// only actuate on a live command). Auto fans are left to the EC's native control. Without this loop a stored
-/// curve or restored override is only reported as active, never actually applied.
+/// fan is evaluated against the current driving-sensor temperature — plus the fan's CPU usage modifier, an
+/// exponential feed-forward boost that ramps the fan before heat reaches the sensors — while Max (100%) and
+/// Manual (last duty) are re-asserted so a persisted simple override is restored to the EC after a service
+/// restart (the gRPC handlers only actuate on a live command). Auto fans are left to the EC's native control.
+/// Without this loop a stored curve or restored override is only reported as active, never actually applied.
 /// </summary>
 public sealed class FrameworkFanCurveControlWorker : BackgroundService
 {
@@ -27,6 +29,11 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
 
     // Evaluate at a calmer cadence than the raw telemetry poll so the EC is not written every poll.
     private static readonly TimeSpan EvaluationInterval = TimeSpan.FromSeconds(1);
+
+    // Smoothing for the CPU usage feeding the per-fan usage modifier: rising load is taken instantly so
+    // fans ramp before heat reaches the sensors, falling load decays with this half-life so one-second
+    // spikes do not make the fans surge and drop.
+    private static readonly TimeSpan CpuUsageDecayHalfLife = TimeSpan.FromSeconds(5);
 
     private readonly IFrameworkDataProvider _frameworkDataProvider;
     private readonly FrameworkFanControlStateStore _fanControlStateStore;
@@ -39,6 +46,10 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
 
     // Last duty written per fan. Only touched inside the serialized evaluation, so a plain dictionary is safe.
     private readonly Dictionary<int, double> _lastAppliedDuty = [];
+
+    // Smoothed CPU usage for the usage modifier. Only touched inside the serialized evaluation.
+    private readonly FanUsageSmoothingFilter _cpuUsageFilter = new(CpuUsageDecayHalfLife);
+    private long _lastCpuUsageSampleTimestamp;
 
     private readonly CompositeDisposable _subscriptions = [];
 
@@ -126,6 +137,9 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
             return;
         }
 
+        // One smoothed CPU reading per evaluation pass so every fan boosts from the same sample.
+        var cpuUsageFraction = SampleSmoothedCpuUsage();
+
         foreach (var state in _controlStates.Values)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -137,7 +151,7 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
             // per-slot link to a leader); Max is 100%; Manual holds its last duty; Auto (or unresolved) yields
             // null so the EC keeps native control. Re-asserting Max/Manual here is what restores a persisted
             // simple override to the EC after a service restart — the gRPC handlers only actuate on a live command.
-            if (ResolveTargetDuty(state.FanIndex, thermalSnapshot, []) is not double targetDuty)
+            if (ResolveTargetDuty(state.FanIndex, thermalSnapshot, cpuUsageFraction, []) is not double targetDuty)
             {
                 // Not driven by us (Auto / unresolved): forget the last applied duty so re-entry re-applies at once.
                 _lastAppliedDuty.Remove(state.FanIndex);
@@ -182,7 +196,9 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
     // Resolves the duty a curve-driven fan should run, walking the active slot's per-slot follow link.
     // Follow chains are walked with cycle detection; a leader that is not curve-driven contributes its
     // last applied duty (Max => 100%, Manual => last duty, Auto/unknown => no actuation, fan holds).
-    private double? ResolveTargetDuty(int fanIndex, FrameworkThermalSnapshot snapshot, HashSet<int> visited)
+    // The CPU usage modifier is applied where the curve is interpolated, so a follower fan inherits its
+    // leader's already-boosted duty rather than boosting twice.
+    private double? ResolveTargetDuty(int fanIndex, FrameworkThermalSnapshot snapshot, double? cpuUsageFraction, HashSet<int> visited)
     {
         if (!_controlStates.TryGetValue(fanIndex, out var state))
         {
@@ -208,7 +224,7 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
         var active = state.CurveProfiles.ElementAtOrDefault(state.ActiveCurveSlot);
         if (active is { FollowFanIndex: int leaderFanIndex } && leaderFanIndex != fanIndex)
         {
-            return ResolveTargetDuty(leaderFanIndex, snapshot, visited);
+            return ResolveTargetDuty(leaderFanIndex, snapshot, cpuUsageFraction, visited);
         }
 
         if (state.CustomCurvePoints.Count < 2 || state.DrivingSensorIndices.IsDefaultOrEmpty)
@@ -217,7 +233,44 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
         }
 
         var temperature = AggregateDrivingTemperature(snapshot, state.DrivingSensorIndices, state.DrivingTemperatureAggregation);
-        return temperature is double celsius ? InterpolateDuty(state.CustomCurvePoints, celsius) : null;
+        if (temperature is not double celsius)
+        {
+            return null;
+        }
+
+        var curveDuty = InterpolateDuty(state.CustomCurvePoints, celsius);
+        return Clamp(curveDuty + FanUsageModifierMath.ComputeBoost(state.CpuUsageModifierStrength, cpuUsageFraction));
+    }
+
+    /// <summary>
+    /// Feeds the latest Hardware.Info CPU reading (refreshed by the service's 1 s hardware-info poll)
+    /// through the fast-attack / slow-decay filter. Returns null until a first reading exists, which
+    /// disables the usage boost rather than guessing.
+    /// </summary>
+    private double? SampleSmoothedCpuUsage()
+    {
+        var timestamp = Stopwatch.GetTimestamp();
+        var elapsed = _lastCpuUsageSampleTimestamp == 0
+            ? TimeSpan.Zero
+            : Stopwatch.GetElapsedTime(_lastCpuUsageSampleTimestamp, timestamp);
+        _lastCpuUsageSampleTimestamp = timestamp;
+
+        return _cpuUsageFilter.Sample(ReadCpuUsageFraction(), elapsed);
+    }
+
+    private double? ReadCpuUsageFraction()
+    {
+        var cpus = _frameworkDataProvider.GetLatestHardwareInfoSnapshot().Runtime.Cpus;
+        var readings = new List<double>(cpus.Length);
+        foreach (var cpu in cpus)
+        {
+            if (cpu.EffectivePercentProcessorTime is double percent)
+            {
+                readings.Add(Math.Clamp(percent, 0d, 100d));
+            }
+        }
+
+        return readings.Count > 0 ? readings.Average() / 100d : null;
     }
 
     private static double? AggregateDrivingTemperature(FrameworkThermalSnapshot snapshot, ImmutableArray<int> sensorIndices, TemperatureAggregationMode aggregation)

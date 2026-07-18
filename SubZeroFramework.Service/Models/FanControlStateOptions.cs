@@ -24,6 +24,9 @@ public sealed record FanControlStateOptions
 
     /// <summary>The fan this one is grouped under ("Applies to" link), or null when independent / a leader itself.</summary>
     public int? LinkedLeaderIndex { get; init; }
+
+    /// <summary>Duty points added on top of the active custom curve at 100% smoothed CPU usage, or null when disabled.</summary>
+    public double? CpuUsageModifierStrength { get; init; }
 }
 
 public sealed record FanCurveProfileOptions

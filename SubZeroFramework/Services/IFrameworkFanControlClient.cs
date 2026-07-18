@@ -75,6 +75,14 @@ public interface IFrameworkFanControlClient
     Task<FrameworkFanCurveProfileCommandResult> SetFanLinkAsync(int fanIndex, int? linkedLeaderIndex, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Sets (or clears, when <paramref name="cpuUsageModifierStrength"/> is null) the fan's CPU usage
+    /// modifier: the duty points added on top of the active custom curve at 100% smoothed CPU usage,
+    /// ramping exponentially so light load adds almost nothing. Applies only while a custom curve drives
+    /// the fan. Persisted by the service and streamed back via the control state.
+    /// </summary>
+    Task<FrameworkFanUsageModifierCommandResult> SetUsageModifierAsync(int fanIndex, double? cpuUsageModifierStrength, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Opens a preview safety hold for a fan and returns once the service has captured its pre-preview state.
     /// The hold stays open until <paramref name="cancellationToken"/> is cancelled (commit / revert / app
     /// exit); if it drops before the preview is committed, the service reverts the fan to its prior state.

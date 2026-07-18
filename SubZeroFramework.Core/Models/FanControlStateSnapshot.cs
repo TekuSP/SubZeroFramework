@@ -23,6 +23,13 @@ public sealed record FanControlStateSnapshot
     /// <summary>The fan this one is grouped under ("Applies to" link), or null when independent / a leader itself. Persisted by the service so the grouping survives restarts.</summary>
     public int? LinkedLeaderIndex { get; init; }
 
+    /// <summary>
+    /// Duty points added on top of the active custom curve at 100% smoothed CPU usage, ramping exponentially
+    /// so light load adds almost nothing (see <see cref="FanUsageModifierMath"/>). Null when disabled. Applies
+    /// only while the fan runs a custom curve; a follower fan inherits its leader's already-boosted duty.
+    /// </summary>
+    public double? CpuUsageModifierStrength { get; init; }
+
     public bool HasActiveOverride { get; init; }
 
     public double? LastDutyPercent { get; init; }

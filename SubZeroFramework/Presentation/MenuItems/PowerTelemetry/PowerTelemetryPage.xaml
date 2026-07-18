@@ -1,4 +1,4 @@
-<Page
+﻿<Page
     x:Class="SubZeroFramework.Presentation.MenuItems.PowerTelemetry.PowerTelemetryPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -36,7 +36,7 @@
                     <controls:ElevatedCard
                         HorizontalContentAlignment="Stretch"
                         VerticalContentAlignment="Stretch"
-                        Background="{StaticResource SurfaceCardBrush}">
+                        Background="{StaticResource CardBackgroundBrush}">
                         <Grid Padding="18">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
@@ -98,7 +98,7 @@
                         <ColumnDefinition Width="3*" />
                     </Grid.ColumnDefinitions>
 
-                    <controls:ElevatedCard Grid.Column="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{StaticResource SurfaceCardBrush}">
+                    <controls:ElevatedCard Grid.Column="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{StaticResource CardBackgroundBrush}">
                         <Grid Padding="18" ColumnSpacing="20">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
@@ -157,7 +157,7 @@
                         </Grid>
                     </controls:ElevatedCard>
 
-                    <controls:ElevatedCard Grid.Column="1" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{StaticResource SurfaceCardBrush}">
+                    <controls:ElevatedCard Grid.Column="1" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="{StaticResource CardBackgroundBrush}">
                         <StackPanel Padding="18" Spacing="12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -183,49 +183,49 @@
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
 
-                                <Border Grid.Row="0" Grid.Column="0" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Row="0" Grid.Column="0" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Design" />
                                         <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.DesignCapacityDisplay, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Row="0" Grid.Column="1" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Row="0" Grid.Column="1" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Last full" />
                                         <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.LastFullCapacityDisplay, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Row="0" Grid.Column="2" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Row="0" Grid.Column="2" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Remaining" />
                                         <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.RemainingCapacityDisplay, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Row="0" Grid.Column="3" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Row="0" Grid.Column="3" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Wear" />
                                         <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource StatusWarningBrush}" Text="{x:Bind ViewModel.WearDisplay, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Row="1" Grid.Column="0" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Row="1" Grid.Column="0" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Cycle count" />
                                         <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.CycleCountDisplay, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Row="1" Grid.Column="1" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Row="1" Grid.Column="1" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Chemistry" />
                                         <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChemistryDisplay, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Row="1" Grid.Column="2" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Row="1" Grid.Column="2" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Manufacturer" />
                                         <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ManufacturerDisplay, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Row="1" Grid.Column="3" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Row="1" Grid.Column="3" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Model" />
                                         <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ModelDisplay, Mode=OneWay}" />
@@ -255,7 +255,7 @@
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
 
-                    <controls:ElevatedCard Grid.Column="0" HorizontalContentAlignment="Stretch" VerticalAlignment="Top" HorizontalAlignment="Stretch" Background="{StaticResource SurfaceCardBrush}">
+                    <controls:ElevatedCard Grid.Column="0" HorizontalContentAlignment="Stretch" VerticalAlignment="Top" HorizontalAlignment="Stretch" Background="{StaticResource CardBackgroundBrush}">
                         <StackPanel Padding="18,16" Spacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <material:MaterialIcon Width="17" Height="17" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="BatteryLock" />
@@ -296,13 +296,13 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Border Grid.Column="0" Padding="10" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Column="0" Padding="10" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="1">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Minimum" />
                                         <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChargeMinimumDisplay, Mode=OneWay}" />
                                     </StackPanel>
                                 </Border>
-                                <Border Grid.Column="1" Padding="10" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Column="1" Padding="10" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="1">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Maximum" />
                                         <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChargeMaximumDisplay, Mode=OneWay}" />
@@ -321,7 +321,7 @@
                         </StackPanel>
                     </controls:ElevatedCard>
 
-                    <controls:ElevatedCard Grid.Column="1" HorizontalContentAlignment="Stretch" VerticalAlignment="Top" HorizontalAlignment="Stretch" Background="{StaticResource SurfaceCardBrush}">
+                    <controls:ElevatedCard Grid.Column="1" HorizontalContentAlignment="Stretch" VerticalAlignment="Top" HorizontalAlignment="Stretch" Background="{StaticResource CardBackgroundBrush}">
                         <StackPanel Padding="18,16" Spacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <material:MaterialIcon Width="17" Height="17" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="ChartLine" />
@@ -335,7 +335,7 @@
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
 
-                                <Border Grid.Column="0" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Column="0" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Charge %" />
                                         <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource StatusSuccessBrush}" Text="{x:Bind ViewModel.ChargePercentDisplay, Mode=OneWay}" />
@@ -361,7 +361,7 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Border Grid.Column="1" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Column="1" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Current" />
                                         <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{x:Bind ViewModel.CurrentBrush, Mode=OneWay}" Text="{x:Bind ViewModel.CurrentDisplay, Mode=OneWay}" />
@@ -387,7 +387,7 @@
                                     </StackPanel>
                                 </Border>
 
-                                <Border Grid.Column="2" Padding="12" Background="{StaticResource SurfaceWellBrush}" CornerRadius="10">
+                                <Border Grid.Column="2" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Voltage" />
                                         <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.VoltageDisplay, Mode=OneWay}" />
@@ -440,7 +440,7 @@
                                     HorizontalAlignment="Stretch"
                                     HorizontalContentAlignment="Stretch"
                                     VerticalContentAlignment="Stretch"
-                                    Background="{StaticResource SurfaceCardBrush}"
+                                    Background="{StaticResource CardBackgroundBrush}"
                                     BorderBrush="{x:Bind CardBorderBrush, Mode=OneWay}"
                                     BorderThickness="{x:Bind CardBorderThickness, Mode=OneWay}">
                                     <Grid Padding="16,16,18,16" RowSpacing="13">

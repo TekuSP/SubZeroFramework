@@ -219,6 +219,11 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
             node["LinkedLeaderIndex"] = linkedLeaderIndex;
         }
 
+        if (state.CpuUsageModifierStrength is double cpuUsageModifierStrength && double.IsFinite(cpuUsageModifierStrength))
+        {
+            node["CpuUsageModifierStrength"] = cpuUsageModifierStrength;
+        }
+
         return node;
     }
 
