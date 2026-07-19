@@ -58,7 +58,7 @@ public partial class SettingsLicensesSectionModel : ObservableObject
                 Licenses.Clear();
                 foreach (var entry in entries.OrderBy(item => item.PackageId, StringComparer.OrdinalIgnoreCase))
                 {
-                    Licenses.Add(new LicenseEntryModel(entry.PackageId, entry.Version, entry.License, entry.Text));
+                    Licenses.Add(new LicenseEntryModel(entry.PackageId, entry.Version, entry.License, entry.Text, entry.ImportedBy ?? string.Empty));
                 }
 
                 LicensesMessage = Licenses.Count == 0 ? "The license report is empty." : string.Empty;
@@ -71,7 +71,7 @@ public partial class SettingsLicensesSectionModel : ObservableObject
         }
     }
 
-    internal sealed record LicenseReportEntry(string PackageId, string Version, string License, string Text);
+    internal sealed record LicenseReportEntry(string PackageId, string Version, string License, string Text, string? ImportedBy);
 }
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]

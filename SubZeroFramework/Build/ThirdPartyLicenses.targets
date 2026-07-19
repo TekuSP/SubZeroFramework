@@ -43,6 +43,11 @@
         // references AND the recursive package set itself. First file wins on conflicts (the app's own
         // assets file is passed first, so the report matches what ships with the app).
         var resolvedVersions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // dependency id -> the packages that declare it (from the "dependencies" blocks in the targets
+        // section), so the report can say which parent imported each transitive library.
+        var dependencyParents = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var assetsPath in (AssetsFiles ?? string.Empty).Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(entry => entry.Trim()))
         {
             if (!File.Exists(assetsPath))
@@ -51,14 +56,47 @@
                 continue;
             }
 
+            var assetsText = File.ReadAllText(assetsPath);
+
             foreach (Match match in Regex.Matches(
-                File.ReadAllText(assetsPath),
+                assetsText,
                 "\"([A-Za-z0-9_.\\-]+)/([0-9][^\"]*)\"\\s*:\\s*\\{[^{}]*?\"type\"\\s*:\\s*\"package\""))
             {
                 if (!resolvedVersions.ContainsKey(match.Groups[1].Value))
                 {
                     resolvedVersions[match.Groups[1].Value] = match.Groups[2].Value;
                 }
+            }
+
+            // "dependencies" objects are flat (name -> version-range string), so [^{}]* captures them whole.
+            foreach (Match match in Regex.Matches(
+                assetsText,
+                "\"([A-Za-z0-9_.\\-]+)/([0-9][^\"]*)\"\\s*:\\s*\\{[^{}]*?\"dependencies\"\\s*:\\s*\\{([^{}]*)\\}"))
+            {
+                var parent = match.Groups[1].Value;
+                foreach (Match dependencyMatch in Regex.Matches(match.Groups[3].Value, "\"([A-Za-z0-9_.\\-]+)\"\\s*:"))
+                {
+                    var child = dependencyMatch.Groups[1].Value;
+                    HashSet<string> parents;
+                    if (!dependencyParents.TryGetValue(child, out parents))
+                    {
+                        parents = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        dependencyParents[child] = parents;
+                    }
+
+                    parents.Add(parent);
+                }
+            }
+        }
+
+        // Packages the solution references on purpose (central pins + this project's references): they get
+        // no "imported by" attribution — only transitive packages do.
+        var directPackages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var item in Packages)
+        {
+            if (!string.IsNullOrEmpty(item.ItemSpec))
+            {
+                directPackages.Add(item.ItemSpec);
             }
         }
 
@@ -210,6 +248,25 @@
                 }
             }
 
+            // Attribute transitive packages to the parents that imported them; parents that made the
+            // report themselves are preferred so the line points at a row the user can find.
+            var importedBy = string.Empty;
+            HashSet<string> parentSet;
+            if (!directPackages.Contains(package.Key) && dependencyParents.TryGetValue(package.Key, out parentSet))
+            {
+                var parents = parentSet.Where(parent => packages.ContainsKey(parent)).OrderBy(parent => parent, StringComparer.OrdinalIgnoreCase).ToList();
+                if (parents.Count == 0)
+                {
+                    parents = parentSet.OrderBy(parent => parent, StringComparer.OrdinalIgnoreCase).ToList();
+                }
+
+                importedBy = string.Join(", ", parents.Take(3));
+                if (parents.Count > 3)
+                {
+                    importedBy += " +" + (parents.Count - 3) + " more";
+                }
+            }
+
             if (!first)
             {
                 json.Append(",\n");
@@ -220,6 +277,7 @@
             json.Append("  { \"packageId\": \"").Append(jsonEscape(package.Key))
                 .Append("\", \"version\": \"").Append(jsonEscape(package.Value))
                 .Append("\", \"license\": \"").Append(jsonEscape(licenseDisplay))
+                .Append("\", \"importedBy\": \"").Append(jsonEscape(importedBy))
                 .Append("\", \"text\": \"").Append(jsonEscape(licenseText.Replace("\r\n", "\n").Trim()))
                 .Append("\" }");
         }
@@ -255,7 +313,8 @@
                 json.Append("  { \"packageId\": \"").Append(jsonEscape(item.ItemSpec))
                     .Append("\", \"version\": \"").Append(jsonEscape(version))
                     .Append("\", \"license\": \"").Append(jsonEscape(item.GetMetadata("License")))
-                    .Append("\", \"text\": \"").Append(jsonEscape(text.Replace("\r\n", "\n").Trim()))
+                    .Append("\", \"importedBy\": \"\"")
+                    .Append(", \"text\": \"").Append(jsonEscape(text.Replace("\r\n", "\n").Trim()))
                     .Append("\" }");
             }
         }

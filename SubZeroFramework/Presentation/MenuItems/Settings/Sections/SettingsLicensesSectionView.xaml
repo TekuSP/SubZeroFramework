@@ -28,6 +28,13 @@
                             FontSize="12"
                             Foreground="{StaticResource TextSecondaryBrush}"
                             Text="{x:Bind Version}" />
+                        <!--  Which parent package pulled this transitive dependency in (empty for direct references).  -->
+                        <TextBlock
+                            FontSize="11.5"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="{x:Bind ImportedByDisplay}"
+                            TextWrapping="Wrap"
+                            Visibility="{x:Bind ImportedByVisibility}" />
                         <!--  License chip (pill rule: fixed height + half-height corners).  -->
                         <Border
                             Height="26"
