@@ -24,6 +24,11 @@ public sealed class FanSensorSelectionModel
     private readonly Dictionary<SensorChipModel, PropertyChangedEventHandler> _sensorChipHandlers = [];
     private bool _suppressSensorSelectionReentry;
 
+    // The selection the last load/user interaction ASKED for, including sensors whose chips have not
+    // streamed in yet. A late-arriving chip named here selects itself on arrival, so a saved profile's
+    // selection is never silently narrowed by stream timing (which read as a phantom dirty draft).
+    private readonly HashSet<int> _desiredSelection = [];
+
     public FanSensorSelectionModel(IFanHistoryStore historyStore, Services.Units.IUnitFormattingService unitFormattingService)
     {
         _historyStore = historyStore;
@@ -64,6 +69,7 @@ public sealed class FanSensorSelectionModel
 
         var chipName = ShortenSensorName($"{snapshot.DisplayName.Trim()}{Environment.NewLine}{FrameworkSensorNameDisplay.ToLocation(snapshot.SensorName)}", snapshot.SensorIndex);
 
+        var isNewChip = false;
         if (!_sensorChipIndex.TryGetValue(snapshot.SensorIndex, out var chip))
         {
             chip = new SensorChipModel(snapshot.SensorIndex, chipName, _unitFormattingService);
@@ -76,6 +82,7 @@ public sealed class FanSensorSelectionModel
                 insertIndex++;
             }
             _availableSensors.Insert(insertIndex, chip);
+            isNewChip = true;
         }
         else
         {
@@ -84,6 +91,17 @@ public sealed class FanSensorSelectionModel
 
         chip.State = state;
         chip.CurrentTemperatureCelsius = state == FrameworkTemperatureState.Ok ? snapshot.TemperatureCelsius : null;
+
+        // A chip the desired selection was waiting for finally streamed in: select it now so the draft
+        // matches the loaded profile again.
+        if (isNewChip && chip.IsUsable && _desiredSelection.Contains(chip.SensorIndex))
+        {
+            _suppressSensorSelectionReentry = true;
+            try { chip.IsSelected = true; }
+            finally { _suppressSensorSelectionReentry = false; }
+            _historyStore.EnsureTemperatureHistory(chip.SensorIndex, PresentationDefaults.RecentTelemetryHistoryWindow);
+            SelectionChanged?.Invoke();
+        }
 
         // An unusable sensor (error / no power / uncalibrated) can't drive a curve — drop it from the selection.
         if (!chip.IsUsable && chip.IsSelected)
@@ -117,6 +135,12 @@ public sealed class FanSensorSelectionModel
             {
                 chip.IsSelected = ReferenceEquals(chip, firstUsable);
             }
+
+            _desiredSelection.Clear();
+            if (firstUsable is not null)
+            {
+                _desiredSelection.Add(firstUsable.SensorIndex);
+            }
         }
         finally
         {
@@ -126,16 +150,24 @@ public sealed class FanSensorSelectionModel
         return _availableSensors.FirstOrDefault(static c => c.IsSelected)?.SensorIndex;
     }
 
-    /// <summary>Sets the selection to exactly the given sensor indices (loading a saved/pending draft).</summary>
+    /// <summary>
+    /// Sets the selection to exactly the given sensor indices (loading a saved/pending draft). Indices whose
+    /// chips have not streamed in yet are remembered and selected on arrival.
+    /// </summary>
     public void SetSelected(IReadOnlyCollection<int> sensorIndices)
     {
         _suppressSensorSelectionReentry = true;
         try
         {
-            var desired = new HashSet<int>(sensorIndices);
+            _desiredSelection.Clear();
+            foreach (var sensorIndex in sensorIndices)
+            {
+                _desiredSelection.Add(sensorIndex);
+            }
+
             foreach (var chip in _availableSensors)
             {
-                chip.IsSelected = desired.Contains(chip.SensorIndex);
+                chip.IsSelected = _desiredSelection.Contains(chip.SensorIndex);
             }
         }
         finally
@@ -164,6 +196,7 @@ public sealed class FanSensorSelectionModel
         try { firstUsable.IsSelected = true; }
         finally { _suppressSensorSelectionReentry = false; }
 
+        _desiredSelection.Add(firstUsable.SensorIndex);
         return firstUsable.SensorIndex;
     }
 
@@ -200,10 +233,17 @@ public sealed class FanSensorSelectionModel
                     return;
                 }
 
+                // A user toggle updates the desired selection (loads overwrite it wholesale via SetSelected).
                 if (chip.IsSelected)
                 {
+                    _desiredSelection.Add(chip.SensorIndex);
                     _historyStore.EnsureTemperatureHistory(chip.SensorIndex, PresentationDefaults.RecentTelemetryHistoryWindow);
                 }
+                else
+                {
+                    _desiredSelection.Remove(chip.SensorIndex);
+                }
+
                 SelectionChanged?.Invoke();
             }
             else if (args.PropertyName == nameof(SensorChipModel.DisplayName))

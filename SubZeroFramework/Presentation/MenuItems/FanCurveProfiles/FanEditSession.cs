@@ -8,11 +8,13 @@ using SubZeroFramework.Services;
 namespace SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 
 /// <summary>
-/// The Fan Control coordinator's per-selected-fan editing session. Owns the custom-curve draft's staging
-/// bookkeeping (applied baseline, pending / tested snapshots, the slot being edited), the staged simple mode
+/// One fan's editing session on the Fan Control page. Owns the custom-curve draft's staging bookkeeping
+/// (applied baseline, pending / tested snapshots, the slot being edited), the staged simple mode
 /// (Auto / Manual / Max), and the simple-mode Stage → Preview → Apply orchestration, so the coordinator stays a
-/// thin shell. Created per coordinator and reset when the selected fan changes; reaches back into the
-/// coordinator (the established parent-injection pattern) for the shared selection / authorization / status.
+/// thin shell. The coordinator keeps one session PER FAN (keyed by fan index): switching fans parks the
+/// outgoing fan's in-progress edits here (<see cref="DraftSnapshot"/>) and restores them on return, so
+/// staged work survives fan switches until Apply or Discard. Reaches back into the coordinator (the
+/// established parent-injection pattern) for the shared selection / authorization / status.
 /// </summary>
 public sealed class FanEditSession
 {
@@ -31,6 +33,17 @@ public sealed class FanEditSession
 
     /// <summary>The draft as last applied / loaded, for the pending pill + external-change detection.</summary>
     public CustomCurveSnapshot? PendingSnapshot { get; set; }
+
+    /// <summary>
+    /// The editor content parked when the user switched to another fan while this fan had staged work
+    /// (curve points, sensor selection, aggregation, follow target). Restored — and cleared — when the fan
+    /// is selected again, so in-progress edits survive fan switches until Apply or Discard. Null when the
+    /// fan left the editor clean (it reloads fresh from the service on return).
+    /// </summary>
+    public CustomCurveSnapshot? DraftSnapshot { get; set; }
+
+    /// <summary>Whether the custom editor was open when this fan's staged work was parked.</summary>
+    public bool WasCustomEditorOpen { get; set; }
 
     /// <summary>
     /// Baseline describing the curve the service currently has applied to the selected fan. Null when the fan

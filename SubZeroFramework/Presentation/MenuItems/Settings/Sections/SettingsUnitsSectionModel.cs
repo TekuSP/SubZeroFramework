@@ -19,9 +19,14 @@ namespace SubZeroFramework.Presentation.MenuItems.Settings.Sections;
 
 /// <summary>
 /// ViewModel for the Display units section: one segmented-picker row per UnitsNet quantity, each with a
-/// live sample value rendered in the currently selected unit. Navigation constructs it (ViewMap-registered);
+/// live sample value rendered in the currently applied unit. Navigation constructs it (ViewMap-registered);
 /// telemetry and preference callbacks marshal to the UI thread before touching bindable state. The page
 /// that navigated here disposes it when another section takes over.
+///
+/// Unit picks are STAGED: tapping a segment updates only the row's pill selection, not the machine-wide
+/// preference. Save persists every staged pick (applying them live across the app); Cancel re-reads the
+/// applied selections. The live sample values follow the APPLIED unit, so they update after Save, not on a
+/// staged pick.
 /// </summary>
 public partial class SettingsUnitsSectionModel : ObservableObject, IDisposable
 {
@@ -45,6 +50,11 @@ public partial class SettingsUnitsSectionModel : ObservableObject, IDisposable
     private readonly IUserUnitPreferencesClient _userUnitPreferencesClient;
     private readonly IUnitFormattingService _unitFormattingService;
     private readonly DispatcherQueue _dispatcherQueue;
+
+    // The applied (persisted) option key per quantity — the baseline for dirty detection and Cancel.
+    private readonly Dictionary<UnitQuantityKind, string> _savedSelection = [];
+    // Each quantity's catalog default, used to stage "Reset to defaults".
+    private readonly Dictionary<UnitQuantityKind, string> _defaultSelection = [];
 
     private double? _sampleTemperatureCelsius;
     private double? _sampleFanRpm;
@@ -85,6 +95,10 @@ public partial class SettingsUnitsSectionModel : ObservableObject, IDisposable
         [
             .. unitPreferenceCatalog.Definitions.Select(definition => new UnitPreferenceRowModel(definition, HandleUnitRowSelectionChanged))
         ];
+        foreach (var definition in unitPreferenceCatalog.Definitions)
+        {
+            _defaultSelection[definition.Kind] = definition.DefaultOptionKey;
+        }
         ApplyUnitPreferenceSnapshot(unitPreferenceCatalog.Normalize(_userUnitPreferencesClient.CurrentPreferences));
 
         userUnitPreferencesClient
@@ -154,37 +168,114 @@ public partial class SettingsUnitsSectionModel : ObservableObject, IDisposable
 
     public Visibility UnitsStatusVisibility => string.IsNullOrEmpty(UnitsStatusMessage) ? Visibility.Collapsed : Visibility.Visible;
 
-    [RelayCommand]
-    private Task ResetUnitsAsync()
-        => PersistUnitPreferencesAsync(_userUnitPreferencesClient.ResetToDefaultsAsync(CancellationToken.None));
+    /// <summary>True while any staged pick differs from the applied selection (enables Save/Cancel).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
+    [NotifyPropertyChangedFor(nameof(UnsavedChangesVisibility))]
+    [NotifyPropertyChangedFor(nameof(SavedVisibility))]
+    public partial bool HasUnsavedChanges { get; set; }
 
-    private void HandleUnitRowSelectionChanged(UnitPreferenceRowModel row)
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
+    [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
+    public partial bool IsSaving { get; set; }
+
+    public Visibility UnsavedChangesVisibility => HasUnsavedChanges ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility SavedVisibility => HasUnsavedChanges ? Visibility.Collapsed : Visibility.Visible;
+
+    private bool CanSaveOrCancel() => HasUnsavedChanges && !IsSaving;
+
+    /// <summary>Persists every staged pick, applying the new units live across the app.</summary>
+    [RelayCommand(CanExecute = nameof(CanSaveOrCancel))]
+    private async Task SaveAsync()
     {
-        var snapshot = new UserUnitPreferencesSnapshot
+        IsSaving = true;
+
+        try
         {
-            SchemaVersion = UserUnitPreferencesSnapshot.CurrentSchemaVersion,
-            Entries = [.. UnitRows.Select(unitRow => new UserUnitPreferenceEntry(unitRow.Kind, unitRow.SelectedKey))],
-        };
+            var snapshot = new UserUnitPreferencesSnapshot
+            {
+                SchemaVersion = UserUnitPreferencesSnapshot.CurrentSchemaVersion,
+                Entries = [.. UnitRows.Select(unitRow => new UserUnitPreferenceEntry(unitRow.Kind, unitRow.SelectedKey))],
+            };
 
-        _ = PersistUnitPreferencesAsync(_userUnitPreferencesClient.ApplyPreferencesAsync(snapshot, CancellationToken.None));
+            // On the UI thread; no ConfigureAwait(false) so the continuation stays here. Success streams
+            // back through WatchPreferences, which re-baselines and refreshes the samples.
+            var result = await _userUnitPreferencesClient.ApplyPreferencesAsync(snapshot, CancellationToken.None);
+            if (result.Succeeded)
+            {
+                foreach (var row in UnitRows)
+                {
+                    _savedSelection[row.Kind] = row.SelectedKey;
+                }
+
+                UnitsStatusMessage = string.Empty;
+                UpdateDirtyState();
+            }
+            else
+            {
+                UnitsStatusMessage = result.Message;
+            }
+        }
+        finally
+        {
+            IsSaving = false;
+        }
     }
 
-    private async Task PersistUnitPreferencesAsync(Task<UserPreferencesOperationResult> operation)
-    {
-        // Started from row selection or the reset command, both on the UI thread; without
-        // ConfigureAwait(false) the status write below returns there.
-        var result = await operation;
-        UnitsStatusMessage = result.Succeeded ? string.Empty : result.Message;
-    }
-
-    private void ApplyUnitPreferenceSnapshot(UserUnitPreferencesSnapshot snapshot)
+    /// <summary>Discards staged picks, restoring the pills to the applied selection.</summary>
+    [RelayCommand(CanExecute = nameof(CanSaveOrCancel))]
+    private void Cancel()
     {
         foreach (var row in UnitRows)
         {
-            row.ApplySelection(snapshot.GetOptionKey(row.Kind, row.SelectedKey));
+            row.ApplySelection(_savedSelection.GetValueOrDefault(row.Kind, row.SelectedKey));
+        }
+
+        UnitsStatusMessage = string.Empty;
+        UpdateDirtyState();
+    }
+
+    /// <summary>Stages each quantity's catalog default (Save then applies them).</summary>
+    [RelayCommand]
+    private void ResetToDefaults()
+    {
+        foreach (var row in UnitRows)
+        {
+            row.ApplySelection(_defaultSelection.GetValueOrDefault(row.Kind, row.SelectedKey));
+        }
+
+        UpdateDirtyState();
+    }
+
+    // A tapped segment already updated the row's pill selection; staging just re-evaluates dirtiness.
+    private void HandleUnitRowSelectionChanged(UnitPreferenceRowModel row) => UpdateDirtyState();
+
+    private void UpdateDirtyState()
+        => HasUnsavedChanges = UnitRows.Any(row =>
+            !string.Equals(row.SelectedKey, _savedSelection.GetValueOrDefault(row.Kind, row.SelectedKey), StringComparison.Ordinal));
+
+    private void ApplyUnitPreferenceSnapshot(UserUnitPreferencesSnapshot snapshot)
+    {
+        // The applied baseline always follows the persisted snapshot. Only re-seat the pills when there are
+        // no staged picks in flight, so an external unit change never clobbers the user's uncommitted edits.
+        var hadStagedPicks = HasUnsavedChanges;
+
+        foreach (var row in UnitRows)
+        {
+            var key = snapshot.GetOptionKey(row.Kind, row.SelectedKey);
+            _savedSelection[row.Kind] = key;
+
+            if (!hadStagedPicks)
+            {
+                row.ApplySelection(key);
+            }
         }
 
         UpdateSampleTexts();
+        UpdateDirtyState();
     }
 
     private void UpdateSample(Action applyLatestValues)

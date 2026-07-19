@@ -24,14 +24,12 @@ public partial class ModuleInternalChipModel : ObservableObject
 
     public FrameworkModuleIdentity Identity { get; }
 
+    // The descriptor is the only mutable input; assigning it re-raises the state-derived displays. Name and
+    // IconKind derive solely from the immutable Identity, so they never change after construction.
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Name))]
-    [NotifyPropertyChangedFor(nameof(IconKind))]
     [NotifyPropertyChangedFor(nameof(StateDisplay))]
     [NotifyPropertyChangedFor(nameof(StateBrush))]
-    private partial int Revision { get; set; }
-
-    public ModuleDescriptorStatus? Descriptor { get; private set; }
+    public partial ModuleDescriptorStatus? Descriptor { get; private set; }
 
     public string Name => FrameworkModuleDisplay.For(Identity).DisplayName;
 
@@ -45,9 +43,5 @@ public partial class ModuleInternalChipModel : ObservableObject
         ? AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor)
         : AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor);
 
-    public void Update(ModuleDescriptorStatus descriptor)
-    {
-        Descriptor = descriptor;
-        Revision++;
-    }
+    public void Update(ModuleDescriptorStatus descriptor) => Descriptor = descriptor;
 }

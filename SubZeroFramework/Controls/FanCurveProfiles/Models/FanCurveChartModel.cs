@@ -32,6 +32,7 @@ public partial class FanCurveChartModel : ObservableObject
         _unitFormattingService = unitFormattingService;
         CurveSeriesPoints = new ReadOnlyObservableCollection<ObservablePoint>(_curveSeriesPoints);
         AppliedCurveSeriesPoints = new ReadOnlyObservableCollection<ObservablePoint>(_appliedCurveSeriesPoints);
+        CurveTemperatureLabelFormatter = CreateCurveTemperatureLabelFormatter();
     }
 
     /// <summary>The editable draft curve points (with 0 °C / 130 °C anchors), bound by the chart line series.</summary>
@@ -77,15 +78,12 @@ public partial class FanCurveChartModel : ObservableObject
         AppThemeBrushes.ChartSeparatorColor.B,
         AppThemeBrushes.ChartSeparatorColor.A));
 
-    // Bumped when machine-wide display-unit preferences change so the temperature axis labeler rebinds and the
-    // curve chart relabels in place (same pattern as ThermalTelemetryModel.UnitFormattingRevision).
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CurveTemperatureLabelFormatter))]
-    private partial int UnitFormattingRevision { get; set; }
-
     // Curve points stay canonical Celsius (the service keys them by integer Celsius and the pixel math maps to
-    // Celsius), but axis labels honor the user's temperature unit via the shared formatter.
-    public Func<double, string> CurveTemperatureLabelFormatter => _unitFormattingService.FormatTemperatureAxisLabel;
+    // Celsius), but axis labels honor the user's temperature unit via the shared formatter. Stored and
+    // re-assigned by RefreshUnitFormatting so the axis labeler rebinds and the curve chart relabels in place
+    // when machine-wide display-unit preferences change.
+    [ObservableProperty]
+    public partial Func<double, string> CurveTemperatureLabelFormatter { get; private set; }
 
     public Func<double, string> CurveDutyLabelFormatter { get; } = static value => $"{value:0}%";
 
@@ -192,5 +190,14 @@ public partial class FanCurveChartModel : ObservableObject
     }
 
     /// <summary>Relabels the temperature axis after a machine-wide display-unit change.</summary>
-    public void RefreshUnitFormatting() => UnitFormattingRevision++;
+    public void RefreshUnitFormatting() => CurveTemperatureLabelFormatter = CreateCurveTemperatureLabelFormatter();
+
+    // Builds a fresh closure per call so the assignment never no-ops: delegates wrapping the same method on
+    // the same target compare equal, and the MVVM Toolkit setter skips equal values — capturing a local gives
+    // each delegate a new closure target, so PropertyChanged fires and the axis rebinds its labeler.
+    private Func<double, string> CreateCurveTemperatureLabelFormatter()
+    {
+        var unitFormattingService = _unitFormattingService;
+        return value => unitFormattingService.FormatTemperatureAxisLabel(value);
+    }
 }

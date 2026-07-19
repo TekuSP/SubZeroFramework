@@ -118,12 +118,18 @@ public partial class SettingsStartupSectionModel : ObservableObject
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
+    [NotifyPropertyChangedFor(nameof(UnsavedChangesVisibility))]
+    [NotifyPropertyChangedFor(nameof(SavedVisibility))]
     public partial bool HasUnsavedChanges { get; set; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
     [NotifyCanExecuteChangedFor(nameof(CancelCommand))]
     public partial bool IsSaving { get; set; }
+
+    public Visibility UnsavedChangesVisibility => HasUnsavedChanges ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility SavedVisibility => HasUnsavedChanges ? Visibility.Collapsed : Visibility.Visible;
 
     partial void OnStartWithSystemBootChanged(bool value) => OnStagedEditChanged();
 

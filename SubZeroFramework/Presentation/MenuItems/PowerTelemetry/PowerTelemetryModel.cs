@@ -95,16 +95,22 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
     public ObservableCollection<PowerDeliveryPortViewModel> Ports { get; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasPorts))]
-    [NotifyPropertyChangedFor(nameof(PortsVisibility))]
-    [NotifyPropertyChangedFor(nameof(EmptyVisibility))]
-    public partial int PortsRevision { get; private set; }
+    public partial bool HasPorts { get; private set; }
 
-    public bool HasPorts => Ports.Count > 0;
+    [ObservableProperty]
+    public partial Visibility PortsVisibility { get; private set; } = Visibility.Collapsed;
 
-    public Visibility PortsVisibility => HasPorts ? Visibility.Visible : Visibility.Collapsed;
+    [ObservableProperty]
+    public partial Visibility EmptyVisibility { get; private set; } = Visibility.Visible;
 
-    public Visibility EmptyVisibility => HasPorts ? Visibility.Collapsed : Visibility.Visible;
+    /// <summary>Re-projects the stored port-list state after the ports collection is reconciled. Assignment
+    /// raises PropertyChanged only for values that actually changed.</summary>
+    private void RefreshPortsState()
+    {
+        HasPorts = Ports.Count > 0;
+        PortsVisibility = HasPorts ? Visibility.Visible : Visibility.Collapsed;
+        EmptyVisibility = HasPorts ? Visibility.Collapsed : Visibility.Visible;
+    }
 
     // ----- Trends (last 5 min sparklines) -----
 
@@ -202,57 +208,22 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
 
     // ----- Power-flow hero + battery overview (recomputed from the active PD port + battery snapshot) -----
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(BatterySectionVisibility))]
-    [NotifyPropertyChangedFor(nameof(AdapterInputDisplay))]
-    [NotifyPropertyChangedFor(nameof(AdapterDetailDisplay))]
-    [NotifyPropertyChangedFor(nameof(SystemDrawDisplay))]
-    [NotifyPropertyChangedFor(nameof(SystemDrawCaption))]
-    [NotifyPropertyChangedFor(nameof(BatteryPowerDisplay))]
-    [NotifyPropertyChangedFor(nameof(BatteryPowerBrush))]
-    [NotifyPropertyChangedFor(nameof(ChargePercentDisplay))]
-    [NotifyPropertyChangedFor(nameof(ChargePercentNumberDisplay))]
-    [NotifyPropertyChangedFor(nameof(ChargeFraction))]
-    [NotifyPropertyChangedFor(nameof(BatteryStateDisplay))]
-    [NotifyPropertyChangedFor(nameof(BatteryStateBrush))]
-    [NotifyPropertyChangedFor(nameof(BatteryStatePillBackground))]
-    [NotifyPropertyChangedFor(nameof(IsBatteryAnimating))]
-    [NotifyPropertyChangedFor(nameof(IsBatteryDischarging))]
-    [NotifyPropertyChangedFor(nameof(BatteryStateIconKind))]
-    [NotifyPropertyChangedFor(nameof(AdapterArrowsActive))]
-    [NotifyPropertyChangedFor(nameof(BatteryArrowsReversed))]
-    [NotifyPropertyChangedFor(nameof(BatteryArrowsAccent))]
-    [NotifyPropertyChangedFor(nameof(SourceDisplay))]
-    [NotifyPropertyChangedFor(nameof(VoltageDisplay))]
-    [NotifyPropertyChangedFor(nameof(CurrentDisplay))]
-    [NotifyPropertyChangedFor(nameof(CurrentBrush))]
-    [NotifyPropertyChangedFor(nameof(BatterySummaryDisplay))]
-    [NotifyPropertyChangedFor(nameof(HealthyDisplay))]
-    [NotifyPropertyChangedFor(nameof(DesignCapacityDisplay))]
-    [NotifyPropertyChangedFor(nameof(LastFullCapacityDisplay))]
-    [NotifyPropertyChangedFor(nameof(RemainingCapacityDisplay))]
-    [NotifyPropertyChangedFor(nameof(WearDisplay))]
-    [NotifyPropertyChangedFor(nameof(CycleCountDisplay))]
-    [NotifyPropertyChangedFor(nameof(ChemistryDisplay))]
-    [NotifyPropertyChangedFor(nameof(ManufacturerDisplay))]
-    [NotifyPropertyChangedFor(nameof(ModelDisplay))]
-    [NotifyPropertyChangedFor(nameof(WearFraction))]
-    [NotifyPropertyChangedFor(nameof(WearBarCaption))]
-    public partial int FlowRevision { get; private set; }
-
     public bool HasBattery => _battery is { IsAvailable: true };
 
-    public Visibility BatterySectionVisibility => HasBattery ? Visibility.Visible : Visibility.Collapsed;
+    [ObservableProperty]
+    public partial Visibility BatterySectionVisibility { get; private set; } = Visibility.Collapsed;
 
     private bool HasAdapter => _activePort is { HasContract: true };
 
     private double AdapterInputWatts => HasAdapter ? _activePort!.VoltageVolts * _activePort.CurrentAmperes : 0d;
 
     /// <summary>Adapter→system arrows pulse only while an adapter is attached; static and dim when on battery.</summary>
-    public bool AdapterArrowsActive => HasAdapter;
+    [ObservableProperty]
+    public partial bool AdapterArrowsActive { get; private set; }
 
     /// <summary>Reverse the system↔battery arrows to point battery→system while discharging (draining the pack).</summary>
-    public bool BatteryArrowsReversed => _battery?.BatteryState == FrameworkBatteryState.Discharging;
+    [ObservableProperty]
+    public partial bool BatteryArrowsReversed { get; private set; }
 
     /// <summary>Green flowing into the battery while charging, amber while draining, muted grey when idle / full.</summary>
     public Brush BatteryArrowsAccent => _battery?.BatteryState switch
@@ -281,30 +252,26 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
         }
     }
 
-    public string AdapterInputDisplay => HasAdapter ? FormatWatts(AdapterInputWatts) : "—";
+    [ObservableProperty]
+    public partial string AdapterInputDisplay { get; private set; } = "—";
 
-    public string AdapterDetailDisplay => HasAdapter
-        ? $"{_unitFormattingService.FormatVoltage(_activePort!.VoltageVolts)} · {_unitFormattingService.FormatCurrent(_activePort.CurrentAmperes)} · USB-C {_activePort.SlotIndex + 1}"
-        : "No adapter attached";
+    [ObservableProperty]
+    public partial string AdapterDetailDisplay { get; private set; } = "No adapter attached";
 
-    public string SystemDrawDisplay => $"≈{FormatWatts(AdapterInputWatts - SignedBatteryWatts)}";
+    [ObservableProperty]
+    public partial string SystemDrawDisplay { get; private set; } = string.Empty;
 
     public string SystemDrawCaption => "input − battery charge power";
 
-    public string BatteryPowerDisplay
-    {
-        get
-        {
-            var watts = SignedBatteryWatts;
-            var rounded = Math.Round(watts);
-            if (rounded > 0d)
-            {
-                return $"+{FormatWatts(rounded)}";
-            }
+    [ObservableProperty]
+    public partial string BatteryPowerDisplay { get; private set; } = string.Empty;
 
-            return rounded < 0d ? $"−{FormatWatts(Math.Abs(rounded))}" : FormatWatts(0d);
-        }
-    }
+    /// <summary>Direction of the battery power flow (+1 charging, −1 draining, 0 idle). Stored so the UI-affine
+    /// brush getters deriving from it re-raise exactly when the flow direction changes.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BatteryPowerBrush))]
+    [NotifyPropertyChangedFor(nameof(CurrentBrush))]
+    private partial int BatteryPowerSign { get; set; }
 
     public Brush BatteryPowerBrush => SignedBatteryWatts switch
     {
@@ -313,27 +280,23 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
         _ => AppThemeBrushes.Get("TextPrimaryBrush", AppThemeBrushes.TextPrimaryColor),
     };
 
-    public string ChargePercentDisplay => _battery is null
-        ? "--"
-        : _unitFormattingService.FormatRatio(_battery.ChargePercent, decimals: 0);
+    [ObservableProperty]
+    public partial string ChargePercentDisplay { get; private set; } = "--";
 
     /// <summary>Charge percent as a bare number (no unit) for the ring centre, where "%" is rendered smaller.</summary>
-    public string ChargePercentNumberDisplay => _battery?.ChargePercent is double percent
-        ? ((int)Math.Round(percent)).ToString(System.Globalization.CultureInfo.InvariantCulture)
-        : "--";
+    [ObservableProperty]
+    public partial string ChargePercentNumberDisplay { get; private set; } = "--";
 
-    public double ChargeFraction => Math.Clamp((_battery?.ChargePercent ?? 0d) / 100d, 0d, 1d);
+    [ObservableProperty]
+    public partial double ChargeFraction { get; private set; }
 
-    public string BatteryStateDisplay => _battery?.BatteryState switch
-    {
-        FrameworkBatteryState.Charging => "Charging",
-        FrameworkBatteryState.Discharging => "Discharging",
-        FrameworkBatteryState.Idle => "Idle",
-        FrameworkBatteryState.Critical => "Critical",
-        FrameworkBatteryState.ChargingAndDischarging => "Charging / discharging",
-        FrameworkBatteryState.NotPresent => "Not present",
-        _ => "Unknown",
-    };
+    /// <summary>Battery state as display text. Each state maps to a distinct string, so the UI-affine brush
+    /// getters deriving from the state re-raise off this stored property exactly when the state changes.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(BatteryStateBrush))]
+    [NotifyPropertyChangedFor(nameof(BatteryStatePillBackground))]
+    [NotifyPropertyChangedFor(nameof(BatteryArrowsAccent))]
+    public partial string BatteryStateDisplay { get; private set; } = "Unknown";
 
     public Brush BatteryStateBrush => _battery?.BatteryState switch
     {
@@ -360,52 +323,30 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
     }
 
     /// <summary>Drives the ring's flowing dash overlay — animated only while charging or discharging.</summary>
-    public bool IsBatteryAnimating => _battery?.BatteryState is FrameworkBatteryState.Charging or FrameworkBatteryState.Discharging;
+    [ObservableProperty]
+    public partial bool IsBatteryAnimating { get; private set; }
 
     /// <summary>Reverses the ring dash flow when discharging.</summary>
-    public bool IsBatteryDischarging => _battery?.BatteryState == FrameworkBatteryState.Discharging;
+    [ObservableProperty]
+    public partial bool IsBatteryDischarging { get; private set; }
 
     /// <summary>Glyph for the battery state pill — a bolt while charging.</summary>
-    public MaterialIconKind BatteryStateIconKind => _battery?.BatteryState switch
-    {
-        FrameworkBatteryState.Charging => MaterialIconKind.Flash,
-        _ => MaterialIconKind.Battery,
-    };
+    [ObservableProperty]
+    public partial MaterialIconKind BatteryStateIconKind { get; private set; } = MaterialIconKind.Battery;
 
-    public string SourceDisplay => _battery?.PowerSourceState switch
-    {
-        FrameworkPowerSourceState.AcOnly => "AC",
-        FrameworkPowerSourceState.BatteryOnly => "Battery",
-        FrameworkPowerSourceState.AcAndBattery => "AC + battery",
-        _ => "Unknown",
-    };
+    [ObservableProperty]
+    public partial string SourceDisplay { get; private set; } = "Unknown";
 
-    public string VoltageDisplay => _unitFormattingService.FormatVoltage(_battery?.Voltage);
+    [ObservableProperty]
+    public partial string VoltageDisplay { get; private set; } = string.Empty;
 
-    public string CurrentDisplay
-    {
-        get
-        {
-            if (_battery?.Amperage is not double amps)
-            {
-                return _unitFormattingService.FormatCurrent(null);
-            }
-
-            var formatted = _unitFormattingService.FormatCurrent(Math.Abs(amps));
-            return _battery.BatteryState switch
-            {
-                FrameworkBatteryState.Charging => $"+{formatted}",
-                FrameworkBatteryState.Discharging => $"−{formatted}",
-                _ => formatted,
-            };
-        }
-    }
+    [ObservableProperty]
+    public partial string CurrentDisplay { get; private set; } = string.Empty;
 
     public Brush CurrentBrush => BatteryPowerBrush;
 
-    public string BatterySummaryDisplay => HasBattery
-        ? $"{ChargePercentDisplay} · {BatteryStateDisplay.ToLowerInvariant()}"
-        : "No battery";
+    [ObservableProperty]
+    public partial string BatterySummaryDisplay { get; private set; } = "No battery";
 
     // ----- Health & capacity (energy in Wh = capacity Ah × nominal voltage) -----
 
@@ -423,33 +364,141 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
             ? Math.Clamp(lastFull / design, 0d, 1d)
             : null;
 
-    public string DesignCapacityDisplay => FormatWattHours(DesignWattHours);
+    [ObservableProperty]
+    public partial string DesignCapacityDisplay { get; private set; } = "--";
 
-    public string LastFullCapacityDisplay => FormatWattHours(LastFullWattHours);
+    [ObservableProperty]
+    public partial string LastFullCapacityDisplay { get; private set; } = "--";
 
-    public string RemainingCapacityDisplay => FormatWattHours(RemainingWattHours);
+    [ObservableProperty]
+    public partial string RemainingCapacityDisplay { get; private set; } = "--";
 
-    public string HealthyDisplay => HealthFraction is double fraction ? $"{fraction * 100d:0.0}% healthy" : "—";
+    [ObservableProperty]
+    public partial string HealthyDisplay { get; private set; } = "—";
 
-    public string WearDisplay => HealthFraction is double fraction ? $"{(1d - fraction) * 100d:0.0}%" : "--";
+    [ObservableProperty]
+    public partial string WearDisplay { get; private set; } = "--";
 
-    public double WearFraction => HealthFraction ?? 0d;
+    [ObservableProperty]
+    public partial double WearFraction { get; private set; }
 
-    public string WearBarCaption => DesignWattHours is double design && LastFullWattHours is double lastFull
-        ? $"last-full {lastFull:0.0} Wh of {design:0.0} Wh design"
-        : "Wear data unavailable";
+    [ObservableProperty]
+    public partial string WearBarCaption { get; private set; } = "Wear data unavailable";
 
-    public string CycleCountDisplay => _battery?.CycleCount is uint cycles ? cycles.ToString() : "--";
+    [ObservableProperty]
+    public partial string CycleCountDisplay { get; private set; } = "--";
 
-    public string ChemistryDisplay => string.IsNullOrWhiteSpace(_battery?.BatteryType) ? "--" : _battery!.BatteryType!;
+    [ObservableProperty]
+    public partial string ChemistryDisplay { get; private set; } = "--";
 
-    public string ManufacturerDisplay => string.IsNullOrWhiteSpace(_battery?.Manufacturer) ? "--" : _battery!.Manufacturer!;
+    [ObservableProperty]
+    public partial string ManufacturerDisplay { get; private set; } = "--";
 
-    public string ModelDisplay => string.IsNullOrWhiteSpace(_battery?.ModelNumber) ? "--" : _battery!.ModelNumber!;
+    [ObservableProperty]
+    public partial string ModelDisplay { get; private set; } = "--";
 
     private string FormatWatts(double watts) => _unitFormattingService.FormatPowerWatts(Math.Round(watts), decimals: 0);
 
     private static string FormatWattHours(double? wattHours) => wattHours is double wh ? $"{wh:0.0} Wh" : "--";
+
+    /// <summary>
+    /// Recomputes and ASSIGNS the stored power-flow, battery-overview, and health projections derived from
+    /// the active PD port and the primary battery snapshot. Assignment raises PropertyChanged only for
+    /// values that actually changed; the UI-affine brush getters stay computed and re-raise via
+    /// [NotifyPropertyChangedFor] on the stored properties they derive from. Every caller is already on the
+    /// UI thread (all streams ObserveOn the UI synchronization context).
+    /// </summary>
+    private void RefreshPowerFlow()
+    {
+        BatterySectionVisibility = HasBattery ? Visibility.Visible : Visibility.Collapsed;
+
+        AdapterArrowsActive = HasAdapter;
+        BatteryArrowsReversed = _battery?.BatteryState == FrameworkBatteryState.Discharging;
+
+        AdapterInputDisplay = HasAdapter ? FormatWatts(AdapterInputWatts) : "—";
+        AdapterDetailDisplay = HasAdapter
+            ? $"{_unitFormattingService.FormatVoltage(_activePort!.VoltageVolts)} · {_unitFormattingService.FormatCurrent(_activePort.CurrentAmperes)} · USB-C {_activePort.SlotIndex + 1}"
+            : "No adapter attached";
+        SystemDrawDisplay = $"≈{FormatWatts(AdapterInputWatts - SignedBatteryWatts)}";
+
+        var watts = SignedBatteryWatts;
+        var rounded = Math.Round(watts);
+        BatteryPowerDisplay = rounded > 0d
+            ? $"+{FormatWatts(rounded)}"
+            : rounded < 0d ? $"−{FormatWatts(Math.Abs(rounded))}" : FormatWatts(0d);
+        BatteryPowerSign = watts > 0d ? 1 : watts < 0d ? -1 : 0;
+
+        ChargePercentDisplay = _battery is null
+            ? "--"
+            : _unitFormattingService.FormatRatio(_battery.ChargePercent, decimals: 0);
+        ChargePercentNumberDisplay = _battery?.ChargePercent is double percent
+            ? ((int)Math.Round(percent)).ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : "--";
+        ChargeFraction = Math.Clamp((_battery?.ChargePercent ?? 0d) / 100d, 0d, 1d);
+
+        BatteryStateDisplay = _battery?.BatteryState switch
+        {
+            FrameworkBatteryState.Charging => "Charging",
+            FrameworkBatteryState.Discharging => "Discharging",
+            FrameworkBatteryState.Idle => "Idle",
+            FrameworkBatteryState.Critical => "Critical",
+            FrameworkBatteryState.ChargingAndDischarging => "Charging / discharging",
+            FrameworkBatteryState.NotPresent => "Not present",
+            _ => "Unknown",
+        };
+        IsBatteryAnimating = _battery?.BatteryState is FrameworkBatteryState.Charging or FrameworkBatteryState.Discharging;
+        IsBatteryDischarging = _battery?.BatteryState == FrameworkBatteryState.Discharging;
+        BatteryStateIconKind = _battery?.BatteryState switch
+        {
+            FrameworkBatteryState.Charging => MaterialIconKind.Flash,
+            _ => MaterialIconKind.Battery,
+        };
+
+        SourceDisplay = _battery?.PowerSourceState switch
+        {
+            FrameworkPowerSourceState.AcOnly => "AC",
+            FrameworkPowerSourceState.BatteryOnly => "Battery",
+            FrameworkPowerSourceState.AcAndBattery => "AC + battery",
+            _ => "Unknown",
+        };
+
+        VoltageDisplay = _unitFormattingService.FormatVoltage(_battery?.Voltage);
+        CurrentDisplay = FormatBatteryCurrent();
+        BatterySummaryDisplay = HasBattery
+            ? $"{ChargePercentDisplay} · {BatteryStateDisplay.ToLowerInvariant()}"
+            : "No battery";
+
+        DesignCapacityDisplay = FormatWattHours(DesignWattHours);
+        LastFullCapacityDisplay = FormatWattHours(LastFullWattHours);
+        RemainingCapacityDisplay = FormatWattHours(RemainingWattHours);
+        HealthyDisplay = HealthFraction is double fraction ? $"{fraction * 100d:0.0}% healthy" : "—";
+        WearDisplay = HealthFraction is double wear ? $"{(1d - wear) * 100d:0.0}%" : "--";
+        WearFraction = HealthFraction ?? 0d;
+        WearBarCaption = DesignWattHours is double design && LastFullWattHours is double lastFull
+            ? $"last-full {lastFull:0.0} Wh of {design:0.0} Wh design"
+            : "Wear data unavailable";
+        CycleCountDisplay = _battery?.CycleCount is uint cycles ? cycles.ToString() : "--";
+        ChemistryDisplay = string.IsNullOrWhiteSpace(_battery?.BatteryType) ? "--" : _battery!.BatteryType!;
+        ManufacturerDisplay = string.IsNullOrWhiteSpace(_battery?.Manufacturer) ? "--" : _battery!.Manufacturer!;
+        ModelDisplay = string.IsNullOrWhiteSpace(_battery?.ModelNumber) ? "--" : _battery!.ModelNumber!;
+    }
+
+    /// <summary>Battery current with a +/− prefix while charging / discharging (magnitude is always absolute).</summary>
+    private string FormatBatteryCurrent()
+    {
+        if (_battery?.Amperage is not double amps)
+        {
+            return _unitFormattingService.FormatCurrent(null);
+        }
+
+        var formatted = _unitFormattingService.FormatCurrent(Math.Abs(amps));
+        return _battery.BatteryState switch
+        {
+            FrameworkBatteryState.Charging => $"+{formatted}",
+            FrameworkBatteryState.Discharging => $"−{formatted}",
+            _ => formatted,
+        };
+    }
 
     private void UpdateBatteries(IChangeSet<BatteryTelemetrySnapshot, int> set)
     {
@@ -482,7 +531,7 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
             EnsureTrendSubscriptions(_battery.BatteryIndex);
         }
 
-        FlowRevision++;
+        RefreshPowerFlow();
     }
 
     private void EnsureTrendSubscriptions(int batteryIndex)
@@ -620,8 +669,8 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
         _activePort = ports.FirstOrDefault(static p => p.IsActivePort && p.HasContract)
             ?? ports.FirstOrDefault(static p => p.IsActivePort);
 
-        PortsRevision++;
-        FlowRevision++;
+        RefreshPortsState();
+        RefreshPowerFlow();
     }
 
     // Orders ports so the 2-column grid mirrors the chassis: left ports in the left column, right ports in the

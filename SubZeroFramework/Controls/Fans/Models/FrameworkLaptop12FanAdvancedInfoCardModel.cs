@@ -11,6 +11,7 @@ public partial class FrameworkLaptop12FanAdvancedInfoCardModel : FanAdvancedInfo
     public FrameworkLaptop12FanAdvancedInfoCardModel(IUnitFormattingService unitFormattingService)
     {
         _unitFormattingService = unitFormattingService;
+        RefreshUnitFormatting();
     }
 
     [ObservableProperty]
@@ -23,39 +24,41 @@ public partial class FrameworkLaptop12FanAdvancedInfoCardModel : FanAdvancedInfo
     public partial string HeatPipeConfiguration { get; set; } = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FanDimensionsDisplay))]
     public partial double FanDiameterMillimeters { get; set; }
 
+    partial void OnFanDiameterMillimetersChanged(double value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FanDimensionsDisplay))]
     public partial double FanThicknessMillimeters { get; set; }
+
+    partial void OnFanThicknessMillimetersChanged(double value) => RefreshUnitFormatting();
 
     [ObservableProperty]
     public partial string ThermalInterfaceMaterial { get; set; } = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FirmwareRangeDisplay))]
     public partial int FirmwareMinimumRpm { get; set; }
 
+    partial void OnFirmwareMinimumRpmChanged(int value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FirmwareRangeDisplay))]
     public partial int FirmwareMaximumRpm { get; set; }
 
+    partial void OnFirmwareMaximumRpmChanged(int value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MaximumPhysicalLimitDisplay))]
     public partial int MaximumPhysicalLimitRpm { get; set; }
 
+    partial void OnMaximumPhysicalLimitRpmChanged(int value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FanDimensionsDisplay))]
-    [NotifyPropertyChangedFor(nameof(FirmwareRangeDisplay))]
-    [NotifyPropertyChangedFor(nameof(MaximumPhysicalLimitDisplay))]
-    private partial int UnitFormattingRevision { get; set; }
+    public partial string FanDimensionsDisplay { get; private set; } = string.Empty;
 
-    public string FanDimensionsDisplay => $"{_unitFormattingService.FormatLengthMillimeters(FanDiameterMillimeters)} diameter × {_unitFormattingService.FormatLengthMillimeters(FanThicknessMillimeters)} thickness";
+    [ObservableProperty]
+    public partial string FirmwareRangeDisplay { get; private set; } = string.Empty;
 
-    public string FirmwareRangeDisplay => $"{_unitFormattingService.FormatFanSpeedValue(FirmwareMinimumRpm)}–{_unitFormattingService.FormatFanSpeedValue(FirmwareMaximumRpm)} {_unitFormattingService.FanSpeedUnitSuffix}";
-
-    public string MaximumPhysicalLimitDisplay => _unitFormattingService.FormatFanSpeed(MaximumPhysicalLimitRpm);
+    [ObservableProperty]
+    public partial string MaximumPhysicalLimitDisplay { get; private set; } = string.Empty;
 
     public void UpdateFrom(FrameworkLaptop12CoolingDetails details)
     {
@@ -72,6 +75,8 @@ public partial class FrameworkLaptop12FanAdvancedInfoCardModel : FanAdvancedInfo
 
     public override void RefreshUnitFormatting()
     {
-        UnitFormattingRevision++;
+        FanDimensionsDisplay = $"{_unitFormattingService.FormatLengthMillimeters(FanDiameterMillimeters)} diameter × {_unitFormattingService.FormatLengthMillimeters(FanThicknessMillimeters)} thickness";
+        FirmwareRangeDisplay = $"{_unitFormattingService.FormatFanSpeedValue(FirmwareMinimumRpm)}–{_unitFormattingService.FormatFanSpeedValue(FirmwareMaximumRpm)} {_unitFormattingService.FanSpeedUnitSuffix}";
+        MaximumPhysicalLimitDisplay = _unitFormattingService.FormatFanSpeed(MaximumPhysicalLimitRpm);
     }
 }

@@ -11,6 +11,7 @@ public partial class FrameworkLaptop16FanAdvancedInfoCardModel : FanAdvancedInfo
     public FrameworkLaptop16FanAdvancedInfoCardModel(IUnitFormattingService unitFormattingService)
     {
         _unitFormattingService = unitFormattingService;
+        RefreshUnitFormatting();
     }
 
     [ObservableProperty]
@@ -20,66 +21,70 @@ public partial class FrameworkLaptop16FanAdvancedInfoCardModel : FanAdvancedInfo
     public partial string PrimaryCpuThermalInterfaceMaterial { get; set; } = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShellFanDimensionsDisplay))]
     public partial double ShellFanWidthMillimeters { get; set; }
 
+    partial void OnShellFanWidthMillimetersChanged(double value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShellFanDimensionsDisplay))]
     public partial double ShellFanHeightMillimeters { get; set; }
 
+    partial void OnShellFanHeightMillimetersChanged(double value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShellFanDimensionsDisplay))]
-    [NotifyPropertyChangedFor(nameof(ShellFanThicknessDisplay))]
     public partial double ShellFanThicknessMillimeters { get; set; }
 
+    partial void OnShellFanThicknessMillimetersChanged(double value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(GraphicsFanDimensionsDisplay))]
     public partial double GraphicsFanWidthMillimeters { get; set; }
 
+    partial void OnGraphicsFanWidthMillimetersChanged(double value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(GraphicsFanDimensionsDisplay))]
     public partial double GraphicsFanHeightMillimeters { get; set; }
 
+    partial void OnGraphicsFanHeightMillimetersChanged(double value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(GraphicsFanDimensionsDisplay))]
-    [NotifyPropertyChangedFor(nameof(GraphicsFanThicknessDisplay))]
     public partial double GraphicsFanThicknessMillimeters { get; set; }
 
+    partial void OnGraphicsFanThicknessMillimetersChanged(double value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ExpansionBayPowerLimitDisplay))]
     public partial double ExpansionBayPowerLimitWatts { get; set; }
 
+    partial void OnExpansionBayPowerLimitWattsChanged(double value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StandardFirmwareMaximumDisplay))]
     public partial int StandardFirmwareMaximumRpm { get; set; }
 
+    partial void OnStandardFirmwareMaximumRpmChanged(int value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ApproximateThermalStressMaximumDisplay))]
     public partial int ApproximateThermalStressMaximumRpm { get; set; }
 
+    partial void OnApproximateThermalStressMaximumRpmChanged(int value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShellFanDimensionsDisplay))]
-    [NotifyPropertyChangedFor(nameof(ShellFanThicknessDisplay))]
-    [NotifyPropertyChangedFor(nameof(GraphicsFanDimensionsDisplay))]
-    [NotifyPropertyChangedFor(nameof(GraphicsFanThicknessDisplay))]
-    [NotifyPropertyChangedFor(nameof(ExpansionBayPowerLimitDisplay))]
-    [NotifyPropertyChangedFor(nameof(StandardFirmwareMaximumDisplay))]
-    [NotifyPropertyChangedFor(nameof(ApproximateThermalStressMaximumDisplay))]
-    private partial int UnitFormattingRevision { get; set; }
+    public partial string ShellFanDimensionsDisplay { get; private set; } = string.Empty;
 
-    public string ShellFanDimensionsDisplay => BuildDimensionsDisplay(ShellFanWidthMillimeters, ShellFanHeightMillimeters, ShellFanThicknessMillimeters);
+    [ObservableProperty]
+    public partial string GraphicsFanDimensionsDisplay { get; private set; } = string.Empty;
 
-    public string GraphicsFanDimensionsDisplay => BuildDimensionsDisplay(GraphicsFanWidthMillimeters, GraphicsFanHeightMillimeters, GraphicsFanThicknessMillimeters);
+    [ObservableProperty]
+    public partial string ShellFanThicknessDisplay { get; private set; } = string.Empty;
 
-    public string ShellFanThicknessDisplay => $"{_unitFormattingService.FormatLengthMillimeters(ShellFanThicknessMillimeters)} thick";
+    [ObservableProperty]
+    public partial string GraphicsFanThicknessDisplay { get; private set; } = string.Empty;
 
-    public string GraphicsFanThicknessDisplay => $"{_unitFormattingService.FormatLengthMillimeters(GraphicsFanThicknessMillimeters)} thick";
+    [ObservableProperty]
+    public partial string ExpansionBayPowerLimitDisplay { get; private set; } = string.Empty;
 
-    public string ExpansionBayPowerLimitDisplay => $"{_unitFormattingService.FormatPowerWatts(ExpansionBayPowerLimitWatts)} max";
+    [ObservableProperty]
+    public partial string StandardFirmwareMaximumDisplay { get; private set; } = string.Empty;
 
-    public string StandardFirmwareMaximumDisplay => _unitFormattingService.FormatFanSpeed(StandardFirmwareMaximumRpm);
-
-    public string ApproximateThermalStressMaximumDisplay => $"~{_unitFormattingService.FormatFanSpeed(ApproximateThermalStressMaximumRpm)}";
+    [ObservableProperty]
+    public partial string ApproximateThermalStressMaximumDisplay { get; private set; } = string.Empty;
 
     public void UpdateFrom(FrameworkLaptop16CoolingDetails details)
     {
@@ -98,7 +103,13 @@ public partial class FrameworkLaptop16FanAdvancedInfoCardModel : FanAdvancedInfo
 
     public override void RefreshUnitFormatting()
     {
-        UnitFormattingRevision++;
+        ShellFanDimensionsDisplay = BuildDimensionsDisplay(ShellFanWidthMillimeters, ShellFanHeightMillimeters, ShellFanThicknessMillimeters);
+        GraphicsFanDimensionsDisplay = BuildDimensionsDisplay(GraphicsFanWidthMillimeters, GraphicsFanHeightMillimeters, GraphicsFanThicknessMillimeters);
+        ShellFanThicknessDisplay = $"{_unitFormattingService.FormatLengthMillimeters(ShellFanThicknessMillimeters)} thick";
+        GraphicsFanThicknessDisplay = $"{_unitFormattingService.FormatLengthMillimeters(GraphicsFanThicknessMillimeters)} thick";
+        ExpansionBayPowerLimitDisplay = $"{_unitFormattingService.FormatPowerWatts(ExpansionBayPowerLimitWatts)} max";
+        StandardFirmwareMaximumDisplay = _unitFormattingService.FormatFanSpeed(StandardFirmwareMaximumRpm);
+        ApproximateThermalStressMaximumDisplay = $"~{_unitFormattingService.FormatFanSpeed(ApproximateThermalStressMaximumRpm)}";
     }
 
     private string BuildDimensionsDisplay(double widthMillimeters, double heightMillimeters, double thicknessMillimeters)

@@ -34,14 +34,14 @@ public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(MonitorManufacturer))]
     [NotifyPropertyChangedFor(nameof(DisplayManufactured))]
     [NotifyPropertyChangedFor(nameof(DisplayCurrentResolution))]
-    [NotifyPropertyChangedFor(nameof(DisplayCurrentRefreshRate))]
     [NotifyPropertyChangedFor(nameof(LinkedVideoControllersDisplay))]
     [NotifyPropertyChangedFor(nameof(Description))]
     [NotifyPropertyChangedFor(nameof(StatusBrush))]
     [NotifyPropertyChangedFor(nameof(ResolutionBadge))]
     [NotifyPropertyChangedFor(nameof(ManufacturedDisplay))]
-    [NotifyPropertyChangedFor(nameof(PickerSubtitle))]
     public partial HardwareInfoMonitor Snapshot { get; set; } = default!;
+
+    partial void OnSnapshotChanged(HardwareInfoMonitor value) => RefreshUnitFormatting();
 
     public string MonitorLabel => $"Monitor {Index}";
 
@@ -65,9 +65,9 @@ public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
 
     public string DisplayCurrentResolution => Snapshot.DisplayCurrentResolution;
 
-    public string DisplayCurrentRefreshRate => Snapshot.CurrentRefreshRate > 0
-        ? _unitFormattingService.FormatRefreshRateHertz(Snapshot.CurrentRefreshRate)
-        : "Unknown";
+    /// <summary>Formatted current refresh rate. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    [ObservableProperty]
+    public partial string DisplayCurrentRefreshRate { get; private set; } = string.Empty;
 
     public string LinkedVideoControllersDisplay => Snapshot.DisplayLinkedVideoControllerSummary;
 
@@ -88,30 +88,30 @@ public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
             ? $"{Snapshot.YearOfManufacture} · week {Snapshot.WeekOfManufacture}"
             : Snapshot.YearOfManufacture.ToString();
 
-    /// <summary>Second picker line: current mode ("2,560 x 1,600 · 165 Hz"), falling back to the manufacturer.</summary>
-    public string PickerSubtitle
-    {
-        get
-        {
-            var resolution = DisplayCurrentResolution;
-            if (resolution == "Unknown")
-            {
-                return DisplayManufacturer;
-            }
-
-            var refreshRate = DisplayCurrentRefreshRate;
-            return refreshRate == "Unknown" ? resolution : $"{resolution} · {refreshRate}";
-        }
-    }
-
+    /// <summary>Second picker line: current mode ("2,560 x 1,600 · 165 Hz"), falling back to the manufacturer. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DisplayCurrentRefreshRate))]
-    [NotifyPropertyChangedFor(nameof(PickerSubtitle))]
-    private partial int UnitFormattingRevision { get; set; }
+    public partial string PickerSubtitle { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// Recomputes and ASSIGNS the stored unit-formatted projections so PropertyChanged is raised only for
+    /// values that actually changed. Called when the snapshot updates and when the display units change.
+    /// </summary>
     public void RefreshUnitFormatting()
     {
-        UnitFormattingRevision++;
+        DisplayCurrentRefreshRate = Snapshot.CurrentRefreshRate > 0
+            ? _unitFormattingService.FormatRefreshRateHertz(Snapshot.CurrentRefreshRate)
+            : "Unknown";
+
+        var resolution = DisplayCurrentResolution;
+        if (resolution == "Unknown")
+        {
+            PickerSubtitle = DisplayManufacturer;
+        }
+        else
+        {
+            var refreshRate = DisplayCurrentRefreshRate;
+            PickerSubtitle = refreshRate == "Unknown" ? resolution : $"{resolution} · {refreshRate}";
+        }
     }
 
     private string? FirstNonEmpty(params string?[] values)

@@ -438,8 +438,8 @@
                                             <lvc:XamlAxis
                                                 Labeler="{x:Bind ViewModel.ThermalLabelFormatter, Mode=OneWay}"
                                                 LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSubtleAxisLabelColor}}"
-                                                MaxLimit="100"
-                                                MinLimit="0"
+                                                MaxLimit="{x:Bind ViewModel.ThermalHistoryYAxisMaxLimit, Mode=OneWay}"
+                                                MinLimit="{x:Bind ViewModel.ThermalHistoryYAxisMinLimit, Mode=OneWay}"
                                                 SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                                                 ShowSeparatorLines="True"
                                                 TextSize="12" />

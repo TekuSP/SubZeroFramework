@@ -1,9 +1,10 @@
-﻿<UserControl
+<UserControl
     x:Class="SubZeroFramework.Presentation.MenuItems.Settings.Sections.SettingsUnitsSectionView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controlsSettings="using:SubZeroFramework.Controls.Settings"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:SubZeroFramework.Controls.Settings.Models"
     mc:Ignorable="d">
@@ -17,51 +18,135 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel
-            Padding="24,4,24,24"
-            HorizontalAlignment="Stretch"
-            Spacing="10">
+    <!--  Scrollable body + sticky Save/Cancel action bar pinned at the section's bottom (fan-curve pattern).  -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
 
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel
+                Padding="24,4,24,24"
+                HorizontalAlignment="Stretch"
+                Spacing="10">
+
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Spacing="4">
+                        <TextBlock
+                            FontSize="22"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="Display units" />
+                        <TextBlock
+                            FontSize="13"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Powered by UnitsNet. Pick your units, then Save to apply them across every page." />
+                    </StackPanel>
+                    <Button
+                        Grid.Column="1"
+                        Height="34"
+                        Padding="14,0"
+                        VerticalAlignment="Center"
+                        Background="Transparent"
+                        BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                        BorderThickness="1"
+                        Command="{x:Bind ViewModel.ResetToDefaultsCommand, Mode=OneWay}"
+                        Content="Reset to defaults"
+                        CornerRadius="17"
+                        FontSize="12.5"
+                        Foreground="{StaticResource TextSecondaryBrush}" />
+                </Grid>
+
+                <TextBlock
+                    FontSize="12.5"
+                    Foreground="{StaticResource StatusWarningBrush}"
+                    Text="{x:Bind ViewModel.UnitsStatusMessage, Mode=OneWay}"
+                    TextWrapping="WrapWholeWords"
+                    Visibility="{x:Bind ViewModel.UnitsStatusVisibility, Mode=OneWay}" />
+
+                <ItemsControl ItemTemplate="{StaticResource UnitRowTemplate}" ItemsSource="{x:Bind ViewModel.UnitRows, Mode=OneWay}" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!--  Sticky action bar: dirty/clean status on the left, Cancel + Save pinned bottom-right.  -->
+        <Border
+            Grid.Row="1"
+            Padding="24,12"
+            Background="{StaticResource CardBackgroundBrush}"
+            BorderBrush="{StaticResource SurfaceOutlineBrush}"
+            BorderThickness="0,1,0,0">
             <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <StackPanel Spacing="4">
+
+                <StackPanel
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="7"
+                    Visibility="{x:Bind ViewModel.SavedVisibility, Mode=OneWay}">
+                    <material:MaterialIcon
+                        Width="15"
+                        Height="15"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource StatusSuccessBrush}"
+                        Kind="CheckCircleOutline" />
                     <TextBlock
-                        FontSize="22"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource TextPrimaryBrush}"
-                        Text="Display units" />
-                    <TextBlock
+                        VerticalAlignment="Center"
                         FontSize="13"
                         Foreground="{StaticResource TextSecondaryBrush}"
-                        Text="Powered by UnitsNet. Changes apply live across every page and are saved on this device." />
+                        Text="All units saved." />
                 </StackPanel>
-                <Button
-                    Grid.Column="1"
-                    Height="34"
-                    Padding="14,0"
+
+                <StackPanel
                     VerticalAlignment="Center"
-                    Background="Transparent"
-                    BorderBrush="{StaticResource SurfaceOutlineBrush}"
-                    BorderThickness="1"
-                    Command="{x:Bind ViewModel.ResetUnitsCommand, Mode=OneWay}"
-                    Content="Reset to defaults"
-                    CornerRadius="17"
-                    FontSize="12.5"
-                    Foreground="{StaticResource TextSecondaryBrush}" />
+                    Orientation="Horizontal"
+                    Spacing="7"
+                    Visibility="{x:Bind ViewModel.UnsavedChangesVisibility, Mode=OneWay}">
+                    <material:MaterialIcon
+                        Width="15"
+                        Height="15"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource BrandPrimaryBrush}"
+                        Kind="CircleEditOutline" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="13"
+                        Foreground="{StaticResource BrandPrimaryBrush}"
+                        Text="Unsaved changes" />
+                </StackPanel>
+
+                <StackPanel
+                    Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="10">
+                    <Button
+                        MinHeight="38"
+                        Padding="18,0"
+                        Background="Transparent"
+                        BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                        BorderThickness="1"
+                        Command="{x:Bind ViewModel.CancelCommand, Mode=OneWay}"
+                        Content="Cancel"
+                        CornerRadius="8"
+                        Foreground="{StaticResource TextSecondaryBrush}" />
+                    <Button
+                        MinHeight="38"
+                        Padding="18,0"
+                        Background="{StaticResource BrandPrimaryBrush}"
+                        BorderThickness="0"
+                        Command="{x:Bind ViewModel.SaveCommand, Mode=OneWay}"
+                        Content="Save"
+                        CornerRadius="8"
+                        Foreground="{StaticResource TextPrimaryBrush}" />
+                </StackPanel>
             </Grid>
-
-            <TextBlock
-                FontSize="12.5"
-                Foreground="{StaticResource StatusWarningBrush}"
-                Text="{x:Bind ViewModel.UnitsStatusMessage, Mode=OneWay}"
-                TextWrapping="WrapWholeWords"
-                Visibility="{x:Bind ViewModel.UnitsStatusVisibility, Mode=OneWay}" />
-
-            <ItemsControl ItemTemplate="{StaticResource UnitRowTemplate}" ItemsSource="{x:Bind ViewModel.UnitRows, Mode=OneWay}" />
-        </StackPanel>
-    </ScrollViewer>
+        </Border>
+    </Grid>
 </UserControl>

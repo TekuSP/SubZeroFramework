@@ -23,12 +23,13 @@ public partial class DeviceCapabilitiesNetworkAdapterCardModel : ObservableObjec
         nameof(ProductDisplay),
         nameof(AdapterTypeDisplay),
         nameof(ManufacturerDisplay),
-        nameof(SpeedDisplay),
         nameof(SpeedBrush),
         nameof(MacAddressDisplay),
         nameof(IpAddressesDisplay),
         nameof(DefaultGatewaysDisplay))]
     public partial HardwareInfoNetworkAdapter Snapshot { get; set; } = default!;
+
+    partial void OnSnapshotChanged(HardwareInfoNetworkAdapter value) => RefreshUnitFormatting();
 
     public string Title => FirstNonEmpty(Snapshot.NetConnectionId, Snapshot.Name, Snapshot.ProductName, Snapshot.Caption)
         ?? "Network Adapter";
@@ -126,9 +127,9 @@ public partial class DeviceCapabilitiesNetworkAdapterCardModel : ObservableObjec
 
     public string ManufacturerDisplay => FirstNonEmpty(Snapshot.Manufacturer) ?? "Unknown";
 
-    public string SpeedDisplay => Snapshot.HasKnownSpeed
-        ? _unitFormattingService.FormatBitRateBitsPerSecond(Snapshot.Speed)
-        : "Unknown";
+    /// <summary>Formatted link speed. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    [ObservableProperty]
+    public partial string SpeedDisplay { get; private set; } = string.Empty;
 
     /// <summary>Mockup state colour: green when the link reports a speed.</summary>
     public Brush SpeedBrush => Snapshot.HasKnownSpeed
@@ -141,13 +142,15 @@ public partial class DeviceCapabilitiesNetworkAdapterCardModel : ObservableObjec
 
     public string DefaultGatewaysDisplay => Snapshot.DisplayDefaultGateways;
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SpeedDisplay))]
-    private partial int UnitFormattingRevision { get; set; }
-
+    /// <summary>
+    /// Recomputes and ASSIGNS the stored unit-formatted projections so PropertyChanged is raised only for
+    /// values that actually changed. Called when the snapshot updates and when the display units change.
+    /// </summary>
     public void RefreshUnitFormatting()
     {
-        UnitFormattingRevision++;
+        SpeedDisplay = Snapshot.HasKnownSpeed
+            ? _unitFormattingService.FormatBitRateBitsPerSecond(Snapshot.Speed)
+            : "Unknown";
     }
 
     /// <summary>True for VPN/TAP/tunnel adapters, whose virtual link speed shouldn't win "Fastest link".</summary>

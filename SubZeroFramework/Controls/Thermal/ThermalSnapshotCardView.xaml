@@ -148,8 +148,8 @@
                         <lvc:XamlAxis
                             Padding="{lvc:Padding Value='0,0'}"
                             LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartPrimaryColor}}"
-                            MaxLimit="100"
-                            MinLimit="0"
+                            MaxLimit="{x:Bind ViewModel.TemperatureAxisMaxLimit, Mode=OneWay}"
+                            MinLimit="{x:Bind ViewModel.TemperatureAxisMinLimit, Mode=OneWay}"
                             SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                             ShowSeparatorLines="True"
                             TextSize="8" />

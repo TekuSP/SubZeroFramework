@@ -274,7 +274,7 @@
                                 Background="Transparent"
                                 BorderBrush="{StaticResource BrandPrimaryBrush}"
                                 BorderThickness="1"
-                                Command="{x:Bind ViewModel.LinkSection.LinkAllFansCommand}"
+                                Command="{x:Bind ViewModel.LinkSection.LinkAllFansCommand, Mode=OneWay}"
                                 CornerRadius="8"
                                 Visibility="{x:Bind ViewModel.LinkSection.LinkAllVisibility, Mode=OneWay}">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
@@ -296,7 +296,7 @@
                                 Background="Transparent"
                                 BorderBrush="{StaticResource BrandPrimaryBrush}"
                                 BorderThickness="1"
-                                Command="{x:Bind ViewModel.LinkSection.OnlyThisFanCommand}"
+                                Command="{x:Bind ViewModel.LinkSection.OnlyThisFanCommand, Mode=OneWay}"
                                 CornerRadius="8"
                                 Visibility="{x:Bind ViewModel.LinkSection.OnlyThisVisibility, Mode=OneWay}">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
@@ -426,7 +426,7 @@
                             FontWeight="SemiBold"
                             Foreground="{StaticResource TextPrimaryBrush}"
                             Text="0 RPM · no rotation detected" />
-                        <Button HorizontalAlignment="Center" Command="{x:Bind ViewModel.RecheckFanCommand}">
+                        <Button HorizontalAlignment="Center" Command="{x:Bind ViewModel.RecheckFanCommand, Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="7">
                                 <material:MaterialIcon
                                     Width="16"

@@ -17,9 +17,7 @@ public partial class DeviceCapabilitiesMemoryModuleCardModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(BankLabel))]
-    [NotifyPropertyChangedFor(nameof(DisplayCapacity))]
     [NotifyPropertyChangedFor(nameof(MemoryType))]
-    [NotifyPropertyChangedFor(nameof(DisplaySpeed))]
     [NotifyPropertyChangedFor(nameof(DisplayDataWidth))]
     [NotifyPropertyChangedFor(nameof(Manufacturer))]
     [NotifyPropertyChangedFor(nameof(FormFactor))]
@@ -29,15 +27,15 @@ public partial class DeviceCapabilitiesMemoryModuleCardModel : ObservableObject
 
     public string BankLabel => FirstNonEmpty(Snapshot.BankLabel) ?? "Unknown";
 
-    public string DisplayCapacity => Snapshot.CapacityBytes == 0
-        ? "Unknown"
-        : _unitFormattingService.FormatInformationBytes(Snapshot.CapacityBytes);
+    /// <summary>Formatted module capacity. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    [ObservableProperty]
+    public partial string DisplayCapacity { get; private set; } = "Unknown";
 
     public string MemoryType => FirstNonEmpty(Snapshot.MemoryType) ?? "Unknown";
 
-    public string DisplaySpeed => Snapshot.SpeedMHz > 0
-        ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.SpeedMHz)
-        : "Unknown";
+    /// <summary>Formatted module speed. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    [ObservableProperty]
+    public partial string DisplaySpeed { get; private set; } = "Unknown";
 
     public string DisplayDataWidth => Snapshot.DisplayDataWidth;
 
@@ -49,14 +47,21 @@ public partial class DeviceCapabilitiesMemoryModuleCardModel : ObservableObject
 
     public string SerialNumber => FirstNonEmpty(Snapshot.SerialNumber) ?? "Unknown";
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DisplayCapacity))]
-    [NotifyPropertyChangedFor(nameof(DisplaySpeed))]
-    private partial int UnitFormattingRevision { get; set; }
+    partial void OnSnapshotChanged(HardwareInfoMemoryModule value)
+    {
+        RefreshUnitFormatting();
+    }
 
+    /// <summary>Recomputes and assigns the unit-formatted projections; assignment raises PropertyChanged only for values that actually changed.</summary>
     public void RefreshUnitFormatting()
     {
-        UnitFormattingRevision++;
+        DisplayCapacity = Snapshot.CapacityBytes == 0
+            ? "Unknown"
+            : _unitFormattingService.FormatInformationBytes(Snapshot.CapacityBytes);
+
+        DisplaySpeed = Snapshot.SpeedMHz > 0
+            ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.SpeedMHz)
+            : "Unknown";
     }
 
     private string? FirstNonEmpty(params string?[] values)

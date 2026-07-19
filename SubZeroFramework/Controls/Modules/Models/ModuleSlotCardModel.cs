@@ -27,6 +27,7 @@ public partial class ModuleSlotCardModel : ObservableObject
         SlotIndex = slotIndex;
         IsUnreported = isUnreported;
         _displayNumber = slotIndex + 1;
+        SlotNumberDisplay = _displayNumber.ToString();
         Rebuild();
     }
 
@@ -38,7 +39,8 @@ public partial class ModuleSlotCardModel : ObservableObject
 
     /// <summary>The physical slot number shown on the card (left column 1..3 back→front, right 4..6),
     /// assigned by the page model after the chassis-side split — distinct from the EC index.</summary>
-    public string SlotNumberDisplay => _displayNumber.ToString();
+    [ObservableProperty]
+    public partial string SlotNumberDisplay { get; private set; }
 
     public void SetDisplayNumber(int displayNumber)
     {
@@ -48,16 +50,22 @@ public partial class ModuleSlotCardModel : ObservableObject
         }
 
         _displayNumber = displayNumber;
+        SlotNumberDisplay = displayNumber.ToString();
         Rebuild();
-        Revision++;
     }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CardBorderBrush))]
     public partial bool IsSelected { get; set; }
 
-    /// <summary>The latest inventory descriptor for this slot; null until reported.</summary>
-    public ModuleDescriptorStatus? Descriptor { get; private set; }
+    /// <summary>The latest inventory descriptor for this slot; null until reported. Assigning it re-raises
+    /// the descriptor-derived displays; Hero is rebuilt and reassigned separately.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEmpty))]
+    [NotifyPropertyChangedFor(nameof(Name))]
+    [NotifyPropertyChangedFor(nameof(IconKind))]
+    [NotifyPropertyChangedFor(nameof(ContentOpacity))]
+    public partial ModuleDescriptorStatus? Descriptor { get; private set; }
 
     /// <summary>The joined PD port state for this slot; null until reported.</summary>
     public PowerDeliveryPortStatus? PdPort { get; private set; }
@@ -65,15 +73,6 @@ public partial class ModuleSlotCardModel : ObservableObject
     /// <summary>Whether the slot sits on the left side of the chassis (from the PD port capability;
     /// FW16 fallback: EC ports 2 &amp; 3 are left).</summary>
     public bool IsLeftSide => PdPort?.PortIsLeft ?? SlotIndex is 2 or 3;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsEmpty))]
-    [NotifyPropertyChangedFor(nameof(Name))]
-    [NotifyPropertyChangedFor(nameof(IconKind))]
-    [NotifyPropertyChangedFor(nameof(ContentOpacity))]
-    [NotifyPropertyChangedFor(nameof(SlotNumberDisplay))]
-    [NotifyPropertyChangedFor(nameof(Hero))]
-    private partial int Revision { get; set; }
 
     public bool IsEmpty => Descriptor is not { IsPresent: true };
 
@@ -99,14 +98,14 @@ public partial class ModuleSlotCardModel : ObservableObject
         : AppThemeBrushes.Get("SurfaceOutlineBrush", AppThemeBrushes.TextPrimaryColor);
 
     /// <summary>The selected-module hero for this slot; rebuilt (and swapped whole) on every update.</summary>
-    public ModuleHeroModel Hero { get; private set; } = null!;
+    [ObservableProperty]
+    public partial ModuleHeroModel Hero { get; private set; } = null!;
 
     public void Update(ModuleDescriptorStatus? descriptor, PowerDeliveryPortStatus? pdPort)
     {
         Descriptor = descriptor;
         PdPort = pdPort;
         Rebuild();
-        Revision++;
     }
 
     private void Rebuild()

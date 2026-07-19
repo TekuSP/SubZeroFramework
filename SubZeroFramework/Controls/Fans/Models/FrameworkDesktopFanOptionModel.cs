@@ -22,64 +22,71 @@ public partial class FrameworkDesktopFanOptionModel : ObservableObject
     public FrameworkDesktopFanOptionModel(IUnitFormattingService unitFormattingService)
     {
         _unitFormattingService = unitFormattingService;
+        RefreshUnitFormatting();
     }
 
     [ObservableProperty]
     public partial string ModelName { get; set; } = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FanDimensionsDisplay))]
     public partial double WidthMillimeters { get; set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FanDimensionsDisplay))]
-    public partial double HeightMillimeters { get; set; }
+    partial void OnWidthMillimetersChanged(double value) => RefreshUnitFormatting();
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FanDimensionsDisplay))]
+    public partial double HeightMillimeters { get; set; }
+
+    partial void OnHeightMillimetersChanged(double value) => RefreshUnitFormatting();
+
+    [ObservableProperty]
     public partial double ThicknessMillimeters { get; set; }
+
+    partial void OnThicknessMillimetersChanged(double value) => RefreshUnitFormatting();
 
     [ObservableProperty]
     public partial string ConnectorType { get; set; } = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MaximumAirflowDisplay))]
     public partial double MaximumAirflowCfm { get; set; }
 
+    partial void OnMaximumAirflowCfmChanged(double value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MaximumAirflowDisplay))]
     public partial string? AlternateAirflowDisplay { get; set; }
 
+    partial void OnAlternateAirflowDisplayChanged(string? value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(AcousticNoiseDisplay))]
     public partial string RawAcousticNoiseDisplay { get; set; } = string.Empty;
 
+    partial void OnRawAcousticNoiseDisplayChanged(string value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(AcousticNoiseDisplay))]
     public partial double? AcousticNoiseDecibels { get; set; }
 
+    partial void OnAcousticNoiseDecibelsChanged(double? value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(AcousticNoiseDisplay))]
     public partial double? MaximumAcousticNoiseDecibels { get; set; }
 
+    partial void OnMaximumAcousticNoiseDecibelsChanged(double? value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MaximumFanSpeedDisplay))]
     public partial int MaximumFanSpeedRpm { get; set; }
 
+    partial void OnMaximumFanSpeedRpmChanged(int value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FanDimensionsDisplay))]
-    [NotifyPropertyChangedFor(nameof(MaximumAirflowDisplay))]
-    [NotifyPropertyChangedFor(nameof(AcousticNoiseDisplay))]
-    [NotifyPropertyChangedFor(nameof(MaximumFanSpeedDisplay))]
-    private partial int UnitFormattingRevision { get; set; }
+    public partial string FanDimensionsDisplay { get; private set; } = string.Empty;
 
-    public string FanDimensionsDisplay => $"{_unitFormattingService.FormatLengthMillimeters(WidthMillimeters)} × {_unitFormattingService.FormatLengthMillimeters(HeightMillimeters)} × {_unitFormattingService.FormatLengthMillimeters(ThicknessMillimeters)}";
+    [ObservableProperty]
+    public partial string MaximumAirflowDisplay { get; private set; } = string.Empty;
 
-    public string MaximumAirflowDisplay => _unitFormattingService.FormatAirflowCfm(MaximumAirflowCfm, decimals: 1);
+    [ObservableProperty]
+    public partial string AcousticNoiseDisplay { get; private set; } = string.Empty;
 
-    public string AcousticNoiseDisplay => BuildAcousticNoiseDisplay();
-
-    public string MaximumFanSpeedDisplay => _unitFormattingService.FormatFanSpeed(MaximumFanSpeedRpm);
+    [ObservableProperty]
+    public partial string MaximumFanSpeedDisplay { get; private set; } = string.Empty;
 
     public void UpdateFrom(FrameworkDesktopFanOption option)
     {
@@ -98,7 +105,10 @@ public partial class FrameworkDesktopFanOptionModel : ObservableObject
 
     public void RefreshUnitFormatting()
     {
-        UnitFormattingRevision++;
+        FanDimensionsDisplay = $"{_unitFormattingService.FormatLengthMillimeters(WidthMillimeters)} × {_unitFormattingService.FormatLengthMillimeters(HeightMillimeters)} × {_unitFormattingService.FormatLengthMillimeters(ThicknessMillimeters)}";
+        MaximumAirflowDisplay = _unitFormattingService.FormatAirflowCfm(MaximumAirflowCfm, decimals: 1);
+        AcousticNoiseDisplay = BuildAcousticNoiseDisplay();
+        MaximumFanSpeedDisplay = _unitFormattingService.FormatFanSpeed(MaximumFanSpeedRpm);
     }
 
     private string BuildAcousticNoiseDisplay()

@@ -26,6 +26,7 @@ public partial class ModuleDeckCardModel : ObservableObject
     public ModuleDeckCardModel(FrameworkInputModulePosition position)
     {
         Position = position;
+        RefreshDerived();
     }
 
     private ModuleDeckCardModel(FrameworkInputModulePosition position, bool isTouchpadSpacer)
@@ -33,6 +34,7 @@ public partial class ModuleDeckCardModel : ObservableObject
     {
         _isTouchpadSpacer = isTouchpadSpacer;
         IsSpacer = true;
+        RefreshDerived();
         BuildPresumedHero();
     }
 
@@ -54,31 +56,22 @@ public partial class ModuleDeckCardModel : ObservableObject
     /// <summary>Whether this position was inferred to hold a passive spacer (connected but no USB identity).</summary>
     public bool IsSpacer { get; private set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Name))]
-    [NotifyPropertyChangedFor(nameof(IconKind))]
-    [NotifyPropertyChangedFor(nameof(DeckImage))]
-    [NotifyPropertyChangedFor(nameof(DeckImageVisibility))]
-    [NotifyPropertyChangedFor(nameof(FallbackIconVisibility))]
-    [NotifyPropertyChangedFor(nameof(ImageWidth))]
-    [NotifyPropertyChangedFor(nameof(ImageHeight))]
-    [NotifyPropertyChangedFor(nameof(CardWidth))]
-    [NotifyPropertyChangedFor(nameof(Hero))]
-    private partial int Revision { get; set; }
-
     private FrameworkModuleDisplayInfo DisplayInfo =>
         FrameworkModuleDisplay.For(Descriptor?.Identity ?? FrameworkModuleIdentity.None);
 
-    public string Name => IsSpacer
-        ? _isTouchpadSpacer ? "Touchpad spacer" : "Spacer"
-        : DisplayInfo.DisplayName;
+    // The tile displays are stored and reassigned (RefreshDerived) whenever the descriptor / spacer state
+    // changes; the setters raise PropertyChanged only for values that actually changed.
+    [ObservableProperty]
+    public partial string Name { get; private set; } = string.Empty;
 
-    public MaterialIconKind IconKind => IsSpacer ? MaterialIconKind.RectangleOutline : ModuleArt.ResolveIcon(DisplayInfo.IconName);
+    [ObservableProperty]
+    public partial MaterialIconKind IconKind { get; private set; }
 
     /// <summary>The module PNG (asset rule), or null → the icon fallback shows instead.</summary>
-    public ImageSource? DeckImage => IsSpacer
-        ? _isTouchpadSpacer ? ModuleArt.TouchpadSpacerImage : ModuleArt.SpacerImage
-        : Descriptor is { } descriptor ? ModuleArt.DeckImageFor(descriptor.Identity) : null;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DeckImageVisibility))]
+    [NotifyPropertyChangedFor(nameof(FallbackIconVisibility))]
+    public partial ImageSource? DeckImage { get; private set; }
 
     /// <summary>Rendered art box, true to the modules' physical proportions: the top row shares one height
     /// (keyboard wide, spacers narrow strips), and the touchpad matches the keyboard's width. Spacer art is
@@ -93,13 +86,16 @@ public partial class ModuleDeckCardModel : ObservableObject
             _ => (110, 130),
         };
 
-    public double ImageWidth => ImageBox.Width;
+    [ObservableProperty]
+    public partial double ImageWidth { get; private set; }
 
-    public double ImageHeight => ImageBox.Height;
+    [ObservableProperty]
+    public partial double ImageHeight { get; private set; }
 
     /// <summary>Every spacer tile shares one FIXED card width (user rule: all spacers identical);
     /// other tiles size to their art (NaN = auto).</summary>
-    public double CardWidth => IsSpacer ? 150 : double.NaN;
+    [ObservableProperty]
+    public partial double CardWidth { get; private set; } = double.NaN;
 
     public Visibility DeckImageVisibility => DeckImage is null ? Visibility.Collapsed : Visibility.Visible;
 
@@ -110,7 +106,8 @@ public partial class ModuleDeckCardModel : ObservableObject
         : AppThemeBrushes.Get("SurfaceOutlineBrush", AppThemeBrushes.TextPrimaryColor);
 
     /// <summary>The selected-module hero for this deck position; rebuilt (and swapped whole) on every update.</summary>
-    public ModuleHeroModel Hero { get; private set; } = new(
+    [ObservableProperty]
+    public partial ModuleHeroModel Hero { get; private set; } = new(
         MaterialIconKind.HelpCircleOutline, null, "Input-deck module", string.Empty, false, [], null, []);
 
     public void Update(ModuleDescriptorStatus descriptor, bool isSpacer = false)
@@ -128,7 +125,24 @@ public partial class ModuleDeckCardModel : ObservableObject
             Rebuild(descriptor);
         }
 
-        Revision++;
+        RefreshDerived();
+    }
+
+    // Reassigns the descriptor / spacer-derived tile displays; the stored-property setters raise
+    // PropertyChanged only for values that actually changed.
+    private void RefreshDerived()
+    {
+        Name = IsSpacer
+            ? _isTouchpadSpacer ? "Touchpad spacer" : "Spacer"
+            : DisplayInfo.DisplayName;
+        IconKind = IsSpacer ? MaterialIconKind.RectangleOutline : ModuleArt.ResolveIcon(DisplayInfo.IconName);
+        DeckImage = IsSpacer
+            ? _isTouchpadSpacer ? ModuleArt.TouchpadSpacerImage : ModuleArt.SpacerImage
+            : Descriptor is { } descriptor ? ModuleArt.DeckImageFor(descriptor.Identity) : null;
+        var box = ImageBox;
+        ImageWidth = box.Width;
+        ImageHeight = box.Height;
+        CardWidth = IsSpacer ? 150 : double.NaN;
     }
 
     private void BuildPresumedHero()

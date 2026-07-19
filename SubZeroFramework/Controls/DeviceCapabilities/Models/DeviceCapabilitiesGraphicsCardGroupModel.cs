@@ -34,12 +34,14 @@ public partial class DeviceCapabilitiesGraphicsCardGroupModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(DisplayName))]
     public partial DeviceCapabilitiesVideoControllerCardModel? VideoController { get; set; }
 
+    // The monitor-count-derived displays re-raise off this stored count; assigning the actual count means a
+    // sync that leaves the count unchanged (cards swapped in place) raises nothing.
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MonitorCountDisplay))]
     [NotifyPropertyChangedFor(nameof(MonitorCountSummary))]
     [NotifyPropertyChangedFor(nameof(HasMonitorCardsVisibility))]
     [NotifyPropertyChangedFor(nameof(EmptyMonitorMessageVisibility))]
-    private partial int MonitorRevision { get; set; }
+    private partial int MonitorCount { get; set; }
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesMonitorCardModel> MonitorCards { get; }
 
@@ -101,6 +103,6 @@ public partial class DeviceCapabilitiesGraphicsCardGroupModel : ObservableObject
             _monitorCards.RemoveAt(_monitorCards.Count - 1);
         }
 
-        MonitorRevision++;
+        MonitorCount = _monitorCards.Count;
     }
 }

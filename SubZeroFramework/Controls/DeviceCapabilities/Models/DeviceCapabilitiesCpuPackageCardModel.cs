@@ -20,6 +20,9 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
     {
         _unitFormattingService = unitFormattingService;
         CpuCoreItems = new ReadOnlyObservableCollection<DeviceCapabilitiesCpuCoreItemModel>(_cpuCoreItems);
+        CpuUsageLabelFormatter = CreateCpuUsageLabelFormatter();
+        CpuClockLabelFormatter = CreateCpuClockLabelFormatter();
+        CpuUsageAxisMaxLimit = unitFormattingService.RatioAxisMaximum;
         Index = index;
         Snapshot = snapshot;
         SynchronizeCpuCoreItems(snapshot.CpuCores);
@@ -29,14 +32,8 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(Title))]
     [NotifyPropertyChangedFor(nameof(PackageLabel))]
     [NotifyPropertyChangedFor(nameof(ManufacturerDisplay))]
-    [NotifyPropertyChangedFor(nameof(CurrentClockDisplay))]
-    [NotifyPropertyChangedFor(nameof(MaxClockDisplay))]
-    [NotifyPropertyChangedFor(nameof(AverageCpuUsageDisplay))]
     [NotifyPropertyChangedFor(nameof(PhysicalCoreCountDisplay))]
     [NotifyPropertyChangedFor(nameof(LogicalProcessorCountDisplay))]
-    [NotifyPropertyChangedFor(nameof(L1CacheDisplay))]
-    [NotifyPropertyChangedFor(nameof(L2CacheDisplay))]
-    [NotifyPropertyChangedFor(nameof(L3CacheDisplay))]
     [NotifyPropertyChangedFor(nameof(SocketDisplay))]
     [NotifyPropertyChangedFor(nameof(VirtualizationDisplay))]
     [NotifyPropertyChangedFor(nameof(VirtualizationBrush))]
@@ -52,9 +49,11 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesCpuCoreItemModel> CpuCoreItems { get; }
 
-    public Func<double, string> CpuUsageLabelFormatter => _unitFormattingService.FormatRatioAxisLabel;
+    [ObservableProperty]
+    public partial Func<double, string> CpuUsageLabelFormatter { get; private set; }
 
-    public Func<double, string> CpuClockLabelFormatter => _unitFormattingService.FormatClockFrequencyAxisLabel;
+    [ObservableProperty]
+    public partial Func<double, string> CpuClockLabelFormatter { get; private set; }
 
     public string Title => FirstNonEmpty(Snapshot.Name, Snapshot.Caption) ?? $"CPU {Index}";
 
@@ -62,19 +61,17 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
 
     public string ManufacturerDisplay => FirstNonEmpty(Snapshot.Manufacturer) ?? "Unknown";
 
-    public string CurrentClockDisplay => Snapshot.CurrentClockSpeedMHz > 0
-        ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.CurrentClockSpeedMHz)
-        : "Unknown";
+    [ObservableProperty]
+    public partial string CurrentClockDisplay { get; private set; } = "Unknown";
 
-    public string MaxClockDisplay => Snapshot.MaxClockSpeedMHz > 0
-        ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.MaxClockSpeedMHz)
-        : "Unknown";
+    [ObservableProperty]
+    public partial string MaxClockDisplay { get; private set; } = "Unknown";
 
-    public string AverageCpuUsageDisplay => Snapshot.EffectivePercentProcessorTime is double value
-        ? _unitFormattingService.FormatRatio(Math.Clamp(value, 0d, 100d), decimals: 1)
-        : "Unknown";
+    [ObservableProperty]
+    public partial string AverageCpuUsageDisplay { get; private set; } = "Unknown";
 
-    public double CpuUsageAxisMaxLimit => _unitFormattingService.RatioAxisMaximum;
+    [ObservableProperty]
+    public partial double CpuUsageAxisMaxLimit { get; private set; }
 
     public string PhysicalCoreCountDisplay => Snapshot.Cores > 0
         ? Snapshot.Cores.ToString("N0")
@@ -84,11 +81,14 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
         ? Snapshot.LogicalProcessors.ToString("N0")
         : "Unknown";
 
-    public string L1CacheDisplay => FormatCpuCacheSize(Snapshot.L1CacheSizeKb);
+    [ObservableProperty]
+    public partial string L1CacheDisplay { get; private set; } = "Unknown";
 
-    public string L2CacheDisplay => FormatCpuCacheSize(Snapshot.L2CacheSizeKb);
+    [ObservableProperty]
+    public partial string L2CacheDisplay { get; private set; } = "Unknown";
 
-    public string L3CacheDisplay => FormatCpuCacheSize(Snapshot.L3CacheSizeKb);
+    [ObservableProperty]
+    public partial string L3CacheDisplay { get; private set; } = "Unknown";
 
     public string SocketDisplay => FirstNonEmpty(Snapshot.SocketDesignation) ?? "Unavailable";
 
@@ -131,18 +131,6 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
     [ObservableProperty]
     public partial double? CpuClockHistoryMaxLimit { get; set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CurrentClockDisplay))]
-    [NotifyPropertyChangedFor(nameof(MaxClockDisplay))]
-    [NotifyPropertyChangedFor(nameof(AverageCpuUsageDisplay))]
-    [NotifyPropertyChangedFor(nameof(L1CacheDisplay))]
-    [NotifyPropertyChangedFor(nameof(L2CacheDisplay))]
-    [NotifyPropertyChangedFor(nameof(L3CacheDisplay))]
-    [NotifyPropertyChangedFor(nameof(CpuUsageLabelFormatter))]
-    [NotifyPropertyChangedFor(nameof(CpuClockLabelFormatter))]
-    [NotifyPropertyChangedFor(nameof(CpuUsageAxisMaxLimit))]
-    private partial int UnitFormattingRevision { get; set; }
-
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
 
     public string RecentTelemetryHistoryWindowDisplay => PresentationDefaults.RecentTelemetryHistoryWindowLabel;
@@ -152,16 +140,53 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
     partial void OnSnapshotChanged(HardwareInfoCpu value)
     {
         SynchronizeCpuCoreItems(value.CpuCores);
+        RefreshSnapshotDisplays();
     }
 
     public void RefreshUnitFormatting()
     {
-        UnitFormattingRevision++;
+        // The axis formatters + max follow the unit preference; the snapshot displays reformat under it too.
+        CpuUsageLabelFormatter = CreateCpuUsageLabelFormatter();
+        CpuClockLabelFormatter = CreateCpuClockLabelFormatter();
+        CpuUsageAxisMaxLimit = _unitFormattingService.RatioAxisMaximum;
+        RefreshSnapshotDisplays();
 
         foreach (var cpuCoreItem in _cpuCoreItems)
         {
             cpuCoreItem.RefreshUnitFormatting();
         }
+    }
+
+    // Reassigns the unit-formatted snapshot displays (changes when the snapshot or the unit preference does);
+    // stored-property setters raise PropertyChanged only for values that actually changed.
+    private void RefreshSnapshotDisplays()
+    {
+        CurrentClockDisplay = Snapshot.CurrentClockSpeedMHz > 0
+            ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.CurrentClockSpeedMHz)
+            : "Unknown";
+        MaxClockDisplay = Snapshot.MaxClockSpeedMHz > 0
+            ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.MaxClockSpeedMHz)
+            : "Unknown";
+        AverageCpuUsageDisplay = Snapshot.EffectivePercentProcessorTime is double value
+            ? _unitFormattingService.FormatRatio(Math.Clamp(value, 0d, 100d), decimals: 1)
+            : "Unknown";
+        L1CacheDisplay = FormatCpuCacheSize(Snapshot.L1CacheSizeKb);
+        L2CacheDisplay = FormatCpuCacheSize(Snapshot.L2CacheSizeKb);
+        L3CacheDisplay = FormatCpuCacheSize(Snapshot.L3CacheSizeKb);
+    }
+
+    // Fresh closures per call so the assignments never no-op (delegates over the same method/target compare
+    // equal); capturing a local gives each a new target, so PropertyChanged fires and the axes rebind.
+    private Func<double, string> CreateCpuUsageLabelFormatter()
+    {
+        var unitFormattingService = _unitFormattingService;
+        return value => unitFormattingService.FormatRatioAxisLabel(value);
+    }
+
+    private Func<double, string> CreateCpuClockLabelFormatter()
+    {
+        var unitFormattingService = _unitFormattingService;
+        return value => unitFormattingService.FormatClockFrequencyAxisLabel(value);
     }
 
     private string BuildVirtualizationDisplay()

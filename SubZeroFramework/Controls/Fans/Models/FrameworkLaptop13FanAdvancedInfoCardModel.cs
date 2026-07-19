@@ -11,6 +11,7 @@ public partial class FrameworkLaptop13FanAdvancedInfoCardModel : FanAdvancedInfo
     public FrameworkLaptop13FanAdvancedInfoCardModel(IUnitFormattingService unitFormattingService)
     {
         _unitFormattingService = unitFormattingService;
+        RefreshUnitFormatting();
     }
 
     [ObservableProperty]
@@ -20,35 +21,36 @@ public partial class FrameworkLaptop13FanAdvancedInfoCardModel : FanAdvancedInfo
     public partial string ChassisMaterial { get; set; } = string.Empty;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ApproximateFirmwareIdleSpeedDisplay))]
     public partial int ApproximateFirmwareIdleSpeedRpm { get; set; }
 
+    partial void OnApproximateFirmwareIdleSpeedRpmChanged(int value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ApproximateUserTunedIdleSpeedDisplay))]
     public partial int ApproximateUserTunedIdleSpeedRpm { get; set; }
 
+    partial void OnApproximateUserTunedIdleSpeedRpmChanged(int value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MaximumFirmwareLimitDisplay))]
     public partial int MaximumFirmwareLimitRpm { get; set; }
 
+    partial void OnMaximumFirmwareLimitRpmChanged(int value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ApproximatePhysicalMaximumDisplay))]
     public partial int ApproximatePhysicalMaximumRpm { get; set; }
 
+    partial void OnApproximatePhysicalMaximumRpmChanged(int value) => RefreshUnitFormatting();
+
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ApproximateFirmwareIdleSpeedDisplay))]
-    [NotifyPropertyChangedFor(nameof(ApproximateUserTunedIdleSpeedDisplay))]
-    [NotifyPropertyChangedFor(nameof(MaximumFirmwareLimitDisplay))]
-    [NotifyPropertyChangedFor(nameof(ApproximatePhysicalMaximumDisplay))]
-    private partial int UnitFormattingRevision { get; set; }
+    public partial string ApproximateFirmwareIdleSpeedDisplay { get; private set; } = string.Empty;
 
-    public string ApproximateFirmwareIdleSpeedDisplay => $"~{_unitFormattingService.FormatFanSpeed(ApproximateFirmwareIdleSpeedRpm)}";
+    [ObservableProperty]
+    public partial string ApproximateUserTunedIdleSpeedDisplay { get; private set; } = string.Empty;
 
-    public string ApproximateUserTunedIdleSpeedDisplay => $"~{_unitFormattingService.FormatFanSpeed(ApproximateUserTunedIdleSpeedRpm)}";
+    [ObservableProperty]
+    public partial string MaximumFirmwareLimitDisplay { get; private set; } = string.Empty;
 
-    public string MaximumFirmwareLimitDisplay => _unitFormattingService.FormatFanSpeed(MaximumFirmwareLimitRpm);
-
-    public string ApproximatePhysicalMaximumDisplay => $"~{_unitFormattingService.FormatFanSpeed(ApproximatePhysicalMaximumRpm)}";
+    [ObservableProperty]
+    public partial string ApproximatePhysicalMaximumDisplay { get; private set; } = string.Empty;
 
     public void UpdateFrom(FrameworkLaptop13CoolingDetails details)
     {
@@ -62,6 +64,9 @@ public partial class FrameworkLaptop13FanAdvancedInfoCardModel : FanAdvancedInfo
 
     public override void RefreshUnitFormatting()
     {
-        UnitFormattingRevision++;
+        ApproximateFirmwareIdleSpeedDisplay = $"~{_unitFormattingService.FormatFanSpeed(ApproximateFirmwareIdleSpeedRpm)}";
+        ApproximateUserTunedIdleSpeedDisplay = $"~{_unitFormattingService.FormatFanSpeed(ApproximateUserTunedIdleSpeedRpm)}";
+        MaximumFirmwareLimitDisplay = _unitFormattingService.FormatFanSpeed(MaximumFirmwareLimitRpm);
+        ApproximatePhysicalMaximumDisplay = $"~{_unitFormattingService.FormatFanSpeed(ApproximatePhysicalMaximumRpm)}";
     }
 }

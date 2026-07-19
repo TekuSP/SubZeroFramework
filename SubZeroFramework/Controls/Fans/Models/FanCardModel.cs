@@ -27,15 +27,11 @@ public partial class FanCardModel : ObservableObject
     public FanCardModel(IUnitFormattingService unitFormattingService)
     {
         _unitFormattingService = unitFormattingService;
+        FanSpeedLabelFormatter = CreateFanSpeedLabelFormatter();
+        FanSpeedUnitSuffix = unitFormattingService.FanSpeedUnitSuffix;
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FanSpeedGaugeValues))]
-    [NotifyPropertyChangedFor(nameof(FanSpeedRemainingGaugeValues))]
-    [NotifyPropertyChangedFor(nameof(FanSpeedValueDisplay))]
-    [NotifyPropertyChangedFor(nameof(FanSpeedUnitSuffix))]
-    [NotifyPropertyChangedFor(nameof(MaximumFanSpeedAxisLimit))]
-    [NotifyPropertyChangedFor(nameof(FanSpeedHistoryAxisMaxLimit))]
     [NotifyPropertyChangedFor(nameof(LocationDisplay))]
     [NotifyPropertyChangedFor(nameof(SlotLabel))]
     [NotifyPropertyChangedFor(nameof(RowSpeedDisplay))]
@@ -48,12 +44,12 @@ public partial class FanCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(GaugeRemainingValues))]
     public partial FanTelemetrySnapshot Snapshot { get; set; } = default!;
 
+    // The fan-speed displays derive from the snapshot speed, the capability max, and the unit preference;
+    // reassign them whenever any of those changes.
+    partial void OnSnapshotChanged(FanTelemetrySnapshot value) => RefreshFanSpeedDisplays();
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MaximumFanSpeedRpm))]
-    [NotifyPropertyChangedFor(nameof(FanSpeedGaugeValues))]
-    [NotifyPropertyChangedFor(nameof(FanSpeedRemainingGaugeValues))]
-    [NotifyPropertyChangedFor(nameof(MaximumFanSpeedAxisLimit))]
-    [NotifyPropertyChangedFor(nameof(FanSpeedHistoryAxisMaxLimit))]
     [NotifyPropertyChangedFor(nameof(GaugeNominalValues))]
     [NotifyPropertyChangedFor(nameof(GaugeCautionValues))]
     [NotifyPropertyChangedFor(nameof(GaugeCriticalValues))]
@@ -125,9 +121,6 @@ public partial class FanCardModel : ObservableObject
     public partial FanStateSnapshot? FanState { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FanSpeedHistoryAxisMaxLimit))]
-    [NotifyPropertyChangedFor(nameof(OneMinuteAverageDisplay))]
-    [NotifyPropertyChangedFor(nameof(PeakDisplay))]
     [NotifyPropertyChangedFor(nameof(RevPerSecondHistory))]
     public partial DateTimePoint[] FanSpeedHistory { get; set; } = [];
 
@@ -171,19 +164,6 @@ public partial class FanCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(TemperatureSparkline))]
     public partial DateTimePoint[] DrivingTemperatureHistory { get; set; } = [];
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FanSpeedGaugeValues))]
-    [NotifyPropertyChangedFor(nameof(FanSpeedRemainingGaugeValues))]
-    [NotifyPropertyChangedFor(nameof(FanSpeedValueDisplay))]
-    [NotifyPropertyChangedFor(nameof(FanSpeedUnitSuffix))]
-    [NotifyPropertyChangedFor(nameof(MaximumFanSpeedAxisLimit))]
-    [NotifyPropertyChangedFor(nameof(FanSpeedHistoryAxisMaxLimit))]
-    [NotifyPropertyChangedFor(nameof(FanSpeedLabelFormatter))]
-    [NotifyPropertyChangedFor(nameof(DrivingTemperatureDisplay))]
-    [NotifyPropertyChangedFor(nameof(OneMinuteAverageDisplay))]
-    [NotifyPropertyChangedFor(nameof(PeakDisplay))]
-    private partial int UnitFormattingRevision { get; set; }
-
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
 
     public Func<double, string> DrivingTemperatureLabelFormatter => _unitFormattingService.FormatTemperatureAxisLabel;
@@ -211,19 +191,29 @@ public partial class FanCardModel : ObservableObject
         ? capability.MaximumSpeedRpm
         : DefaultMaximumFanSpeedRpm;
 
-    public double MaximumFanSpeedAxisLimit => _unitFormattingService.ConvertFanSpeed(MaximumFanSpeedRpm);
+    // The fan-speed gauge/axis/value displays are stored and reassigned (RefreshFanSpeedDisplays) whenever
+    // the snapshot, the capability, the history, or the unit preference changes; the setters raise
+    // PropertyChanged only for values that actually changed.
+    [ObservableProperty]
+    public partial double MaximumFanSpeedAxisLimit { get; private set; }
 
-    public double FanSpeedHistoryAxisMaxLimit => Math.Max(MaximumFanSpeedAxisLimit, GetMaximumObservedFanSpeed()) * FanSpeedHistoryAxisHeadroomMultiplier;
+    [ObservableProperty]
+    public partial double FanSpeedHistoryAxisMaxLimit { get; private set; }
 
-    public double[] FanSpeedGaugeValues => [Math.Clamp(_unitFormattingService.ConvertFanSpeed(Snapshot.SpeedRpm), 0d, MaximumFanSpeedAxisLimit)];
+    [ObservableProperty]
+    public partial double[] FanSpeedGaugeValues { get; private set; } = [0d];
 
-    public double[] FanSpeedRemainingGaugeValues => [Math.Max(0d, MaximumFanSpeedAxisLimit - Math.Clamp(_unitFormattingService.ConvertFanSpeed(Snapshot.SpeedRpm), 0d, MaximumFanSpeedAxisLimit))];
+    [ObservableProperty]
+    public partial double[] FanSpeedRemainingGaugeValues { get; private set; } = [0d];
 
-    public string FanSpeedValueDisplay => _unitFormattingService.FormatFanSpeedValue(Snapshot.SpeedRpm);
+    [ObservableProperty]
+    public partial string FanSpeedValueDisplay { get; private set; } = "--";
 
-    public string FanSpeedUnitSuffix => _unitFormattingService.FanSpeedUnitSuffix;
+    [ObservableProperty]
+    public partial string FanSpeedUnitSuffix { get; private set; } = string.Empty;
 
-    public Func<double, string> FanSpeedLabelFormatter => _unitFormattingService.FormatFanSpeedAxisLabel;
+    [ObservableProperty]
+    public partial Func<double, string> FanSpeedLabelFormatter { get; private set; }
 
     public string TargetModeDisplay => $"Mode: {TargetMode}";
 
@@ -410,9 +400,11 @@ public partial class FanCardModel : ObservableObject
     public double[] TemperatureSparkline =>
         [.. DrivingTemperatureHistory.Where(static p => p.Value.HasValue).Select(static p => p.Value!.Value)];
 
-    public string OneMinuteAverageDisplay => FormatHistoryStatistic(static values => values.Average());
+    [ObservableProperty]
+    public partial string OneMinuteAverageDisplay { get; private set; } = "--";
 
-    public string PeakDisplay => FormatHistoryStatistic(static values => values.Max());
+    [ObservableProperty]
+    public partial string PeakDisplay { get; private set; } = "--";
 
     private string FormatHistoryStatistic(Func<IEnumerable<double>, double> selector)
     {
@@ -451,17 +443,48 @@ public partial class FanCardModel : ObservableObject
     public void RefreshUnitFormatting()
     {
         UpdateControlStatePresentation();
-        UnitFormattingRevision++;
+        FanSpeedLabelFormatter = CreateFanSpeedLabelFormatter();
+        RefreshFanSpeedDisplays();
+    }
+
+    // Reassigns the fan-speed gauge/axis/value/stat displays from the current snapshot, capability, history,
+    // and unit preference. Guarded until the snapshot is seated (the card is populated before it is shown).
+    private void RefreshFanSpeedDisplays()
+    {
+        if (Snapshot is null)
+        {
+            return;
+        }
+
+        MaximumFanSpeedAxisLimit = _unitFormattingService.ConvertFanSpeed(MaximumFanSpeedRpm);
+        var speed = Math.Clamp(_unitFormattingService.ConvertFanSpeed(Snapshot.SpeedRpm), 0d, MaximumFanSpeedAxisLimit);
+        FanSpeedGaugeValues = [speed];
+        FanSpeedRemainingGaugeValues = [Math.Max(0d, MaximumFanSpeedAxisLimit - speed)];
+        FanSpeedValueDisplay = _unitFormattingService.FormatFanSpeedValue(Snapshot.SpeedRpm);
+        FanSpeedUnitSuffix = _unitFormattingService.FanSpeedUnitSuffix;
+        FanSpeedHistoryAxisMaxLimit = Math.Max(MaximumFanSpeedAxisLimit, GetMaximumObservedFanSpeed()) * FanSpeedHistoryAxisHeadroomMultiplier;
+        OneMinuteAverageDisplay = FormatHistoryStatistic(static values => values.Average());
+        PeakDisplay = FormatHistoryStatistic(static values => values.Max());
+    }
+
+    // Fresh closure per call so the assignment never no-ops (delegates over the same method/target compare
+    // equal); capturing a local gives each a new target, so PropertyChanged fires and the axis rebinds.
+    private Func<double, string> CreateFanSpeedLabelFormatter()
+    {
+        var unitFormattingService = _unitFormattingService;
+        return value => unitFormattingService.FormatFanSpeedAxisLabel(value);
     }
 
     partial void OnFanSpeedHistoryChanged(DateTimePoint[] value)
     {
         Separators = GetSeparators();
+        RefreshFanSpeedDisplays();
     }
 
     partial void OnCapabilityChanged(FanCapabilityState? value)
     {
         UpdateCapabilityPresentation();
+        RefreshFanSpeedDisplays();
     }
 
     partial void OnControlStateChanged(FanControlStateSnapshot? value)

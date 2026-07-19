@@ -24,15 +24,13 @@ public partial class DeviceCapabilitiesStorageDriveCardModel : ObservableObject
         nameof(DriveLabel),
         nameof(ManufacturerDisplay),
         nameof(MediaTypeDisplay),
-        nameof(CapacityDisplay),
         nameof(FirmwareRevisionDisplay),
-        nameof(UsedSpaceDisplay),
-        nameof(FreeSpaceDisplay),
         nameof(UsagePercent),
-        nameof(UsageSummary),
         nameof(FreeSpaceBrush),
         nameof(UsageBarBrush))]
     public partial HardwareInfoDrive Snapshot { get; set; } = default!;
+
+    partial void OnSnapshotChanged(HardwareInfoDrive value) => RefreshUnitFormatting();
 
     public string Title => FirstNonEmpty(Snapshot.Model, Snapshot.Name, Snapshot.Caption, Snapshot.Description)
         ?? $"Drive {Snapshot.Index}";
@@ -43,17 +41,19 @@ public partial class DeviceCapabilitiesStorageDriveCardModel : ObservableObject
 
     public string MediaTypeDisplay => FirstNonEmpty(Snapshot.MediaType) ?? "Unknown";
 
-    public string CapacityDisplay => _unitFormattingService.FormatInformationBytes(Snapshot.Size, treatZeroAsUnknown: true);
+    /// <summary>Formatted total capacity. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    [ObservableProperty]
+    public partial string CapacityDisplay { get; private set; } = string.Empty;
 
     public string FirmwareRevisionDisplay => FirstNonEmpty(Snapshot.FirmwareRevision) ?? "Unavailable";
 
-    public string UsedSpaceDisplay => Snapshot.Size == 0
-        ? "Unknown"
-        : _unitFormattingService.FormatInformationBytes(Snapshot.UsedSpace);
+    /// <summary>Formatted used space. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    [ObservableProperty]
+    public partial string UsedSpaceDisplay { get; private set; } = string.Empty;
 
-    public string FreeSpaceDisplay => Snapshot.Size == 0
-        ? "Unknown"
-        : _unitFormattingService.FormatInformationBytes(Snapshot.ClampedFreeSpace);
+    /// <summary>Formatted free space. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    [ObservableProperty]
+    public partial string FreeSpaceDisplay { get; private set; } = string.Empty;
 
     public double UsagePercent => Snapshot.UsagePercent;
 
@@ -78,20 +78,26 @@ public partial class DeviceCapabilitiesStorageDriveCardModel : ObservableObject
             _ => AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor),
         };
 
-    public string UsageSummary => Snapshot.Size == 0
-        ? "Unknown"
-        : $"{UsedSpaceDisplay} used / {FreeSpaceDisplay} free";
-
+    /// <summary>Combined used/free line. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CapacityDisplay))]
-    [NotifyPropertyChangedFor(nameof(UsedSpaceDisplay))]
-    [NotifyPropertyChangedFor(nameof(FreeSpaceDisplay))]
-    [NotifyPropertyChangedFor(nameof(UsageSummary))]
-    private partial int UnitFormattingRevision { get; set; }
+    public partial string UsageSummary { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// Recomputes and ASSIGNS the stored unit-formatted projections so PropertyChanged is raised only for
+    /// values that actually changed. Called when the snapshot updates and when the display units change.
+    /// </summary>
     public void RefreshUnitFormatting()
     {
-        UnitFormattingRevision++;
+        CapacityDisplay = _unitFormattingService.FormatInformationBytes(Snapshot.Size, treatZeroAsUnknown: true);
+        UsedSpaceDisplay = Snapshot.Size == 0
+            ? "Unknown"
+            : _unitFormattingService.FormatInformationBytes(Snapshot.UsedSpace);
+        FreeSpaceDisplay = Snapshot.Size == 0
+            ? "Unknown"
+            : _unitFormattingService.FormatInformationBytes(Snapshot.ClampedFreeSpace);
+        UsageSummary = Snapshot.Size == 0
+            ? "Unknown"
+            : $"{UsedSpaceDisplay} used / {FreeSpaceDisplay} free";
     }
 
     private static string? FirstNonEmpty(params string?[] values) => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));

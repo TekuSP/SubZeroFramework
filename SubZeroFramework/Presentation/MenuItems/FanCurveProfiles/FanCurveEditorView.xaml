@@ -182,28 +182,28 @@
                     <StackPanel Orientation="Horizontal" Spacing="3">
                         <ToggleButton
                             Padding="12,5"
-                            Command="{x:Bind ViewModel.SetAggregationCommand}"
+                            Command="{x:Bind ViewModel.SetAggregationCommand, Mode=OneWay}"
                             CommandParameter="Maximum"
                             Content="Maximum"
                             CornerRadius="6"
                             IsChecked="{x:Bind ViewModel.IsAggregateMaximum, Mode=OneWay}" />
                         <ToggleButton
                             Padding="12,5"
-                            Command="{x:Bind ViewModel.SetAggregationCommand}"
+                            Command="{x:Bind ViewModel.SetAggregationCommand, Mode=OneWay}"
                             CommandParameter="Average"
                             Content="Average"
                             CornerRadius="6"
                             IsChecked="{x:Bind ViewModel.IsAggregateAverage, Mode=OneWay}" />
                         <ToggleButton
                             Padding="12,5"
-                            Command="{x:Bind ViewModel.SetAggregationCommand}"
+                            Command="{x:Bind ViewModel.SetAggregationCommand, Mode=OneWay}"
                             CommandParameter="Median"
                             Content="Median"
                             CornerRadius="6"
                             IsChecked="{x:Bind ViewModel.IsAggregateMedian, Mode=OneWay}" />
                         <ToggleButton
                             Padding="12,5"
-                            Command="{x:Bind ViewModel.SetAggregationCommand}"
+                            Command="{x:Bind ViewModel.SetAggregationCommand, Mode=OneWay}"
                             CommandParameter="Minimum"
                             Content="Minimum"
                             CornerRadius="6"

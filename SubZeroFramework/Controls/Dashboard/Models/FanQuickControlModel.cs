@@ -26,6 +26,7 @@ public partial class FanQuickControlModel : ObservableObject
 
         Fan = fan;
         fan.PropertyChanged += OnFanChanged;
+        RefreshDerivedState();
     }
 
     /// <summary>The shared fan card model driving the ring gauge and telemetry displays.</summary>
@@ -33,10 +34,20 @@ public partial class FanQuickControlModel : ObservableObject
 
     public int FanIndex => Fan.Snapshot.FanIndex;
 
-    /// <summary>Bumped when the wrapped fan's control state changes so the derived displays re-evaluate.</summary>
+    /// <summary>Function chip label (GPU/CPU/Sys) derived from the fan's role. Stored; assigned by <see cref="RefreshDerivedState"/>.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(NowDrivingText))]
-    [NotifyPropertyChangedFor(nameof(DutyBarValue))]
+    public partial string FunctionChipLabel { get; private set; } = "Sys";
+
+    /// <summary>Function chip icon matching <see cref="FunctionChipLabel"/>. Stored; assigned by <see cref="RefreshDerivedState"/>.</summary>
+    [ObservableProperty]
+    public partial MaterialIconKind FunctionChipIcon { get; private set; } = MaterialIconKind.Fan;
+
+    /// <summary>
+    /// The "Now driving" line (mode label + last commanded duty). Stored; assigned by
+    /// <see cref="RefreshDerivedState"/>. Every mode transition changes this text, so it also re-raises the
+    /// UI-affine segment brushes below (those stay computed — brushes are created at bind time on the UI thread).
+    /// </summary>
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AutoSegmentBackground))]
     [NotifyPropertyChangedFor(nameof(ManualSegmentBackground))]
     [NotifyPropertyChangedFor(nameof(MaxSegmentBackground))]
@@ -45,49 +56,11 @@ public partial class FanQuickControlModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ManualSegmentForeground))]
     [NotifyPropertyChangedFor(nameof(MaxSegmentForeground))]
     [NotifyPropertyChangedFor(nameof(CurveSegmentForeground))]
-    [NotifyPropertyChangedFor(nameof(FunctionChipLabel))]
-    [NotifyPropertyChangedFor(nameof(FunctionChipIcon))]
-    public partial int FanStateRevision { get; set; }
+    public partial string NowDrivingText { get; private set; } = "Waiting for state";
 
-    public string FunctionChipLabel => Fan.Snapshot.FanName?.ToString() is string role
-        ? role.Contains("Gpu", StringComparison.OrdinalIgnoreCase) ? "GPU"
-            : role.Contains("Apu", StringComparison.OrdinalIgnoreCase) || role.Contains("Cpu", StringComparison.OrdinalIgnoreCase) ? "CPU"
-            : "Sys"
-        : "Sys";
-
-    public MaterialIconKind FunctionChipIcon => FunctionChipLabel switch
-    {
-        "GPU" => MaterialIconKind.ExpansionCard,
-        "CPU" => MaterialIconKind.Chip,
-        _ => MaterialIconKind.Fan,
-    };
-
-    public string NowDrivingText
-    {
-        get
-        {
-            if (Fan.ControlState is not { } state)
-            {
-                return "Waiting for state";
-            }
-
-            var modeLabel = state.Mode switch
-            {
-                FanControlMode.Auto => "Auto",
-                FanControlMode.Manual => "Manual",
-                FanControlMode.Max => "Max",
-                FanControlMode.CustomCurve => "Custom curve",
-                _ => state.Mode.ToString(),
-            };
-
-            return state.Mode != FanControlMode.Auto && state.LastDutyPercent is double duty
-                ? $"{modeLabel} · {duty:0}%"
-                : modeLabel;
-        }
-    }
-
-    /// <summary>Progress-bar fraction under the "Now driving" line (last commanded duty; 0 in Auto).</summary>
-    public double DutyBarValue => Fan.ControlState is { Mode: not FanControlMode.Auto, LastDutyPercent: double duty } ? duty : 0d;
+    /// <summary>Progress-bar fraction under the "Now driving" line (last commanded duty; 0 in Auto). Stored; assigned by <see cref="RefreshDerivedState"/>.</summary>
+    [ObservableProperty]
+    public partial double DutyBarValue { get; private set; }
 
     // Read-only mode indicator: the active segment fills with the brand accent (brushes created at bind
     // time — UI thread; see uno-vm-thread-affinity).
@@ -121,7 +94,53 @@ public partial class FanQuickControlModel : ObservableObject
     {
         if (e.PropertyName is nameof(FanCardModel.ControlState) or nameof(FanCardModel.Snapshot))
         {
-            FanStateRevision++;
+            RefreshDerivedState();
         }
+    }
+
+    /// <summary>
+    /// Recomputes and ASSIGNS the stored displays derived from the wrapped fan's snapshot and control state.
+    /// Assignment raises PropertyChanged only for values that actually changed; <see cref="NowDrivingText"/>
+    /// additionally re-raises the segment brushes. Every caller is already on the UI thread.
+    /// </summary>
+    private void RefreshDerivedState()
+    {
+        FunctionChipLabel = Fan.Snapshot.FanName?.ToString() is string role
+            ? role.Contains("Gpu", StringComparison.OrdinalIgnoreCase) ? "GPU"
+                : role.Contains("Apu", StringComparison.OrdinalIgnoreCase) || role.Contains("Cpu", StringComparison.OrdinalIgnoreCase) ? "CPU"
+                : "Sys"
+            : "Sys";
+
+        FunctionChipIcon = FunctionChipLabel switch
+        {
+            "GPU" => MaterialIconKind.ExpansionCard,
+            "CPU" => MaterialIconKind.Chip,
+            _ => MaterialIconKind.Fan,
+        };
+
+        NowDrivingText = ComputeNowDrivingText();
+
+        DutyBarValue = Fan.ControlState is { Mode: not FanControlMode.Auto, LastDutyPercent: double duty } ? duty : 0d;
+    }
+
+    private string ComputeNowDrivingText()
+    {
+        if (Fan.ControlState is not { } state)
+        {
+            return "Waiting for state";
+        }
+
+        var modeLabel = state.Mode switch
+        {
+            FanControlMode.Auto => "Auto",
+            FanControlMode.Manual => "Manual",
+            FanControlMode.Max => "Max",
+            FanControlMode.CustomCurve => "Custom curve",
+            _ => state.Mode.ToString(),
+        };
+
+        return state.Mode != FanControlMode.Auto && state.LastDutyPercent is double duty
+            ? $"{modeLabel} · {duty:0}%"
+            : modeLabel;
     }
 }

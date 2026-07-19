@@ -24,12 +24,13 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
     public DeviceCapabilitiesCpuCoreItemModel(HardwareInfoCpuCore snapshot, IUnitFormattingService unitFormattingService)
     {
         _unitFormattingService = unitFormattingService;
+        UsageLabelFormatter = CreateUsageLabelFormatter();
+        UsageAxisMaxLimit = unitFormattingService.RatioAxisMaximum;
         Snapshot = snapshot;
     }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DisplayName))]
-    [NotifyPropertyChangedFor(nameof(DisplayLoad))]
     [NotifyPropertyChangedFor(nameof(UsageBrush))]
     [NotifyPropertyChangedFor(nameof(UsageStrokePaint))]
     [NotifyPropertyChangedFor(nameof(UsageStrokeHex))]
@@ -49,25 +50,22 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
 
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
 
-    public Func<double, string> UsageLabelFormatter => _unitFormattingService.FormatRatioAxisLabel;
+    [ObservableProperty]
+    public partial Func<double, string> UsageLabelFormatter { get; private set; }
 
     public string DisplayName => NormalizeCoreDisplayName(Snapshot.Name);
 
-    public string DisplayLoad => _unitFormattingService.FormatRatio(Snapshot.PercentProcessorTime, decimals: 1);
+    [ObservableProperty]
+    public partial string DisplayLoad { get; private set; } = "--";
 
-    public double UsageAxisMaxLimit => _unitFormattingService.RatioAxisMaximum;
+    [ObservableProperty]
+    public partial double UsageAxisMaxLimit { get; private set; }
 
     public Brush UsageBrush => GetUsageBrush(Snapshot.PercentProcessorTime);
 
     public SolidColorPaint UsageStrokePaint => new(SKColor.Parse(UsageStrokeHex), 2);
 
     public string UsageStrokeHex => GetUsageStrokeHex(Snapshot.PercentProcessorTime);
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DisplayLoad))]
-    [NotifyPropertyChangedFor(nameof(UsageLabelFormatter))]
-    [NotifyPropertyChangedFor(nameof(UsageAxisMaxLimit))]
-    private partial int UnitFormattingRevision { get; set; }
 
     public void UpdateHistory(IReadOnlyList<DateTimePoint> usageHistory, double? minLimit, double? maxLimit, IReadOnlyList<double> separators)
     {
@@ -77,9 +75,24 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
         UsageSeparators = [.. separators];
     }
 
+    // The DisplayLoad string follows the snapshot's live load; the axis formatter + max follow the unit
+    // preference. Assignment raises PropertyChanged only on a real change.
+    partial void OnSnapshotChanged(HardwareInfoCpuCore value) =>
+        DisplayLoad = _unitFormattingService.FormatRatio(value.PercentProcessorTime, decimals: 1);
+
     public void RefreshUnitFormatting()
     {
-        UnitFormattingRevision++;
+        UsageLabelFormatter = CreateUsageLabelFormatter();
+        UsageAxisMaxLimit = _unitFormattingService.RatioAxisMaximum;
+        DisplayLoad = _unitFormattingService.FormatRatio(Snapshot.PercentProcessorTime, decimals: 1);
+    }
+
+    // Fresh closure per call so the assignment never no-ops (delegates over the same method/target compare
+    // equal); capturing a local gives each delegate a new target, so PropertyChanged fires and the axis rebinds.
+    private Func<double, string> CreateUsageLabelFormatter()
+    {
+        var unitFormattingService = _unitFormattingService;
+        return value => unitFormattingService.FormatRatioAxisLabel(value);
     }
 
     public static string NormalizeCoreDisplayName(string? rawName)

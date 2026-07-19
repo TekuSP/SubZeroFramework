@@ -60,21 +60,14 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         nameof(CpuCount),
         nameof(TotalCoreCount),
         nameof(TotalLogicalProcessorCount),
-        nameof(AverageClockSpeed),
-        nameof(AverageMaxClockSpeed),
-        nameof(AverageCpuUsageDisplay),
         nameof(GraphicsAdapterCount),
         nameof(MonitorCount),
         nameof(ActiveMonitorCount),
         nameof(StorageDriveCount),
         nameof(PrimaryDisplayName),
         nameof(PrimaryDisplayBadge),
-        nameof(TotalStorageCapacity),
-        nameof(TotalStorageUsedSpace),
-        nameof(TotalStorageFreeSpace),
         nameof(TotalStorageFreeBrush),
         nameof(TotalStorageUsagePercent),
-        nameof(TotalStorageUsageSummary),
         nameof(TotalStorageUsageBarBrush),
         nameof(PhysicalMemoryUsageBarBrush),
         nameof(NetworkAdapterCount),
@@ -94,20 +87,15 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         nameof(SystemProfileBiosReleaseDate),
         nameof(SystemProfileEcBuildInfo),
         nameof(MemoryModuleCount),
-        nameof(MemoryTotalCapacity),
-        nameof(TotalPhysicalMemory),
-        nameof(AvailablePhysicalMemory),
         nameof(PhysicalMemoryUsagePercent),
-        nameof(PhysicalMemoryUsageDisplay),
         nameof(PhysicalMemoryUsageTone),
         nameof(PhysicalMemoryUsageSuccessVisibility),
         nameof(PhysicalMemoryUsageWarningVisibility),
-        nameof(PhysicalMemoryUsageErrorVisibility),
-        nameof(TotalPageFileMemory),
-        nameof(AvailablePageFileMemory),
-        nameof(TotalVirtualMemory),
-        nameof(AvailableVirtualMemory))]
+        nameof(PhysicalMemoryUsageErrorVisibility))]
     public partial HardwareInfoSnapshot? Snapshot { get; set; }
+
+    // The unit-formatted aggregate displays are STORED properties; re-project them whenever the snapshot changes.
+    partial void OnSnapshotChanged(HardwareInfoSnapshot? value) => RefreshUnitFormattedDisplays();
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesCpuPackageCardModel> CpuPackageCards { get; }
 
@@ -192,24 +180,14 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     public int TotalLogicalProcessorCount => Snapshot?.Runtime.Cpus.Sum(cpu => cpu.LogicalProcessors) ?? 0;
 
-    public string AverageClockSpeed => Snapshot?.Runtime.Cpus.Length > 0
-        ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.Runtime.Cpus.Average(cpu => cpu.CurrentClockSpeedMHz))
-        : "Unknown";
+    [ObservableProperty]
+    public partial string AverageClockSpeed { get; private set; } = "Unknown";
 
-    public string AverageMaxClockSpeed => Snapshot?.Runtime.Cpus.Length > 0
-        ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.Runtime.Cpus.Average(cpu => cpu.MaxClockSpeedMHz))
-        : "Unknown";
+    [ObservableProperty]
+    public partial string AverageMaxClockSpeed { get; private set; } = "Unknown";
 
-    public string AverageCpuUsageDisplay
-    {
-        get
-        {
-            var averageUsage = GetAverageCpuUsagePercent(Snapshot);
-            return averageUsage is double value
-                ? _unitFormattingService.FormatRatio(Math.Clamp(value, 0d, 100d), decimals: 1)
-                : "Unknown";
-        }
-    }
+    [ObservableProperty]
+    public partial string AverageCpuUsageDisplay { get; private set; } = "Unknown";
 
     public int GraphicsAdapterCount => Snapshot?.Runtime.VideoControllers.Length ?? 0;
 
@@ -244,17 +222,14 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         }
     }
 
-    public string TotalStorageCapacity => Snapshot?.Inventory.Drives.Length > 0
-        ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.Size))
-        : "Unknown";
+    [ObservableProperty]
+    public partial string TotalStorageCapacity { get; private set; } = "Unknown";
 
-    public string TotalStorageUsedSpace => Snapshot?.Inventory.Drives.Length > 0
-        ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.UsedSpace))
-        : "Unknown";
+    [ObservableProperty]
+    public partial string TotalStorageUsedSpace { get; private set; } = "Unknown";
 
-    public string TotalStorageFreeSpace => Snapshot?.Inventory.Drives.Length > 0
-        ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.ClampedFreeSpace))
-        : "Unknown";
+    [ObservableProperty]
+    public partial string TotalStorageFreeSpace { get; private set; } = "Unknown";
 
     public double TotalStorageUsagePercent
     {
@@ -274,9 +249,8 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         }
     }
 
-    public string TotalStorageUsageSummary => Snapshot?.Inventory.Drives.Length > 0
-        ? $"{TotalStorageUsedSpace} used / {TotalStorageFreeSpace} free"
-        : "Unknown";
+    [ObservableProperty]
+    public partial string TotalStorageUsageSummary { get; private set; } = "Unknown";
 
     /// <summary>Mockup state colour for the aggregate Free value (red nearly full, amber low).</summary>
     public Brush TotalStorageFreeBrush => DeviceCapabilitiesStorageDriveCardModel.FreePercentBrush(
@@ -362,45 +336,21 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     public int MemoryModuleCount => Snapshot?.Inventory.MemoryModules.Length ?? 0;
 
-    public string MemoryTotalCapacity
-    {
-        get
-        {
-            if (Snapshot?.Inventory.MemoryModules.Length > 0)
-            {
-                var totalBytes = Snapshot.Inventory.MemoryModules.Sum(module => (long)module.CapacityBytes);
-                return FormatBytes((ulong)totalBytes);
-            }
+    [ObservableProperty]
+    public partial string MemoryTotalCapacity { get; private set; } = "Unknown";
 
-            return "Unknown";
-        }
-    }
+    [ObservableProperty]
+    public partial string TotalPhysicalMemory { get; private set; } = "Unknown";
 
-    public string TotalPhysicalMemory => Snapshot?.Runtime.MemoryStatus is null
-        ? "Unknown"
-        : FormatBytes(Snapshot.Runtime.MemoryStatus.TotalPhysical);
-
-    public string AvailablePhysicalMemory => Snapshot?.Runtime.MemoryStatus is null
-        ? "Unknown"
-        : FormatBytes(Snapshot.Runtime.MemoryStatus.AvailablePhysical);
+    [ObservableProperty]
+    public partial string AvailablePhysicalMemory { get; private set; } = "Unknown";
 
     public double PhysicalMemoryUsagePercent => Snapshot?.Runtime.MemoryStatus is { TotalPhysical: > 0 } memoryStatus
         ? Math.Clamp((memoryStatus.TotalPhysical - Math.Min(memoryStatus.AvailablePhysical, memoryStatus.TotalPhysical)) * 100d / memoryStatus.TotalPhysical, 0d, 100d)
         : 0d;
 
-    public string PhysicalMemoryUsageDisplay
-    {
-        get
-        {
-            if (Snapshot?.Runtime.MemoryStatus is not { TotalPhysical: > 0 } memoryStatus)
-            {
-                return "Unknown";
-            }
-
-            var usedBytes = memoryStatus.TotalPhysical - Math.Min(memoryStatus.AvailablePhysical, memoryStatus.TotalPhysical);
-            return $"{_unitFormattingService.FormatRatio(PhysicalMemoryUsagePercent, decimals: 0)} used ({FormatBytes(usedBytes)} / {FormatBytes(memoryStatus.TotalPhysical)})";
-        }
-    }
+    [ObservableProperty]
+    public partial string PhysicalMemoryUsageDisplay { get; private set; } = "Unknown";
 
     public DeviceCapabilitiesStatusTone PhysicalMemoryUsageTone => PhysicalMemoryUsagePercent switch
     {
@@ -421,21 +371,17 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         ? Visibility.Visible
         : Visibility.Collapsed;
 
-    public string TotalPageFileMemory => Snapshot?.Runtime.MemoryStatus is null
-        ? "Unknown"
-        : FormatBytes(Snapshot.Runtime.MemoryStatus.TotalPageFile);
+    [ObservableProperty]
+    public partial string TotalPageFileMemory { get; private set; } = "Unknown";
 
-    public string AvailablePageFileMemory => Snapshot?.Runtime.MemoryStatus is null
-        ? "Unknown"
-        : FormatBytes(Snapshot.Runtime.MemoryStatus.AvailablePageFile);
+    [ObservableProperty]
+    public partial string AvailablePageFileMemory { get; private set; } = "Unknown";
 
-    public string TotalVirtualMemory => Snapshot?.Runtime.MemoryStatus is null
-        ? "Unknown"
-        : FormatBytes(Snapshot.Runtime.MemoryStatus.TotalVirtual);
+    [ObservableProperty]
+    public partial string TotalVirtualMemory { get; private set; } = "Unknown";
 
-    public string AvailableVirtualMemory => Snapshot?.Runtime.MemoryStatus is null
-        ? "Unknown"
-        : FormatBytes(Snapshot.Runtime.MemoryStatus.AvailableVirtual);
+    [ObservableProperty]
+    public partial string AvailableVirtualMemory { get; private set; } = "Unknown";
 
     [ObservableProperty]
     public partial DateTimePoint[] CpuUsageHistory { get; set; } = [];
@@ -473,23 +419,62 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(CoolingHardwareVisibility))]
     public partial FanAdvancedInfoCardModel? FanAdvancedInfo { get; set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(AverageClockSpeed))]
-    [NotifyPropertyChangedFor(nameof(AverageMaxClockSpeed))]
-    [NotifyPropertyChangedFor(nameof(AverageCpuUsageDisplay))]
-    [NotifyPropertyChangedFor(nameof(TotalStorageCapacity))]
-    [NotifyPropertyChangedFor(nameof(TotalStorageUsedSpace))]
-    [NotifyPropertyChangedFor(nameof(TotalStorageFreeSpace))]
-    [NotifyPropertyChangedFor(nameof(TotalStorageUsageSummary))]
-    [NotifyPropertyChangedFor(nameof(MemoryTotalCapacity))]
-    [NotifyPropertyChangedFor(nameof(TotalPhysicalMemory))]
-    [NotifyPropertyChangedFor(nameof(AvailablePhysicalMemory))]
-    [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsageDisplay))]
-    [NotifyPropertyChangedFor(nameof(TotalPageFileMemory))]
-    [NotifyPropertyChangedFor(nameof(AvailablePageFileMemory))]
-    [NotifyPropertyChangedFor(nameof(TotalVirtualMemory))]
-    [NotifyPropertyChangedFor(nameof(AvailableVirtualMemory))]
-    private partial int UnitFormattingRevision { get; set; }
+    // Reassigns every unit-formatted aggregate display from the current snapshot + unit preference. Called
+    // when the snapshot changes (OnSnapshotChanged) and when the unit preference changes; the stored-property
+    // setters raise PropertyChanged only for values that actually changed. On the UI thread (all streams
+    // ObserveOn the UI synchronization context).
+    private void RefreshUnitFormattedDisplays()
+    {
+        AverageClockSpeed = Snapshot?.Runtime.Cpus.Length > 0
+            ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.Runtime.Cpus.Average(cpu => cpu.CurrentClockSpeedMHz))
+            : "Unknown";
+        AverageMaxClockSpeed = Snapshot?.Runtime.Cpus.Length > 0
+            ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.Runtime.Cpus.Average(cpu => cpu.MaxClockSpeedMHz))
+            : "Unknown";
+
+        var averageUsage = GetAverageCpuUsagePercent(Snapshot);
+        AverageCpuUsageDisplay = averageUsage is double usageValue
+            ? _unitFormattingService.FormatRatio(Math.Clamp(usageValue, 0d, 100d), decimals: 1)
+            : "Unknown";
+
+        TotalStorageCapacity = Snapshot?.Inventory.Drives.Length > 0
+            ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.Size))
+            : "Unknown";
+        TotalStorageUsedSpace = Snapshot?.Inventory.Drives.Length > 0
+            ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.UsedSpace))
+            : "Unknown";
+        TotalStorageFreeSpace = Snapshot?.Inventory.Drives.Length > 0
+            ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.ClampedFreeSpace))
+            : "Unknown";
+        TotalStorageUsageSummary = Snapshot?.Inventory.Drives.Length > 0
+            ? $"{TotalStorageUsedSpace} used / {TotalStorageFreeSpace} free"
+            : "Unknown";
+
+        MemoryTotalCapacity = Snapshot?.Inventory.MemoryModules.Length > 0
+            ? FormatBytes((ulong)Snapshot.Inventory.MemoryModules.Sum(module => (long)module.CapacityBytes))
+            : "Unknown";
+        TotalPhysicalMemory = Snapshot?.Runtime.MemoryStatus is null
+            ? "Unknown"
+            : FormatBytes(Snapshot.Runtime.MemoryStatus.TotalPhysical);
+        AvailablePhysicalMemory = Snapshot?.Runtime.MemoryStatus is null
+            ? "Unknown"
+            : FormatBytes(Snapshot.Runtime.MemoryStatus.AvailablePhysical);
+        PhysicalMemoryUsageDisplay = Snapshot?.Runtime.MemoryStatus is { TotalPhysical: > 0 } physicalMemory
+            ? $"{_unitFormattingService.FormatRatio(PhysicalMemoryUsagePercent, decimals: 0)} used ({FormatBytes(physicalMemory.TotalPhysical - Math.Min(physicalMemory.AvailablePhysical, physicalMemory.TotalPhysical))} / {FormatBytes(physicalMemory.TotalPhysical)})"
+            : "Unknown";
+        TotalPageFileMemory = Snapshot?.Runtime.MemoryStatus is null
+            ? "Unknown"
+            : FormatBytes(Snapshot.Runtime.MemoryStatus.TotalPageFile);
+        AvailablePageFileMemory = Snapshot?.Runtime.MemoryStatus is null
+            ? "Unknown"
+            : FormatBytes(Snapshot.Runtime.MemoryStatus.AvailablePageFile);
+        TotalVirtualMemory = Snapshot?.Runtime.MemoryStatus is null
+            ? "Unknown"
+            : FormatBytes(Snapshot.Runtime.MemoryStatus.TotalVirtual);
+        AvailableVirtualMemory = Snapshot?.Runtime.MemoryStatus is null
+            ? "Unknown"
+            : FormatBytes(Snapshot.Runtime.MemoryStatus.AvailableVirtual);
+    }
 
     public Visibility CoolingHardwareVisibility => FanAdvancedInfo is null
         ? Visibility.Collapsed
@@ -1270,7 +1255,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
             FanAdvancedInfo?.RefreshUnitFormatting();
 
-            UnitFormattingRevision++;
+            RefreshUnitFormattedDisplays();
         });
 
         await RefreshCpuVisualsAsync();

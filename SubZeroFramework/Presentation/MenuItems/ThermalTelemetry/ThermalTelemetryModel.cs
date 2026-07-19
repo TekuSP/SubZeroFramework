@@ -57,6 +57,8 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
         Sensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_sensors);
         PlottedSensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_plottedSensors);
         HistoryWindowOptions = PresentationDefaults.ThermalHistoryWindowLabels;
+        ThermalLabelFormatter = CreateThermalLabelFormatter();
+        RefreshTemperatureAxisBounds();
         UpdateThermalHistoryAxis([]);
         RefreshPlottedState();
 
@@ -128,11 +130,20 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial double? ThermalHistoryMaxLimit { get; set; }
 
+    // The temperature (Y) axis spans a fixed 0–100 °C band, but the series values are in the user's chosen
+    // display unit, so the bounds convert through UnitsNet (0 °C / 100 °C → 32/212 °F, 273/373 K, …).
+    // Reassigned by RefreshUnitFormattingAsync when the display unit changes.
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ThermalLabelFormatter))]
-    private partial int UnitFormattingRevision { get; set; }
+    public partial double ThermalHistoryYAxisMinLimit { get; set; }
 
-    public Func<double, string> ThermalLabelFormatter => _unitFormattingService.FormatTemperatureAxisLabel;
+    [ObservableProperty]
+    public partial double ThermalHistoryYAxisMaxLimit { get; set; }
+
+    // Unit-aware temperature-axis labeler for the history chart. Stored and re-assigned by
+    // RefreshUnitFormattingAsync so the axis labeler rebinds and the chart relabels in place when
+    // machine-wide display-unit preferences change.
+    [ObservableProperty]
+    public partial Func<double, string> ThermalLabelFormatter { get; private set; }
 
     public Func<DateTime, string> ThermalHistoryDateFormatter { get; } = ThermalSensorModel.Formatter;
 
@@ -335,6 +346,12 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
     private void RefreshSensorHistory(ThermalSensorModel sensor)
     {
         UpdateSensorHistory(sensor, _historyPoints.TryGetValue(sensor.Snapshot.SensorIndex, out var points) ? points : []);
+
+        // The comparison chart's time axis fits the plotted sensors' data extent; recompute it now that this
+        // sensor's history changed (previously driven by a HistoryRevision PropertyChanged signal on the
+        // sensor, now an explicit call — the sensor's history collections self-notify the series via
+        // CollectionChanged, but the page-level axis window is ours to refresh).
+        UpdateThermalHistoryAxis();
     }
 
     private void AttachSensorHandler(ThermalSensorModel sensor)
@@ -349,12 +366,6 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
             if (args.PropertyName == nameof(ThermalSensorModel.IsSelected))
             {
                 RefreshThermalHistoryChart();
-                return;
-            }
-
-            if (args.PropertyName == nameof(ThermalSensorModel.OverviewTemperatureHistory))
-            {
-                UpdateThermalHistoryAxis();
             }
         };
 
@@ -504,8 +515,26 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
         }
 
         RefreshThermalHistoryChart();
-        UnitFormattingRevision++;
+        RefreshTemperatureAxisBounds();
+        ThermalLabelFormatter = CreateThermalLabelFormatter();
         return Task.CompletedTask;
+    }
+
+    // The series values are in the display unit, so the fixed 0–100 °C band is converted through UnitsNet.
+    private void RefreshTemperatureAxisBounds()
+    {
+        ThermalHistoryYAxisMinLimit = _unitFormattingService.ConvertTemperature(0d);
+        ThermalHistoryYAxisMaxLimit = _unitFormattingService.ConvertTemperature(100d);
+    }
+
+    // The series values are ALREADY in the display unit (converted in UpdateSensorHistory), so the Y-axis
+    // labeler must format them directly with the unit suffix — NOT re-convert as FormatTemperatureAxisLabel
+    // would (it expects a canonical Celsius value). Fresh closure per call so the assignment never no-ops
+    // (equal delegates are skipped by the MVVM Toolkit setter), rebinding the axis on a display-unit change.
+    private Func<double, string> CreateThermalLabelFormatter()
+    {
+        var unitFormattingService = _unitFormattingService;
+        return value => $"{value:0}{unitFormattingService.TemperatureUnitSuffix}";
     }
 
     private static bool ShouldAppendCurrentGap(TemperatureTelemetrySnapshot snapshot)
