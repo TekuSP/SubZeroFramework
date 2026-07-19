@@ -80,11 +80,11 @@
             <TextBlock
                 FontSize="13"
                 Foreground="{StaticResource TextSecondaryBrush}"
-                Text="{x:Bind ViewModel.Page.LicensesMessage, Mode=OneWay}"
+                Text="{x:Bind ViewModel.LicensesMessage, Mode=OneWay}"
                 TextWrapping="WrapWholeWords"
-                Visibility="{x:Bind ViewModel.Page.LicensesMessageVisibility, Mode=OneWay}" />
+                Visibility="{x:Bind ViewModel.LicensesMessageVisibility, Mode=OneWay}" />
 
-            <ItemsControl ItemTemplate="{StaticResource LicenseEntryTemplate}" ItemsSource="{x:Bind ViewModel.Page.Licenses, Mode=OneWay}" />
+            <ItemsControl ItemTemplate="{StaticResource LicenseEntryTemplate}" ItemsSource="{x:Bind ViewModel.Licenses, Mode=OneWay}" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

@@ -34,6 +34,9 @@ public interface IUnitFormattingService
 
     double ConvertTemperature(double celsius);
 
+    /// <summary>Converts a value in the user's chosen temperature unit back to canonical Celsius (the inverse of <see cref="ConvertTemperature"/>).</summary>
+    double ConvertTemperatureToCelsius(double displayValue);
+
     string FormatTemperatureAxisLabel(double celsiusValue);
 
     string FormatFanSpeed(double? rpm, string unavailableDisplay = "--", int decimals = -1);

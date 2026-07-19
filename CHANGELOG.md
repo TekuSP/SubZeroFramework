@@ -31,10 +31,10 @@ lives on Fan Curve Profiles.
 - **Start with system boot**: launch-at-sign-in registration on Windows (Run key) and Linux (freedesktop
   autostart), backed by the cross-platform AutoLaunch library.
 - **Settings → Licenses**: build-time extraction of every shipped NuGet package with real license texts.
-- **Thermal alerts (disabled for now)**: the monitoring/toast pipeline exists but ships gated off — toast
-  delivery proved unreliable for the self-contained unpackaged app, so the Settings toggle renders
-  "Coming soon" until notification delivery lands (Linux direction: `org.freedesktop.Notifications` over
-  D-Bus).
+- **Thermal alerts**: opt-in desktop notification when a sensor crosses the critical band (85 °C), with
+  per-sensor hysteresis and cooldown and a "Send test notification" button. Delivery via the
+  DesktopNotificationsFixed library — native toasts on Windows, `org.freedesktop.Notifications` (D-Bus)
+  on Linux.
 - **Service lifecycle management**: `--service-management` CLI (install / update / uninstall / restart /
   autorun) used by both the in-app Settings/Warnings actions and the installers; SCM restart-on-failure
   configured on install.

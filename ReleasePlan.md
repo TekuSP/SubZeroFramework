@@ -24,7 +24,7 @@ historical trackers and reference.
 |---|---|
 | Service | 🟡 Reachability banner + Recheck: **works**. Restart/Shut down: **works when the service is registered**. Install/Update/Uninstall: wired but **gated on packaged-helper discovery** — in a dev checkout the packaged executable is not discoverable, so they stay disabled (see P0-1). Runtime configuration (polling intervals, allow-fan-control) Apply/Save/Reset: **works**. |
 | Display units | ✅ **Fully works.** All 13 UnitsNet quantities, live samples, applies instantly app-wide, persists client-only to `%LOCALAPPDATA%\SubZeroFramework\display-unit-preferences.json`. |
-| Startup & alerts | 🟡 Reworked 2026-07-18/19: **"Start with system boot"** (renamed from "Start with Windows") — now backed by the **AutoLaunch** NuGet library (`AutoLaunchStartupRegistrationService`, MIT, zero deps on modern .NET): HKCU Run key on Windows (**verified end-to-end**, incl. seamless migration of the pre-library Run entry via matching value name), freedesktop autostart on Linux, LaunchAgent on macOS for free. **"Start minimized" removed** (no tray icon — a hidden launch had no way back; old JSON key ignored). Autorun service: wired to `enable/disable-autorun` on both platforms, enabled once the service is registered — now exercisable in dev via the Debug-only packaged-helper fallback (see P0-1 note; the Warnings recovery page's "Install service" button verified enabled with it). **Thermal alerts: DISABLED for MVP** (toggle inert, "Coming soon" — see P0-4 for the delivery findings and the D-Bus/legacy revival directions). |
+| Startup & alerts | 🟡 Reworked 2026-07-18/19: **"Start with system boot"** (renamed from "Start with Windows") — now backed by the **AutoLaunch** NuGet library (`AutoLaunchStartupRegistrationService`, MIT, zero deps on modern .NET): HKCU Run key on Windows (**verified end-to-end**, incl. seamless migration of the pre-library Run entry via matching value name), freedesktop autostart on Linux, LaunchAgent on macOS for free. **"Start minimized" removed** (no tray icon — a hidden launch had no way back; old JSON key ignored). Autorun service: wired to `enable/disable-autorun` on both platforms, enabled once the service is registered — now exercisable in dev via the Debug-only packaged-helper fallback (see P0-1 note; the Warnings recovery page's "Install service" button verified enabled with it). **Thermal alerts: WORK** — toggle + monitor + toast delivery via `DesktopNotificationsFixed` (Windows toast user-confirmed 2026-07-19; Linux D-Bus wired, validated in the P1 Linux pass), incl. a "Send test notification" button. |
 | Licenses | ✅ **Fully works.** Build target extracts all 39 shipped packages with real license texts. |
 | About | 🟡 SubZero version, live EC build + framework-dotnet version: **work**. framework-system-ffi-extensions / framework-system rows show "Bundled with framework-dotnet" until the library embeds component versions (P1-6). |
 
@@ -69,19 +69,17 @@ historical trackers and reference.
    either named-pipe transport with client impersonation or socket-ACL ownership checks. ✅ Documented as
    the shipped posture in `SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md` (2026-07-18) — this item
    is now fully closed.
-4. ✅ **Thermal alerts — DISABLED for the MVP (user decision 2026-07-19).** The Settings toggle renders
-   inert ("Coming soon"), `ThermalAlertMonitor` is neither registered nor started, and any previously
-   persisted opt-in reads as off. Investigation trail (2026-07-18): WinAppSDK 2.3.1 fixed the old
-   `Register()` failure (#6071) — registration verifiably succeeds (AUMID + `NotificationGUID` recreated
-   on launch) — but **`Show()` is silently dropped** for the self-contained unpackaged app: no toast, no
-   Action Center entry, and Windows never creates the per-app
-   `HKCU\...\CurrentVersion\Notifications\Settings` entry that first delivery produces. Adding a
-   `DisplayName` to the AUMID didn't help; global toasts on; no DND. `ToastNotificationManagerCompat` was
-   rejected (archived package; critical NU1904 advisory via `System.Drawing.Common 4.7.0`). Revival
-   directions (documented in `ThermalAlertMonitor` remarks): **Linux — `org.freedesktop.Notifications`
-   `Notify` over the session D-Bus** (every desktop implements it, no toolkit dependency); Windows —
-   resolve the self-contained WinAppSDK delivery or fall back to legacy `Windows.UI.Notifications` with
-   our own AUMID registration (working prototype in git history, 2026-07-18).
+4. ✅ **Thermal alerts — RESOLVED 2026-07-19 via `DesktopNotificationsFixed` (user-suggested library),
+   user-confirmed working on Windows.** Delivery: Windows = classic Start-menu-shortcut + AppUserModelId
+   registration with legacy `Windows.UI.Notifications` toasts (`DesktopNotificationsFixed.Windows`, windows
+   TFM); Linux = `org.freedesktop.Notifications` over the session D-Bus
+   (`DesktopNotificationsFixed.FreeDesktop`, desktop TFM, runtime-gated to Linux — validate live in the P1
+   Linux E2E pass). A "Send test notification" button on Startup & alerts fires through the exact alert
+   path for one-click delivery verification. Dead ends recorded for posterity: WinAppSDK
+   `AppNotificationManager.Show()` is silently dropped for self-contained unpackaged apps (registration
+   succeeds, shell never accepts delivery — no Action Center entry, no per-app
+   `HKCU\...\Notifications\Settings` entry); `ToastNotificationManagerCompat` rejected (archived, critical
+   NU1904 advisory via `System.Drawing.Common 4.7.0`).
 5. ✅ **Versioning + release presentation — DONE 2026-07-18 (user decision: `0.1.0`, single shared
    version).** `<Version>0.1.0</Version>` in `Directory.Build.props` stamps UI, service, and Core alike
    (verified in the built assemblies); `ApplicationDisplayVersion` tracks it; About reads it via

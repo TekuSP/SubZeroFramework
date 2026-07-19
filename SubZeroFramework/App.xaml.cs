@@ -17,7 +17,6 @@ using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.Modes;
 using SubZeroFramework.Presentation.MenuItems.Modules;
 using SubZeroFramework.Presentation.MenuItems.Modules.Layouts;
-using SubZeroFramework.Controls.Settings.Models.Sections;
 using SubZeroFramework.Presentation.MenuItems.PowerTelemetry;
 using SubZeroFramework.Presentation.MenuItems.Settings;
 using SubZeroFramework.Presentation.MenuItems.Settings.Sections;
@@ -126,7 +125,13 @@ public partial class App : Application
                     services.AddSingleton<IFanHistoryStore, FanHistoryStore>();
                     services.AddSingleton<FanTelemetryHub>();
                     services.AddSingleton<IHardwareInfoClient, GrpcHardwareInfoClient>();
-                    services.AddSingleton<IFrameworkServiceControlClient, LocalFrameworkServiceControlClient>();
+                    // Decorated so every lifecycle action (Settings page, Warnings recovery page, …)
+                    // raises a status notification with its outcome.
+                    services.AddSingleton<LocalFrameworkServiceControlClient>();
+                    services.AddSingleton<IFrameworkServiceControlClient>(static provider =>
+                        new NotifyingFrameworkServiceControlClient(
+                            provider.GetRequiredService<LocalFrameworkServiceControlClient>(),
+                            provider.GetRequiredService<IDesktopNotificationService>()));
                     services.AddSingleton<DispatcherQueue>(DispatcherQueue.GetForCurrentThread());
                     services.AddSingleton<SynchronizationContext>(SynchronizationContext.Current!);
 
@@ -143,17 +148,14 @@ public partial class App : Application
                     // Modules layout bodies bridge to the displayed page model the same way (see ModulesAccessor).
                     services.AddSingleton<ModulesAccessor>();
 
-                    // Settings section bodies bridge to the displayed page model the same way (see SettingsAccessor).
-                    services.AddSingleton<SettingsAccessor>();
-
                     // Client-only settings: launch behavior + alert opt-ins persist next to the display units.
                     services.AddSingleton<ILocalClientSettingsStore, LocalClientSettingsStore>();
                     // Cross-platform launch-at-sign-in via the AutoLaunch library (HKCU Run key /
                     // freedesktop autostart / LaunchAgent behind one API).
                     services.AddSingleton<IStartupRegistrationService, AutoLaunchStartupRegistrationService>();
-                    // ThermalAlertMonitor is deliberately not registered/started for the MVP — toast
-                    // delivery is unreliable (see the remarks on the class for the findings and the
-                    // org.freedesktop.Notifications D-Bus direction for Linux).
+                    services.AddSingleton<IDesktopNotificationService, DesktopNotificationService>();
+                    services.AddSingleton<ThermalAlertMonitor>();
+                    services.AddSingleton<ServiceHealthNotifier>();
                 })
                 .UseNavigation(RegisterRoutes)
             );
@@ -179,6 +181,10 @@ public partial class App : Application
 
         Logger = Host.Log();
 
+        // Client-only alert opt-ins (Settings → Startup & alerts).
+        Host.Services.GetRequiredService<IDesktopNotificationService>().Start();
+        Host.Services.GetRequiredService<ThermalAlertMonitor>().Start();
+        Host.Services.GetRequiredService<ServiceHealthNotifier>().Start();
     }
 
     private void Current_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)

@@ -80,7 +80,7 @@
             <ItemsControl
                 MinWidth="560"
                 ItemTemplate="{StaticResource AboutRowTemplate}"
-                ItemsSource="{x:Bind ViewModel.Page.AboutRows, Mode=OneWay}" />
+                ItemsSource="{x:Bind ViewModel.AboutRows, Mode=OneWay}" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

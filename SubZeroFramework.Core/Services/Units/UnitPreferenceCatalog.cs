@@ -17,6 +17,7 @@ public sealed class UnitPreferenceCatalog
                 new UnitPreferenceOption("celsius", "Celsius (°C)", "Preserves the app's current thermal display style."),
                 new UnitPreferenceOption("fahrenheit", "Fahrenheit (°F)", "Converts thermal values to degrees Fahrenheit."),
                 new UnitPreferenceOption("kelvin", "Kelvin (K)", "Converts thermal values to absolute temperature in kelvin."),
+                new UnitPreferenceOption("rankine", "Rankine (°R)", "Converts thermal values to degrees Rankine."),
             ]),
         new(
             UnitQuantityKind.FanSpeed,
@@ -28,6 +29,7 @@ public sealed class UnitPreferenceCatalog
             [
                 new UnitPreferenceOption("rpm", "RPM", "Displays fan speeds in revolutions per minute."),
                 new UnitPreferenceOption("rps", "RPS", "Displays fan speeds in revolutions per second."),
+                new UnitPreferenceOption("radian-per-second", "rad/s", "Displays fan speeds in radians per second."),
             ]),
         new(
             UnitQuantityKind.ClockFrequency,
@@ -37,8 +39,11 @@ public sealed class UnitPreferenceCatalog
             DefaultOptionKey: "megahertz",
             Options:
             [
+                new UnitPreferenceOption("hertz", "Hz", "Displays clock values in hertz."),
+                new UnitPreferenceOption("kilohertz", "kHz", "Displays clock values in kilohertz."),
                 new UnitPreferenceOption("megahertz", "MHz", "Displays clock values in megahertz."),
                 new UnitPreferenceOption("gigahertz", "GHz", "Displays clock values in gigahertz."),
+                new UnitPreferenceOption("terahertz", "THz", "Displays clock values in terahertz."),
             ]),
         new(
             UnitQuantityKind.RefreshRate,
@@ -50,6 +55,7 @@ public sealed class UnitPreferenceCatalog
             [
                 new UnitPreferenceOption("hertz", "Hz", "Displays refresh rates in hertz."),
                 new UnitPreferenceOption("kilohertz", "kHz", "Displays refresh rates in kilohertz."),
+                new UnitPreferenceOption("megahertz", "MHz", "Displays refresh rates in megahertz."),
             ]),
         new(
             UnitQuantityKind.InformationSize,
@@ -64,6 +70,10 @@ public sealed class UnitPreferenceCatalog
                 new UnitPreferenceOption("mebibyte", "MiB", "Displays all information values in mebibytes."),
                 new UnitPreferenceOption("gibibyte", "GiB", "Displays all information values in gibibytes."),
                 new UnitPreferenceOption("tebibyte", "TiB", "Displays all information values in tebibytes."),
+                new UnitPreferenceOption("kilobyte", "KB", "Displays all information values in decimal kilobytes."),
+                new UnitPreferenceOption("megabyte", "MB", "Displays all information values in decimal megabytes."),
+                new UnitPreferenceOption("gigabyte", "GB", "Displays all information values in decimal gigabytes."),
+                new UnitPreferenceOption("terabyte", "TB", "Displays all information values in decimal terabytes."),
             ]),
         new(
             UnitQuantityKind.Voltage,
@@ -75,6 +85,8 @@ public sealed class UnitPreferenceCatalog
             [
                 new UnitPreferenceOption("volt", "V", "Displays voltage in volts."),
                 new UnitPreferenceOption("millivolt", "mV", "Displays voltage in millivolts."),
+                new UnitPreferenceOption("microvolt", "µV", "Displays voltage in microvolts."),
+                new UnitPreferenceOption("kilovolt", "kV", "Displays voltage in kilovolts."),
             ]),
         new(
             UnitQuantityKind.Current,
@@ -86,6 +98,7 @@ public sealed class UnitPreferenceCatalog
             [
                 new UnitPreferenceOption("ampere", "A", "Displays current in amperes."),
                 new UnitPreferenceOption("milliampere", "mA", "Displays current in milliamperes."),
+                new UnitPreferenceOption("microampere", "µA", "Displays current in microamperes."),
             ]),
         new(
             UnitQuantityKind.ElectricChargeCapacity,
@@ -97,6 +110,7 @@ public sealed class UnitPreferenceCatalog
             [
                 new UnitPreferenceOption("ampere-hour", "Ah", "Displays charge capacity in ampere-hours."),
                 new UnitPreferenceOption("milliampere-hour", "mAh", "Displays charge capacity in milliampere-hours."),
+                new UnitPreferenceOption("coulomb", "C", "Displays charge capacity in coulombs."),
             ]),
         new(
             UnitQuantityKind.Ratio,
@@ -108,6 +122,8 @@ public sealed class UnitPreferenceCatalog
             [
                 new UnitPreferenceOption("percent", "Percent (%)", "Displays ratios as percentages from 0 to 100."),
                 new UnitPreferenceOption("fraction", "Fraction (0–1)", "Displays ratios as decimal fractions from 0 to 1."),
+                new UnitPreferenceOption("per-mille", "Per mille (‰)", "Displays ratios as parts per thousand."),
+                new UnitPreferenceOption("parts-per-million", "PPM", "Displays ratios as parts per million."),
             ]),
         new(
             UnitQuantityKind.Length,
@@ -119,7 +135,9 @@ public sealed class UnitPreferenceCatalog
             [
                 new UnitPreferenceOption("millimeter", "mm", "Displays lengths in millimeters."),
                 new UnitPreferenceOption("centimeter", "cm", "Displays lengths in centimeters."),
+                new UnitPreferenceOption("meter", "m", "Displays lengths in meters."),
                 new UnitPreferenceOption("inch", "in", "Displays lengths in inches."),
+                new UnitPreferenceOption("foot", "ft", "Displays lengths in feet."),
             ]),
         new(
             UnitQuantityKind.Airflow,
@@ -131,6 +149,8 @@ public sealed class UnitPreferenceCatalog
             [
                 new UnitPreferenceOption("cfm", "CFM", "Displays airflow in cubic feet per minute."),
                 new UnitPreferenceOption("cubic-meter-per-hour", "m³/h", "Displays airflow in cubic meters per hour."),
+                new UnitPreferenceOption("liter-per-second", "L/s", "Displays airflow in liters per second."),
+                new UnitPreferenceOption("liter-per-minute", "L/min", "Displays airflow in liters per minute."),
             ]),
         new(
             UnitQuantityKind.BitRate,
@@ -141,9 +161,11 @@ public sealed class UnitPreferenceCatalog
             Options:
             [
                 new UnitPreferenceOption("auto", "Auto", "Chooses Kbps, Mbps, or Gbps automatically based on magnitude."),
+                new UnitPreferenceOption("bit-per-second", "bps", "Displays link speeds in bits per second."),
                 new UnitPreferenceOption("kilobit-per-second", "Kbps", "Displays link speeds in kilobits per second."),
                 new UnitPreferenceOption("megabit-per-second", "Mbps", "Displays link speeds in megabits per second."),
                 new UnitPreferenceOption("gigabit-per-second", "Gbps", "Displays link speeds in gigabits per second."),
+                new UnitPreferenceOption("terabit-per-second", "Tbps", "Displays link speeds in terabits per second."),
             ]),
         new(
             UnitQuantityKind.Power,
@@ -154,7 +176,9 @@ public sealed class UnitPreferenceCatalog
             Options:
             [
                 new UnitPreferenceOption("watt", "W", "Displays power values in watts."),
+                new UnitPreferenceOption("milliwatt", "mW", "Displays power values in milliwatts."),
                 new UnitPreferenceOption("kilowatt", "kW", "Displays power values in kilowatts."),
+                new UnitPreferenceOption("mechanical-horsepower", "hp", "Displays power values in mechanical horsepower."),
             ]),
     ];
 

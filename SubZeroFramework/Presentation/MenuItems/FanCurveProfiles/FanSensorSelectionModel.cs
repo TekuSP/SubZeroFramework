@@ -62,7 +62,7 @@ public sealed class FanSensorSelectionModel
             return;
         }
 
-        var chipName = ShortenSensorName(snapshot.DisplayName, snapshot.SensorIndex);
+        var chipName = ShortenSensorName($"{snapshot.DisplayName.Trim()}{Environment.NewLine}{FrameworkSensorNameDisplay.ToLocation(snapshot.SensorName)}", snapshot.SensorIndex);
 
         if (!_sensorChipIndex.TryGetValue(snapshot.SensorIndex, out var chip))
         {

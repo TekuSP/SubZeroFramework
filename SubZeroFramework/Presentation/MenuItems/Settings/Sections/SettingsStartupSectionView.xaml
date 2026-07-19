@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
@@ -28,17 +29,17 @@
             <TextBlock
                 FontSize="12.5"
                 Foreground="{StaticResource StatusWarningBrush}"
-                Text="{x:Bind ViewModel.Page.StartupStatusMessage, Mode=OneWay}"
+                Text="{x:Bind ViewModel.StartupStatusMessage, Mode=OneWay}"
                 TextWrapping="WrapWholeWords"
-                Visibility="{x:Bind ViewModel.Page.StartupStatusVisibility, Mode=OneWay}" />
+                Visibility="{x:Bind ViewModel.StartupStatusVisibility, Mode=OneWay}" />
 
             <StackPanel>
                 <controls:ToggleRowView
                     Title="Start with system boot"
                     Margin="0,7"
                     IconKind="RocketLaunchOutline"
-                    IsOn="{x:Bind ViewModel.Page.StartWithSystemBoot, Mode=TwoWay}"
-                    IsToggleEnabled="{x:Bind ViewModel.Page.StartWithSystemBootSupported, Mode=OneWay}"
+                    IsOn="{x:Bind ViewModel.StartWithSystemBoot, Mode=TwoWay}"
+                    IsToggleEnabled="{x:Bind ViewModel.StartWithSystemBootSupported, Mode=OneWay}"
                     Subtitle="Launch SubZero when you sign in" />
                 <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />
 
@@ -46,24 +47,127 @@
                     Title="Autorun service"
                     Margin="0,7"
                     IconKind="WeatherNight"
-                    IsOn="{x:Bind ViewModel.Page.AutorunIsOn, Mode=TwoWay}"
-                    IsToggleEnabled="{x:Bind ViewModel.Page.CanToggleAutorun, Mode=OneWay}"
+                    IsOn="{x:Bind ViewModel.AutorunIsOn, Mode=TwoWay}"
+                    IsToggleEnabled="{x:Bind ViewModel.CanToggleAutorun, Mode=OneWay}"
                     Subtitle="Keep the service running at startup" />
                 <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />
 
-                <!--
-                    Disabled for the MVP: toast delivery is unreliable (see ThermalAlertMonitor's remarks;
-                    Linux direction is org.freedesktop.Notifications over D-Bus).
-                -->
                 <controls:ToggleRowView
                     Title="Thermal alerts"
                     Margin="0,7"
                     IconKind="BellOutline"
-                    IsOn="{x:Bind ViewModel.Page.ThermalAlertsEnabled, Mode=TwoWay}"
-                    IsToggleEnabled="False"
-                    Opacity="0.5"
-                    Subtitle="Coming soon" />
+                    IsOn="{x:Bind ViewModel.ThermalAlertsEnabled, Mode=TwoWay}"
+                    Subtitle="Notify when a sensor crosses critical" />
                 <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />
+
+                <!--  The slider's whole scale renders in the user's chosen temperature unit (canonical
+                      bounds: 30–130 °C from ThermalAlertMonitor); writes convert back to Celsius in the
+                      ViewModel. The Maximum → Value → Minimum ATTRIBUTE ORDER IS LOAD-BEARING (do not
+                      re-sort): compiled bindings push in markup order, and this order is the only one
+                      where a fresh slider (Value 0, range 0–100) never coerces during initialization.
+                      Binding Minimum before Value coerces 0 up to the minimum, and the TwoWay writeback
+                      then overwrites the staged threshold with the scale minimum (30 °C).  -->
+                <Grid Margin="0,7" ColumnSpacing="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="12">
+                        <material:MaterialIcon
+                            Width="18"
+                            Height="18"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource StatusInfoBrush}"
+                            Kind="ThermometerAlert" />
+                        <StackPanel VerticalAlignment="Center" Spacing="2">
+                            <TextBlock
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="Warning temperature" />
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="Alert when the hottest sensor reaches this" />
+                        </StackPanel>
+                    </StackPanel>
+                    <Slider
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        StepFrequency="1"
+                        TickFrequency="10"
+                        IsEnabled="{x:Bind ViewModel.ThermalAlertsEnabled, Mode=OneWay}"
+                        Maximum="{x:Bind ViewModel.ThermalAlertThresholdDisplayMaximum, Mode=OneWay}"
+                        Value="{x:Bind ViewModel.ThermalAlertThresholdDisplayValue, Mode=TwoWay}"
+                        Minimum="{x:Bind ViewModel.ThermalAlertThresholdDisplayMinimum, Mode=OneWay}" />
+                    <TextBlock
+                        Grid.Column="2"
+                        MinWidth="72"
+                        VerticalAlignment="Center"
+                        FontSize="15"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.ThermalAlertThresholdDisplay, Mode=OneWay}"
+                        TextAlignment="Right" />
+                </Grid>
+                <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />
+
+                <controls:ToggleRowView
+                    Title="Status notifications"
+                    Margin="0,7"
+                    IconKind="BellCogOutline"
+                    IsOn="{x:Bind ViewModel.StatusNotificationsEnabled, Mode=TwoWay}"
+                    Subtitle="Notify about service and fan control events" />
+                <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />
+
+                <!--  Edits above are staged: Save applies and persists them, Cancel re-reads actual state.  -->
+                <StackPanel
+                    Margin="0,14,0,0"
+                    Orientation="Horizontal"
+                    Spacing="10">
+                    <Button
+                        MinHeight="38"
+                        Padding="18,0"
+                        Background="{StaticResource BrandPrimaryBrush}"
+                        BorderThickness="0"
+                        Command="{x:Bind ViewModel.SaveCommand, Mode=OneWay}"
+                        Content="Save"
+                        CornerRadius="8"
+                        Foreground="{StaticResource TextPrimaryBrush}" />
+                    <Button
+                        MinHeight="38"
+                        Padding="18,0"
+                        Background="Transparent"
+                        BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                        BorderThickness="1"
+                        Command="{x:Bind ViewModel.CancelCommand, Mode=OneWay}"
+                        Content="Cancel"
+                        CornerRadius="8"
+                        Foreground="{StaticResource TextSecondaryBrush}" />
+                </StackPanel>
+
+                <!--  Fires a notification through the exact alert path (using SAVED settings), so the
+                      user can confirm delivery.  -->
+                <Button
+                    Margin="0,10,0,0"
+                    Padding="14,7"
+                    HorizontalAlignment="Left"
+                    Command="{x:Bind ViewModel.SendTestNotificationCommand}"
+                    CornerRadius="8">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <material:MaterialIcon
+                            Width="15"
+                            Height="15"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Kind="BellRingOutline" />
+                        <TextBlock VerticalAlignment="Center" Text="Send test notification" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

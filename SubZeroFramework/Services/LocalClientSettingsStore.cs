@@ -13,6 +13,12 @@ public interface ILocalClientSettingsStore
     string SettingsFilePath { get; }
 
     bool ThermalAlertsEnabled { get; set; }
+
+    /// <summary>The warning temperature (canonical Celsius) the hottest sensor must reach to raise a thermal alert.</summary>
+    double ThermalAlertThresholdCelsius { get; set; }
+
+    /// <summary>Opt-in for service/fan-control status notifications (restart, install, curve applied, connection lost, …).</summary>
+    bool StatusNotificationsEnabled { get; set; }
 }
 
 public sealed class LocalClientSettingsStore : ILocalClientSettingsStore
@@ -35,6 +41,18 @@ public sealed class LocalClientSettingsStore : ILocalClientSettingsStore
     {
         get => _current.ThermalAlertsEnabled;
         set => Update(_current with { ThermalAlertsEnabled = value });
+    }
+
+    public double ThermalAlertThresholdCelsius
+    {
+        get => _current.ThermalAlertThresholdCelsius;
+        set => Update(_current with { ThermalAlertThresholdCelsius = value });
+    }
+
+    public bool StatusNotificationsEnabled
+    {
+        get => _current.StatusNotificationsEnabled;
+        set => Update(_current with { StatusNotificationsEnabled = value });
     }
 
     private void Update(StoredClientSettings settings)
@@ -78,6 +96,10 @@ public sealed class LocalClientSettingsStore : ILocalClientSettingsStore
     internal sealed record StoredClientSettings
     {
         public bool ThermalAlertsEnabled { get; init; }
+
+        public double ThermalAlertThresholdCelsius { get; init; } = ThermalAlertMonitor.DefaultThresholdCelsius;
+
+        public bool StatusNotificationsEnabled { get; init; }
     }
 }
 

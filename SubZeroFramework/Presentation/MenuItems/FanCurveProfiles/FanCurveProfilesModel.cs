@@ -57,6 +57,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
     private readonly FanTelemetryHub _hub;
     private readonly IUserUnitPreferencesClient _userUnitPreferencesClient;
     private readonly IUnitFormattingService _unitFormattingService;
+    private readonly IDesktopNotificationService _notificationService;
     private readonly SynchronizationContext _synchronizationContext;
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly ILogger<FanCurveProfilesModel> _logger;
@@ -95,6 +96,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         FanCoordinatorAccessor coordinatorAccessor,
         IUserUnitPreferencesClient userUnitPreferencesClient,
         IUnitFormattingService unitFormattingService,
+        IDesktopNotificationService notificationService,
         SynchronizationContext synchronizationContext,
         DispatcherQueue dispatcherQueue,
         ILogger<FanCurveProfilesModel> logger)
@@ -116,6 +118,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         coordinatorAccessor.Current = this;
         _userUnitPreferencesClient = userUnitPreferencesClient;
         _unitFormattingService = unitFormattingService;
+        _notificationService = notificationService;
         _synchronizationContext = synchronizationContext;
         _dispatcherQueue = dispatcherQueue;
         _logger = logger;
@@ -645,6 +648,11 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
                             ? $"Profile {slot + 1} applied to {fan.Snapshot.DisplayName} and {linkedCount} linked fan(s) ({dictionary.Count} points, {selectedSensors.Length} sensor(s))."
                             : $"Profile {slot + 1} applied to {fan.Snapshot.DisplayName} ({dictionary.Count} points, {selectedSensors.Length} sensor(s)).",
                     Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success);
+
+                // Status notification (honors the Startup & alerts opt-in): the service persisted a curve.
+                _ = _notificationService.TryShowStatusAsync(
+                    "Fan curve saved",
+                    $"Profile {slot + 1} is now driving {fan.Snapshot.DisplayName}.");
             }
             else
             {

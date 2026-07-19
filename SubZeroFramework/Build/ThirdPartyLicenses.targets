@@ -2,20 +2,22 @@
   <!--
     Generates Assets/ThirdPartyLicenses/third-party-licenses.json for the Settings → Licenses page.
 
-    Sources: every centrally pinned NuGet package (Directory.Packages.props → @(PackageVersion), the full
-    solution set) plus the Uno.Sdk-injected implicit references of this project (@(PackageReference) items
-    that carry their own Version). For each package the license is pulled from the installed package in the
-    global packages folder: an embedded license file when the package ships one, otherwise a canonical SPDX
-    template (Build/LicenseTexts) filled with the package's copyright/authors. Build-time and test-only
-    packages are excluded below. The report lands in the intermediate directory and is linked into the
-    output as Assets/ThirdPartyLicenses/third-party-licenses.json.
+    Sources: the FULL RECURSIVE dependency closure — every package restore resolved for the app, Core,
+    GrpcContracts, and Service projects (each project.assets.json lists dependencies of dependencies, all
+    the way down), plus every centrally pinned NuGet package (Directory.Packages.props → @(PackageVersion))
+    and the Uno.Sdk-injected implicit references of this project (@(PackageReference)). For each package
+    the license is pulled from the installed package in the global packages folder: an embedded license
+    file when the package ships one, otherwise a canonical SPDX template (Build/LicenseTexts) filled with
+    the package's copyright/authors. Build-time and test-only packages are excluded below. The report
+    lands in the intermediate directory and is linked into the output as
+    Assets/ThirdPartyLicenses/third-party-licenses.json.
   -->
 
   <UsingTask TaskName="GenerateThirdPartyLicenseReport" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
       <Packages ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
       <StaticPackages ParameterType="Microsoft.Build.Framework.ITaskItem[]" />
-      <AssetsFile ParameterType="System.String" />
+      <AssetsFiles ParameterType="System.String" />
       <NuGetPackagesRoot ParameterType="System.String" Required="true" />
       <TemplateDirectory ParameterType="System.String" Required="true" />
       <ExcludedPackages ParameterType="System.String" />
@@ -35,16 +37,28 @@
             (ExcludedPackages ?? string.Empty).Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(entry => entry.Trim()),
             StringComparer.OrdinalIgnoreCase);
 
-        // Resolved versions from restore ("Id/Version" keys in project.assets.json) — the only reliable
-        // version source for Uno.Sdk-injected implicit references, which carry no Version metadata.
+        // Resolved packages from restore ("Id/Version" keys with type "package"). Each project.assets.json
+        // lists the FULL transitive closure NuGet resolved for its project — dependencies of dependencies,
+        // recursively — so this dictionary is both the version source for Uno.Sdk-injected implicit
+        // references AND the recursive package set itself. First file wins on conflicts (the app's own
+        // assets file is passed first, so the report matches what ships with the app).
         var resolvedVersions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        if (!string.IsNullOrEmpty(AssetsFile) && File.Exists(AssetsFile))
+        foreach (var assetsPath in (AssetsFiles ?? string.Empty).Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(entry => entry.Trim()))
         {
+            if (!File.Exists(assetsPath))
+            {
+                Log.LogMessage("License report: assets file not found: {0} (that project's transitive packages are covered only by central pins this build).", assetsPath);
+                continue;
+            }
+
             foreach (Match match in Regex.Matches(
-                File.ReadAllText(AssetsFile),
+                File.ReadAllText(assetsPath),
                 "\"([A-Za-z0-9_.\\-]+)/([0-9][^\"]*)\"\\s*:\\s*\\{[^{}]*?\"type\"\\s*:\\s*\"package\""))
             {
-                resolvedVersions[match.Groups[1].Value] = match.Groups[2].Value;
+                if (!resolvedVersions.ContainsKey(match.Groups[1].Value))
+                {
+                    resolvedVersions[match.Groups[1].Value] = match.Groups[2].Value;
+                }
             }
         }
 
@@ -62,6 +76,16 @@
             }
 
             packages[id] = version;
+        }
+
+        // Every remaining restore-resolved package (the recursive closure) joins the report too, so
+        // transitive dependencies get their licenses listed — not just the direct pins/references.
+        foreach (var resolved in resolvedVersions)
+        {
+            if (!excluded.Contains(resolved.Key) && !packages.ContainsKey(resolved.Key))
+            {
+                packages[resolved.Key] = resolved.Value;
+            }
         }
 
         var templates = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -180,7 +204,9 @@
                 }
                 else
                 {
-                    licenseText = "The package does not embed its license text. License: " + licenseDisplay + ".";
+                    // No embedded text and no canonical template for the declared expression (or no
+                    // declaration at all): never guess or hard-code a license on the package's behalf.
+                    licenseText = "Unknown license terms";
                 }
             }
 
@@ -249,6 +275,10 @@
     <!-- Resolved at execution time: IntermediateOutputPath is defined by SDK targets imported after this file. -->
     <PropertyGroup>
       <ThirdPartyLicenseReportFile>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)third-party-licenses.json</ThirdPartyLicenseReportFile>
+      <!-- The app's own assets file FIRST (its resolved versions win), then the sibling projects that ship
+           in the bundle, so their transitive dependency closures are licensed too. Missing files (e.g. the
+           service before a solution restore) are skipped with a log message. -->
+      <_LicenseAssetsFiles>$(ProjectAssetsFile);$(MSBuildProjectDirectory)\..\SubZeroFramework.Core\obj\project.assets.json;$(MSBuildProjectDirectory)\..\SubZeroFramework.GrpcContracts\obj\project.assets.json;$(MSBuildProjectDirectory)\..\SubZeroFramework.Service\obj\project.assets.json</_LicenseAssetsFiles>
     </PropertyGroup>
 
     <ItemGroup>
@@ -274,7 +304,7 @@
     <GenerateThirdPartyLicenseReport
         Packages="@(_LicensePackage)"
         StaticPackages="@(_StaticLicensePackage)"
-        AssetsFile="$(ProjectAssetsFile)"
+        AssetsFiles="$(_LicenseAssetsFiles)"
         NuGetPackagesRoot="$(NuGetPackageRoot)"
         TemplateDirectory="$(MSBuildThisFileDirectory)LicenseTexts"
         ExcludedPackages="Grpc.Tools;Uno.Resizetizer;Microsoft.Windows.SDK.BuildTools;Microsoft.Windows.SDK.BuildTools.MSIX;Microsoft.Windows.SDK.BuildTools.WinApp;Uno.UI.DevServer;Uno.WinUI.DevServer;Uno.Settings.DevServer;Uno.Sdk.Extras;Uno.UI.HotDesign;Uno.UI.App.Mcp;Microsoft.CodeAnalysis.CSharp;NUnit;NUnit3TestAdapter;Microsoft.NET.Test.Sdk"

@@ -47,7 +47,7 @@
                     Background="Transparent"
                     BorderBrush="{StaticResource SurfaceOutlineBrush}"
                     BorderThickness="1"
-                    Command="{x:Bind ViewModel.Page.ResetUnitsCommand, Mode=OneWay}"
+                    Command="{x:Bind ViewModel.ResetUnitsCommand, Mode=OneWay}"
                     Content="Reset to defaults"
                     CornerRadius="17"
                     FontSize="12.5"
@@ -57,11 +57,11 @@
             <TextBlock
                 FontSize="12.5"
                 Foreground="{StaticResource StatusWarningBrush}"
-                Text="{x:Bind ViewModel.Page.UnitsStatusMessage, Mode=OneWay}"
+                Text="{x:Bind ViewModel.UnitsStatusMessage, Mode=OneWay}"
                 TextWrapping="WrapWholeWords"
-                Visibility="{x:Bind ViewModel.Page.UnitsStatusVisibility, Mode=OneWay}" />
+                Visibility="{x:Bind ViewModel.UnitsStatusVisibility, Mode=OneWay}" />
 
-            <ItemsControl ItemTemplate="{StaticResource UnitRowTemplate}" ItemsSource="{x:Bind ViewModel.Page.UnitRows, Mode=OneWay}" />
+            <ItemsControl ItemTemplate="{StaticResource UnitRowTemplate}" ItemsSource="{x:Bind ViewModel.UnitRows, Mode=OneWay}" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

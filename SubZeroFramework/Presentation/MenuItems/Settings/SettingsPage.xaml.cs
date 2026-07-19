@@ -1,7 +1,7 @@
 using System.ComponentModel;
 
 using SubZeroFramework.Controls.Settings.Models;
-using SubZeroFramework.Controls.Settings.Models.Sections;
+using SubZeroFramework.Presentation.MenuItems.Settings.Sections;
 
 using Uno.Extensions.Navigation;
 
@@ -9,10 +9,10 @@ namespace SubZeroFramework.Presentation.MenuItems.Settings;
 
 /// <summary>
 /// Settings page: a sub-navigation card on the left and a navigation sub-region (<c>SectionRegionHost</c>,
-/// a ContentControl) on the right that resolves the per-section body views. The region is kept in sync with
-/// the page model's <c>SelectedSectionIndex</c>, but the navigation is always deferred to a later UI tick so
-/// it never runs re-entrantly during the page's own navigation (same pattern as
-/// <c>DeviceCapabilitiesPage</c>).
+/// a ContentControl) on the right that resolves the per-section body views with their ViewMap-registered
+/// ViewModels. The region is kept in sync with the page model's <c>SelectedSectionIndex</c>, but the
+/// navigation is always deferred to a later UI tick so it never runs re-entrantly during the page's own
+/// navigation (same pattern as <c>DeviceCapabilitiesPage</c>).
 /// </summary>
 public sealed partial class SettingsPage : Page, INotifyPropertyChanged
 {
@@ -118,9 +118,11 @@ public sealed partial class SettingsPage : Page, INotifyPropertyChanged
 
     private async Task NavigateAsync(INavigator navigator, int index)
     {
-        // The section VMs bind to the page-driven model via SettingsAccessor (published in the page model's
-        // ctor), so no navigation data is needed here.
-        _ = index switch
+        // Navigation constructs each section ViewModel fresh (ViewMap-registered) but never disposes the
+        // one it replaces, so the outgoing VM's stream subscriptions are released here.
+        var previousViewModel = (SectionRegionHost.Content as FrameworkElement)?.DataContext as IDisposable;
+
+        var response = index switch
         {
             1 => await navigator.NavigateViewModelAsync<SettingsUnitsSectionModel>(this),
             2 => await navigator.NavigateViewModelAsync<SettingsStartupSectionModel>(this),
@@ -128,5 +130,10 @@ public sealed partial class SettingsPage : Page, INotifyPropertyChanged
             4 => await navigator.NavigateViewModelAsync<SettingsAboutSectionModel>(this),
             _ => await navigator.NavigateViewModelAsync<SettingsServiceSectionModel>(this),
         };
+
+        if (response is not null)
+        {
+            previousViewModel?.Dispose();
+        }
     }
 }

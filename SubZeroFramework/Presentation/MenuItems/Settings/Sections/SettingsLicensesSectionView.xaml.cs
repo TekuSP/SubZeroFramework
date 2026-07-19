@@ -1,7 +1,5 @@
 using System.ComponentModel;
 
-using SubZeroFramework.Controls.Settings.Models.Sections;
-
 namespace SubZeroFramework.Presentation.MenuItems.Settings.Sections;
 
 /// <summary>Licenses section body, resolved by the section navigation sub-region. DataContext is the <see cref="SettingsLicensesSectionModel"/>.</summary>
