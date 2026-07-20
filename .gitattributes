@@ -4,6 +4,18 @@
 * text=auto
 
 ###############################################################################
+# Shell scripts must ALWAYS check out with LF, even on Windows.
+#
+# core.autocrlf=true would otherwise give them CRLF in the working tree, and a
+# CRLF shebang fails on Linux/WSL with the famously unhelpful:
+#     bash: ./script.sh: /usr/bin/env: bad interpreter: No such file or directory
+# These scripts are run from WSL against this same working tree (see the
+# "release: linux (WSL)" VS Code task), so the working-tree form matters, not
+# just what is committed.
+###############################################################################
+*.sh text eol=lf
+
+###############################################################################
 # Set default behavior for command prompt diff.
 #
 # This is need for earlier builds of msysgit that does not have it on by

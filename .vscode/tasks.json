@@ -182,6 +182,67 @@
       "problemMatcher": "$msCompile",
       "group": { "kind": "none", "isDefault": false },
       "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    // ── Linux release via WSL2 ────────────────────────────────────────────────────────────────────
+    // Builds the real .deb/.rpm/tarball/AUR artifacts inside a WSL distro, against this same working
+    // tree — no copying, no second checkout. `type: process` (not `shell`) so the argument containing
+    // $(wslpath ...) reaches bash verbatim instead of being mangled by PowerShell quoting first.
+    // wslpath translates ${workspaceFolder} (a Windows path) to its /mnt/... form inside the distro.
+    {
+      "label": "release: linux (WSL) — install prerequisites",
+      "detail": "One-time per distro: dpkg-deb, rpmbuild, makepkg. Prompts for your sudo password.",
+      "type": "process",
+      "command": "wsl.exe",
+      "args": [
+        "-d", "${input:wslDistro}",
+        "--",
+        "bash", "-lc",
+        "sudo pacman -S --needed --noconfirm dpkg rpm-tools base-devel git && echo && echo 'Prerequisites installed.' && for c in dotnet dpkg-deb rpmbuild makepkg; do printf '  %-10s %s\\n' \"$c\" \"$(command -v $c || echo MISSING)\"; done"
+      ],
+      "problemMatcher": [],
+      "group": { "kind": "none", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "release: linux (WSL)",
+      "detail": "Publishes the UI + service and builds .deb/.rpm/tarball/AUR into artifacts/linux/.",
+      "type": "process",
+      "command": "wsl.exe",
+      "args": [
+        "-d", "${input:wslDistro}",
+        "--",
+        "bash", "-lc",
+        "cd \"$(wslpath '${workspaceFolder}')\" && ./packaging/linux/build-release-linux.sh"
+      ],
+      "problemMatcher": [],
+      "group": { "kind": "none", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "release: linux (WSL) — shell at repo",
+      "detail": "Opens an interactive shell in the distro, already cd'd into this working tree.",
+      "type": "process",
+      "command": "wsl.exe",
+      "args": [
+        "-d", "${input:wslDistro}",
+        "--",
+        "bash", "-lc",
+        "cd \"$(wslpath '${workspaceFolder}')\" && exec bash -l"
+      ],
+      "problemMatcher": [],
+      "group": { "kind": "none", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    }
+  ],
+  "inputs": [
+    {
+      // Both are Arch. `archlinux` is the WSL default and starts cleanly; `Arch` has a newer SDK but
+      // reported a systemd user-session error, so it is not the default choice here.
+      "id": "wslDistro",
+      "type": "pickString",
+      "description": "Which WSL distro should build the Linux release?",
+      "options": ["archlinux", "Arch", "Debian"],
+      "default": "archlinux"
     }
   ]
 }
