@@ -1,7 +1,7 @@
 # SubZero redesign — implementation plan
 
 > **Release planning moved:** remaining open work (Fan Control visual pass, Modules FFI follow-ups,
-> cooling-profile enablement, library metadata versions) is tracked in [`../ReleasePlan.md`](../ReleasePlan.md)
+> cooling-profile enablement, library metadata versions) is tracked in [`../docs/ReleasePlan.md`](../docs/ReleasePlan.md)
 > (2026-07-03). This file stays as the redesign execution record and per-view reference.
 
 Source of truth: `Design Ideas/design_handoff_redesign/` (README + `.dc.html` mockups + `screenshots/`).

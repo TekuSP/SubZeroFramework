@@ -70,16 +70,23 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
         if (OperatingSystem.IsLinux())
         {
             var executablePath = ResolveLinuxServiceExecutablePath();
-            var canInstall = executablePath is not null;
             var isRoot = ClientLinuxPrivilegeDetector.IsRunningAsRoot();
             var isInstalled = IsLinuxServiceInstalled();
             var isAutorunEnabled = isInstalled ? QueryLinuxAutorunEnabled() : null;
+
+            // When the distro package manager owns this install, the app must defer entirely: installing
+            // over it would write a SHADOWING unit into /etc/systemd/system/ that outlives the package,
+            // and uninstalling through us would leave the package manager believing it is still installed.
+            // Lifecycle (start/stop/restart/autorun) stays available — only install/update/uninstall are
+            // withdrawn, because those are the package manager's job.
+            var isPackageManaged = IsLinuxPackageManagedInstall();
+            var canInstall = executablePath is not null && !isPackageManaged;
 
             return new FrameworkServiceControlInfo
             {
                 IsSupported = true,
                 IsInstalled = isInstalled,
-                CanUninstall = isInstalled,
+                CanUninstall = isInstalled && !isPackageManaged,
                 CanInstall = canInstall && !isInstalled,
                 CanUpdate = canInstall && isInstalled,
                 PackagedHelperAvailable = canInstall,
@@ -87,10 +94,14 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
                 IsAutorunEnabled = isAutorunEnabled,
                 PlatformServiceManager = LinuxServiceManagerName,
                 ServiceIdentity = _options.LinuxUnitName,
-                InstallSourceSummary = canInstall
-                    ? $"Install source executable: {executablePath}"
-                    : "Service package unavailable. Place a packaged service executable under service-package/linux or configure ServiceControl:LinuxServiceExecutablePath.",
-                InstallReadinessMessage = canInstall
+                InstallSourceSummary = isPackageManaged
+                    ? $"Managed by your system package manager: {_options.LinuxPackagedUnitPath}"
+                    : canInstall
+                        ? $"Install source executable: {executablePath}"
+                        : "Service package unavailable. Place a packaged service executable under service-package/linux or configure ServiceControl:LinuxServiceExecutablePath.",
+                InstallReadinessMessage = isPackageManaged
+                    ? "Install, update and uninstall are handled by your system package manager."
+                    : canInstall
                     ? isInstalled
                         ? isRoot
                             ? $"Linux update is ready. This client session is already running as root, so the packaged service executable can refresh {_options.LinuxInstalledWorkingDirectory} and {_options.LinuxInstalledUnitPath} directly."
@@ -572,11 +583,32 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
         try
         {
             return File.Exists(_options.LinuxInstalledUnitPath)
-                || File.Exists(_options.LinuxInstalledExecutablePath);
+                || File.Exists(_options.LinuxInstalledExecutablePath)
+                || IsLinuxPackageManagedInstall();
         }
         catch (Exception exception)
         {
             _logger.LogWarning(exception, "Unable to determine whether Linux service unit {UnitName} is installed.", _options.LinuxUnitName);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// True when the service was installed by the distro package manager (.deb/.rpm/AUR) rather than by
+    /// the in-app installer. Detected separately because such an install must be left alone: writing our
+    /// own unit into /etc/systemd/system/ would SHADOW the packaged one (that path wins in systemd's
+    /// search order) and would survive removing the package, leaving a unit pointing at deleted binaries.
+    /// </summary>
+    private bool IsLinuxPackageManagedInstall()
+    {
+        try
+        {
+            return File.Exists(_options.LinuxPackagedUnitPath)
+                || File.Exists(_options.LinuxPackagedExecutablePath);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Unable to probe for a package-managed Linux install of {UnitName}.", _options.LinuxUnitName);
             return false;
         }
     }

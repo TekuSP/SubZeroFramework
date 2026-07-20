@@ -36,6 +36,9 @@ public partial class MainModel : ObservableObject, IDisposable
             .DisposeWith(_subscriptions);
     }
 
+    /// <summary>Last observed health, so redirects fire on a transition rather than on every emission.</summary>
+    private bool? _wasWorking;
+
     private void SystemStatusChanged(FrameworkSystemStatus status)
     {
         bool isWorking = status.IsGrpcActive
@@ -43,6 +46,12 @@ public partial class MainModel : ObservableObject, IDisposable
             && status.IsFrameworkDevice == true
             && !status.RequiresElevation
             && string.IsNullOrEmpty(status.LastError);
+
+        // Redirect only when health actually FLIPS, never on every emission: the status stream re-emits on
+        // each reconnect attempt (2 s), so a per-emission redirect repeatedly ejected anyone who had
+        // deliberately navigated elsewhere while the service was down.
+        var healthChanged = _wasWorking != isWorking;
+        _wasWorking = isWorking;
 
         if (!isWorking)
         {
@@ -54,7 +63,12 @@ public partial class MainModel : ObservableObject, IDisposable
             IsModulesEnabled = false;
             IsWarningIssuesEnabled = true;
 
-            if (SelectedItem is NavigationViewItemBase bs && bs.Tag?.ToString() != "WarningIssues")
+            // Settings is exempt: Display units / Licenses / About work with no service at all, and the
+            // Service pane is where the user installs or uninstalls one — bouncing them out of it would
+            // make the documented "install via Settings → Service" flow impossible.
+            if (healthChanged
+                && SelectedItem is NavigationViewItemBase bs
+                && bs.Tag?.ToString() is not ("WarningIssues" or "Settings"))
             {
                 // A forced redirect. It sets SelectedItem directly (no ItemInvoked), so the unsaved-changes
                 // guard — which only fires on user taps — does not block this bailout.
@@ -64,7 +78,7 @@ public partial class MainModel : ObservableObject, IDisposable
             return;
         }
 
-        if (SelectedItem is NavigationViewItemBase bs2 && bs2.Tag?.ToString() == "WarningIssues")
+        if (healthChanged && SelectedItem is NavigationViewItemBase bs2 && bs2.Tag?.ToString() == "WarningIssues")
         {
             navigator.NavigateRouteAsync(this, "/Main/Dashboard");
         }

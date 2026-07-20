@@ -3,19 +3,19 @@
 ## Purpose
 This document captures repository-specific skills, architecture patterns, and problem areas for AI copilots working on SubZeroFramework.
 
-Use `WorkToBeDone.md` as the execution roadmap and priority list.
+Use `docs/ReleasePlan.md` as the execution roadmap and priority list.
 
-Use `FunctionalitySpecification.md` as the source of truth for intended menu-item and page behavior.
+Use `docs/FunctionalitySpecification.md` as the source of truth for intended menu-item and page behavior.
 
-Use `Architecture.md` as the source of truth for the service/client split, privilege boundary, process lifecycle, IPC ownership, and multi-instance assumptions.
+Use `docs/Architecture.md` as the source of truth for the service/client split, privilege boundary, process lifecycle, IPC ownership, and multi-instance assumptions.
 
 ## Key areas of expertise
 
 ### Important steps
 - Avoid using PowerShell unless MCP tools (such as Microsoft Knowledge Search or Nuget Package Search) are completely unavailable or fail to provide the required documentation, code samples, or best practices for the tasks at hand.
-- Always refer to `WorkToBeDone.md` for the current list of required improvements and align your work with those items.
-- Refer to `FunctionalitySpecification.md` when working on navigation, page responsibilities, or user-facing surface behavior.
-- Refer to `Architecture.md` when working on service/client boundaries, privileges, shutdown behavior, IPC ownership, or multi-instance behavior.
+- Always refer to `docs/ReleasePlan.md` for the current list of required improvements and align your work with those items.
+- Refer to `docs/FunctionalitySpecification.md` when working on navigation, page responsibilities, or user-facing surface behavior.
+- Refer to `docs/Architecture.md` when working on service/client boundaries, privileges, shutdown behavior, IPC ownership, or multi-instance behavior.
 - When modifying service or core service-boundary code, prefer structured DI-backed logging with `ILogger<T>` at lifecycle boundaries, mutating commands, direct stream writes, publish points, authorization rejections, and exceptional shutdown/restore paths.
 - If you need source codes, preferably use the GitHub web interface to navigate and search the codebase, as it provides better context and understanding of the code structure. Use the file paths and class names mentioned in this document to locate relevant code sections.
 If possible use ObservableProperty with ObservableObject, leveraging C# partial classes to reduce boilerplate and ensure change notifications are properly raised for UI updates. This is especially important for view models and any state that the UI binds to.
@@ -23,7 +23,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - Prefer `[ObservableProperty]` public partial properties over manual `SetProperty(...)` wrappers for bindable state; repo analyzer `SZF0012` enforces this.
 - For inventory surfaces, prefer FrameworkDotnet data first and only use Hardware.Info to fill gaps, keeping that fallback flow behind the existing service/gRPC/client boundary.
 - For service lifecycle work, keep install/update/shutdown/restart/autorun management out of gRPC. Prefer the packaged service executable and `FrameworkServiceManagementCli` so the client stays unelevated and the action still works when the service is offline.
-- For service-owned runtime settings such as polling cadence or writable fan-command authorization, prefer `FrameworkServiceConfigurationGrpcService` / `IFrameworkServiceConfigurationClient` plus the persistent service-owned configuration overlay instead of client-local settings. Both that surface and the machine-wide display-unit preferences surface follow the same Apply/Save/Load mental model (Apply changes live runtime and broadcasts, Save persists to the service-approved JSON path, Load re-reads and broadcasts). Keep lifecycle operations out of those gRPC surfaces. Custom service-approved settings paths (relocating `service-settings.json` or `user-preferences.json` out of the default `ProgramData` location) are deferred: when implemented, they must go through one shared service-side "relocate store" gRPC flow used by both stores (validate writable by the service account, atomically copy → swap pointer → delete old → broadcast new path, persist a bootstrap pointer file in the default location) and be driven from the client by an Uno `FolderPicker` rather than a free-text path field.
+- For service-owned runtime settings such as polling cadence or writable fan-command authorization, prefer `FrameworkServiceConfigurationGrpcService` / `IFrameworkServiceConfigurationClient` plus the persistent service-owned configuration overlay instead of client-local settings. That surface follows an Apply/Save/Load model (Apply changes live runtime and broadcasts, Save persists to the service-approved JSON path, Load re-reads and broadcasts). Keep lifecycle operations out of that gRPC surface. Relocating `service-settings.json` out of its default `ProgramData` location is deferred: only this one store exists service-side (display units are client-local — see below), so if implemented it would be a single service-side "relocate store" gRPC flow (validate writable by the service account, atomically copy → swap pointer → delete old → broadcast new path, persist a bootstrap pointer file in the default location), driven from the client by an Uno `FolderPicker` rather than a free-text path field.
 - Keep service and gRPC payloads in canonical units. When the UI needs alternate display units, persist the choice locally through `IUserUnitPreferencesClient` and format values, suffixes, and axis labels through `IUnitFormattingService`.
 - When a bindable display value depends on other observable properties, prefer analyzer-friendly dependency patterns such as `[NotifyPropertyChangedFor]` over manual `OnPropertyChanged(...)` refresh calls so the solution stays warning-clean.
 - Preserve stable item identity in GridView/ListView card layouts. Prefer persistent mutable card/view-model instances exposed via `ReadOnlyObservableCollection<T>` over rebinding fresh arrays every refresh, otherwise cards blink and pointer/layout state resets.
@@ -74,7 +74,7 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - `MainModel`, `HeaderModel`, and dashboard view models are the primary reactive consumers.
 - Prefer `IFrameworkStatusClient`, `IFrameworkTelemetryClient`, `IFanCapabilityClient`, `IFanControlStateClient`, and higher-level telemetry clients instead of raw data providers.
 - `SettingsModel` should combine lifecycle state from `IFrameworkServiceControlClient` with service-owned runtime configuration from `IFrameworkServiceConfigurationClient`. Autorun is lifecycle state; polling cadence and writable fan-command authorization are service-owned config.
-- `SettingsModel` should also expose machine-wide display-unit preferences through `IUserUnitPreferencesClient` (backed by `FrameworkUserPreferencesService`); those preferences live in a separate service-owned store from the runtime configuration but share the same Apply/Save/Load UX.
+- `SettingsModel` should also expose CLIENT-LOCAL display-unit preferences through `IUserUnitPreferencesClient` — implemented by `LocalUserUnitPreferencesClient`, which persists to `%LOCALAPPDATA%\SubZeroFramework\display-unit-preferences.json`. These never travel to the service. NOTE: the old service-owned `FrameworkUserPreferencesService` vertical was REMOVED on 2026-07-03 and no longer exists in the codebase; the units section uses staged Save/Cancel, not the runtime config's Apply/Save/Load.
 - Route UI-facing numeric formatting, suffixes, copyable inventory values, and chart axis labelers through `IUnitFormattingService` instead of per-page ad hoc conversion logic.
 - Left navigation is icon-led and supports a compact app-shell visual style.
 - Pages should emphasize summary cards, status badges, and nested telemetry cards rather than dense tables.
@@ -156,8 +156,8 @@ If possible use ObservableProperty with ObservableObject, leveraging C# partial 
 - Safety restore happens during polling stop and dispose.
 - `SetFanRpm`, `SetFanDuty`, and `RestoreAutoFanControl` are the current command primitives.
 
-## WorkToBeDone alignment
-This repo has a living list of required improvements in `WorkToBeDone.md`. Future copilots should use it as the primary roadmap.
+## ReleasePlan alignment
+This repo has a living list of required improvements in `docs/ReleasePlan.md`. Future copilots should use it as the primary roadmap.
 
 ### Service architecture
 - The service boundary is already correct, and the UNO app should stay on typed IPC clients rather than reintroducing in-process provider usage.
@@ -229,7 +229,7 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - Prefer explicit validation of socket endpoint path and transport security.
 - Avoid adding direct `FrameworkDataProvider` references into UI code; use gRPC client abstractions instead.
 - When modifying reactive streams, verify UI thread marshalling and collection updates.
-- Consult `WorkToBeDone.md` before adding new work; align changes to the checklist.
+- Consult `docs/ReleasePlan.md` before adding new work; align changes to the checklist.
 
 ## Useful files and classes
 - `SubZeroFramework.Service/Program.cs`
@@ -254,7 +254,7 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - `SubZeroFramework/Services/GrpcHardwareInfoClient.cs`
 - `SubZeroFramework.Services/RefCountedObservableCache.cs`
 - `SubZeroFramework.Service/Services/ReactiveRequestQueue.cs`
-- `SubZeroFramework/WorkToBeDone.md`
+- `SubZeroFramework/docs/ReleasePlan.md`
 - `SubZeroFramework/Docs/TelemetryUiGuide.md`
 - `SubZeroFramework.Service/Services/GrpcChangeSetWriter.cs`
 - `SubZeroFramework.Service/Services/ObservableChannelBridge.cs`
@@ -284,5 +284,5 @@ This repo has a living list of required improvements in `WorkToBeDone.md`. Futur
 - Understand the root cause: Linux requires root for Framework driver access, so service isolation is mandatory.
 - Do not treat the service as a generic network service; it is local-only and must be hardened accordingly.
 - Focus first on IPC security, telemetry stream resilience, and fan-control safety.
-- Use the existing `WorkToBeDone.md` checklist to align changes with project intent.
+- Use the existing `docs/ReleasePlan.md` checklist to align changes with project intent.
 - When in doubt, preserve the split between service-hosted EC logic and UNO UI client logic.

@@ -21,11 +21,11 @@ You are the specialist for FrameworkDotnet-facing work in SubZeroFramework. Foll
 - Return to `SubZero Maintainer` when the task becomes cross-cutting and needs coordinated validation or roadmap triage.
 
 ## Read first
-- [`../../Architecture.md`](../../Architecture.md) for the privileged service boundary
-- [`../../WorkToBeDone.md`](../../WorkToBeDone.md) for active hardware, IPC, and inventory priorities
+- [`../../docs/Architecture.md`](../../docs/Architecture.md) for the privileged service boundary
+- [`../../docs/ReleasePlan.md`](../../docs/ReleasePlan.md) for active hardware, IPC, and inventory priorities
 - [`../../SubZeroFramework/ReadMe.md`](../../SubZeroFramework/ReadMe.md) for client-side status and linked docs
 - [`../../SubZeroFramework.Service/README.md`](../../SubZeroFramework.Service/README.md) for service packaging and management expectations
-- [`../../FunctionalitySpecification.md`](../../FunctionalitySpecification.md) when the data change affects UI behavior or page scope
+- [`../../docs/FunctionalitySpecification.md`](../../docs/FunctionalitySpecification.md) when the data change affects UI behavior or page scope
 
 ## Companion repo context
 - The local companion source for upstream FrameworkDotnet work lives at `C:/Users/richa/source/repos/framework-dotnet`.

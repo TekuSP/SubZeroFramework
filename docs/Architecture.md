@@ -4,7 +4,7 @@
 
 This document defines the runtime architecture of SubZeroFramework.
 
-Use `WorkToBeDone.md` as the execution roadmap and priority list.
+Use `ReleasePlan.md` as the execution roadmap and priority list.
 
 Use `FunctionalitySpecification.md` as the source of truth for intended menu-item and page behavior.
 
@@ -65,7 +65,7 @@ The client owns:
 
 - page composition and navigation
 - view models and local DynamicData projections for presentation
-- presentation formatting against machine-wide service-owned display-unit preferences exposed through gRPC
+- presentation formatting against client-local display-unit preferences
 - subscribing to status, telemetry, and fan-control state streams from the service
 - rendering charts, cards, legends, and selection state
 - initiating user-requested commands through the service boundary
@@ -73,19 +73,33 @@ The client owns:
 
 The client should treat the service as the authority for runtime hardware state.
 
-## Machine-wide presentation preferences
+## Presentation preferences (client-local)
 
-Display-unit selection is owned by the service so every local UI client on the machine sees the same units.
+Display-unit selection is **client-only**. It is a presentation concern, never travels to the service, and
+is persisted per-user by `LocalUserUnitPreferencesClient` to the app-data folder
+(`%LOCALAPPDATA%\SubZeroFramework\display-unit-preferences.json`). The UI formats every value and axis
+label through `IUnitFormattingService`.
 
-The service hosts a `FrameworkUserPreferencesService` gRPC surface that mirrors the Apply/Save/Load semantics of the runtime configuration surface. Clients consume it through `IUserUnitPreferencesClient`, and the UI formats values and axis labels through `IUnitFormattingService`.
+> Reversed 2026-07-03: an earlier design put these on the service behind a `FrameworkUserPreferencesService`
+> gRPC surface so every client on the machine shared one setting. That vertical was **removed** — the type
+> no longer exists anywhere in the codebase. Treat any doc still describing a machine-wide, service-owned
+> units surface as out of date.
 
-Service snapshots and gRPC telemetry payloads remain in canonical units. Display-unit preferences and service runtime configuration (polling cadence, Hardware.Info cadence, fan-command authorization) live in separate stores/managers/contracts but share the same Apply/Save/Load mental model:
+Service snapshots and gRPC telemetry payloads always remain in **canonical** units; conversion happens at
+the presentation layer only.
+
+## Service runtime configuration
+
+Separately from the above, the service owns its own runtime configuration — polling cadence,
+Hardware.Info cadence, and fan-command authorization — with Apply/Save/Load semantics:
 
 - Apply updates the live runtime and broadcasts to every subscribed client without writing to disk.
 - Save persists the current runtime values to the service-approved JSON path.
 - Load re-reads the persisted JSON, applies it to runtime, and broadcasts to every client.
 
-Custom service-approved settings paths are deferred; the service currently uses fixed paths (`%ProgramData%\SubZeroFramework\service-settings.json` and `user-preferences.json` on Windows, `/etc/subzeroframework/` on Linux) with atomic writes.
+Custom service-approved settings paths are deferred; the service currently uses fixed paths
+(`%ProgramData%\SubZeroFramework\service-settings.json` on Windows, `/etc/subzeroframework/` on Linux)
+with atomic writes.
 
 ## IPC model
 
@@ -229,7 +243,7 @@ When implementing new features:
 
 ## Relationship to other documents
 
-- `WorkToBeDone.md` tracks what should be done next and what is still incomplete
+- `ReleasePlan.md` tracks what should be done next and what is still incomplete
 - `FunctionalitySpecification.md` describes what each menu item and page should do
 - `SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md` describes current IPC authorization limits and UI cadence rules
 - `SubZeroFramework/Docs/FanSafetyShutdownChecklist.md` captures the manual verification steps for service stop, restart, machine shutdown, and multi-instance fan-safety behavior

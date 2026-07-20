@@ -13,9 +13,9 @@ This project contains the Uno Platform client application. It is intentionally n
 
 ## Related docs
 
-- [../WorkToBeDone.md](../WorkToBeDone.md)
-- [../Architecture.md](../Architecture.md)
-- [../FunctionalitySpecification.md](../FunctionalitySpecification.md)
+- [../docs/ReleasePlan.md](../docs/ReleasePlan.md)
+- [../docs/Architecture.md](../docs/Architecture.md)
+- [../docs/FunctionalitySpecification.md](../docs/FunctionalitySpecification.md)
 - [Docs/TelemetryUiGuide.md](Docs/TelemetryUiGuide.md)
 - [../SubZeroFramework.Service/README.md](../SubZeroFramework.Service/README.md)
 

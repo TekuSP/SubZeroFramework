@@ -134,6 +134,54 @@
         "kind": "build",
         "isDefault": false
       },
+    },
+    // ── Local release builds (no GitHub Actions) ──────────────────────────────────────────────────
+    // Produces the same artifact layout as CI: the app at the payload root, the service under
+    // service-package\windows\ (where the app's helper discovery looks), and the Inno Setup installer.
+    // Output lands in artifacts\windows\. Requires Inno Setup for the installer step
+    // (winget install JRSoftware.InnoSetup); without it the payload is still produced.
+    {
+      "label": "release: windows x64 (local)",
+      "type": "shell",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", "${workspaceFolder}/packaging/windows/build-release-windows.ps1",
+        "-Arch", "x64"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "none", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      "label": "release: windows arm64 (local)",
+      "type": "shell",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", "${workspaceFolder}/packaging/windows/build-release-windows.ps1",
+        "-Arch", "arm64"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "none", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "dedicated" }
+    },
+    {
+      // Payload only — skips Inno Setup. Handy for checking the layout without installing ISCC.
+      "label": "release: windows payload only (no installer)",
+      "type": "shell",
+      "command": "pwsh",
+      "args": [
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", "${workspaceFolder}/packaging/windows/build-release-windows.ps1",
+        "-SkipInstaller"
+      ],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "none", "isDefault": false },
+      "presentation": { "reveal": "always", "panel": "dedicated" }
     }
   ]
 }

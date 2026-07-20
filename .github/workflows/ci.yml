@@ -5,7 +5,6 @@ on:
     branches:
       - master
       - release/**
-
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
@@ -13,6 +12,13 @@ on:
       - release/**
 
   workflow_dispatch:
+
+  # Creating a GitHub Release runs the full pipeline and, only if everything is green, attaches the
+  # built artifacts to that release. Deliberately NOT a tag trigger: you create the release (draft or
+  # not) and stay in control of when it goes public — the pipeline only fills it with assets.
+  # The version comes from the release's tag name, so a release tagged v0.1.0 stamps 0.1.0.
+  release:
+    types: [created]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -32,6 +38,45 @@ permissions:
   actions: write
 
 jobs:
+  # Single source of truth for the version every job stamps. Ordinary branch/PR builds keep the
+  # "<prefix>.<run_number>" scheme; a build triggered by creating a GitHub Release takes the version
+  # from that release's tag, so a release tagged v0.1.0 stamps 0.1.0 rather than 0.1.<run>.
+  # Every consumer MUST read needs.version.outputs.version — a job that references it without listing
+  # `version` in its `needs:` silently resolves to an empty string, which becomes a bare
+  # `-p:Version=` and a broken build.
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      is_release: ${{ steps.resolve.outputs.is_release }}
+    steps:
+      - name: Resolve version
+        id: resolve
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            version="${RELEASE_TAG#v}"
+            # RPM Version: and Arch pkgver= both reject '-', so a prerelease tag would break Linux
+            # packaging much later in the run. Fail here instead, where the cause is obvious.
+            if [[ "${version}" == *-* ]]; then
+              echo "::error::Prerelease tags are not supported yet: '${RELEASE_TAG}' contains '-', which RPM Version: and Arch pkgver= reject. Use a plain vX.Y.Z tag."
+              exit 1
+            fi
+            if [[ -z "${version}" ]]; then
+              echo "::error::Could not resolve a version from the release tag."
+              exit 1
+            fi
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            version="${VERSION_PREFIX}.${GITHUB_RUN_NUMBER}"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${version}"
+
   run_tests:
     # Gate: every publish/package job requires a green test suite. The test project targets plain
     # net10.0 (Core + Service + GrpcContracts + analyzers) — no Uno workloads needed here.
@@ -80,7 +125,7 @@ jobs:
 
   build_and_publish_windows:
     name: Build and publish app on Windows - (${{ matrix.type }})
-    needs: run_tests
+    needs: [version, run_tests]
     strategy:
       fail-fast: true
       matrix:
@@ -122,14 +167,17 @@ jobs:
         run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:PublishReadyToRun=true -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
 
       - name: Build
-        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
+        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
 
       - name: Publish
-        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
+        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
 
       - name: Package Windows service bundle
         shell: pwsh
-        run: ./SubZeroFramework.Service/Scripts/package-windows-service.ps1 -RuntimeIdentifier ${{ matrix.platform }} -OutputRoot "${{ env.ARTIFACT_OUTPUT }}" -Configuration Release
+        # -Version is required: this script is the ONLY place the service is ever built, so omitting it
+        # let the service fall back to <Version> in Directory.Build.props while the app and installer
+        # were stamped with the CI version — one installer shipping the product at two versions.
+        run: ./SubZeroFramework.Service/Scripts/package-windows-service.ps1 -RuntimeIdentifier ${{ matrix.platform }} -OutputRoot "${{ env.ARTIFACT_OUTPUT }}" -Configuration Release -Version ${{ needs.version.outputs.version }}
 
       - name: Build Windows installer (Inno Setup)
         shell: pwsh
@@ -140,7 +188,7 @@ jobs:
             $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           }
           & $iscc `
-            /DAppVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }} `
+            /DAppVersion=${{ needs.version.outputs.version }} `
             /DSourceDir="${{ env.ARTIFACT_OUTPUT }}" `
             /DArch=${{ matrix.type }} `
             /O"${{ github.workspace }}/installer" `
@@ -177,7 +225,7 @@ jobs:
     # official x86_64 archlinux container — the aarch64 leg only needs the CARCH label overridden in
     # makepkg.conf (official Arch images are x86_64-only; Arch Linux ARM is a separate community distro).
     name: Build Arch Linux binary package (${{ matrix.type }})
-    needs: build_and_publish_linux
+    needs: [version, build_and_publish_linux]
     strategy:
       fail-fast: true
       matrix:
@@ -199,6 +247,14 @@ jobs:
       - name: Build package with makepkg
         run: |
           sed -i 's/^CARCH=.*/CARCH="${{ matrix.carch }}"/' /etc/makepkg.conf
+          # makepkg RESOLVES runtime depends= before building and aborts on any it cannot satisfy, even
+          # though package() here is a pure binary repack that compiles nothing. archlinux:base-devel
+          # does not carry fontconfig/icu/libx11/..., so these must be present or the job fails the
+          # moment PKGBUILD declares real dependencies. Installed as root before dropping to `builder`
+          # (that user has no sudo, so it cannot install them itself via --syncdeps).
+          pacman -Sy --noconfirm --needed \
+            glibc gcc-libs systemd-libs fontconfig icu \
+            libx11 libxext libxfixes libxi libxrandr libglvnd
           useradd -m builder
           cp -r packages/aur /home/builder/aur
           chown -R builder:builder /home/builder/aur
@@ -229,7 +285,7 @@ jobs:
     # recovery page is the expected healthy outcome — this guards against the startup-crash/startup-hang
     # class of regressions, which real UI automation on runners cannot do much better without hardware.
     name: Windows startup smoke test (x64)
-    needs: build_and_publish_windows
+    needs: [version, build_and_publish_windows]
     runs-on: windows-latest
 
     steps:
@@ -264,7 +320,7 @@ jobs:
 
   build_and_publish_linux:
     name: Build and publish app on Linux - (${{ matrix.type }})
-    needs: run_tests
+    needs: [version, run_tests]
     strategy:
       fail-fast: true
       matrix:
@@ -306,15 +362,16 @@ jobs:
         run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
 
       - name: Build
-        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
+        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
 
       - name: Publish
-        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }}  -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ env.VERSION_PREFIX }}.${{ github.run_number }} -p:InformationalVersion=${{ env.VERSION_PREFIX }}.${{ github.run_number }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
+        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }}  -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
 
       - name: Package Linux service bundle
         run: |
           chmod +x ./SubZeroFramework.Service/Scripts/package-linux-service.sh
-          ./SubZeroFramework.Service/Scripts/package-linux-service.sh ${{ matrix.platform }} "${{ env.ARTIFACT_OUTPUT }}" Release
+          # 4th arg is the version — see the note on the Windows equivalent above.
+          ./SubZeroFramework.Service/Scripts/package-linux-service.sh ${{ matrix.platform }} "${{ env.ARTIFACT_OUTPUT }}" Release ${{ needs.version.outputs.version }}
 
       - name: Build Linux packages (deb, rpm, Arch/AUR)
         run: |
@@ -322,7 +379,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends rpm
           chmod +x ./packaging/linux/build-linux-packages.sh
           ./packaging/linux/build-linux-packages.sh \
-            "${{ env.VERSION_PREFIX }}.${{ github.run_number }}" \
+            "${{ needs.version.outputs.version }}" \
             "${{ matrix.platform }}" \
             "${{ env.ARTIFACT_OUTPUT }}" \
             "${{ env.ARTIFACT_OUTPUT }}/service-package/linux" \
@@ -352,3 +409,90 @@ jobs:
           cancelFutureDuplicates: false
           selfPreservation: false
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Release assets ─────────────────────────────────────────────────────────────────────────────
+  # Runs ONLY for a release-created event, and only after the two terminal jobs succeed. Depending on
+  # those two transitively requires tests, both Windows builds, both Linux builds, both Arch packages
+  # and the smoke test — so assets can only ever be attached from a fully green pipeline.
+  #
+  # This does NOT create or publish the release. You create it (as a draft if you like) and decide when
+  # it goes public; this job only uploads the built artifacts onto it. If the pipeline fails, the
+  # release simply stays empty rather than shipping a half-built product.
+  upload_release_assets:
+    name: Attach build artifacts to the release
+    if: ${{ needs.version.outputs.is_release == 'true' }}
+    needs: [version, smoke_test_windows, package_arch_binary]
+    runs-on: ubuntu-latest
+    permissions:
+      # The workflow-level default is contents: read, which cannot upload release assets.
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: ${{ github.workspace }}/downloaded
+
+      - name: Stage release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.version.outputs.version }}"
+          src="${{ github.workspace }}/downloaded"
+          out="${{ github.workspace }}/release-assets"
+          mkdir -p "${out}"
+
+          # Installers and Linux packages are already single files — copy them straight across.
+          find "${src}" -type f \( -name '*.exe' -o -name '*.deb' -o -name '*.rpm' -o -name '*.tar.gz' -o -name '*.pkg.tar.zst' \) \
+            -exec cp -v {} "${out}/" \;
+
+          # The WinUI3 / SKIA artifacts are raw publish DIRECTORIES — download-artifact unzips them, so
+          # they must be re-zipped or the release would carry loose files.
+          for d in "${src}"/*WinUI3 "${src}"/*SKIA; do
+            [ -d "${d}" ] || continue
+            base="$(basename "${d}")"
+            slug="$(echo "${base}" | tr '[:upper:] ' '[:lower:]-' | sed 's/[^a-z0-9._-]//g')"
+            (cd "${d}" && zip -qr "${out}/subzeroframework-${version}-${slug}.zip" .)
+          done
+
+          # Checksums so a download can be verified — this matters more than usual because the
+          # installers are unsigned and SmartScreen will warn.
+          (cd "${out}" && sha256sum * > SHA256SUMS.txt)
+
+          echo "Staged assets:"
+          ls -la "${out}"
+
+      # Uploads onto the EXISTING release. Deliberately does not set draft/prerelease/body/name — those
+      # are yours, set when you created the release, and this job must not overwrite your wording.
+      # `--clobber` makes re-running the job after a fix idempotent instead of erroring on duplicates.
+      - name: Upload assets to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          assets=( "${{ github.workspace }}/release-assets"/* )
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "::error::No assets were staged - refusing to report success on an empty release."
+            exit 1
+          fi
+          echo "Uploading ${#assets[@]} asset(s) to ${RELEASE_TAG}:"
+          printf '  %s\n' "${assets[@]}"
+          gh release upload "${RELEASE_TAG}" "${assets[@]}" --clobber --repo "${GITHUB_REPOSITORY}"
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "### Release assets attached to \`${{ github.event.release.tag_name }}\`"
+            echo
+            echo "Version stamped: \`${{ needs.version.outputs.version }}\`"
+            echo
+            echo "Reminder before publishing:"
+            echo "- Windows installers are **unsigned** - SmartScreen will warn. \`SHA256SUMS.txt\` is attached for verification."
+            echo "- Linux: install the service package alongside the UI package - the UI depends on it at an exact version."
+            echo "- Fan control is **disabled by default** and is enabled in Settings -> Service."
+          } >> "$GITHUB_STEP_SUMMARY"

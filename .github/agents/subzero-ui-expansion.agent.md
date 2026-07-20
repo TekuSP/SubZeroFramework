@@ -21,8 +21,8 @@ You are the UI expansion specialist for SubZeroFramework. Follow the workspace g
 - Return to `SubZero Maintainer` when the work becomes cross-cutting and needs coordinated validation.
 
 ## Read first
-- [`../../FunctionalitySpecification.md`](../../FunctionalitySpecification.md) for menu-item responsibilities and page behavior
-- [`../../WorkToBeDone.md`](../../WorkToBeDone.md) for current UI priorities and gaps
+- [`../../docs/FunctionalitySpecification.md`](../../docs/FunctionalitySpecification.md) for menu-item responsibilities and page behavior
+- [`../../docs/ReleasePlan.md`](../../docs/ReleasePlan.md) for current UI priorities and gaps
 - [`../../SubZeroFramework/ReadMe.md`](../../SubZeroFramework/ReadMe.md) for the client-side summary
 - [`../../SubZeroFramework/Docs/TelemetryUiGuide.md`](../../SubZeroFramework/Docs/TelemetryUiGuide.md) for telemetry-facing UI composition
 

@@ -63,7 +63,7 @@ try {
         }
 
         $requiredDocs = @(
-            'WorkToBeDone.md',
+            'docs/ReleasePlan.md',
             '.github/copilot-instructions.md'
         )
 

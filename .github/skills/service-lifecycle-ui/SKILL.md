@@ -8,8 +8,8 @@ argument-hint: 'Describe the lifecycle UI state, gating bug, or action flow to r
 Use this skill when a Settings or Warnings and Issues change affects how service readiness, package availability, or lifecycle actions are presented to the user.
 
 ## Read first
-- [Architecture.md](../../../Architecture.md)
-- [FunctionalitySpecification.md](../../../FunctionalitySpecification.md)
+- [docs/Architecture.md](../../../docs/Architecture.md)
+- [docs/FunctionalitySpecification.md](../../../docs/FunctionalitySpecification.md)
 - [README.md](../../../README.md)
 - [SubZeroFramework.Service/README.md](../../../SubZeroFramework.Service/README.md)
 

@@ -5,7 +5,7 @@ applyTo: "SubZeroFramework/**/*.xaml"
 ---
 # XAML UI Guidelines
 
-- Start with [FunctionalitySpecification.md](../../FunctionalitySpecification.md) for page responsibilities and [SubZeroFramework/ReadMe.md](../../SubZeroFramework/ReadMe.md) for the current client-side status.
+- Start with [docs/FunctionalitySpecification.md](../../docs/FunctionalitySpecification.md) for page responsibilities and [SubZeroFramework/ReadMe.md](../../SubZeroFramework/ReadMe.md) for the current client-side status.
 - Reread the current XAML file immediately before editing and preserve manual visual tweaks already present.
 - Match the dark, flattened, card-based Dashboard and Device Capabilities visual language. Good reference pages:
   - [DashboardPage.xaml](../../SubZeroFramework/Presentation/MenuItems/Dashboard/DashboardPage.xaml)

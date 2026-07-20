@@ -8,8 +8,8 @@ argument-hint: 'Describe the reactive, analyzer, polling, or bindable-state chan
 Use this skill when a change touches subscriptions, polling ownership, analyzer-enforced patterns, or current-state cache semantics.
 
 ## Read first
-- [Architecture.md](../../../Architecture.md)
-- [WorkToBeDone.md](../../../WorkToBeDone.md)
+- [docs/Architecture.md](../../../docs/Architecture.md)
+- [docs/ReleasePlan.md](../../../docs/ReleasePlan.md)
 - [`SubZeroFramework.Analyzers`](../../../SubZeroFramework.Analyzers)
 - [`SubZeroFramework.Core/Services/FrameworkDataProvider.cs`](../../../SubZeroFramework.Core/Services/FrameworkDataProvider.cs)
 

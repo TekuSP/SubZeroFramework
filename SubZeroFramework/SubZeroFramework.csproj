@@ -12,8 +12,11 @@
         <ApplicationTitle>SubZero Framework</ApplicationTitle>
         <!-- App Identifier -->
         <ApplicationId>tekusp.SubZeroFramework</ApplicationId>
-        <!-- Versions: display version tracks the shared <Version> in Directory.Build.props (P0-5). -->
-        <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+        <!-- Versions: ApplicationDisplayVersion is intentionally NOT set here. Uno.Sdk assigns
+             ApplicationDisplayVersion FROM $(Version) (Uno.SingleProject.Desktop.targets), not the other
+             way round, so hardcoding a literal here silently wins over the shared <Version> in
+             Directory.Build.props — invisible while both read 0.1.0, but every local build would keep
+             stamping 0.1.0 after a bump. Let the SDK derive it. -->
         <ApplicationVersion>1</ApplicationVersion>
         <!-- Package Publisher -->
         <ApplicationPublisher>Richard "TekuSP" Torhan</ApplicationPublisher>
@@ -36,9 +39,15 @@
       UnoFeatures are used to quickly add and manage features enabled for your app.
       https://aka.platform.uno/singleproject-features
     -->
+        <!-- MediaElement deliberately NOT enabled: nothing in the app uses MediaElement/MediaPlayerElement
+             (verified by grep across all .xaml/.cs), and it pulled in VideoLAN.LibVLC.Windows — a
+             Windows-native package that only ever materialized under net10.0-desktop, which is our
+             LINUX-only head. That produced ~279 MB of win-x64/x86/arm64 VLC binaries in the desktop build
+             tree that no shipped artifact can use, and put an LGPL-2.1 package in the license closure for
+             no benefit. Uno's Skia X11 runtime pack still references LibVLCSharp unconditionally, so
+             MediaPlayerElement degrades gracefully on Linux either way ("libvlc.so was not found"). -->
         <UnoFeatures>
             Lottie;
-            MediaElement;
             Hosting;
             Toolkit;
             Logging;
@@ -76,6 +85,54 @@
         <PackageReference Include="Tmds.DBus" />
         <PackageReference Include="UnitsNet" />
     </ItemGroup>
+    <!-- ── Trimming keep-descriptors (INERT — trimming is currently OFF) ─────────────────────────────
+         Kept as a documented starting point in case trimming is ever revisited. It is gated on
+         PublishTrimmed, so today it does nothing.
+
+         MEASURED 2026-07-20: enabling PublishTrimmed made the app CRASH ON STARTUP (0xc000027b stowed
+         WinRT exception in Microsoft.UI.Xaml.dll); the untrimmed publish of the same commit launched
+         fine. The rooting below was applied FIRST and did not help — the failure is inside WinUI's own
+         CsWinRT marshalling layer (35 IL2081 warnings across ABI.System.Collections.Generic.*), which no
+         amount of rooting our own dependencies can fix, because WindowsAppSDK is not trim-annotated.
+         Trimming saved ~148 MB (574 -> 425 MB) and produced a binary that does not start.
+         The publish profiles therefore set PublishTrimmed=False; see win-x64.pubxml for the full note.
+
+         A trim pass with SuppressTrimAnalysisWarnings=false reports 52 IL20xx warnings, every one inside
+         a dependency — none are fixable in our own source. The assemblies below are the ones whose
+         warnings describe reflection over types we genuinely resolve at RUNTIME, so they would be the
+         first things to root again:
+
+           UnitsNet                     IL2075: UnitConverter.RegisterDefaultConversions() looks its
+                                        conversion methods up via Type.GetMethod. EVERY displayed quantity
+                                        in the app flows through this, so a trimmed conversion table breaks
+                                        the display-units feature at runtime.
+           SubZeroFramework(.Core,      IL2068: Uno.Extensions Navigation resolves View/ViewModel types by
+           .GrpcContracts)              NAME (RouteResolverDefault.TypeFromPath) and the DI container then
+                                        constructs them reflectively, so their public constructors and
+                                        properties must survive. 45+ ViewMap/DataViewMap registrations
+                                        depend on this, as does XAML x:Bind over our model types.
+           Uno.Extensions.Navigation.UI Home of that resolver.
+           DesktopNotifications(.Windows),  IL2045/IL2050: these register a COM activator for toast
+           Microsoft.Toolkit.Uwp.Notifications  delivery. ILLink explicitly warns that COM interop
+                                        correctness cannot be guaranteed after trimming. Thermal alerts
+                                        are a shipped feature.
+
+         NOTE: these are ASSEMBLY names, not package names — the package DesktopNotificationsFixed.Windows
+         ships an assembly called DesktopNotifications.Windows. A name that matches no assembly makes the
+         publish fail, so verify against the publish output before adding entries here. -->
+    <ItemGroup Condition="'$(PublishTrimmed)' == 'true'">
+        <TrimmerRootAssembly Include="SubZeroFramework" />
+        <TrimmerRootAssembly Include="SubZeroFramework.Core" />
+        <TrimmerRootAssembly Include="SubZeroFramework.GrpcContracts" />
+        <TrimmerRootAssembly Include="UnitsNet" />
+        <TrimmerRootAssembly Include="Uno.Extensions.Navigation.UI" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(PublishTrimmed)' == 'true' and '$(TargetFramework)' == 'net10.0-windows10.0.26100'">
+        <TrimmerRootAssembly Include="DesktopNotifications" />
+        <TrimmerRootAssembly Include="DesktopNotifications.Windows" />
+        <TrimmerRootAssembly Include="Microsoft.Toolkit.Uwp.Notifications" />
+    </ItemGroup>
+
     <!-- Brand logos extracted from the IconifyBundle.* packs to SVG (Directory.Build.targets) and
          rasterized by Uno.Resizetizer. Items are "prefix:name"; only these are materialized as assets.
          Asset name = sanitized "prefix_name" (e.g. simple-icons:amd -> simple_icons_amd.svg). -->

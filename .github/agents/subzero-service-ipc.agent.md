@@ -21,8 +21,8 @@ You are the service and IPC specialist for SubZeroFramework. Follow the workspac
 - Return to `SubZero Maintainer` when the task becomes cross-cutting and needs coordinated validation or roadmap alignment.
 
 ## Read first
-- [`../../WorkToBeDone.md`](../../WorkToBeDone.md) for the current hardening and testing roadmap
-- [`../../Architecture.md`](../../Architecture.md) for privilege boundaries, lifecycle, and multi-instance expectations
+- [`../../docs/ReleasePlan.md`](../../docs/ReleasePlan.md) for the current hardening and testing roadmap
+- [`../../docs/Architecture.md`](../../docs/Architecture.md) for privilege boundaries, lifecycle, and multi-instance expectations
 - [`../../SubZeroFramework.Service/README.md`](../../SubZeroFramework.Service/README.md) for packaged service-bundle and `--service-management` rules
 - [`../../SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md`](../../SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md) for IPC caller-validation limits and UI enablement rules
 - [`../../SubZeroFramework/Docs/FanSafetyShutdownChecklist.md`](../../SubZeroFramework/Docs/FanSafetyShutdownChecklist.md) for manual verification expectations
@@ -36,7 +36,7 @@ You are the service and IPC specialist for SubZeroFramework. Follow the workspac
 - Keep the service authoritative for override state and restore-failure state, especially when multiple UI instances can exist.
 
 ## Good anchor files
-- Service host and lifecycle: [`../../SubZeroFramework.Service/Program.cs`](../../SubZeroFramework.Service/Program.cs), [`../../SubZeroFramework.Service/FrameworkServiceManagementCli.cs`](../../SubZeroFramework.Service/FrameworkServiceManagementCli.cs), [`../../SubZeroFramework.Service/FrameworkTelemetryWorker.cs`](../../SubZeroFramework.Service/FrameworkTelemetryWorker.cs), [`../../SubZeroFramework.Service/FrameworkShutdownCoordinator.cs`](../../SubZeroFramework.Service/FrameworkShutdownCoordinator.cs)
+- Service host and lifecycle: [`../../SubZeroFramework.Service/Program.cs`](../../SubZeroFramework.Service/Program.cs), [`../../SubZeroFramework.Service/Services/Hosting/FrameworkServiceManagementCli.cs`](../../SubZeroFramework.Service/Services/Hosting/FrameworkServiceManagementCli.cs), [`../../SubZeroFramework.Service/Services/Hosting/FrameworkTelemetryWorker.cs`](../../SubZeroFramework.Service/Services/Hosting/FrameworkTelemetryWorker.cs), [`../../SubZeroFramework.Service/Services/Hosting/FrameworkShutdownCoordinator.cs`](../../SubZeroFramework.Service/Services/Hosting/FrameworkShutdownCoordinator.cs)
 - Authorization and mapping: [`../../SubZeroFramework.Service/Services/FrameworkFanControlAuthorizationService.cs`](../../SubZeroFramework.Service/Services/FrameworkFanControlAuthorizationService.cs), [`../../SubZeroFramework.Service/Services/TelemetryGrpcMapper.cs`](../../SubZeroFramework.Service/Services/TelemetryGrpcMapper.cs)
 - Shared client and transport behavior: [`../../SubZeroFramework/Services/GrpcFrameworkTelemetryClient.cs`](../../SubZeroFramework/Services/GrpcFrameworkTelemetryClient.cs), [`../../SubZeroFramework.Core/Services/FrameworkGrpcSocketSecurity.cs`](../../SubZeroFramework.Core/Services/FrameworkGrpcSocketSecurity.cs)
 - Regression coverage: [`../../SubZeroFramework.Tests/FrameworkGrpcSocketSecurityTests.cs`](../../SubZeroFramework.Tests/FrameworkGrpcSocketSecurityTests.cs), [`../../SubZeroFramework.Tests/FrameworkServiceManagementCliTests.cs`](../../SubZeroFramework.Tests/FrameworkServiceManagementCliTests.cs), [`../../SubZeroFramework.Tests/FrameworkFanControlSafetyTrackerTests.cs`](../../SubZeroFramework.Tests/FrameworkFanControlSafetyTrackerTests.cs), [`../../SubZeroFramework.Tests/FrameworkShutdownCoordinatorTests.cs`](../../SubZeroFramework.Tests/FrameworkShutdownCoordinatorTests.cs)

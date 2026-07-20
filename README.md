@@ -1,24 +1,123 @@
-# SubZeroFramework
+# SubZero Framework Edition
 
-SubZeroFramework is a cross-platform Framework laptop companion split between an Uno/WinUI client and a local background service. The service owns privileged Framework EC access, hardware polling, inventory fallback mapping, and fan-control writes; the client stays unprivileged and consumes status, telemetry, inventory, and lifecycle guidance over local gRPC.
+A companion app for [Framework](https://frame.work) laptops: live thermal, power and fan telemetry, and
+per-fan control with custom curves.
 
-## Current progress
+It ships as two pieces. A **background service** owns privileged embedded-controller (EC) access —
+hardware polling and fan writes — and an **unprivileged desktop app** talks to it over a local-only
+socket. Nothing leaves your machine; there is no telemetry, no account, and no network service.
 
-- Dashboard and Device Capabilities are the most mature UI surfaces. Device Capabilities now follows the dashboard card language, keeps stable card identity during refresh, uses Framework-first inventory data, and fills remaining gaps through Hardware.Info behind the service boundary, including CPU package cards with recent average-usage and frequency history, usage-colored per-core cards, explicit GPU ↔ monitor linking, current monitor mode details, and graphics-card groupings that keep unlinked monitors in an explicit Unknown graphics card bucket.
-- The client now supports user-selectable display units for temperature, fan speed, clock frequency, refresh rate, information size, voltage, current, battery charge capacity, ratio or fraction, length, airflow, network link speed, and power. Settings persists those choices locally for the client, and dashboard, thermal, power, fan, and Device Capabilities surfaces plus chart axis labelers update without changing service-side canonical units.
-- The service boundary is in place for status, telemetry, inventory, and fan-control commands. Socket/path hardening, reconnect handling, shared DynamicData-backed streams, and fan-command authorization gating are implemented.
-- Recent UI polish includes dB(A)-normalized desktop fan acoustic displays with max-noise support, explicit Adapter labels and numbered monitor cards in Device Capabilities, wrap-friendly monitor and network card layouts, Unknown rendering for sentinel network speeds, and padded dashboard fan-history axes to prevent clipping.
-- Settings and Warnings and Issues now surface service health, install readiness, privilege prompts, and lifecycle actions for shutdown, restart, autorun, install, update, and uninstall.
-- Install and update no longer require an elevated client UI. The packaged service executable supports `--service-management` operations and can register or refresh itself when launched with administrator or root privileges.
-- CI now publishes `service-package/windows` and `service-package/linux` bundles next to the app artifacts so the client can discover the install or update source automatically.
-- The latest validation slice completed with a clean zero-warning solution build and passing tests.
+> **0.1.0 is the first public release.** It is usable day to day, but see
+> [Known limitations](#known-limitations-in-010) before you install — some surfaces are deliberately
+> switched off in this release.
 
-## Key documents
+## Requirements
 
-- [CHANGELOG.md](CHANGELOG.md)
-- [WorkToBeDone.md](WorkToBeDone.md)
-- [Architecture.md](Architecture.md)
-- [FunctionalitySpecification.md](FunctionalitySpecification.md)
-- [SubZeroFramework.Service/README.md](SubZeroFramework.Service/README.md)
-- [SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md](SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md)
-- [SubZeroFramework/Docs/FanSafetyShutdownChecklist.md](SubZeroFramework/Docs/FanSafetyShutdownChecklist.md)
+- A **Framework laptop**. Detected chassis families: Framework 12, 13, 13 Pro, 16, and Framework Desktop.
+  Without Framework EC hardware the app still starts, but it will sit on its recovery screen.
+- **Windows** (x64 or ARM64) or **Linux** (x64 or ARM64, systemd-based).
+- **Administrator / root** to *install*, because registering the background service requires it. Everyday
+  use does not — the app itself runs unprivileged.
+- **.NET 10** — built on it, and both the app and the service ship **self-contained**, so the runtime is
+  bundled and you do **not** need to install .NET separately. (Building from source does need the .NET 10
+  SDK.)
+
+## Install
+
+### Windows
+
+Download the installer for your architecture from the
+[Releases](https://github.com/TekuSP/SubZeroFramework/releases) page and run it. It installs the app,
+registers the background service, and starts it.
+
+> **The installer is not code-signed yet.** Windows SmartScreen will warn you. To continue, choose
+> **More info → Run anyway**. If you would rather not, you can
+> [build from source](#building-from-source) instead.
+
+### Linux
+
+`.deb`, `.rpm`, a tarball, and an AUR package are produced for x64 and ARM64. Installing the service
+package enables and starts the systemd unit.
+
+The UI package depends on the service package at an exact version, so install both together:
+
+```
+sudo apt install ./subzeroframework-service_*.deb ./subzeroframework_*.deb
+```
+
+If the service was installed by your distro's package manager, the app defers to it — install, update and
+uninstall stay with the package manager, while start/stop/restart remain available in the app.
+
+## First run
+
+**Fan control is off by default.** The service ships with `AllowFanControlCommands: false`, so on a fresh
+install the app will show telemetry but refuse to change fan behaviour. This is deliberate — writing fan
+duty to the EC is the one thing here that can affect your hardware, so it is opt-in rather than
+opt-out.
+
+To enable it: **Settings → Service → runtime configuration**, turn on fan-control commands, and apply.
+The app tells you when a command was refused for this reason.
+
+Fan control itself lives on the **Fan Curve Profiles** page — Auto, Manual, Max, and Custom curves, with
+staged changes you preview before applying.
+
+## Known limitations in 0.1.0
+
+These are intentional for the first release, not bugs:
+
+- **Modules** — the tab is disabled. It depends on EC slot reporting that is not complete yet.
+- **Cooling profile presets** on the Dashboard render inert and read *Coming soon*.
+- **The Dashboard is read-only.** All fan control is on the Fan Curve Profiles page, on purpose — one
+  surface owns actuation.
+- **Installers are unsigned** (see above).
+- **Caller-identity validation is not enforced** on the local IPC socket. The transport is a local-only
+  socket with path, permission and symlink checks, and fan-control commands are refused unless you
+  explicitly enable them. The shipped posture is documented in
+  [IpcAuthorizationAndUiCadence.md](SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md).
+
+## Building from source
+
+Requires the .NET 10 SDK.
+
+```
+dotnet build SubZeroFramework/SubZeroFramework.csproj -f net10.0-windows10.0.26100 -c Release
+dotnet test  SubZeroFramework.Tests/SubZeroFramework.Tests.csproj
+```
+
+The app builds for two target frameworks: `net10.0-windows10.0.26100` (WinUI) and `net10.0-desktop`
+(Skia). The service is a plain .NET worker.
+
+## AI Usage Notice
+
+Parts of this codebase may have been written with AI assistance; other parts may have been written
+entirely by hand. The mix varies and is not tracked per file.
+
+What does not vary: **every change is reviewed by a human before it lands.** A person reads it, decides
+whether it is correct, and takes responsibility for shipping it. Nothing is merged simply because a tool
+produced it.
+
+Some commit messages may also be AI-generated. That applies to the *wording of the message only* — never
+to the decision to make a change, what the change does, or the judgement that it was fit to commit.
+
+So if something here is wrong, it is a human's mistake. That is where responsibility sits, and it is not
+delegated.
+
+## License
+
+[MIT](LICENSE.txt) — © 2026 Richard "TekuSP" Torhan.
+
+Third-party licenses are collected at build time across the full transitive dependency closure and are
+viewable in-app under **Settings → Licenses**. Each entry shows the package's own embedded license text
+where it ships one, a canonical SPDX text where the package declares an identifier we hold, and
+"Unknown license terms" otherwise — nothing is ever guessed on a package's behalf.
+
+## Documentation
+
+- [CHANGELOG.md](CHANGELOG.md) — what shipped in each release
+- [CONTRIBUTING.md](CONTRIBUTING.md) — building, the zero-warning bar, and hardware-safety rules
+- [SECURITY.md](SECURITY.md) — reporting a vulnerability, and the limitations known in 0.1.0
+- [docs/ReleasePlan.md](docs/ReleasePlan.md) — release scope, gating decisions, and outstanding work
+- [docs/Architecture.md](docs/Architecture.md) — how the client and service fit together
+- [SubZeroFramework/Docs/](SubZeroFramework/Docs/) — IPC authorization posture and the fan-safety checklist
+
+Built with [Uno Platform](https://platform.uno).

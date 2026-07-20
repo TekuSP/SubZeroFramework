@@ -81,7 +81,7 @@
                 <TextBlock
                     FontSize="13"
                     Foreground="{StaticResource TextSecondaryBrush}"
-                    Text="Third-party open-source software included in SubZero, with full license texts." />
+                    Text="Third-party open-source software included in SubZero. Full license text is shown where the package ships one; otherwise the declared license or a link is shown." />
             </StackPanel>
 
             <TextBlock

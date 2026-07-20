@@ -8,9 +8,9 @@ argument-hint: 'Describe the build failure, validation slice, or project area to
 Use this skill when you need to validate a SubZeroFramework change or turn a vague build failure into a concrete next step.
 
 ## Read first
-- [WorkToBeDone.md](../../../WorkToBeDone.md)
+- [docs/ReleasePlan.md](../../../docs/ReleasePlan.md)
 - [README.md](../../../README.md)
-- [Architecture.md](../../../Architecture.md)
+- [docs/Architecture.md](../../../docs/Architecture.md)
 
 ## Use this for
 - choosing between `build-service`, `build-windows`, `build-linux`, and `test-service`

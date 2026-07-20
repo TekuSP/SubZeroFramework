@@ -14,7 +14,7 @@ handoffs:
     prompt: "Continue this task as the FrameworkDotnet specialist. Focus on upstream data gaps, provider shaping, mapper changes, and end-to-end model flow."
   - label: "Run Documentation Sync"
     agent: "SubZero Documentation Sync"
-    prompt: "Review the completed repo changes, update WorkToBeDone.md, .github/copilot-instructions.md, and any other affected markdown docs so they accurately reflect what was finished, what remains, and any new stable repo guidance."
+    prompt: "Review the completed repo changes, update docs/ReleasePlan.md, .github/copilot-instructions.md, and any other affected markdown docs so they accurately reflect what was finished, what remains, and any new stable repo guidance."
 hooks:
   Stop:
     - type: command
@@ -56,9 +56,9 @@ You are the repo-wide maintenance specialist for SubZeroFramework. Follow the wo
 - Make the final answer explicit about which work stayed within one lane and which work crossed subsystem boundaries.
 
 ## Read first
-- [`../../WorkToBeDone.md`](../../WorkToBeDone.md) for current priorities and unfinished work
-- [`../../Architecture.md`](../../Architecture.md) for service/client ownership, privilege boundaries, and lifecycle rules
-- [`../../FunctionalitySpecification.md`](../../FunctionalitySpecification.md) for page and navigation intent
+- [`../../docs/ReleasePlan.md`](../../docs/ReleasePlan.md) for current priorities and unfinished work
+- [`../../docs/Architecture.md`](../../docs/Architecture.md) for service/client ownership, privilege boundaries, and lifecycle rules
+- [`../../docs/FunctionalitySpecification.md`](../../docs/FunctionalitySpecification.md) for page and navigation intent
 - [`../../README.md`](../../README.md) for the current shipped state and key reference docs
 
 ## Keep these repo rules intact
@@ -69,7 +69,7 @@ You are the repo-wide maintenance specialist for SubZeroFramework. Follow the wo
 
 ## Good anchor files
 - App composition: [`../../SubZeroFramework/App.xaml.cs`](../../SubZeroFramework/App.xaml.cs), [`../../SubZeroFramework/Presentation/MainModel.cs`](../../SubZeroFramework/Presentation/MainModel.cs)
-- Service startup and management: [`../../SubZeroFramework.Service/Program.cs`](../../SubZeroFramework.Service/Program.cs), [`../../SubZeroFramework.Service/FrameworkServiceManagementCli.cs`](../../SubZeroFramework.Service/FrameworkServiceManagementCli.cs)
+- Service startup and management: [`../../SubZeroFramework.Service/Program.cs`](../../SubZeroFramework.Service/Program.cs), [`../../SubZeroFramework.Service/Services/Hosting/FrameworkServiceManagementCli.cs`](../../SubZeroFramework.Service/Services/Hosting/FrameworkServiceManagementCli.cs)
 - IPC clients and security: [`../../SubZeroFramework/Services/FrameworkGrpcChannelFactory.cs`](../../SubZeroFramework/Services/FrameworkGrpcChannelFactory.cs), [`../../SubZeroFramework.Core/Services/FrameworkGrpcSocketSecurity.cs`](../../SubZeroFramework.Core/Services/FrameworkGrpcSocketSecurity.cs)
 - Validation: [`../../SubZeroFramework.Tests`](../../SubZeroFramework.Tests)
 

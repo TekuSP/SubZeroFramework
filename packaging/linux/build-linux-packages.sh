@@ -10,7 +10,7 @@
 # Install layout (packages): /usr/lib/subzeroframework/{ui,service}, /usr/bin/subzeroframework symlink,
 # unit at /usr/lib/systemd/system/subzeroframework.service. This differs from the app's own
 # --service-management install (/usr/local/...) on purpose: package-managed installs are owned by the
-# package manager, and the in-app install flow should detect and defer to them (see ReleasePlan.md).
+# package manager, and the in-app install flow should detect and defer to them (see docs/ReleasePlan.md).
 #
 # Usage: build-linux-packages.sh <version> <rid> <ui-publish-dir> <service-publish-dir> <output-dir>
 #   <rid> is linux-x64 or linux-arm64. Runs natively on the matching runner (no cross-packaging).
@@ -89,6 +89,31 @@ build_deb() { # $1 = package name, $2 = summary, $3 = stage function, $4 = with_
   local installed_size
   installed_size="$(du -ks "${root}" --exclude=DEBIAN | cut -f1)"
 
+  # Dependencies. The .NET publish is SELF-CONTAINED, so there is deliberately no dotnet-runtime
+  # dependency — but "self-contained" only covers managed code. The native libraries below are
+  # genuinely required:
+  #   libudev1     FrameworkDotnet's libframework_lib_ffi.so links it directly (DT_NEEDED) for EC
+  #                access. This — not sd_notify, which is managed — is why the service needs systemd.
+  #   libicu       InvariantGlobalization is deliberately not set (quantities format through UnitsNet),
+  #                and a self-contained publish does not bundle ICU. Alternatives are ORed so one
+  #                package works across Debian/Ubuntu releases that ship different sonames.
+  #   X11/GL/fontconfig  dlopen'd by the Uno Skia X11 head. fontconfig is declared on every arch even
+  #                where it is lazily loaded: an undeclared dlopen dependency fails at first text
+  #                render, which is far worse than failing at install.
+  # libvulkan and dbus are Recommends, not Depends — Skia falls back to GL without Vulkan, and the
+  # notification service degrades to log-only without a session bus.
+  local depends recommends
+  if [[ "${with_service}" == "yes" ]]; then
+    depends="libc6, libgcc-s1, libudev1, libicu76 | libicu74 | libicu72 | libicu71 | libicu70 | libicu67"
+    recommends=""
+  else
+    # The UI is a pure gRPC client with no local hardware fallback, so it is useless without the
+    # service. Pinned to the exact version: both are built from one CI run against one gRPC contract,
+    # so version skew is protocol skew.
+    depends="subzeroframework-service (= ${version}), libc6, libgcc-s1, libfontconfig1, libx11-6, libxext6, libxfixes3, libxi6, libxrandr2, libgl1, libicu76 | libicu74 | libicu72 | libicu71 | libicu70 | libicu67"
+    recommends="libvulkan1, fonts-dejavu-core, dbus-x11"
+  fi
+
   cat > "${root}/DEBIAN/control" <<EOF
 Package: ${name}
 Version: ${version}
@@ -98,8 +123,16 @@ Installed-Size: ${installed_size}
 Section: utils
 Priority: optional
 Homepage: ${homepage}
+Depends: ${depends}
+EOF
+
+  if [[ -n "${recommends}" ]]; then
+    echo "Recommends: ${recommends}" >> "${root}/DEBIAN/control"
+  fi
+
+  cat >> "${root}/DEBIAN/control" <<EOF
 Description: ${summary}
- Self-contained .NET build; no external runtime dependencies are declared.
+ Self-contained .NET build: no .NET runtime is required, only the native libraries listed above.
 EOF
 
   if [[ "${with_service}" == "yes" ]]; then
@@ -111,11 +144,17 @@ if [ -d /run/systemd/system ]; then
     systemctl enable --now subzeroframework.service || true
 fi
 EOF
+    # $1 is "remove" on an actual removal and "upgrade" when a newer version is being installed over
+    # this one. Without the guard, every UPGRADE disabled the unit and silently discarded a user's
+    # deliberate "disabled" choice — and postinst then re-enabled it. The RPM %preun below already
+    # gets this right via [ $1 -eq 0 ]; this makes the two formats agree.
     cat > "${root}/DEBIAN/prerm" <<'EOF'
 #!/bin/sh
 set -e
-if [ -d /run/systemd/system ]; then
-    systemctl disable --now subzeroframework.service || true
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+    if [ -d /run/systemd/system ]; then
+        systemctl disable --now subzeroframework.service || true
+    fi
 fi
 EOF
     cat > "${root}/DEBIAN/postrm" <<'EOF'
@@ -143,6 +182,28 @@ build_rpm() { # $1 = package name, $2 = summary, $3 = stage function, $4 = with_
   local payload="${work_dir}/rpmroot-${name}"
   mkdir -p "${rpm_top}"/{SPECS,RPMS,BUILD,BUILDROOT,SOURCES,SRPMS} "${payload}"
   "${stager}" "${payload}"
+
+  # Only what the automatic ELF scanner cannot infer. systemd-libs provides libudev on Fedora/RHEL;
+  # the scanner does find it via DT_NEEDED, but naming it documents the requirement explicitly.
+  local rpm_requires
+  if [[ "${with_service}" == "yes" ]]; then
+    rpm_requires="Requires: systemd-libs"
+  else
+    # Same exact-version pin as the .deb: the UI cannot function without its service.
+    rpm_requires=$(cat <<EOF
+Requires: ${name}-service = ${version}-1
+Requires: fontconfig
+Requires: libX11
+Requires: libXext
+Requires: libXfixes
+Requires: libXi
+Requires: libXrandr
+Requires: libglvnd-glx
+Recommends: vulkan-loader
+Recommends: dbus
+EOF
+)
+  fi
 
   local scriptlets=""
   if [[ "${with_service}" == "yes" ]]; then
@@ -178,10 +239,15 @@ Release: 1
 Summary: ${summary}
 License: MIT
 URL: ${homepage}
-AutoReqProv: no
+# AutoReqProv is deliberately LEFT ON. It was previously "no", which suppressed rpm's ELF scanner —
+# the scanner finds libudev (linked by FrameworkDotnet's EC FFI), fontconfig, libicu and the X11 stack
+# automatically and correctly, and keeps doing so as dependencies change. A hand-maintained list would
+# only drift. Requires below cover what the scanner CANNOT see: the cross-package relationship, and
+# libraries reached via dlopen rather than DT_NEEDED.
+${rpm_requires}
 
 %description
-${summary}. Self-contained .NET build; no external runtime dependencies are declared.
+${summary}. Self-contained .NET build: no .NET runtime is required, only native system libraries.
 
 %install
 cp -a ${payload}/. %{buildroot}/
@@ -246,7 +312,13 @@ pkgdesc="${ui_summary} (UI + background service)"
 arch=('${pkg_arch}')
 url="${homepage}"
 license=('MIT')
-depends=('glibc')
+# Arch ships UI + service in one package, so this is the union of both dependency sets.
+# systemd-libs provides libudev, which FrameworkDotnet's EC FFI links directly — that, not sd_notify
+# (which is managed), is the real systemd dependency. No dotnet runtime: the publish is self-contained.
+# No glibc version bound: CI builds on Ubuntu runners whose glibc is OLDER than Arch's, so the
+# binaries are more portable than the build host, not less.
+depends=('glibc' 'gcc-libs' 'systemd-libs' 'fontconfig' 'icu' 'libx11' 'libxext' 'libxfixes' 'libxi' 'libxrandr' 'libglvnd')
+optdepends=('vulkan-icd-loader: GPU-accelerated rendering')
 options=('!strip' 'staticlibs')
 install=subzeroframework.install
 source=("${tar_name}")
@@ -280,6 +352,17 @@ pkgbase = subzeroframework-bin
 	arch = ${pkg_arch}
 	license = MIT
 	depends = glibc
+	depends = gcc-libs
+	depends = systemd-libs
+	depends = fontconfig
+	depends = icu
+	depends = libx11
+	depends = libxext
+	depends = libxfixes
+	depends = libxi
+	depends = libxrandr
+	depends = libglvnd
+	optdepends = vulkan-icd-loader: GPU-accelerated rendering
 	options = !strip
 	options = staticlibs
 	source = ${tar_name}

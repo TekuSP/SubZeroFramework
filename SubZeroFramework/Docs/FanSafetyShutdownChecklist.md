@@ -4,7 +4,7 @@
 
 This checklist defines the manual verification steps for fan safety during service stop, service restart, host shutdown, and full machine shutdown or reboot.
 
-It is intended to validate the architecture described in `Architecture.md`:
+It is intended to validate the architecture described in `docs/Architecture.md`:
 
 - the service is the privileged owner of EC writes and restore-to-auto behavior
 - the client is an unprivileged consumer of service-published state
@@ -124,4 +124,4 @@ A scenario passes when all of the following are true:
 - capture the last visible client state before disconnect
 - capture service log output if available
 - note whether the failure was restore omission, duplicate restore, reconnect staleness, or state visibility mismatch
-- add the result back into `WorkToBeDone.md` if it reveals a new missing shutdown or coordination behavior
+- add the result back into `docs/ReleasePlan.md` if it reveals a new missing shutdown or coordination behavior

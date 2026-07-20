@@ -177,7 +177,7 @@ internal static class FrameworkServiceManagementCli
     {
         if (OperatingSystem.IsWindows())
         {
-            await RunProcessAsync("sc.exe", ["create", WindowsServiceName, "binPath=", SourceExecutablePath, "start=", "demand"]).ConfigureAwait(false);
+            await RunProcessAsync("sc.exe", ["create", WindowsServiceName, "binPath=", QuoteWindowsServicePath(SourceExecutablePath), "start=", "demand"]).ConfigureAwait(false);
             await RunProcessAsync("sc.exe", ["failure", WindowsServiceName, "reset=", "0", "actions=", "restart/5000/restart/5000/restart/5000"]).ConfigureAwait(false);
             await RunProcessAsync("net.exe", ["start", WindowsServiceName]).ConfigureAwait(false);
             return;
@@ -208,7 +208,7 @@ internal static class FrameworkServiceManagementCli
         if (OperatingSystem.IsWindows())
         {
             await RunProcessAsync("net.exe", ["stop", WindowsServiceName], allowFailure: true).ConfigureAwait(false);
-            await RunProcessAsync("sc.exe", ["config", WindowsServiceName, "binPath=", SourceExecutablePath]).ConfigureAwait(false);
+            await RunProcessAsync("sc.exe", ["config", WindowsServiceName, "binPath=", QuoteWindowsServicePath(SourceExecutablePath)]).ConfigureAwait(false);
             await RunProcessAsync("sc.exe", ["failure", WindowsServiceName, "reset=", "0", "actions=", "restart/5000/restart/5000/restart/5000"]).ConfigureAwait(false);
             await RunProcessAsync("net.exe", ["start", WindowsServiceName]).ConfigureAwait(false);
             return;
@@ -334,6 +334,17 @@ internal static class FrameworkServiceManagementCli
 
     private static string QuotePosixArgument(string value)
         => $"'{value.Replace("'", "'\\''")}'";
+
+    /// <summary>
+    /// Wraps a service executable path in literal quotes for <c>sc.exe binPath=</c>.
+    /// The installed path lives under <c>C:\Program Files\…</c>, so an unquoted <c>ImagePath</c> makes the
+    /// SCM probe <c>C:\Program.exe</c> first — the classic unquoted-service-path weakness (CWE-428), which
+    /// matters more here because the service runs as LocalSystem. ArgumentList escapes the embedded quotes
+    /// so sc.exe receives the value still quoted, and writes a quoted ImagePath.
+    /// Verify after install with: <c>sc qc SubZeroFrameworkService</c>.
+    /// </summary>
+    private static string QuoteWindowsServicePath(string value)
+        => $"\"{value}\"";
 
     private static PlatformNotSupportedException CreateUnsupportedPlatformException()
         => new("Service management commands are only implemented for Windows services and Linux systemd.");

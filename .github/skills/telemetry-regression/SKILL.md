@@ -8,8 +8,8 @@ argument-hint: 'Describe the telemetry change, bug, or validation slice to check
 Use this skill when a change can affect status or telemetry behavior anywhere in the SubZeroFramework pipeline: provider, service, gRPC contracts, clients, view models, or telemetry-heavy UI.
 
 ## Read first
-- [WorkToBeDone.md](../../../WorkToBeDone.md)
-- [Architecture.md](../../../Architecture.md)
+- [docs/ReleasePlan.md](../../../docs/ReleasePlan.md)
+- [docs/Architecture.md](../../../docs/Architecture.md)
 - [IPC Authorization and UI Cadence Guide](../../../SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md)
 - [Telemetry UI Guide](../../../SubZeroFramework/Docs/TelemetryUiGuide.md)
 - [SubZeroFramework.Service/README.md](../../../SubZeroFramework.Service/README.md)
@@ -40,7 +40,7 @@ Decide which layer or layers are affected before editing anything.
 
 - **Provider and source-of-truth shaping**
   - [`../../../SubZeroFramework.Core/Services/FrameworkDataProvider.cs`](../../../SubZeroFramework.Core/Services/FrameworkDataProvider.cs)
-  - [`../../../SubZeroFramework.Service/FrameworkTelemetryWorker.cs`](../../../SubZeroFramework.Service/FrameworkTelemetryWorker.cs)
+  - [`../../../SubZeroFramework.Service/Services/Hosting/FrameworkTelemetryWorker.cs`](../../../SubZeroFramework.Service/Services/Hosting/FrameworkTelemetryWorker.cs)
 - **Service streaming and mapping**
   - [`../../../SubZeroFramework.Service/Services/FrameworkTelemetryGrpcService.cs`](../../../SubZeroFramework.Service/Services/FrameworkTelemetryGrpcService.cs)
   - [`../../../SubZeroFramework.Service/Services/TelemetryGrpcMapper.cs`](../../../SubZeroFramework.Service/Services/TelemetryGrpcMapper.cs)
@@ -68,7 +68,7 @@ Check these questions:
 - Should multiple consumers share one stream, or is a per-key stream expected?
 - If the service restarts, should the consumer reconnect and rebuild from service state?
 
-Use `WorkToBeDone.md` to align the expected behavior with open telemetry and reconnect work, especially around stream startup semantics, cancellation, and reconnect coverage.
+Use `docs/ReleasePlan.md` to align the expected behavior with open telemetry and reconnect work, especially around stream startup semantics, cancellation, and reconnect coverage.
 
 ### 3. Inspect the risk-specific hotspots
 Pick the checks that match the change.

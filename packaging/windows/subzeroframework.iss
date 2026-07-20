@@ -84,8 +84,32 @@ begin
     Log(Format('Service management "%s" exited with %d.', [Operation, ResultCode]));
 end;
 
+// Reinstall-over-the-top is the documented update strategy, and [Files] overwrites
+// service-package\windows\SubZeroFramework.Service.exe — which is the SCM binPath target and is held open
+// by the SCM whenever the service runs. A previous install sets start=auto and restarts it, so on every
+// update the file IS locked; without stopping first the copy fails or is silently skipped, leaving the old
+// binary registered. Uninstall already deregisters before removing files ([UninstallRun]); this closes the
+// matching gap on install. First installs no-op because ServiceInstalled() is false.
+procedure StopServiceBeforeOverwrite();
+var
+  ResultCode: Integer;
+begin
+  if not ServiceInstalled() then
+    exit;
+
+  // A non-zero exit just means it was already stopped, which is fine — we only need the file unlocked.
+  Exec(ExpandConstant('{sys}\net.exe'), 'stop ' + ServiceName, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Log(Format('Pre-copy "net stop %s" exited with %d.', [ServiceName, ResultCode]));
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
+  // ssInstall fires BEFORE any file is copied.
+  if CurStep = ssInstall then
+    StopServiceBeforeOverwrite();
+
+  // ssPostInstall fires after files land and before the [Run] entry launches the UI, so the service is
+  // always registered and started before the app first connects to it.
   if (CurStep = ssPostInstall) and WizardIsTaskSelected('installservice') then
   begin
     // Fresh install registers; re-running the installer over an existing service re-points binPath

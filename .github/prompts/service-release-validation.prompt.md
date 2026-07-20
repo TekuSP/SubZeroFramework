@@ -8,8 +8,8 @@ Validate the current SubZeroFramework service release slice for the user-provide
 
 Use these references first:
 - [repo instructions](../copilot-instructions.md)
-- [roadmap](../../WorkToBeDone.md)
-- [architecture](../../Architecture.md)
+- [roadmap](../../docs/ReleasePlan.md)
+- [architecture](../../docs/Architecture.md)
 - [service README](../../SubZeroFramework.Service/README.md)
 - [IPC authorization and UI cadence](../../SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md)
 - [fan safety shutdown checklist](../../SubZeroFramework/Docs/FanSafetyShutdownChecklist.md)
@@ -26,7 +26,7 @@ Pay special attention to:
 - Linux systemd install and update behavior and any remaining real-world validation gaps
 - caller identity validation limits and fail-closed fan-control behavior
 - shutdown and restore-to-auto semantics
-- logging, versioning, and deployment gaps still called out in `WorkToBeDone.md`
+- logging, versioning, and deployment gaps still called out in `docs/ReleasePlan.md`
 
 Return:
 ## Scope

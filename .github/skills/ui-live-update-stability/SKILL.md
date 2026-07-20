@@ -8,8 +8,8 @@ argument-hint: 'Describe the dashboard, inventory, chart, or live-update stabili
 Use this skill when a UI surface is correct at first render but becomes jittery, blink-prone, misordered, or heuristic-heavy once live updates start flowing.
 
 ## Read first
-- [FunctionalitySpecification.md](../../../FunctionalitySpecification.md)
-- [Architecture.md](../../../Architecture.md)
+- [docs/FunctionalitySpecification.md](../../../docs/FunctionalitySpecification.md)
+- [docs/Architecture.md](../../../docs/Architecture.md)
 - [Telemetry UI Guide](../../../SubZeroFramework/Docs/TelemetryUiGuide.md)
 - [README.md](../../../README.md)
 

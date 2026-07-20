@@ -1,9 +1,9 @@
 # Release Plan — first public release (MVP)
 
-Consolidated 2026-07-03 from `WorkToBeDone.md`, `Design Ideas/redesign-implementation-plan.md`,
-`Design Ideas/framework-port-capabilities.md`, and the pre-release gating decisions made on 2026-07-03.
-This is now the single planning document for getting a viable release out; the source documents remain as
-historical trackers and reference.
+Consolidated 2026-07-03 from the former `WorkToBeDone.md` (deleted 2026-07-20 — recoverable from git
+history), `Design Ideas/redesign-implementation-plan.md`, `Design Ideas/framework-port-capabilities.md`,
+and the pre-release gating decisions made on 2026-07-03. This is the single planning document for the
+release; the remaining source documents stay as reference.
 
 ## MVP scope decision (what the release ships)
 
@@ -25,7 +25,7 @@ historical trackers and reference.
 | Service | 🟡 Reachability banner + Recheck: **works**. Restart/Shut down: **works when the service is registered**. Install/Update/Uninstall: wired but **gated on packaged-helper discovery** — in a dev checkout the packaged executable is not discoverable, so they stay disabled (see P0-1). Runtime configuration (polling intervals, allow-fan-control) Apply/Save/Reset: **works**. |
 | Display units | ✅ **Fully works.** All 13 UnitsNet quantities, live samples, applies instantly app-wide, persists client-only to `%LOCALAPPDATA%\SubZeroFramework\display-unit-preferences.json`. |
 | Startup & alerts | 🟡 Reworked 2026-07-18/19: **"Start with system boot"** (renamed from "Start with Windows") — now backed by the **AutoLaunch** NuGet library (`AutoLaunchStartupRegistrationService`, MIT, zero deps on modern .NET): HKCU Run key on Windows (**verified end-to-end**, incl. seamless migration of the pre-library Run entry via matching value name), freedesktop autostart on Linux, LaunchAgent on macOS for free. **"Start minimized" removed** (no tray icon — a hidden launch had no way back; old JSON key ignored). Autorun service: wired to `enable/disable-autorun` on both platforms, enabled once the service is registered — now exercisable in dev via the Debug-only packaged-helper fallback (see P0-1 note; the Warnings recovery page's "Install service" button verified enabled with it). **Thermal alerts: WORK** — toggle + monitor + toast delivery via `DesktopNotificationsFixed` (Windows toast user-confirmed 2026-07-19; Linux D-Bus wired, validated in the P1 Linux pass), incl. a "Send test notification" button. |
-| Licenses | ✅ **Fully works.** Build target extracts all 39 shipped packages with real license texts. |
+| Licenses | ✅ **Works.** Build target generates 171 entries — 169 NuGet packages (full transitive closure of app + Core + GrpcContracts + Service) plus 2 vendored native components. 160 carry real license text: 64 reproduce the package's own embedded file (18 declared via the nuspec `license` element, 46 found by the root LICENSE scan), 94 come from SPDX templates in `Build/LicenseTexts` (MIT, MIT-0, Apache-2.0, BSD-3-Clause, CC0-1.0), 2 from `Build/StaticLicenses`. Gaps (2026-07-20 audit): **3** declare an SPDX id we ship no template for (LibVLCSharp + VideoLAN.LibVLC.Windows = `LGPL-2.1-or-later`, Svg.Custom = `MS-PL`); **6** declare no license at all and correctly read "Unknown license terms"; **2** expose only a licence URL. Note the report is TFM-invariant (the targets file regexes the whole assets file), so the Windows page also lists packages that ship only on Linux — avoid the word "shipped" in user-facing copy. |
 | About | 🟡 SubZero version, live EC build + framework-dotnet version: **work**. framework-system-ffi-extensions / framework-system rows show "Bundled with framework-dotnet" until the library embeds component versions (P1-6). |
 
 ## P0 — release blockers
@@ -153,6 +153,21 @@ the live validation of both pipelines.
      acceptable for AUR distribution — so debtap is a user-side escape hatch to document, not our release
      pipeline.
 - Do **not** `PublishTrimmed` the Uno UI (reflection/XAML breakage risk); trimming the worker is optional.
+  **CONFIRMED EMPIRICALLY 2026-07-20 (applies to Windows too, not just Linux).** The Windows publish
+  profiles had been shipping `PublishTrimmed=True` for every non-Debug build since a stale Uno template
+  default, so CI's installer was trimmed while every dev build (Debug forces it off) was not — the trimmed
+  artifact had therefore never been run. It **crashes on startup**: `0xc000027b` (stowed WinRT exception)
+  in `Microsoft.UI.Xaml.dll`, HRESULT `0x802B000A`. The untrimmed publish of the same commit launches
+  normally. Rooting the reflection-heavy assemblies first (`UnitsNet`, our own three, the navigation
+  resolver, the toast COM activator) did **not** rescue it: the failure is inside WinUI's own CsWinRT
+  marshalling layer — 35 `IL2081` warnings across `ABI.System.Collections.Generic.*` — and WindowsAppSDK
+  is not trim-annotated. Trimming saved ~148 MB (574 → 425 MB) for a binary that does not start.
+  Both pubxml files now set `PublishTrimmed=False` unconditionally; `PublishReadyToRun` is unrelated and
+  stays ON. A full trim pass reports 52 `IL20xx` warnings, **all** inside dependencies — "zero trim
+  warnings" is not reachable without abandoning Uno.Extensions. Note trim failures are *lazy*: a build can
+  launch and still fail when a specific page or unit conversion is first touched, so re-enabling requires
+  exercising every page, not a smoke test. The inert keep-descriptor block in `SubZeroFramework.csproj`
+  documents where to start if this is ever revisited.
 - Prerequisite either way: P1 Linux systemd E2E validation (root EC access) must pass first.
 
 ## Service-side fan curve drive + CPU usage modifier (landed 2026-07-18)
@@ -233,6 +248,39 @@ the live validation of both pipelines.
 10. **Explicit Rx throttling policy** for UI subscriptions where still missing (carried 🟡). Note the
     2026-07-03 lesson: never subscribe long history windows or issue unary EC calls during startup-page VM
     construction — the Dashboard now renders live values only.
+11. **NativeAOT for the service — investigated 2026-07-20: FEASIBLE, 0 hard blockers, deliberately
+    deferred past 0.1.0.** The dependency stack is unusually AOT-ready: `Grpc.AspNetCore.Server` 2.80.0 and
+    `Grpc.Net.Client` ship `IsTrimmable` with **zero** `Requires*` annotations; `Google.Protobuf` 3.35.1
+    guards dynamic-code paths behind `RuntimeFeature.IsDynamicCodeSupported` (we use generated
+    `MessageParser`, not `JsonFormatter`/descriptor reflection); `Hardware.Info.Aot` has zero references to
+    `System.Management`, and its WmiLight dependency ships an explicit `PublishAot` static-link path; the EC
+    FFI is 44 `Cdecl`/`ExactSpelling` P/Invokes over 58 blittable structs with no string/array/delegate
+    marshalling; and the service source contains no `Activator`/`Type.GetType`/`MakeGenericType`/
+    `JsonSerializer`/`Expression` at all.
+    **The reason to defer is one SILENT regression, not a build failure.** `PublishAot` auto-enables the
+    configuration-binding source generator, which does **not** bind `init`-only properties on records with
+    only a parameterless constructor (`CanSet = publicSetter && !isInitOnly`; the `SetOnInit` path applies
+    only to parameterized constructors). Every property of `FrameworkServiceOptions` and
+    `FanControlStateOptions` is `{ get; init; }`, and `AddOptions<T>().Bind()` binds into an
+    already-constructed instance. Under AOT, with no diagnostic and no exception:
+      * `PollingInterval` reverts from appsettings' `00:00:02` to the 150 ms code default — **13× the
+        validated EC polling rate, on every machine, silently**;
+      * `AllowFanControlCommands` pins `false`, so the persisted overlay can never re-enable fan control;
+      * `FanControlStates` stays empty, so persisted curves/profiles never restore.
+    Prerequisites if revived (in order): (1) `init` → `set` on both records — a **no-op under CoreCLR**,
+    since reflection ignores the `init` modreq; (2) replace `LoggerProviderOptions.RegisterProviderOptions`
+    (`Program.cs:49`, `[RequiresDynamicCode]`, not interceptable — the bind lives in
+    `ConfigureFromConfigurationOptions<T>` in a precompiled assembly) — do NOT just delete it, or the Event
+    Log source silently changes; (3) ship `System.Diagnostics.EventLog.Messages.dll` explicitly (ILC drops
+    it as a culture-neutral resource assembly, giving "description … cannot be found" in Event Viewer);
+    (4) provision a native toolchain in CI — no C++ tools are installed today, and `windows-11-arm` needs
+    the **ARM64** VC component specifically, Linux needs `clang` + `objcopy`; (5) mind the Linux glibc
+    floor — AOT's `Scrt1.o` pulls `__libc_start_main@GLIBC_2.34`, raising the floor from today's 2.27 and
+    silently dropping RHEL 8 / Ubuntu 20.04 / Debian 11, which **no package format currently declares**.
+    CI can prove it compiles, links, starts, and binds options; CI **cannot** prove EC reads/writes, fan
+    duty actuation, or — critically — that fan restore-to-auto still completes inside the
+    `AppDomain.ProcessExit` backstop before an AOT teardown. That last one is hardware-safety-critical and
+    needs a physical soak, which is precisely why this waits until after the first release.
 
 ## Superseded / dropped items (do not carry forward)
 

@@ -30,7 +30,11 @@ lives on Fan Curve Profiles.
   applied instantly app-wide and persisted per-user; all UI values route through UnitsNet formatting.
 - **Start with system boot**: launch-at-sign-in registration on Windows (Run key) and Linux (freedesktop
   autostart), backed by the cross-platform AutoLaunch library.
-- **Settings → Licenses**: build-time extraction of every shipped NuGet package with real license texts.
+- **Settings → Licenses**: a build-time license report covering the full transitive NuGet dependency
+  closure of the app, Core, GrpcContracts and Service projects, plus the native components vendored
+  inside FrameworkDotnet. Each entry carries the package's own embedded license file where it ships one,
+  a canonical SPDX text where the package declares an identifier we hold a template for, and
+  "Unknown license terms" otherwise — nothing is ever guessed.
 - **Thermal alerts**: opt-in desktop notification when a sensor crosses the critical band (85 °C), with
   per-sensor hysteresis and cooldown and a "Send test notification" button. Delivery via the
   DesktopNotificationsFixed library — native toasts on Windows, `org.freedesktop.Notifications` (D-Bus)

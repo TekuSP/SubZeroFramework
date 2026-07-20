@@ -6,9 +6,9 @@ description: "Use when researching code, documentation, packages, build steps, t
 
 - Start with the repo’s maintained sources of truth before improvising:
   - [copilot-instructions.md](../copilot-instructions.md)
-  - [WorkToBeDone.md](../../WorkToBeDone.md)
-  - [Architecture.md](../../Architecture.md)
-  - [FunctionalitySpecification.md](../../FunctionalitySpecification.md)
+  - [docs/ReleasePlan.md](../../docs/ReleasePlan.md)
+  - [docs/Architecture.md](../../docs/Architecture.md)
+  - [docs/FunctionalitySpecification.md](../../docs/FunctionalitySpecification.md)
 - Before implementing a fix or feature, find the most authoritative source you can for the issue: existing repo docs, the relevant source file or companion repo, official documentation, GitHub source or examples, or other structured references.
 - Prefer to ground implementation decisions in those authoritative sources instead of guessing from memory or starting with ad hoc experimentation.
 - When looking for source code, examples, package guidance, or implementation context, prefer GitHub sources, official documentation, MCP-backed sources, and workspace search tools over ad hoc shell exploration.
