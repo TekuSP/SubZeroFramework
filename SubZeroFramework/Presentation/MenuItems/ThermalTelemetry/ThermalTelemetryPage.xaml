@@ -18,7 +18,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel Padding="0,0,0,24" Spacing="18">
 
-                <!--  Title + subtitle + history window selector  -->
+                <!--  Title + history window selector  -->
                 <Grid Margin="15,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -30,10 +30,6 @@
                             FontWeight="SemiBold"
                             Foreground="{StaticResource TextPrimaryBrush}"
                             Text="Thermal telemetry" />
-                        <TextBlock
-                            Margin="0,6,0,0"
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Text="Compare sensor temperatures over time. Toggle a sensor to add or remove its series." />
                     </StackPanel>
 
                     <StackPanel
@@ -101,52 +97,60 @@
                     </StackPanel>
                 </Grid>
 
-                <!--  Device / telemetry meta strip (one divided strip, not separate boxes)  -->
+                <!--  Device / telemetry meta tiles (darker inner cards, matching the Power telemetry stat tiles)  -->
                 <StackPanel Margin="10,0">
                     <controls:ElevatedCard
                         HorizontalContentAlignment="Stretch"
                         VerticalContentAlignment="Stretch"
                         Background="{StaticResource CardBackgroundBrush}">
                         <StackPanel Padding="18,14">
-                            <Grid>
+                            <Grid ColumnSpacing="12" RowSpacing="12">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-
-                                <StackPanel
-                                    Grid.Column="0"
-                                    Margin="0,0,16,0"
-                                    Spacing="6">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <material:MaterialIcon
-                                            Width="14"
-                                            Height="14"
-                                            VerticalAlignment="Center"
-                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                            Kind="Laptop" />
-                                        <TextBlock
-                                            FontSize="11"
-                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                            Text="DEVICE" />
-                                    </StackPanel>
-                                    <TextBlock
-                                        FontSize="15"
-                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                        Text="{x:Bind ViewModel.DeviceModelDisplay, Mode=OneWay}"
-                                        TextWrapping="WrapWholeWords" />
-                                </StackPanel>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
 
                                 <Border
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Padding="12"
+                                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                                    CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <material:MaterialIcon
+                                                Width="14"
+                                                Height="14"
+                                                VerticalAlignment="Center"
+                                                Foreground="{StaticResource TextSecondaryBrush}"
+                                                Kind="Laptop" />
+                                            <TextBlock
+                                                FontSize="12"
+                                                Foreground="{StaticResource TextSecondaryBrush}"
+                                                Text="DEVICE" />
+                                        </StackPanel>
+                                        <TextBlock
+                                            FontSize="15"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            Text="{x:Bind ViewModel.DeviceModelDisplay, Mode=OneWay}"
+                                            TextWrapping="WrapWholeWords" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border
+                                    Grid.Row="0"
                                     Grid.Column="1"
-                                    Padding="16,0,16,0"
-                                    BorderBrush="{StaticResource CardBorderBrush}"
-                                    BorderThickness="1,0,0,0">
-                                    <StackPanel Spacing="6">
+                                    Padding="12"
+                                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                                    CornerRadius="10">
+                                    <StackPanel Spacing="4">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <material:MaterialIcon
                                                 Width="14"
@@ -155,12 +159,13 @@
                                                 Foreground="{StaticResource TextSecondaryBrush}"
                                                 Kind="Chip" />
                                             <TextBlock
-                                                FontSize="11"
+                                                FontSize="12"
                                                 Foreground="{StaticResource TextSecondaryBrush}"
                                                 Text="PLATFORM" />
                                         </StackPanel>
                                         <TextBlock
                                             FontSize="15"
+                                            FontWeight="SemiBold"
                                             Foreground="{StaticResource TextPrimaryBrush}"
                                             Text="{x:Bind ViewModel.PlatformDisplay, Mode=OneWay}"
                                             TextWrapping="WrapWholeWords" />
@@ -168,11 +173,12 @@
                                 </Border>
 
                                 <Border
+                                    Grid.Row="0"
                                     Grid.Column="2"
-                                    Padding="16,0,16,0"
-                                    BorderBrush="{StaticResource CardBorderBrush}"
-                                    BorderThickness="1,0,0,0">
-                                    <StackPanel Spacing="6">
+                                    Padding="12"
+                                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                                    CornerRadius="10">
+                                    <StackPanel Spacing="4">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <material:MaterialIcon
                                                 Width="14"
@@ -181,12 +187,13 @@
                                                 Foreground="{StaticResource TextSecondaryBrush}"
                                                 Kind="Cog" />
                                             <TextBlock
-                                                FontSize="11"
+                                                FontSize="12"
                                                 Foreground="{StaticResource TextSecondaryBrush}"
                                                 Text="DRIVER" />
                                         </StackPanel>
                                         <TextBlock
                                             FontSize="15"
+                                            FontWeight="SemiBold"
                                             Foreground="{StaticResource TextPrimaryBrush}"
                                             Text="{x:Bind ViewModel.DriverDisplay, Mode=OneWay}"
                                             TextWrapping="WrapWholeWords" />
@@ -194,11 +201,12 @@
                                 </Border>
 
                                 <Border
+                                    Grid.Row="0"
                                     Grid.Column="3"
-                                    Padding="16,0,16,0"
-                                    BorderBrush="{StaticResource CardBorderBrush}"
-                                    BorderThickness="1,0,0,0">
-                                    <StackPanel Spacing="6">
+                                    Padding="12"
+                                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                                    CornerRadius="10">
+                                    <StackPanel Spacing="4">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <material:MaterialIcon
                                                 Width="14"
@@ -207,12 +215,13 @@
                                                 Foreground="{StaticResource TextSecondaryBrush}"
                                                 Kind="Memory" />
                                             <TextBlock
-                                                FontSize="11"
+                                                FontSize="12"
                                                 Foreground="{StaticResource TextSecondaryBrush}"
                                                 Text="EC BUILD" />
                                         </StackPanel>
                                         <TextBlock
                                             FontSize="15"
+                                            FontWeight="SemiBold"
                                             Foreground="{StaticResource TextPrimaryBrush}"
                                             Text="{x:Bind ViewModel.EcBuildInfoDisplay, Mode=OneWay}"
                                             TextWrapping="WrapWholeWords" />
@@ -220,11 +229,12 @@
                                 </Border>
 
                                 <Border
-                                    Grid.Column="4"
-                                    Padding="16,0,16,0"
-                                    BorderBrush="{StaticResource CardBorderBrush}"
-                                    BorderThickness="1,0,0,0">
-                                    <StackPanel Spacing="6">
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Padding="12"
+                                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                                    CornerRadius="10">
+                                    <StackPanel Spacing="4">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <material:MaterialIcon
                                                 Width="14"
@@ -233,12 +243,13 @@
                                                 Foreground="{StaticResource TextSecondaryBrush}"
                                                 Kind="ClockOutline" />
                                             <TextBlock
-                                                FontSize="11"
+                                                FontSize="12"
                                                 Foreground="{StaticResource TextSecondaryBrush}"
                                                 Text="LAST SEEN" />
                                         </StackPanel>
                                         <TextBlock
                                             FontSize="15"
+                                            FontWeight="SemiBold"
                                             Foreground="{StaticResource TextPrimaryBrush}"
                                             Text="{x:Bind ViewModel.TelemetryObservedDisplay, Mode=OneWay}"
                                             TextWrapping="WrapWholeWords" />
@@ -246,11 +257,12 @@
                                 </Border>
 
                                 <Border
-                                    Grid.Column="5"
-                                    Padding="16,0,0,0"
-                                    BorderBrush="{StaticResource CardBorderBrush}"
-                                    BorderThickness="1,0,0,0">
-                                    <StackPanel Spacing="6">
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    Padding="12"
+                                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                                    CornerRadius="10">
+                                    <StackPanel Spacing="4">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
                                             <material:MaterialIcon
                                                 Width="14"
@@ -259,44 +271,48 @@
                                                 Foreground="{StaticResource TextSecondaryBrush}"
                                                 Kind="Pulse" />
                                             <TextBlock
-                                                FontSize="11"
+                                                FontSize="12"
                                                 Foreground="{StaticResource TextSecondaryBrush}"
                                                 Text="SERVICE" />
                                         </StackPanel>
                                         <TextBlock
                                             FontSize="15"
+                                            FontWeight="SemiBold"
                                             Foreground="{x:Bind ViewModel.ServiceStateBrush, Mode=OneWay}"
                                             Text="{x:Bind ViewModel.ServiceStateDisplay, Mode=OneWay}"
                                             TextWrapping="WrapWholeWords" />
                                     </StackPanel>
                                 </Border>
-                            </Grid>
 
-                            <Border
-                                Margin="0,14,0,0"
-                                Padding="0,14,0,0"
-                                BorderBrush="{StaticResource CardBorderBrush}"
-                                BorderThickness="0,1,0,0">
-                                <StackPanel Spacing="6">
-                                    <StackPanel Orientation="Horizontal" Spacing="6">
-                                        <material:MaterialIcon
-                                            Width="14"
-                                            Height="14"
-                                            VerticalAlignment="Center"
-                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                            Kind="AlertCircleOutline" />
+                                <Border
+                                    Grid.Row="1"
+                                    Grid.Column="2"
+                                    Grid.ColumnSpan="2"
+                                    Padding="12"
+                                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                                    CornerRadius="10">
+                                    <StackPanel Spacing="4">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <material:MaterialIcon
+                                                Width="14"
+                                                Height="14"
+                                                VerticalAlignment="Center"
+                                                Foreground="{StaticResource TextSecondaryBrush}"
+                                                Kind="AlertCircleOutline" />
+                                            <TextBlock
+                                                FontSize="12"
+                                                Foreground="{StaticResource TextSecondaryBrush}"
+                                                Text="LAST ERROR" />
+                                        </StackPanel>
                                         <TextBlock
-                                            FontSize="11"
-                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                            Text="LAST ERROR" />
+                                            FontSize="15"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            Text="{x:Bind ViewModel.LastErrorDisplay, Mode=OneWay}"
+                                            TextWrapping="WrapWholeWords" />
                                     </StackPanel>
-                                    <TextBlock
-                                        FontSize="15"
-                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                        Text="{x:Bind ViewModel.LastErrorDisplay, Mode=OneWay}"
-                                        TextWrapping="WrapWholeWords" />
-                                </StackPanel>
-                            </Border>
+                                </Border>
+                            </Grid>
                         </StackPanel>
                     </controls:ElevatedCard>
                 </StackPanel>

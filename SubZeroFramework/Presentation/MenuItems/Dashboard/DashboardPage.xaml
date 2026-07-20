@@ -129,11 +129,6 @@
                             FontWeight="SemiBold"
                             Foreground="{StaticResource TextPrimaryBrush}"
                             Text="Fans" />
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            FontSize="12.5"
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Text="live overview — control fans from Fan Curve Profiles" />
                     </StackPanel>
                     <StackPanel
                         Grid.Column="1"

@@ -25,10 +25,6 @@
                         FontWeight="SemiBold"
                         Foreground="{StaticResource TextPrimaryBrush}"
                         Text="Power telemetry" />
-                    <TextBlock
-                        Margin="0,6,0,0"
-                        Foreground="{StaticResource TextSecondaryBrush}"
-                        Text="Live energy flow, battery health, and per-port USB-C Power Delivery from the embedded controller." />
                 </StackPanel>
 
                 <!--  Power-flow hero  -->
@@ -420,7 +416,6 @@
                 <!--  USB-C Power Delivery  -->
                 <StackPanel Margin="10,0" Spacing="4">
                     <TextBlock Margin="5,0" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="USB-C Power Delivery" />
-                    <TextBlock Margin="5,0" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="Per-port negotiated power, data roles, and alt-modes reported by the embedded controller." />
 
                     <TextBlock Margin="5,12,0,0" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="No USB-C ports reported yet…" Visibility="{x:Bind ViewModel.EmptyVisibility, Mode=OneWay}" />
 

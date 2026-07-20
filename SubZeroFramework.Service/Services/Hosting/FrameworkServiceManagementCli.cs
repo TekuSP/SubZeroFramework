@@ -278,6 +278,8 @@ internal static class FrameworkServiceManagementCli
                 UseShellExecute = false,
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
+                // Keep sc.exe/systemctl invocations windowless so lifecycle actions never flash a console.
+                CreateNoWindow = true,
             }
         };
 

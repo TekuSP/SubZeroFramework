@@ -667,6 +667,9 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
             UseShellExecute = false,
             RedirectStandardError = true,
             RedirectStandardOutput = true,
+            // Without this, launching a console tool (sc.exe, systemctl, …) from the GUI client flashes a
+            // console window on screen — redirecting the streams alone does NOT suppress it.
+            CreateNoWindow = true,
         };
 
         foreach (var argument in arguments)

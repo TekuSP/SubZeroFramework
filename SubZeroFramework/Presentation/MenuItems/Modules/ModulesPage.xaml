@@ -49,7 +49,7 @@
                             FontSize="17"
                             FontWeight="SemiBold"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="Module map coming soon" />
+                            Text="Coming soon" />
                         <TextBlock
                             HorizontalAlignment="Center"
                             FontSize="13"

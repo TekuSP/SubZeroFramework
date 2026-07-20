@@ -350,7 +350,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
     public partial string AverageFanSpeedDisplay { get; set; } = "--";
 
     [ObservableProperty]
-    public partial string CoolingProfileSubtitle { get; set; } = "coming soon — profiles are not supported yet";
+    public partial string CoolingProfileSubtitle { get; set; } = "Coming soon";
 
     [ObservableProperty]
     public partial bool IsFanControlEnabled { get; set; }
@@ -403,10 +403,6 @@ public partial class DashboardModel : ObservableObject, IDisposable
         {
             preset.IsSelected = preset.Kind == selected;
         }
-
-        CoolingProfileSubtitle = _fanCardsByIndex.Count > 0
-            ? $"applies to all {_fanCardsByIndex.Count} fans instantly"
-            : "applies to all fans instantly";
     }
 
     private void UpdateAverageFanSpeed()
