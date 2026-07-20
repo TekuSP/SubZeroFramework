@@ -333,7 +333,14 @@
           Condition="'$(DesignTimeBuild)' != 'true'">
     <!-- Resolved at execution time: IntermediateOutputPath is defined by SDK targets imported after this file. -->
     <PropertyGroup>
-      <ThirdPartyLicenseReportFile>$(MSBuildProjectDirectory)\$(IntermediateOutputPath)third-party-licenses.json</ThirdPartyLicenseReportFile>
+      <!-- Path.Combine, NOT string concatenation: IntermediateOutputPath is usually relative ("obj/..."),
+           but is ABSOLUTE when the build sets ArtifactsPath / BaseIntermediateOutputPath (e.g. building
+           from WSL into a native Linux directory so Windows and Linux never share obj/). Concatenating an
+           absolute path onto the project directory silently produced <projectdir>/tmp/.../obj/..., i.e. the
+           report was written INSIDE the project cone, where the default Content glob picked it up again and
+           the publish failed with NETSDK1152 (same relative path twice). Path.Combine returns the second
+           argument unchanged when it is already absolute, and picks the right separator per platform. -->
+      <ThirdPartyLicenseReportFile>$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(IntermediateOutputPath)', 'third-party-licenses.json'))</ThirdPartyLicenseReportFile>
       <!-- The app's own assets file FIRST (its resolved versions win), then the sibling projects that ship
            in the bundle, so their transitive dependency closures are licensed too. Missing files (e.g. the
            service before a solution restore) are skipped with a log message. -->

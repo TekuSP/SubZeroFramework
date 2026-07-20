@@ -23,11 +23,20 @@ if [[ -n "${version}" ]]; then
   version_args=("-p:Version=${version}" "-p:InformationalVersion=${version}")
 fi
 
+# Optional: build into a separate obj/bin tree (set by build-release-linux.sh when running from WSL, so a
+# Linux build never reuses Windows-generated obj/ — see that script for why). Unset in CI, where the
+# checkout is Linux-only and the default in-repo obj/ is correct.
+artifacts_args=()
+if [[ -n "${ARTIFACTS_PATH:-}" ]]; then
+  artifacts_args=("-p:ArtifactsPath=${ARTIFACTS_PATH}")
+fi
+
 dotnet publish "${service_root}/SubZeroFramework.Service.csproj" \
   -c "${configuration}" \
   -r "${runtime_id}" \
   --self-contained true \
   -o "${output_dir}" \
+  "${artifacts_args[@]+"${artifacts_args[@]}"}" \
   "${version_args[@]+"${version_args[@]}"}" \
   /property:GenerateFullPaths=true \
   /v:minimal \

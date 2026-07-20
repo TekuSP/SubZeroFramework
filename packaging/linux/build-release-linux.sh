@@ -98,6 +98,24 @@ trap 'rm -rf "${staging}"' EXIT
 ui_dir="${staging}/ui"
 mkdir -p "${ui_dir}" "${output_dir}"
 
+# Build into a NATIVE Linux directory, never the repo's own bin/obj.
+#
+# Two hard reasons, both hit in practice when building this tree from WSL over /mnt/c:
+#   1. obj/ cannot be shared between Windows and Linux. project.assets.json and nuget.g.props embed
+#      absolute host paths, so a Linux build over a Windows-generated obj/ dies with
+#      "Unable to find fallback package folder 'C:\Program Files (x86)\...\NuGetPackages'".
+#   2. Stale Windows output under bin/ gets collected as publish input on Linux, and the publish fails
+#      with NETSDK1152 ("multiple publish output files with the same relative path") because every
+#      content file pairs with its own previously-copied output.
+# Keeping the two toolchains in separate output trees removes both, and building on ext4 instead of the
+# 9p /mnt/c mount is also markedly faster.
+#
+# ARTIFACTS_ROOT may be overridden; it must stay OUTSIDE the repo.
+artifacts_root="${ARTIFACTS_ROOT:-${HOME}/.cache/subzeroframework-build/${rid}}"
+mkdir -p "${artifacts_root}"
+echo "  objbin  : ${artifacts_root}  (kept out of the repo so Windows and Linux never share obj/)"
+echo
+
 echo "SubZero Framework - local Linux release"
 echo "  version : ${version}"
 echo "  arch    : ${arch} (${rid})"
@@ -111,6 +129,7 @@ dotnet publish "${repo_root}/SubZeroFramework/SubZeroFramework.csproj" \
   -c Release \
   -f net10.0-desktop \
   "-p:PublishProfile=${repo_root}/SubZeroFramework/Properties/PublishProfiles/${rid}.pubxml" \
+  "-p:ArtifactsPath=${artifacts_root}" \
   "-p:PublishDir=${ui_dir}/" \
   "-p:Version=${version}" \
   "-p:InformationalVersion=${version}" \
@@ -120,7 +139,8 @@ dotnet publish "${repo_root}/SubZeroFramework/SubZeroFramework.csproj" \
 # ── 2. Service ───────────────────────────────────────────────────────────────────────────────────
 echo "[2/3] Publishing the service..."
 chmod +x "${repo_root}/SubZeroFramework.Service/Scripts/package-linux-service.sh"
-"${repo_root}/SubZeroFramework.Service/Scripts/package-linux-service.sh" \
+ARTIFACTS_PATH="${artifacts_root}" \
+  "${repo_root}/SubZeroFramework.Service/Scripts/package-linux-service.sh" \
   "${rid}" "${staging}" Release "${version}"
 
 service_dir="${staging}/service-package/linux"
