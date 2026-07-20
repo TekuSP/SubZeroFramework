@@ -15,6 +15,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Navigation;
 using SubZeroFramework.Themes;
 
 using Windows.UI;
@@ -28,7 +29,7 @@ namespace SubZeroFramework.Presentation.MenuItems.Settings.Sections;
 /// ConfigureAwait(false) so its continuations stay on the UI thread. The page that navigated here disposes
 /// it when another section takes over.
 /// </summary>
-public partial class SettingsServiceSectionModel : ObservableObject, IDisposable
+public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedChangesGuard, IDisposable
 {
     private readonly CompositeDisposable _subscriptions = [];
     private readonly IFrameworkServiceControlClient _serviceControlClient;
@@ -503,6 +504,16 @@ public partial class SettingsServiceSectionModel : ObservableObject, IDisposable
         {
             ApplyConfigurationDraft(CurrentConfigurationSnapshot);
         }
+    }
+
+    // ----- Navigation guard: warn before leaving with an unapplied runtime-configuration draft -----
+
+    bool IUnsavedChangesGuard.HasUnsavedChanges => HasConfigurationChanges;
+
+    Task IUnsavedChangesGuard.DiscardUnsavedChangesAsync()
+    {
+        ResetConfiguration();
+        return Task.CompletedTask;
     }
 
     private void ApplyConfigurationSnapshot(FrameworkServiceConfigurationSnapshot snapshot)

@@ -2,6 +2,7 @@ using System.ComponentModel;
 
 using SubZeroFramework.Controls.Settings.Models;
 using SubZeroFramework.Presentation.MenuItems.Settings.Sections;
+using SubZeroFramework.Services.Navigation;
 
 using Uno.Extensions.Navigation;
 
@@ -45,12 +46,18 @@ public sealed partial class SettingsPage : Page, INotifyPropertyChanged
             if (field is not null)
             {
                 field.PropertyChanged += OnViewModelPropertyChanged;
+                // Register the shell guard: leaving the Settings tab warns when the ACTIVE section is dirty.
+                field.GuardRegistry.Register("Settings", CurrentSectionGuard);
             }
 
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ViewModel)));
             QueueSectionSync();
         }
     } = default!;
+
+    /// <summary>The unsaved-changes guard of whichever section body is currently shown (null when clean-only).</summary>
+    private IUnsavedChangesGuard? CurrentSectionGuard()
+        => (SectionRegionHost.Content as FrameworkElement)?.DataContext as IUnsavedChangesGuard;
 
     private void DataContextChanged_Handler(FrameworkElement sender, DataContextChangedEventArgs args)
     {
@@ -60,12 +67,27 @@ public sealed partial class SettingsPage : Page, INotifyPropertyChanged
         }
     }
 
-    private void OnSectionItemClick(object sender, RoutedEventArgs e)
+    private async void OnSectionItemClick(object sender, RoutedEventArgs e)
     {
-        if ((sender as FrameworkElement)?.DataContext is SettingsSectionRailItemModel section)
+        if ((sender as FrameworkElement)?.DataContext is not SettingsSectionRailItemModel section)
         {
-            ViewModel.SelectSectionCommand.Execute(section);
+            return;
         }
+
+        // Re-picking the current section is a no-op; only a real switch can lose staged edits.
+        if (section.Index != ViewModel.SelectedSectionIndex
+            && CurrentSectionGuard() is { HasUnsavedChanges: true } guard
+            && XamlRoot is { } xamlRoot)
+        {
+            if (!await UnsavedChangesPrompt.ConfirmDiscardAsync(xamlRoot))
+            {
+                return; // Stay on the current section.
+            }
+
+            await guard.DiscardUnsavedChangesAsync();
+        }
+
+        ViewModel.SelectSectionCommand.Execute(section);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

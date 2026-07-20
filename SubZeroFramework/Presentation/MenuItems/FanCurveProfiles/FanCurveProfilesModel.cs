@@ -30,6 +30,7 @@ using SkiaSharp;
 using SubZeroFramework.Controls.FanCurveProfiles.Models;
 using SubZeroFramework.Controls.Fans.Models;
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Navigation;
 using SubZeroFramework.Services.Units;
 using SubZeroFramework.Themes;
 
@@ -40,7 +41,7 @@ namespace SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 /// so each tile shows the same gauge + history chart, extended with a red driving-temperature
 /// line, and toggles per-fan selection state to highlight the active card.
 /// </summary>
-public partial class FanCurveProfilesModel : ObservableObject, IDisposable
+public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGuard, IDisposable
 {
     private const double DefaultManualDutyPercent = 50d;
     private static readonly TimeSpan ManualDutyDebounce = TimeSpan.FromMilliseconds(300);
@@ -101,10 +102,12 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
         IUserUnitPreferencesClient userUnitPreferencesClient,
         IUnitFormattingService unitFormattingService,
         IDesktopNotificationService notificationService,
+        NavigationGuardRegistry navigationGuardRegistry,
         SynchronizationContext synchronizationContext,
         DispatcherQueue dispatcherQueue,
         ILogger<FanCurveProfilesModel> logger)
     {
+        GuardRegistry = navigationGuardRegistry;
         _frameworkStatusClient = frameworkStatusClient;
         _fanCapabilityClient = fanCapabilityClient;
         _fanControlStateClient = fanControlStateClient;
@@ -2022,6 +2025,17 @@ public partial class FanCurveProfilesModel : ObservableObject, IDisposable
 
         return count;
     }
+
+    // ----- Navigation guard: warn before leaving the whole Fan Control tab with staged work on any fan -----
+
+    /// <summary>The shell's unsaved-changes registry (this page registers itself as the "FanCurveProfiles" guard).</summary>
+    public NavigationGuardRegistry GuardRegistry { get; }
+
+    /// <summary>True while the selected fan or any other fan has staged (unapplied) work, or a preview is live.</summary>
+    public bool HasUnsavedChanges => HasPendingFanWork || HasOtherStagedFans;
+
+    /// <summary>Navigation-guard discard (leaving the tab): revert every fan's staged work and stop any preview.</summary>
+    public Task DiscardUnsavedChangesAsync() => RevertToAppliedAsync(CancellationToken.None);
 
     // Preview tries the staged change live (volatile). Custom needs a valid self-driven draft that is either
     // edited or not yet driving the fan (activation staged); simple needs a staged mode. Never offered while

@@ -62,10 +62,10 @@ public sealed partial class MainPage : Page, INotifyPropertyChanged
 
     private void MainNavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        if (string.Equals(args.SelectedItemContainer.Tag?.ToString(), "Github", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(args.SelectedItemContainer?.Tag?.ToString(), "Github", StringComparison.OrdinalIgnoreCase))
         {
             _ = Launcher.LaunchUriAsync(new Uri("https://github.com/TekuSP/SubZeroFramework"));
-            ViewModel!.navigator.GoBack(this);
+            _ = ViewModel!.navigator.GoBack(this);
         }
     }
 }

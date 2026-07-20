@@ -148,6 +148,15 @@ public partial class App : Application
                     // Modules layout bodies bridge to the displayed page model the same way (see ModulesAccessor).
                     services.AddSingleton<ModulesAccessor>();
 
+                    // Tracks which page/section has unsaved staged edits, so the shell can warn before
+                    // navigating away (registered by SettingsPage / FanCurveProfilesPage).
+                    services.AddSingleton<SubZeroFramework.Services.Navigation.NavigationGuardRegistry>();
+
+                    // Custom NavigationView navigator that prompts (via the registry above) before a user rail
+                    // tap actually switches pages. Named "ConfirmNav" so ONLY MainNavigationView opts in via
+                    // uen:Region.Navigator="ConfirmNav"; all other NavigationViews keep the stock navigator.
+                    services.AddRegion<Microsoft.UI.Xaml.Controls.NavigationView, SubZeroFramework.Services.Navigation.ConfirmNavigationViewNavigator>(name: "ConfirmNav");
+
                     // Client-only settings: launch behavior + alert opt-ins persist next to the display units.
                     services.AddSingleton<ILocalClientSettingsStore, LocalClientSettingsStore>();
                     // Cross-platform launch-at-sign-in via the AutoLaunch library (HKCU Run key /

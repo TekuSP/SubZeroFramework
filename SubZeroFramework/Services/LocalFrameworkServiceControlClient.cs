@@ -491,7 +491,7 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
             // Dev-checkout fallback: the sibling service project's build output, so the whole lifecycle
             // (install → autorun → update → uninstall) is exercisable from an F5 build. Debug-only so an
             // installed Release app can never bind the SCM entry to a stray repo path.
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "SubZeroFramework.Service", "bin", "Debug", "net10.0", "SubZeroFramework.Service.exe"),
+            FindDevServiceExecutable("SubZeroFramework.Service.exe"),
 #endif
             null);
 
@@ -504,9 +504,43 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
             Path.Combine(AppContext.BaseDirectory, "publish", "SubZeroFramework.Service", "SubZeroFramework.Service"),
 #if DEBUG
             // Dev-checkout fallback (see the Windows twin above).
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "SubZeroFramework.Service", "bin", "Debug", "net10.0", "SubZeroFramework.Service"),
+            FindDevServiceExecutable("SubZeroFramework.Service"),
 #endif
             null);
+
+#if DEBUG
+    // Walks up from the app's output directory to find the sibling SubZeroFramework.Service project and
+    // returns its newest matching build output. The app's output nests differently per platform/RID
+    // (e.g. bin\ARM64\Debug\net10.0-windows10.0.26100\win-arm64), so a fixed relative "..\..\.." path is
+    // brittle — searching for the SubZeroFramework.Service\bin marker at each parent is robust to all of them.
+    private static string? FindDevServiceExecutable(string executableFileName)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var depth = 0; depth < 8 && directory is not null; depth++, directory = directory.Parent)
+        {
+            var serviceBin = Path.Combine(directory.FullName, "SubZeroFramework.Service", "bin");
+            if (!Directory.Exists(serviceBin))
+            {
+                continue;
+            }
+
+            try
+            {
+                return Directory
+                    .EnumerateFiles(serviceBin, "*", SearchOption.AllDirectories)
+                    .Where(path => string.Equals(Path.GetFileName(path), executableFileName, StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .FirstOrDefault();
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        return null;
+    }
+#endif
 
     private string? ResolveLinuxServicePublishDirectory()
         => ResolveExistingDirectory(

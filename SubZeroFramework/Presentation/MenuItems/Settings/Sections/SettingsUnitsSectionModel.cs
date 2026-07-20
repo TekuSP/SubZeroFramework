@@ -13,6 +13,7 @@ using Microsoft.UI.Xaml;
 
 using SubZeroFramework.Controls.Settings.Models;
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Navigation;
 using SubZeroFramework.Services.Units;
 
 namespace SubZeroFramework.Presentation.MenuItems.Settings.Sections;
@@ -28,7 +29,7 @@ namespace SubZeroFramework.Presentation.MenuItems.Settings.Sections;
 /// applied selections. The live sample values follow the APPLIED unit, so they update after Save, not on a
 /// staged pick.
 /// </summary>
-public partial class SettingsUnitsSectionModel : ObservableObject, IDisposable
+public partial class SettingsUnitsSectionModel : ObservableObject, IUnsavedChangesGuard, IDisposable
 {
     // Representative fallbacks shown until (or when no) live telemetry backs a sample row.
     private const double FallbackTemperatureCelsius = 65d;
@@ -236,6 +237,13 @@ public partial class SettingsUnitsSectionModel : ObservableObject, IDisposable
 
         UnitsStatusMessage = string.Empty;
         UpdateDirtyState();
+    }
+
+    /// <summary>Navigation-guard discard (leaving the section/page): same as Cancel.</summary>
+    public Task DiscardUnsavedChangesAsync()
+    {
+        Cancel();
+        return Task.CompletedTask;
     }
 
     /// <summary>Stages each quantity's catalog default (Save then applies them).</summary>

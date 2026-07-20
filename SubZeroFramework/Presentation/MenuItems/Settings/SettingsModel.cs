@@ -14,6 +14,7 @@ using Microsoft.UI.Xaml.Media;
 
 using SubZeroFramework.Controls.Settings.Models;
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Navigation;
 using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Presentation.MenuItems.Settings;
@@ -28,10 +29,16 @@ public partial class SettingsModel : ObservableObject, IDisposable
 {
     private readonly CompositeDisposable _subscriptions = [];
 
-    public SettingsModel(IFrameworkStatusClient frameworkStatusClient, DispatcherQueue dispatcherQueue)
+    public SettingsModel(
+        IFrameworkStatusClient frameworkStatusClient,
+        NavigationGuardRegistry navigationGuardRegistry,
+        DispatcherQueue dispatcherQueue)
     {
         ArgumentNullException.ThrowIfNull(frameworkStatusClient);
+        ArgumentNullException.ThrowIfNull(navigationGuardRegistry);
         ArgumentNullException.ThrowIfNull(dispatcherQueue);
+
+        GuardRegistry = navigationGuardRegistry;
 
         Sections =
         [
@@ -52,6 +59,9 @@ public partial class SettingsModel : ObservableObject, IDisposable
             .Subscribe()
             .DisposeWith(_subscriptions);
     }
+
+    /// <summary>The shell's unsaved-changes registry (the page registers the active section as the "Settings" guard).</summary>
+    public NavigationGuardRegistry GuardRegistry { get; }
 
     // ----- Sub-navigation -----
 

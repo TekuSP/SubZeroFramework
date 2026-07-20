@@ -20,6 +20,10 @@ public sealed partial class FanCurveProfilesPage : Page, INotifyPropertyChanged
         {
             if (field == value) return;
             field = value;
+
+            // Register the shell guard: leaving the Fan Control tab warns when any fan has staged work.
+            field?.GuardRegistry.Register("FanCurveProfiles", () => ViewModel);
+
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ViewModel)));
         }
     } = default!;

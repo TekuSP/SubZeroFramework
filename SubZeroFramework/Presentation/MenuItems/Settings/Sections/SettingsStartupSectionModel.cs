@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Xaml;
 
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Navigation;
 using SubZeroFramework.Services.Units;
 
 namespace SubZeroFramework.Presentation.MenuItems.Settings.Sections;
@@ -18,7 +19,7 @@ namespace SubZeroFramework.Presentation.MenuItems.Settings.Sections;
 /// Save (Cancel re-reads the actual state). This also makes the model immune to spurious slider writebacks:
 /// a coerced value can never silently persist.
 /// </summary>
-public partial class SettingsStartupSectionModel : ObservableObject
+public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedChangesGuard
 {
     private readonly IFrameworkServiceControlClient _serviceControlClient;
     private readonly ILocalClientSettingsStore _clientSettings;
@@ -228,6 +229,13 @@ public partial class SettingsStartupSectionModel : ObservableObject
     {
         ReloadFromActualState();
         StartupStatusMessage = string.Empty;
+    }
+
+    /// <summary>Navigation-guard discard (leaving the section/page): same as Cancel.</summary>
+    public Task DiscardUnsavedChangesAsync()
+    {
+        Cancel();
+        return Task.CompletedTask;
     }
 
     private void ReloadFromActualState()

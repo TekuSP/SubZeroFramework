@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.UI.Dispatching;
 
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Navigation;
 
 namespace SubZeroFramework.Presentation;
 
@@ -19,13 +20,14 @@ public partial class MainModel : ObservableObject, IDisposable
     private readonly IFrameworkStatusClient frameworkStatusClient;
     public MainModel(
         IStringLocalizer localizer,
-        IOptions<AppConfig> appInfo, INavigator navigator, IServiceProvider serviceProvider, DispatcherQueue dispatcherQueue, SynchronizationContext context, IFrameworkStatusClient frameworkStatusClient)
+        IOptions<AppConfig> appInfo, INavigator navigator, IServiceProvider serviceProvider, DispatcherQueue dispatcherQueue, SynchronizationContext context, IFrameworkStatusClient frameworkStatusClient, NavigationGuardRegistry navigationGuardRegistry)
     {
         this.navigator = navigator;
         ServiceProvider = serviceProvider;
         this.dispatcherQueue = dispatcherQueue;
         this.context = context;
         this.frameworkStatusClient = frameworkStatusClient;
+        GuardRegistry = navigationGuardRegistry;
 
         frameworkStatusClient
             .WatchStatus()
@@ -54,6 +56,8 @@ public partial class MainModel : ObservableObject, IDisposable
 
             if (SelectedItem is NavigationViewItemBase bs && bs.Tag?.ToString() != "WarningIssues")
             {
+                // A forced redirect. It sets SelectedItem directly (no ItemInvoked), so the unsaved-changes
+                // guard — which only fires on user taps — does not block this bailout.
                 navigator.NavigateRouteAsync(this, "/Main/WarningIssues");
             }
 
@@ -81,6 +85,9 @@ public partial class MainModel : ObservableObject, IDisposable
     {
         _subscriptions.Dispose();
     }
+
+    /// <summary>The shell's unsaved-changes registry — read by MainPage's selection guard.</summary>
+    public NavigationGuardRegistry GuardRegistry { get; }
 
     [ObservableProperty]
     public partial IServiceProvider ServiceProvider { get; set; }

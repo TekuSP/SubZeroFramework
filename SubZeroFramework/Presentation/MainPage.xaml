@@ -42,6 +42,7 @@
             x:Name="MainNavigationView"
             Grid.Row="1"
             uen:Region.Attached="True"
+            uen:Region.Navigator="ConfirmNav"
             Background="{StaticResource SidebarBackgroundBrush}"
             IsBackButtonVisible="Collapsed"
             IsBackEnabled="False"
@@ -71,6 +72,7 @@
                     uen:Region.Name="FanCurveProfiles"
                     IsEnabled="{x:Bind ViewModel.IsFanCurveProfilesEnabled, Mode=OneWay}"
                     MaterialIconKindName="{StaticResource FanCurveMenuIcon}"
+                    Tag="FanCurveProfiles"
                     Text="Fan Curve Profiles" />
                 <NavigationViewItem
                     uen:Region.Name="DeviceCapabilities"
@@ -97,7 +99,8 @@
                 <NavigationViewItem
                     uen:Region.Name="Settings"
                     Content="Settings"
-                    Icon="{len:FontIconStringExt Glyph={StaticResource SettingsMenuIcon}}" />
+                    Icon="{len:FontIconStringExt Glyph={StaticResource SettingsMenuIcon}}"
+                    Tag="Settings" />
             </NavigationView.FooterMenuItems>
             <Grid>
                 <Grid.RowDefinitions>
