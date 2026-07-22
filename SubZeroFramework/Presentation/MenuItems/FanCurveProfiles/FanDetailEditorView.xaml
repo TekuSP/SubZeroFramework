@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.FanDetailEditorView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -14,9 +14,9 @@
     xmlns:uen="using:Uno.Extensions.Navigation.UI">
 
     <controls:ElevatedCard
-        Background="{StaticResource CardBackgroundBrush}"
         HorizontalContentAlignment="Stretch"
         VerticalContentAlignment="Stretch"
+        Background="{StaticResource CardBackgroundBrush}"
         Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
         <Grid>
             <Grid.RowDefinitions>
@@ -25,7 +25,10 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
             <!--  Pinned header + link + mode (stay on top while the body scrolls)  -->
-            <StackPanel Grid.Row="0" Padding="20,18,20,12" Spacing="14">
+            <StackPanel
+                Grid.Row="0"
+                Padding="20,18,20,12"
+                Spacing="14">
                 <!--  Detail header: gauge + identity/status/context/avg-peak + fading dual-line history  -->
                 <Grid ColumnSpacing="20">
                     <Grid.ColumnDefinitions>
@@ -122,7 +125,10 @@
                                         VerticalAlignment="Center"
                                         Background="{StaticResource BrandPrimaryBrush}"
                                         CornerRadius="1" />
-                                    <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Text="rev/s" />
+                                    <TextBlock
+                                        FontSize="10"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Text="rev/s" />
                                 </StackPanel>
                                 <StackPanel
                                     VerticalAlignment="Center"
@@ -134,13 +140,16 @@
                                         VerticalAlignment="Center"
                                         Background="#FFD9706A"
                                         CornerRadius="1" />
-                                    <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Text="Temp" />
+                                    <TextBlock
+                                        FontSize="10"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Text="Temp" />
                                 </StackPanel>
                             </StackPanel>
                         </Grid>
                         <lvc:CartesianChart
-                            AnimationsSpeed="0:0:0.4"
                             Height="84"
+                            AnimationsSpeed="0:0:0.4"
                             AutoUpdateEnabled="True"
                             Background="Transparent"
                             TooltipPosition="Hidden">
@@ -166,18 +175,24 @@
                             <lvc:CartesianChart.XAxes>
                                 <lvc:AxesCollection>
                                     <lvc:XamlAxis
-                                        LabelsPaint="{x:Null}"
                                         Padding="{lvc:Padding Value='0,0'}"
+                                        LabelsPaint="{x:Null}"
                                         ShowSeparatorLines="False"
                                         TextSize="0" />
                                 </lvc:AxesCollection>
                             </lvc:CartesianChart.XAxes>
                             <lvc:CartesianChart.YAxes>
                                 <lvc:AxesCollection>
+                                    <!--  FIXED 0–120 window on purpose. Both series share this scale (rev/s = RPM÷60,
+                                          so ~117 at 7000 RPM; temp ≤ ~100 °C), so 120 covers every realistic peak.
+                                          Without a MaxLimit the axis auto-scaled to the current maximum, and at high
+                                          fan speed that maximum oscillates every poll — the whole sparkline zoomed in
+                                          and out. A constant ceiling keeps it a stable glanceable trend.  -->
                                     <lvc:XamlAxis
-                                        LabelsPaint="{x:Null}"
-                                        MinLimit="0"
                                         Padding="{lvc:Padding Value='0,0'}"
+                                        LabelsPaint="{x:Null}"
+                                        MaxLimit="120"
+                                        MinLimit="0"
                                         ShowSeparatorLines="False"
                                         TextSize="0" />
                                 </lvc:AxesCollection>
@@ -320,9 +335,11 @@
                     </StackPanel>
                 </Border>
 
-                <!--  CPU boost — the per-fan usage modifier: extra duty on top of the curve when the CPU is
-                      pinned, ramping fans before heat reaches the sensors. Staged like links; saved on Apply.
-                      Only shown for Custom curve (applied or editing) — it has no effect in the other modes.  -->
+                <!--
+                    CPU boost — the per-fan usage modifier: extra duty on top of the curve when the CPU is
+                    pinned, ramping fans before heat reaches the sensors. Staged like links; saved on Apply.
+                    Only shown for Custom curve (applied or editing) — it has no effect in the other modes.
+                -->
                 <Border
                     Padding="16,12"
                     Background="{StaticResource CardSecondaryBackgroundBrush}"
@@ -485,7 +502,11 @@
                                 IsEnabled="{x:Bind ViewModel.CanCommandFanMode, Mode=OneWay}"
                                 Tag="0">
                                 <StackPanel Orientation="Horizontal" Spacing="7">
-                                    <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Kind="AutoFix" />
+                                    <material:MaterialIcon
+                                        Width="16"
+                                        Height="16"
+                                        VerticalAlignment="Center"
+                                        Kind="AutoFix" />
                                     <TextBlock Text="Auto" />
                                 </StackPanel>
                             </ToggleButton>
@@ -497,7 +518,11 @@
                                 IsEnabled="{x:Bind ViewModel.CanCommandFanMode, Mode=OneWay}"
                                 Tag="1">
                                 <StackPanel Orientation="Horizontal" Spacing="7">
-                                    <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Kind="Tune" />
+                                    <material:MaterialIcon
+                                        Width="16"
+                                        Height="16"
+                                        VerticalAlignment="Center"
+                                        Kind="Tune" />
                                     <TextBlock Text="Manual" />
                                 </StackPanel>
                             </ToggleButton>
@@ -509,7 +534,11 @@
                                 IsEnabled="{x:Bind ViewModel.CanCommandFanMode, Mode=OneWay}"
                                 Tag="2">
                                 <StackPanel Orientation="Horizontal" Spacing="7">
-                                    <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Kind="ChartBellCurve" />
+                                    <material:MaterialIcon
+                                        Width="16"
+                                        Height="16"
+                                        VerticalAlignment="Center"
+                                        Kind="ChartBellCurve" />
                                     <TextBlock Text="Custom curve" />
                                 </StackPanel>
                             </ToggleButton>
@@ -521,7 +550,11 @@
                                 IsEnabled="{x:Bind ViewModel.CanCommandFanMode, Mode=OneWay}"
                                 Tag="3">
                                 <StackPanel Orientation="Horizontal" Spacing="7">
-                                    <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Kind="Speedometer" />
+                                    <material:MaterialIcon
+                                        Width="16"
+                                        Height="16"
+                                        VerticalAlignment="Center"
+                                        Kind="Speedometer" />
                                     <TextBlock Text="Max" />
                                 </StackPanel>
                             </ToggleButton>
@@ -531,7 +564,10 @@
 
             </StackPanel>
             <!--  Scrollable mode body  -->
-            <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer
+                Grid.Row="1"
+                HorizontalScrollMode="Disabled"
+                VerticalScrollBarVisibility="Auto">
                 <!--  Mode body sub-region: Auto / Manual / Max / Custom resolved by navigation (ContentControl host)  -->
                 <ContentControl
                     x:Name="ModeRegionHost"
@@ -540,43 +576,109 @@
                     VerticalContentAlignment="Top"
                     uen:Region.Attached="True"
                     Visibility="{x:Bind ViewModel.EditorControlsVisibility, Mode=OneWay}" />
-        </ScrollViewer>
+            </ScrollViewer>
             <!--  Sticky per-fan action bar  -->
-            <Border Grid.Row="2" Padding="20,12" Background="{StaticResource CardBackgroundBrush}" BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="0,1,0,0" Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
+            <Border
+                Grid.Row="2"
+                Padding="20,12"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}"
+                BorderThickness="0,1,0,0"
+                Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
                 <Grid ColumnSpacing="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="7" Visibility="{x:Bind ViewModel.ActionBarCleanVisibility, Mode=OneWay}">
+                    <StackPanel
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="7"
+                        Visibility="{x:Bind ViewModel.ActionBarCleanVisibility, Mode=OneWay}">
                         <controls:StatusBadgeView
                             Diameter="18"
                             Fill="{StaticResource StatusSuccessBrush}"
                             Glyph="Check"
                             GlyphForeground="#FF14241F"
                             GlyphSize="12" />
-                        <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="No unsaved changes for this fan." />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="13"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="No unsaved changes for this fan." />
                     </StackPanel>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="7" Visibility="{x:Bind ViewModel.ActionBarEditingVisibility, Mode=OneWay}">
-                        <material:MaterialIcon Width="15" Height="15" VerticalAlignment="Center" Foreground="{StaticResource BrandPrimaryBrush}" Kind="CircleEditOutline" />
-                        <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource BrandPrimaryBrush}" Text="Staged changes — Preview them live, then Apply from the fan list to commit." />
+                    <StackPanel
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="7"
+                        Visibility="{x:Bind ViewModel.ActionBarEditingVisibility, Mode=OneWay}">
+                        <material:MaterialIcon
+                            Width="15"
+                            Height="15"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource BrandPrimaryBrush}"
+                            Kind="CircleEditOutline" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="13"
+                            Foreground="{StaticResource BrandPrimaryBrush}"
+                            Text="Staged changes — Preview them live, then Apply from the fan list to commit." />
                     </StackPanel>
-                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Orientation="Horizontal" Spacing="7" Visibility="{x:Bind ViewModel.TestingVisibility, Mode=OneWay}">
-                        <material:MaterialIcon Width="13" Height="13" VerticalAlignment="Center" Foreground="{StaticResource StatusWarningBrush}" Kind="Circle" />
-                        <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource StatusWarningBrush}" Text="Previewing live on the fan — reverts automatically unless you apply it." />
+                    <StackPanel
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="7"
+                        Visibility="{x:Bind ViewModel.TestingVisibility, Mode=OneWay}">
+                        <material:MaterialIcon
+                            Width="13"
+                            Height="13"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource StatusWarningBrush}"
+                            Kind="Circle" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="13"
+                            Foreground="{StaticResource StatusWarningBrush}"
+                            Text="Previewing live on the fan — reverts automatically unless you apply it." />
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Visibility="{x:Bind ViewModel.ActionBarEditingVisibility, Mode=OneWay}">
-                        <Button MinWidth="90" Command="{x:Bind ViewModel.RevertToAppliedCommand, Mode=OneWay}" Content="Discard" />
+                    <StackPanel
+                        Grid.Column="1"
+                        Orientation="Horizontal"
+                        Spacing="8"
+                        Visibility="{x:Bind ViewModel.ActionBarEditingVisibility, Mode=OneWay}">
+                        <Button
+                            MinWidth="90"
+                            Command="{x:Bind ViewModel.RevertToAppliedCommand, Mode=OneWay}"
+                            Content="Discard" />
                         <Button MinWidth="90" Command="{x:Bind ViewModel.TestOnFanCommand, Mode=OneWay}">
                             <StackPanel Orientation="Horizontal" Spacing="6">
-                                <material:MaterialIcon Width="14" Height="14" VerticalAlignment="Center" Kind="Play" />
+                                <material:MaterialIcon
+                                    Width="14"
+                                    Height="14"
+                                    VerticalAlignment="Center"
+                                    Kind="Play" />
                                 <TextBlock Text="Preview" />
                             </StackPanel>
                         </Button>
                     </StackPanel>
-                    <Button Grid.Column="1" MinWidth="90" Background="#FFC42B1C" BorderBrush="#FFC42B1C" Foreground="White" Command="{x:Bind ViewModel.RevertToAppliedCommand, Mode=OneWay}" Visibility="{x:Bind ViewModel.TestingVisibility, Mode=OneWay}">
+                    <Button
+                        Grid.Column="1"
+                        MinWidth="90"
+                        Background="#FFC42B1C"
+                        BorderBrush="#FFC42B1C"
+                        Command="{x:Bind ViewModel.RevertToAppliedCommand, Mode=OneWay}"
+                        Foreground="White"
+                        Visibility="{x:Bind ViewModel.TestingVisibility, Mode=OneWay}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <material:MaterialIcon Width="14" Height="14" VerticalAlignment="Center" Foreground="White" Kind="Stop" />
+                            <material:MaterialIcon
+                                Width="14"
+                                Height="14"
+                                VerticalAlignment="Center"
+                                Foreground="White"
+                                Kind="Stop" />
                             <TextBlock Text="Stop preview" />
                         </StackPanel>
                     </Button>

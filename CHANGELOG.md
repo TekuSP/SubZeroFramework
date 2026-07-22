@@ -42,9 +42,10 @@ lives on Fan Curve Profiles.
 - **Service lifecycle management**: `--service-management` CLI (install / update / uninstall / restart /
   autorun) used by both the in-app Settings/Warnings actions and the installers; SCM restart-on-failure
   configured on install.
-- **Packaging & CI**: Windows Inno Setup installer (x64/arm64) that lays down the app + packaged service
-  and registers it through the service's own CLI; Linux `.deb`/`.rpm`/tarball/AUR packages with systemd
-  enable-on-install; unit tests gate all publish jobs; a Windows startup smoke test runs on the artifact.
+- **Packaging & CI**: Windows MSI installer (WiX, x64/arm64) that lays down the app + packaged service
+  and registers the service declaratively (auto-start, restart-on-failure, stop-before-upgrade,
+  deregister-on-uninstall); Linux `.deb`/`.rpm`/tarball/AUR packages with systemd enable-on-install;
+  unit tests gate all publish jobs; a Windows startup smoke test runs on the artifact.
 
 ### Changed
 

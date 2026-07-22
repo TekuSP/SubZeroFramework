@@ -179,20 +179,41 @@ jobs:
         # were stamped with the CI version — one installer shipping the product at two versions.
         run: ./SubZeroFramework.Service/Scripts/package-windows-service.ps1 -RuntimeIdentifier ${{ matrix.platform }} -OutputRoot "${{ env.ARTIFACT_OUTPUT }}" -Configuration Release -Version ${{ needs.version.outputs.version }}
 
-      - name: Build Windows installer (Inno Setup)
+      # WiX v7 MSI. Migrated from Inno Setup 2026-07-22 (Inno 6.5+ is non-commercial-only without a paid
+      # license; WiX's OSMF applies only above USD $10k annual revenue — this project accepts the EULA and
+      # uses it free). The staging step exists because the .wxs harvests with a <Files> glob that cannot
+      # exclude, while the two executables are authored explicitly (ServiceInstall / shortcut) — shipping
+      # them twice would be a duplicate-file error.
+      - name: Build Windows installer (WiX MSI)
         shell: pwsh
         run: |
-          $iscc = "iscc"
-          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
-            choco install innosetup -y --no-progress
-            $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          }
-          & $iscc `
-            /DAppVersion=${{ needs.version.outputs.version }} `
-            /DSourceDir="${{ env.ARTIFACT_OUTPUT }}" `
-            /DArch=${{ matrix.type }} `
-            /O"${{ github.workspace }}/installer" `
-            packaging/windows/subzeroframework.iss
+          dotnet tool install --global wix
+          wix eula accept wix7
+          wix extension add -g WixToolset.Util.wixext
+          wix extension add -g WixToolset.UI.wixext
+
+          $payload = "${{ env.ARTIFACT_OUTPUT }}"
+          $staging = "${{ github.workspace }}/msi-staging"
+          & robocopy $payload $staging /E /NFL /NDL /NJH /NJS /XF 'SubZeroFramework.exe' 'SubZeroFramework.Service.exe' | Out-Null
+          if ($LASTEXITCODE -ge 8) { throw "Staging the MSI payload failed (robocopy exit $LASTEXITCODE)." }
+          $global:LASTEXITCODE = 0
+
+          # WixUI's license page needs RTF; generate from LICENSE.txt so the license has one source of truth.
+          $licenseRtf = "${{ github.workspace }}/License.rtf"
+          $escaped = (Get-Content LICENSE.txt -Raw).Replace('\', '\\').Replace('{', '\{').Replace('}', '\}')
+          [IO.File]::WriteAllText($licenseRtf, '{\rtf1\ansi\deff0{\fonttbl{\f0 Consolas;}}\fs18 ' + (($escaped -split "\r?\n") -join '\par ') + '}')
+
+          New-Item -ItemType Directory -Force "${{ github.workspace }}/installer" | Out-Null
+          wix build packaging/windows/subzeroframework.wxs `
+            -arch ${{ matrix.type }} `
+            -d "Version=${{ needs.version.outputs.version }}" `
+            -d "PayloadDir=$staging" `
+            -d "FullPayloadDir=$payload" `
+            -d "LicenseRtf=$licenseRtf" `
+            -ext WixToolset.Util.wixext `
+            -ext WixToolset.UI.wixext `
+            -o "${{ github.workspace }}/installer/SubZeroFramework-Setup-${{ needs.version.outputs.version }}-${{ matrix.type }}.msi"
+          if ($LASTEXITCODE -ne 0) { throw "WiX build failed ($LASTEXITCODE)." }
 
       - name: Upload Windows installer artifact
         uses: actions/upload-artifact@v7
@@ -444,7 +465,10 @@ jobs:
           mkdir -p "${out}"
 
           # Installers and Linux packages are already single files — copy them straight across.
-          find "${src}" -type f \( -name '*.exe' -o -name '*.deb' -o -name '*.rpm' -o -name '*.tar.gz' -o -name '*.pkg.tar.zst' \) \
+          # '*.msi' (not '*.exe'): the installer is an MSI since the WiX migration, and matching '*.exe'
+          # here would also scoop loose executables (SubZeroFramework.exe, createdump.exe, …) out of the
+          # raw WinUI3/SKIA publish-directory artifacts and attach them as release assets.
+          find "${src}" -type f \( -name '*.msi' -o -name '*.deb' -o -name '*.rpm' -o -name '*.tar.gz' -o -name '*.pkg.tar.zst' \) \
             -exec cp -v {} "${out}/" \;
 
           # The WinUI3 / SKIA artifacts are raw publish DIRECTORIES — download-artifact unzips them, so

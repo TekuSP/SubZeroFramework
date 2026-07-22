@@ -112,6 +112,7 @@ public partial class FanSensorChartModel : ObservableObject
 
         UpdateDrivingPoints(selected, historyBySensor, aggregation);
         UpdateAxis(selected);
+        UpdateLegendValues(selected, aggregation);
     }
 
     /// <summary>Drops a removed sensor's cached series and points.</summary>
@@ -149,16 +150,44 @@ public partial class FanSensorChartModel : ObservableObject
             });
         }
 
-        var drivingValue = _drivingPoints.Count > 0
-            ? $"{_drivingPoints[^1].Value ?? 0d:0}°"
-            : "—";
         _legend.Add(new SensorLegendItem
         {
             Name = $"Driving ({aggregation})",
             Swatch = new SolidColorBrush(Windows.UI.Color.FromArgb(255, DrivingTemperatureColor.Red, DrivingTemperatureColor.Green, DrivingTemperatureColor.Blue)),
-            ValueDisplay = drivingValue,
+            ValueDisplay = DrivingValueDisplay(),
         });
     }
+
+    /// <summary>
+    /// Refreshes the legend's value text in place without rebuilding the collection. Called from the
+    /// per-poll <see cref="RefreshLiveData"/> — <see cref="RefreshLiveData"/> updated the chart points and
+    /// axis but never the legend, so the graph moved while the readouts stayed frozen. The item set is
+    /// stable between structural rebuilds (same sensors, same order, driving item last), so this only
+    /// writes each item's <see cref="SensorLegendItem.ValueDisplay"/>; a shape mismatch (no prior rebuild,
+    /// or a selection change that skipped Rebuild) falls back to a full rebuild.
+    /// </summary>
+    private void UpdateLegendValues(IReadOnlyList<SensorChipModel> selected, TemperatureAggregationMode aggregation)
+    {
+        var expectedCount = selected.Count == 0 ? 0 : selected.Count + 1;
+        if (_legend.Count != expectedCount)
+        {
+            RebuildLegend(selected, aggregation);
+            return;
+        }
+
+        for (var i = 0; i < selected.Count; i++)
+        {
+            _legend[i].ValueDisplay = selected[i].TemperatureDisplay;
+        }
+
+        if (selected.Count > 0)
+        {
+            _legend[^1].ValueDisplay = DrivingValueDisplay();
+        }
+    }
+
+    private string DrivingValueDisplay() =>
+        _drivingPoints.Count > 0 ? $"{_drivingPoints[^1].Value ?? 0d:0}°" : "—";
 
     private void UpdateDrivingPoints(IReadOnlyList<SensorChipModel> selectedChips, IReadOnlyDictionary<int, TelemetryPoint[]> historyBySensor, TemperatureAggregationMode aggregation)
     {

@@ -95,18 +95,28 @@ release; the remaining source documents stay as reference.
 
 ## Distribution & packaging (researched 2026-07-03)
 
-**Windows (MVP) — implemented 2026-07-03: Inno Setup installer built in CI** (`packaging/windows/
-subzeroframework.iss`, compiled per-arch in the Windows matrix job, artifact "SubZero Framework - Windows
-{x64,arm64} Installer"). Design:
-- Installs the exact layout the app's helper discovery expects: UI at `{app}` (Program Files), packaged
-  service at `{app}\service-package\windows\SubZeroFramework.Service.exe` — so
-  `PackagedHelperAvailable=true` and the in-app lifecycle keeps working post-install.
-- Service registration goes through the service's **own `--service-management` CLI** (install-or-update →
-  `enable-autorun` → `restart`), i.e. the same tested code path as the in-app buttons; the SCM `binPath`
-  points at the stable Program Files copy (a bare ZIP deploy would leave the service pointing at wherever
-  the user extracted — the installer exists for correctness, not just convenience). Uninstall runs
-  `--service-management uninstall` before file removal. The "register service" step is a checked-by-default
-  installer task; opting out leaves the Settings/Warnings install flow as fallback.
+**Windows (MVP) — MIGRATED 2026-07-22 to a WiX v7 MSI** (`packaging/windows/subzeroframework.wxs`, built
+per-arch in the Windows matrix job, artifact "SubZero Framework - Windows {x64,arm64} Installer").
+Originally implemented 2026-07-03 with Inno Setup (`subzeroframework.iss`, removed — recoverable from git
+history); Inno 6.5+ became **non-commercial-use-only** without a paid license, while WiX v7's Open Source
+Maintenance Fee applies only to organizations above USD $10k annual revenue, so this project uses WiX free
+after a one-time `wix eula accept wix7` (accepted 2026-07-22; CI re-accepts per run). Design:
+- Installs the exact layout the app's helper discovery expects: UI at `INSTALLFOLDER` (Program Files),
+  packaged service at `INSTALLFOLDER\service-package\windows\SubZeroFramework.Service.exe` — so
+  `PackagedHelperAvailable=true` and the in-app lifecycle keeps working post-install. Verified by
+  administrative extract: 967/967 payload files, both exes at the discovery paths.
+- Service registration is now **declarative MSI** (`ServiceInstall`/`ServiceControl` +
+  `util:ServiceConfig`): auto-start LocalSystem `SubZeroFrameworkService`, restart-on-failure ×3 @ 5 s
+  (mirrors the old CLI's `sc failure` config), stop-before-file-overwrite on upgrades, start after
+  install, stop+deregister on uninstall — Windows Installer also quotes the ImagePath itself (closes the
+  CWE-428 class). ServiceControl event mask verified = 163. Reinstall-over-the-top is a real
+  `MajorUpgrade` (old product uninstalls first; `AllowSameVersionUpgrades` for CI's 0.1.<run> stamps).
+  The in-app `--service-management` CLI flow still works post-install — it re-points the same SCM entry.
+  NOTE: machines that installed via the old Inno setup should uninstall it first; MSI upgrade logic only
+  sees MSI products (only dev machines are affected — no public Inno release ever shipped).
+- The payload is harvested with a `<Files>` glob; the two executables are excluded at staging time
+  (`robocopy /XF` in CI, explicit deletes in the local driver) and authored explicitly, because the glob
+  cannot exclude and both need addressable File ids (service registration, shortcut, launch checkbox).
 - MSIX was rejected for MVP: Win32 services in MSIX need restricted capabilities + mandatory signing;
   revisit only if package identity becomes necessary (it would also fix AppNotificationManager).
 - Remaining: clean-machine validation (P0-1) and **code signing** — unsigned installers trip SmartScreen;

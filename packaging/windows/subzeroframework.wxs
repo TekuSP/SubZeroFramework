@@ -1,0 +1,106 @@
+<!--
+  SubZero Framework Edition — Windows installer (WiX v7, MSI).
+
+  Replaces the earlier Inno Setup script (packaging/windows/subzeroframework.iss, removed 2026-07-22):
+  Inno 6.5+ is "non-commercial use only" without a paid license, while WiX v7's Open Source Maintenance
+  Fee only applies to organizations above USD $10,000 annual revenue — free for this project after
+  `wix eula accept wix7`.
+
+  What MSI buys over the Inno approach, beyond licensing:
+    * The service is registered DECLARATIVELY (ServiceInstall/ServiceControl) instead of shelling out to
+      the service's own `-service-management` CLI (double-dash in reality; single here because XML
+      comments cannot contain a double hyphen). Windows Installer quotes the ImagePath itself
+      (no CWE-428 concern), stops the service before file overwrite on upgrades, starts it after
+      install, and stops+deregisters it on uninstall — all the ordering the .iss reimplemented by hand.
+    * Reinstall-over-the-top becomes a real MajorUpgrade: the old product uninstalls first, then the new
+      one lands. No locked-file window.
+  The in-app Settings → Service lifecycle flow (via the service CLI) still works after an MSI install:
+  it only re-points/refreshes the same SCM entry name.
+
+  Layout is EXACTLY what the app's helper discovery expects (LocalFrameworkServiceControlClient):
+      [INSTALLFOLDER]\SubZeroFramework.exe
+      [INSTALLFOLDER]\service-package\windows\SubZeroFramework.Service.exe
+  Getting this wrong makes PackagedHelperAvailable=false and quietly disables in-app service management.
+
+  Build (see build-release-windows.ps1 / ci.yml — both stage the payload first):
+      wix build subzeroframework.wxs -arch x64
+        -d Version=<x.y.z>
+        -d PayloadDir=<staged payload WITHOUT the two exes>
+        -d FullPayloadDir=<original payload>
+        -d LicenseRtf=<generated License.rtf>
+        -ext WixToolset.Util.wixext -ext WixToolset.UI.wixext
+        -o SubZeroFramework-Setup-<ver>-<arch>.msi
+
+  The two exes are EXCLUDED from the harvested payload and authored explicitly below, because the
+  <Files> glob cannot exclude, and both need to be addressable: the service exe carries
+  ServiceInstall/ServiceControl, the app exe carries the shortcut/launch-checkbox references.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+<Package Compressed="yes" Language="1033" Manufacturer="TekuSP" Name="SubZero Framework Edition" Scope="perMachine" UpgradeCode="7e4b8c21-5a9d-4f3e-9b0a-2c6d1e8f4a58" Version="$(var.Version)">
+
+    <!-- Same-version upgrades allowed: CI stamps 0.1.<run>, but local rebuilds of one version must still
+         install over themselves during testing. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of SubZero Framework Edition is already installed." />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="$(var.FullPayloadDir)\SubZeroFramework.exe" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/TekuSP/SubZeroFramework" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/TekuSP/SubZeroFramework/issues" />
+
+    <!-- Install-dir wizard with the license page fed from LICENSE.txt (RTF generated at build time). -->
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtf)" />
+
+    <!-- "Launch SubZero" checkbox on the finish page (parity with the Inno postinstall run). -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch SubZero Framework Edition" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WixShellExecTarget" Value="[#SubZeroFrameworkExe]" />
+    <CustomAction Id="LaunchApplication" BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)" DllEntry="WixShellExec" Impersonate="yes" />
+    <UI>
+        <Publish Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" Control="Finish" Dialog="ExitDialog" Event="DoAction" Value="LaunchApplication" />
+    </UI>
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="SubZeroFramework">
+            <Directory Id="ServicePackageFolder" Name="service-package">
+                <Directory Id="ServiceWindowsFolder" Name="windows" />
+            </Directory>
+        </Directory>
+    </StandardDirectory>
+
+    <!-- The app executable + Start menu shortcut. -->
+    <Component Id="MainExecutable" Directory="INSTALLFOLDER">
+        <File Id="SubZeroFrameworkExe" KeyPath="yes" Source="$(var.FullPayloadDir)\SubZeroFramework.exe">
+            <Shortcut Id="StartMenuShortcut" Advertise="yes" Description="Fan control and telemetry for Framework computers" Directory="ProgramMenuFolder" Icon="AppIcon" Name="SubZero Framework Edition" WorkingDirectory="INSTALLFOLDER" />
+        </File>
+    </Component>
+
+    <!-- The background service. LocalSystem (EC access requires it — mirrors `sc create` defaults the
+         service CLI used), auto-start, restart-on-failure every 5 s with no reset window (mirrors the
+         CLI's `sc failure reset=0 actions=restart/5000/restart/5000/restart/5000`). The NAME must stay
+         "SubZeroFrameworkService": the app's install detection (`sc query`) and the in-app lifecycle CLI
+         both key on it. -->
+    <Component Id="ServiceExecutable" Directory="ServiceWindowsFolder">
+        <File Id="ServiceExeFile" KeyPath="yes" Source="$(var.FullPayloadDir)\service-package\windows\SubZeroFramework.Service.exe" />
+        <ServiceInstall Id="SubZeroService" Account="LocalSystem" Description="Privileged embedded-controller access, telemetry polling, and fan control for the SubZero Framework app." DisplayName="SubZero Framework fan control service" ErrorControl="normal" Name="SubZeroFrameworkService" Start="auto" Type="ownProcess" Vital="yes">
+            <util:ServiceConfig FirstFailureActionType="restart" SecondFailureActionType="restart" ThirdFailureActionType="restart" ResetPeriodInDays="0" RestartServiceDelayInSeconds="5" />
+        </ServiceInstall>
+        <!-- Stop on BOTH install and uninstall (unlocks the binary before overwrite on repair/upgrade);
+             start after install; deregister only on uninstall. -->
+        <ServiceControl Id="SubZeroServiceControl" Name="SubZeroFrameworkService" Remove="uninstall" Start="install" Stop="both" Wait="yes" />
+    </Component>
+
+    <!-- Everything else: the staged payload (both exes excluded there — see the build scripts). -->
+    <ComponentGroup Id="PayloadComponents" Directory="INSTALLFOLDER">
+        <Files Include="$(var.PayloadDir)\**" />
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="SubZero Framework Edition" Level="1">
+        <ComponentRef Id="MainExecutable" />
+        <ComponentRef Id="ServiceExecutable" />
+        <ComponentGroupRef Id="PayloadComponents" />
+    </Feature>
+</Package>
+</Wix>

@@ -7,9 +7,9 @@
     interchangeable with a CI-built one:
 
         <OutputRoot>\<rid>\
-            SubZeroFramework.exe, *.dll, Assets\ ...          <- the WinUI app  ({app} in the installer)
+            SubZeroFramework.exe, *.dll, Assets\ ...          <- the WinUI app  (INSTALLFOLDER in the MSI)
             service-package\windows\SubZeroFramework.Service.exe  <- the packaged service helper
-        <OutputRoot>\SubZeroFramework-Setup-<version>-<arch>.exe   <- Inno Setup installer
+        <OutputRoot>\SubZeroFramework-Setup-<version>-<arch>.msi   <- WiX v7 MSI installer
 
     That service-package\windows path is load-bearing: it is exactly where the app's helper discovery
     looks, so PackagedHelperAvailable only becomes true when the layout is right. Getting it wrong
@@ -26,7 +26,8 @@
     Directory.Build.props so a bare run still produces a coherently-stamped build.
 
 .PARAMETER SkipInstaller
-    Publish the payload but do not invoke Inno Setup (useful when iterating, or if ISCC is not installed).
+    Publish the payload but do not build the MSI (useful when iterating, or if the WiX CLI is not
+    installed — see the warning in the installer stage for the one-time WiX setup commands).
 
 .EXAMPLE
     .\packaging\windows\build-release-windows.ps1
@@ -118,34 +119,52 @@ if ($SkipInstaller) {
     return
 }
 
-$iscc = Get-Command 'iscc.exe' -ErrorAction SilentlyContinue
-if (-not $iscc) {
-    foreach ($candidate in @(
-            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
-            "$env:ProgramFiles\Inno Setup 6\ISCC.exe")) {
-        if (Test-Path $candidate) { $iscc = $candidate; break }
-    }
-}
-else {
-    $iscc = $iscc.Source
-}
-
-if (-not $iscc) {
-    Write-Warning "Inno Setup (ISCC.exe) not found - skipping the installer. Install it with 'winget install JRSoftware.InnoSetup', or re-run with -SkipInstaller to silence this."
+# WiX v7 (MSI). Migrated from Inno Setup 2026-07-22: Inno 6.5+ is non-commercial-only without a paid
+# license; WiX v7's Open Source Maintenance Fee applies only above USD $10k annual revenue, so this
+# project uses it free after a one-time `wix eula accept wix7`.
+$wix = Get-Command 'wix' -ErrorAction SilentlyContinue
+if (-not $wix) {
+    Write-Warning "WiX CLI not found - skipping the installer. Install with 'dotnet tool install --global wix', run 'wix eula accept wix7', then 'wix extension add -g WixToolset.Util.wixext' and 'wix extension add -g WixToolset.UI.wixext'. Or re-run with -SkipInstaller to silence this."
     Write-Host "`nPayload ready: $payloadDir" -ForegroundColor Green
     return
 }
 
-Write-Host "[3/3] Compiling installer with $iscc ..." -ForegroundColor Cyan
-& $iscc `
-    "/DAppVersion=$Version" `
-    "/DSourceDir=$payloadDir" `
-    "/DArch=$Arch" `
-    "/O$OutputRoot" `
-    (Join-Path $PSScriptRoot 'subzeroframework.iss')
-if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed ($LASTEXITCODE)." }
+Write-Host "[3/3] Building MSI with WiX..." -ForegroundColor Cyan
 
-$installer = Join-Path $OutputRoot "SubZeroFramework-Setup-$Version-$Arch.exe"
+# The .wxs harvests the payload with a <Files> glob, which cannot EXCLUDE. The two executables are
+# authored explicitly there (the service exe carries ServiceInstall/ServiceControl; the app exe carries
+# the shortcut and launch checkbox), so they must not also arrive via the glob — that would be a
+# duplicate-file validation error. Stage a copy of the payload with exactly those two removed.
+$stagingDir = Join-Path $OutputRoot "msi-staging-$rid"
+if (Test-Path $stagingDir) { Remove-Item $stagingDir -Recurse -Force }
+# /E (not /MIR): the staging dir is deleted above, so mirroring semantics add nothing — and /E has no
+# delete behavior. robocopy exit codes 0-7 are success variants; only >= 8 is failure.
+& robocopy $payloadDir $stagingDir /E /NFL /NDL /NJH /NJS /XF 'SubZeroFramework.exe' 'SubZeroFramework.Service.exe' | Out-Null
+if ($LASTEXITCODE -ge 8) { throw "Staging the MSI payload failed (robocopy exit $LASTEXITCODE)." }
+$global:LASTEXITCODE = 0
+
+# WixUI's license page needs RTF; generate it from LICENSE.txt so the license has one source of truth.
+$licenseRtf = Join-Path (Split-Path $stagingDir -Parent) 'License.rtf'
+$licenseText = Get-Content (Join-Path $repoRoot 'LICENSE.txt') -Raw
+$escaped = $licenseText.Replace('\', '\\').Replace('{', '\{').Replace('}', '\}')
+$rtfBody = ($escaped -split "\r?\n") -join '\par '
+[IO.File]::WriteAllText($licenseRtf, '{\rtf1\ansi\deff0{\fonttbl{\f0 Consolas;}}\fs18 ' + $rtfBody + '}')
+
+$installer = Join-Path $OutputRoot "SubZeroFramework-Setup-$Version-$Arch.msi"
+& wix build (Join-Path $PSScriptRoot 'subzeroframework.wxs') `
+    -arch $Arch `
+    -d "Version=$Version" `
+    -d "PayloadDir=$stagingDir" `
+    -d "FullPayloadDir=$payloadDir" `
+    -d "LicenseRtf=$licenseRtf" `
+    -ext WixToolset.Util.wixext `
+    -ext WixToolset.UI.wixext `
+    -o $installer
+if ($LASTEXITCODE -ne 0) { throw "WiX build failed ($LASTEXITCODE)." }
+
+Remove-Item $stagingDir -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item $licenseRtf -Force -ErrorAction SilentlyContinue
+
 Write-Host ""
 Write-Host "Done." -ForegroundColor Green
 Write-Host "  payload   : $payloadDir"

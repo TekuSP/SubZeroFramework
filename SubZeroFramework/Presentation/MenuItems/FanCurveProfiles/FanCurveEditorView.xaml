@@ -359,7 +359,8 @@
                             Background="{x:Bind Swatch}"
                             CornerRadius="1.5" />
                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind Name}" />
-                        <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ValueDisplay}" />
+                        <!--  Mode=OneWay: ValueDisplay is refreshed live every poll (x:Bind is OneTime by default, which froze the readout).  -->
+                        <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ValueDisplay, Mode=OneWay}" />
                     </StackPanel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
