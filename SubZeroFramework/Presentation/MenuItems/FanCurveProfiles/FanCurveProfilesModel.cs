@@ -257,6 +257,18 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             return;
         }
 
+        // A follower profile persists NO curve points, so switching such a slot back to "own curve"
+        // would otherwise open an empty editor whose Apply can only fail validation — the one remaining
+        // route under the two-point minimum (deletion is already floored in FanCurveDraftModel.Remove,
+        // and unconfigured slots seed defaults in LoadDefaultDraft). Reseed exactly what an unconfigured
+        // slot would load; the seeded points differ from the parked baseline, so the slot correctly
+        // reads as dirty until applied.
+        if (value?.FanIndex is null && _draft.Count < FanCurveDraftModel.MinimumPoints)
+        {
+            _draft.Load(DefaultCurvePoints);
+            EnsureUsableSensorSelected();
+        }
+
         // Switching between "own curve" and a follow target changes validity, dirty state, and which
         // editor surface is shown.
         RefreshSensorChart();
@@ -790,26 +802,42 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         var dictionary = new Dictionary<int, double>(_draft.CurvePoints.Count);
         int[] selectedSensors = [];
 
+        // Validation failures on the SELECTED fan's draft must not abandon the rest of the command.
+        // These used to be early `return`s, which meant "Apply all" with an incomplete draft on the
+        // selected fan silently skipped every OTHER fan's parked staged work (and the link/boost
+        // flushes) — the button appeared to do nothing beyond the warning. A service REJECTION of the
+        // save already fell through to the shared tail below; validation now behaves the same way.
+        var selectedDraftValid = true;
+
         if (followFanIndex is null)
         {
             if (_draft.CurvePoints.Count < 2)
             {
-                ReportStatus("Custom curve needs at least two points.", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
-                return;
+                ReportStatus("Custom curve needs at least two points, so this fan was skipped.", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
+                selectedDraftValid = false;
             }
-
-            selectedSensors = SensorSelection.SelectedIndices();
-
-            if (selectedSensors.Length == 0)
+            else if ((selectedSensors = SensorSelection.SelectedIndices()).Length == 0)
             {
-                ReportStatus("Select at least one driving temperature sensor before applying a custom curve.", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
-                return;
+                ReportStatus("Select at least one driving temperature sensor, so this fan was skipped.", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
+                selectedDraftValid = false;
             }
-
-            foreach (var point in _draft.CurvePoints)
+            else
             {
-                dictionary[point.TemperatureCelsius] = Math.Clamp(point.DutyPercent, 0d, 100d);
+                foreach (var point in _draft.CurvePoints)
+                {
+                    dictionary[point.TemperatureCelsius] = Math.Clamp(point.DutyPercent, 0d, 100d);
+                }
             }
+        }
+
+        if (!selectedDraftValid)
+        {
+            // Skip only the selected fan's save; the shared tail still runs (same three calls as the
+            // simple-mode branch above) so "Apply all" honors the other fans' parked staged work.
+            await LinkSection.FlushStagedLinksAsync(cancellationToken).ConfigureAwait(true);
+            await BoostSection.FlushStagedBoostsAsync(cancellationToken).ConfigureAwait(true);
+            await ApplyOtherStagedFansAsync(cancellationToken).ConfigureAwait(true);
+            return;
         }
 
         try
@@ -1326,20 +1354,27 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     /// from <see cref="FanLinkSectionModel.FlushStagedLinksAsync"/> on Apply; the change streams back as the fan's
     /// LinkedLeaderIndex.
     /// </summary>
-    internal async Task PersistFanLinkAsync(int fanIndex, int? leaderIndex, CancellationToken cancellationToken = default)
+    /// <returns>
+    /// True only when the link was persisted. The caller keeps its staged entry on false — same contract
+    /// as <see cref="PersistFanBoostAsync"/>, so a failed persist never silently drops a staged link.
+    /// </returns>
+    internal async Task<bool> PersistFanLinkAsync(int fanIndex, int? leaderIndex, CancellationToken cancellationToken = default)
     {
         if (!CanIssueFanCommands)
         {
-            return;
+            return false;
         }
 
         try
         {
             await _fanControlClient.SetFanLinkAsync(fanIndex, leaderIndex, cancellationToken).ConfigureAwait(true);
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to persist fan link for fan {FanIndex}", fanIndex);
+            ReportStatus($"Failed to save the fan link: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+            return false;
         }
     }
 
@@ -1356,11 +1391,16 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     /// committed, so no preview hold is open (the service rejects modifier writes during a live preview).
     /// The change streams back as the fan's control-state CpuUsageModifierStrength.
     /// </summary>
-    internal async Task PersistFanBoostAsync(int fanIndex, double? strength, CancellationToken cancellationToken = default)
+    /// <returns>
+    /// True only when the service confirmed the change. The caller keeps its staged entry on false so a
+    /// failed persist never silently discards the user's choice — the boost toggle used to "reset to
+    /// disabled" after any failed apply because the staged overlay was dropped regardless of outcome.
+    /// </returns>
+    internal async Task<bool> PersistFanBoostAsync(int fanIndex, double? strength, CancellationToken cancellationToken = default)
     {
         if (!CanIssueFanCommands)
         {
-            return;
+            return false;
         }
 
         try
@@ -1370,11 +1410,14 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             {
                 ReportStatus($"Service rejected the CPU boost change: {result.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
             }
+
+            return result.Succeeded;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to persist CPU boost for fan {FanIndex}", fanIndex);
             ReportStatus($"Failed to save the CPU boost: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+            return false;
         }
     }
 
@@ -1448,12 +1491,15 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     // Telemetry stream handlers, custom-curve draft, dirty/prediction, history refresh, dispose.
     // ─────────────────────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>The curve every fresh (unconfigured or reseeded) draft starts from.</summary>
+    private static readonly (int Temperature, double Duty)[] DefaultCurvePoints = [(40, 30d), (60, 60d), (80, 100d)];
+
     private void LoadDefaultDraft()
     {
         SelectedFollowOption = FindFollowOption(null);
         SelectedAggregation = TemperatureAggregationMode.Maximum;
 
-        _draft.Load([(40, 30d), (60, 60d), (80, 100d)]);
+        _draft.Load(DefaultCurvePoints);
 
         // A self-driven curve must always start with a usable driving sensor — "none" is never a valid state.
         if (SensorSelection.SelectFirstUsableOnly() is int sensorIndex)

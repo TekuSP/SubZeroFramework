@@ -23,10 +23,27 @@
         x:Name="PageRoot"
         Padding="20,2,20,16"
         uen:Region.Attached="True"
-        utu:SafeArea.Insets="VisibleBounds">
+        utu:SafeArea.Insets="VisibleBounds"
+        RowSpacing="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--  Command feedback (validation warnings, service rejections, apply confirmations).
+              PINNED at page level, deliberately OUTSIDE the master/detail scrollers: the model's
+              ReportStatus previously wrote StatusMessage/IsStatusVisible that no view rendered at all,
+              so "Apply all" with an invalid draft looked like the button did nothing (first reported on
+              a one-fan Framework 13, where there is no other-fan activity to hint otherwise).  -->
+        <muxc:InfoBar
+            Grid.Row="0"
+            IsClosable="True"
+            IsOpen="{x:Bind ViewModel.IsStatusVisible, Mode=TwoWay}"
+            Message="{x:Bind ViewModel.StatusMessage, Mode=OneWay}"
+            Severity="{x:Bind ViewModel.StatusSeverity, Mode=OneWay}" />
 
         <!--  Master / detail  -->
-        <Grid ColumnSpacing="18">
+        <Grid Grid.Row="1" ColumnSpacing="18">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="380" />
                 <ColumnDefinition Width="*" />

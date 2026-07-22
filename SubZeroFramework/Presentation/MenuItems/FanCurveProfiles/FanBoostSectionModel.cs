@@ -122,7 +122,13 @@ public partial class FanBoostSectionModel : ObservableObject
         RefreshSummary();
     }
 
-    /// <summary>Persists all staged boost changes to the service (called from Apply), then clears the overlay.</summary>
+    /// <summary>
+    /// Persists all staged boost changes to the service (called from Apply). Each entry is unstaged only
+    /// after the service CONFIRMS it — the overlay used to be cleared up front, so any failure (service
+    /// rejection, transport error, fan control blocked) silently discarded the user's staged boost and
+    /// the toggle re-synced from persisted state as "disabled". A failed entry now stays staged: the
+    /// toggle keeps showing the user's choice, the pending pill stays lit, and the next Apply retries it.
+    /// </summary>
     public async Task FlushStagedBoostsAsync(CancellationToken cancellationToken)
     {
         if (_stagedBoosts.Count == 0)
@@ -130,12 +136,17 @@ public partial class FanBoostSectionModel : ObservableObject
             return;
         }
 
-        var pending = _stagedBoosts.ToArray();
-        _stagedBoosts.Clear();
-        foreach (var (fanIndex, strength) in pending)
+        foreach (var (fanIndex, strength) in _stagedBoosts.ToArray())
         {
-            await _parent.PersistFanBoostAsync(fanIndex, strength, cancellationToken).ConfigureAwait(true);
+            if (await _parent.PersistFanBoostAsync(fanIndex, strength, cancellationToken).ConfigureAwait(true))
+            {
+                _stagedBoosts.Remove(fanIndex);
+            }
         }
+
+        // Pills/dirty state reflect whatever survived; the toggle re-reads staged-else-persisted.
+        _parent.OnStagedBoostsChanged();
+        RefreshFromSelection();
     }
 
     /// <summary>Discards pending boost changes (called from Revert), reverting the UI to the persisted state.</summary>

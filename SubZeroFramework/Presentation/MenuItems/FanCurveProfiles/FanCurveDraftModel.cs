@@ -17,7 +17,9 @@ public sealed class FanCurveDraftModel : IDisposable
 {
     private const int MinTemperatureCelsius = 0;
     private const int MaxTemperatureCelsius = 130;
-    private const int MinimumPoints = 2;
+
+    /// <summary>A curve needs two points; <see cref="Remove"/> refuses to go below this.</summary>
+    public const int MinimumPoints = 2;
 
     private readonly ObservableCollection<CurvePointModel> _points = [];
     private bool _suppressChanged;

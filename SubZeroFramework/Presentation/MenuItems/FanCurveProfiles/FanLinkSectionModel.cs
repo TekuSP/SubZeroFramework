@@ -109,12 +109,19 @@ public partial class FanLinkSectionModel : ObservableObject
             return;
         }
 
-        var pending = _stagedLinks.ToArray();
-        _stagedLinks.Clear();
-        foreach (var (fanIndex, leaderIndex) in pending)
+        // Unstage each link only after a successful persist — clearing up front silently discarded
+        // staged links whenever the write failed (same defect as the boost overlay; see
+        // FanBoostSectionModel.FlushStagedBoostsAsync). Failures stay staged and retry on the next Apply.
+        foreach (var (fanIndex, leaderIndex) in _stagedLinks.ToArray())
         {
-            await _parent.PersistFanLinkAsync(fanIndex, leaderIndex, cancellationToken).ConfigureAwait(true);
+            if (await _parent.PersistFanLinkAsync(fanIndex, leaderIndex, cancellationToken).ConfigureAwait(true))
+            {
+                _stagedLinks.Remove(fanIndex);
+            }
         }
+
+        _parent.OnStagedLinksChanged();
+        RebuildLinkChips();
     }
 
     /// <summary>Discards pending link changes (called from Revert), reverting the UI to the persisted state.</summary>
