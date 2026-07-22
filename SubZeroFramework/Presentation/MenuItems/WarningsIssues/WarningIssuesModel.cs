@@ -386,7 +386,7 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
         {
             ApplyPageState(
                 title: "Fan control disabled",
-                message: status.FanControlAuthorizationMessage ?? "Fan-control RPCs are currently disabled by the background service.",
+                message: status.FanControlAuthorizationMessage ?? "Fan-control commands are switched off. Turn on \"Allow fan control commands\" under Settings → Service, then apply.",
                 severity: InfoBarSeverity.Informational,
                 stateLineOne: $"Manager: {PlatformServiceManager}",
                 stateLineTwo: InstallSourceSummary,
@@ -396,37 +396,27 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
                 disabledControlThree: "Fan override persistence changes",
                 disabledControlFour: "Any control that mutates EC fan state",
                 explanation: "The service is online, but fan-control commands are intentionally disabled for this session or deployment. The page stays in read-only mode so you can inspect the state without surfacing unsafe or unavailable write actions.",
-                actionHint: "Lifecycle actions remain available, but fan-control commands will stay disabled until the service configuration allows them.",
+                actionHint: "Enable \"Allow fan control commands\" under Settings → Service to turn fan control on; lifecycle actions remain available meanwhile.",
                 eyebrow: "READ-ONLY MODE");
             return;
         }
 
-        if (!status.HasCallerIdentityValidation)
-        {
-            ApplyPageState(
-                title: "Fan control validation limited",
-                message: status.FanControlAuthorizationMessage ?? "The service cannot currently validate caller identity for fan-control RPCs on this IPC transport.",
-                severity: InfoBarSeverity.Warning,
-                stateLineOne: $"Manager: {PlatformServiceManager}",
-                stateLineTwo: InstallSourceSummary,
-                stateLineThree: "Status and telemetry are available, but fan-control authorization is still fail-closed.",
-                disabledControlOne: "Fan-control writes that depend on caller identity validation",
-                disabledControlTwo: "Custom curve updates that cross the command boundary",
-                disabledControlThree: "Any unsafe fallback that bypasses service authorization",
-                disabledControlFour: "Privilege-sensitive remediation that assumes validated callers",
-                explanation: "The service is online, but the current transport cannot fully validate caller identity for fan-control RPCs. The UI stays conservative and keeps those mutating controls disabled until the authorization boundary is fully trustworthy.",
-                actionHint: "You can continue with read-only diagnostics, but fan-control commands remain unavailable until caller validation is complete.",
-                eyebrow: "LIMITED MODE");
-            return;
-        }
-
+        // NOTE: there is deliberately no page state keyed on HasCallerIdentityValidation. An earlier
+        // "LIMITED MODE" warning fired whenever that flag was false — which in this release is ALWAYS —
+        // and claimed mutating fan controls were disabled, which was untrue (nothing client-side gates on
+        // the flag; fan control works). It permanently shadowed the healthy state and read as an IPC
+        // error: the first Linux tester concluded fan control was broken. The shipped authorization
+        // posture is a documented decision (SECURITY.md, Docs/IpcAuthorizationAndUiCadence.md) and is
+        // surfaced honestly in the healthy state line below, not dressed up as a degraded mode.
         ApplyPageState(
             title: "Background service healthy",
             message: "Status streaming is connected and the service reports healthy Framework telemetry access.",
             severity: InfoBarSeverity.Success,
             stateLineOne: $"Manager: {PlatformServiceManager}",
             stateLineTwo: InstallSourceSummary,
-            stateLineThree: "The service is online and normal control surfaces should be available.",
+            stateLineThree: status.HasCallerIdentityValidation
+                ? "The service is online and normal control surfaces should be available."
+                : "The service is online and normal control surfaces should be available. Fan-control authorization is enforced by the service itself on the local-only socket (see SECURITY.md).",
             disabledControlOne: "No fallback-only restrictions are currently active",
             disabledControlTwo: "Warnings and Issues can now yield to the normal pages",
             disabledControlThree: string.Empty,

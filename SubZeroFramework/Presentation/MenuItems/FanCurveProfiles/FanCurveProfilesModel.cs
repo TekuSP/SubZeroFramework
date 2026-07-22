@@ -2118,7 +2118,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         if (!status.IsFanControlEnabled)
         {
             return status.FanControlAuthorizationMessage
-                ?? "Fan-control commands are disabled by the background service. You can edit a curve here, but it cannot be sent to the fan.";
+                ?? "Fan-control commands are switched off. Turn on \"Allow fan control commands\" under Settings → Service, then apply. You can edit a curve meanwhile, but it cannot be sent to the fan.";
         }
 
         return string.Empty;

@@ -15,18 +15,32 @@ public class FrameworkFanControlAuthorizationServiceTests
     {
         FrameworkFanControlAuthorizationService service = CreateService(allowFanControlCommands: false);
 
+        // The disabled message must tell the user HOW to enable fan control (the Settings toggle) and
+        // must NOT cite IPC/caller-identity validation — that stale wording read as an unfixable
+        // transport error and stopped the first Linux tester from enabling fan control at all.
         Assert.That(() => service.EnsureCommandAccess(),
             Throws.TypeOf<InvalidOperationException>()
-                .With.Message.EqualTo("Fan-control RPCs are disabled by service configuration until local caller identity validation is available for this IPC transport."));
+                .With.Message.EqualTo("Fan-control commands are switched off. Turn on \"Allow fan control commands\" under Settings → Service, then apply."));
     }
 
     [Test]
-    public void GetAuthorizationMessage_WhenCommandsAreEnabledWithoutCallerValidation_ReturnsTransportWarning()
+    public void GetAuthorizationMessage_WhenCommandsAreDisabled_PointsAtTheSettingsToggle()
+    {
+        FrameworkFanControlAuthorizationService service = CreateService(allowFanControlCommands: false);
+
+        Assert.That(service.GetAuthorizationMessage(), Does.Contain("Settings → Service"));
+        Assert.That(service.GetAuthorizationMessage(), Does.Not.Contain("caller identity"),
+            "The disabled message must not present the opt-in as an IPC validation failure.");
+    }
+
+    [Test]
+    public void GetAuthorizationMessage_WhenCommandsAreEnabled_ReportsEnabledForLocalClients()
     {
         FrameworkFanControlAuthorizationService service = CreateService(allowFanControlCommands: true);
 
-        Assert.That(service.GetAuthorizationMessage(),
-            Is.EqualTo("Fan-control RPCs are enabled by configuration, but this transport does not currently expose portable caller identity validation on the server."));
+        Assert.That(service.GetAuthorizationMessage(), Does.StartWith("Fan-control RPCs are enabled for"));
+        Assert.That(service.GetAuthorizationMessage(), Does.Not.Contain("caller identity"),
+            "The enabled message must read as a working state, not a warning.");
     }
 
     private static FrameworkFanControlAuthorizationService CreateService(bool allowFanControlCommands)

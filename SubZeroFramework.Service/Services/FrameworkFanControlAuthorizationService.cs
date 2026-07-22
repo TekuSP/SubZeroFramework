@@ -38,16 +38,20 @@ public sealed class FrameworkFanControlAuthorizationService
     /// <summary>
     /// Gets the authorization message for a supplied fan-control enabled value.
     /// </summary>
+    /// <remarks>
+    /// The disabled message must tell the user HOW to enable fan control, and nothing else. An earlier
+    /// version said commands were disabled "until local caller identity validation is available for this
+    /// IPC transport" — stale wording from before the decision to ship with caller-identity validation
+    /// off, and it read as an unfixable IPC error: the first Linux tester concluded fan control could not
+    /// be enabled at all, when it was one documented toggle away. Do not reintroduce technical
+    /// justifications here; the security posture lives in SECURITY.md and
+    /// Docs/IpcAuthorizationAndUiCadence.md.
+    /// </remarks>
     public string GetAuthorizationMessage(bool isFanControlEnabled)
     {
         if (!isFanControlEnabled)
         {
-            return "Fan-control RPCs are disabled by service configuration until local caller identity validation is available for this IPC transport.";
-        }
-
-        if (!HasCallerIdentityValidation)
-        {
-            return "Fan-control RPCs are enabled by configuration, but this transport does not currently expose portable caller identity validation on the server.";
+            return "Fan-control commands are switched off. Turn on \"Allow fan control commands\" under Settings → Service, then apply.";
         }
 
         if (OperatingSystem.IsLinux())
