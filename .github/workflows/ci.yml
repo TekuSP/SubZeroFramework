@@ -113,6 +113,12 @@ jobs:
           name: Test results (${{ matrix.os }})
           path: ${{ github.workspace }}/test-results
           if-no-files-found: ignore
+          # Artifacts in this pipeline are inter-job transport within ONE run (the smoke test, Arch
+          # packaging, and the release job all download inside the same run) — nothing consumes them
+          # across runs, and release-worthy files get attached to the GitHub Release itself. Short
+          # retention keeps Actions storage from filling with ~2 GB per push at the 90-day default;
+          # test results are tiny, so they keep a week for debugging failed runs.
+          retention-days: 7
 
       - name: "Cancel if failure"
         if: ${{ failure() }}
@@ -222,6 +228,7 @@ jobs:
           name: SubZero Framework - Windows ${{ matrix.type }} Installer
           path: ${{ github.workspace }}/installer
           if-no-files-found: error
+          retention-days: 1
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
@@ -230,6 +237,7 @@ jobs:
           name: SubZero Framework - Windows ${{ matrix.type }} WinUI3
           path: ${{ env.ARTIFACT_OUTPUT }}
           if-no-files-found: error
+          retention-days: 1
 
       - name: "Cancel if failure"
         if: ${{ failure() }}
@@ -290,6 +298,7 @@ jobs:
           name: SubZero Framework - Arch Linux ${{ matrix.type }} Package
           path: packages/arch
           if-no-files-found: error
+          retention-days: 1
 
       - name: "Cancel if failure"
         if: ${{ failure() }}
@@ -413,6 +422,7 @@ jobs:
           name: SubZero Framework - Linux ${{ matrix.type }} Packages
           path: ${{ github.workspace }}/packages
           if-no-files-found: error
+          retention-days: 1
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
@@ -421,6 +431,7 @@ jobs:
           name: SubZero Framework - Linux ${{ matrix.type }} SKIA
           path: ${{ env.ARTIFACT_OUTPUT }}
           if-no-files-found: error
+          retention-days: 1
 
       - name: "Cancel if failure"
         if: ${{ failure() }}
