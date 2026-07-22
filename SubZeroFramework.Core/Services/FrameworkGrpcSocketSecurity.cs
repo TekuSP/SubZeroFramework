@@ -101,17 +101,21 @@ public static class FrameworkGrpcSocketSecurity
                 };
             }
 
+            // NOTE: the socket FILE is deliberately allowed to be group/other-writable on Linux, and this
+            // is load-bearing — connect(2) on a Unix domain socket requires WRITE permission on the socket
+            // file. The service runs as root (EC access) while the app runs unprivileged, so a root-owned
+            // 0755 socket is unreachable by the very client that must use it. Rejecting a writable socket
+            // here therefore made the permission the client needs the same permission it refused to accept:
+            // the app sat in "Background service offline" against a healthy, running service
+            // (observed on Framework 13 / Arch, 2026-07-21).
+            //
+            // The protection that actually matters is kept above and is NOT relaxed: the DIRECTORY must not
+            // be group/other-writable. A locked-down directory is what stops another user from unlinking or
+            // replacing the socket with their own; permissions on the socket file itself only gate who may
+            // open a channel, which is the same exposure the shipped posture already documents
+            // (HasCallerIdentityValidation = false, machine-scoped path, fan-control RPCs fail-closed behind
+            // AllowFanControlCommands). See SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md.
             var fileMode = GetUnixFileModeLinux(fullPath);
-            if ((fileMode & (UnixFileMode.OtherWrite | UnixFileMode.GroupWrite)) != 0)
-            {
-                return new FrameworkGrpcEndpointValidationResult
-                {
-                    IsValid = false,
-                    FullPath = fullPath,
-                    Message = "The gRPC endpoint is writable by group or others.",
-                };
-            }
-
             if ((fileMode & (UnixFileMode.UserRead | UnixFileMode.UserWrite)) != (UnixFileMode.UserRead | UnixFileMode.UserWrite))
             {
                 return new FrameworkGrpcEndpointValidationResult
@@ -203,6 +207,52 @@ public static class FrameworkGrpcSocketSecurity
         if (!validationResult.IsValid)
         {
             throw new InvalidOperationException(validationResult.Message);
+        }
+    }
+
+    /// <summary>
+    /// Makes the bound Unix socket connectable by unprivileged local clients.
+    /// </summary>
+    /// <remarks>
+    /// MUST be called AFTER the server has bound, because Kestrel creates the socket file itself during
+    /// bind — <see cref="PrepareServerSocketPath"/> runs before that and can only prepare the directory.
+    /// The socket inherits the server's umask (0022 under systemd), landing at 0755 root:root; since
+    /// connect(2) needs WRITE permission, the unprivileged app could not reach its own service. Widening
+    /// the socket to rw for everyone is what makes the local IPC usable at all when the service runs as
+    /// root for EC access. The directory around it stays locked down, which is the control that prevents
+    /// the socket being replaced. No-ops on non-Linux and never throws: failing to relax permissions must
+    /// not take the service down, it only degrades to the same unreachable state as before.
+    /// </remarks>
+    /// <param name="socketPath">The bound socket path.</param>
+    public static void AllowLocalClientsToConnect(string socketPath)
+    {
+        if (!OperatingSystem.IsLinux() || string.IsNullOrWhiteSpace(socketPath))
+        {
+            return;
+        }
+
+        try
+        {
+            var fullSocketPath = Path.GetFullPath(socketPath);
+            if (!File.Exists(fullSocketPath))
+            {
+                return;
+            }
+
+            SetUnixFileModeLinux(
+                fullSocketPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite
+                | UnixFileMode.GroupRead | UnixFileMode.GroupWrite
+                | UnixFileMode.OtherRead | UnixFileMode.OtherWrite);
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+        catch (IOException)
+        {
+        }
+        catch (PlatformNotSupportedException)
+        {
         }
     }
 

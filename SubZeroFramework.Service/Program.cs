@@ -96,6 +96,22 @@ public static class Program
         app.MapGrpcService<FrameworkFanControlGrpcService>();
         app.Logger.LogInformation("Mapped gRPC services for status, service configuration, telemetry, hardware info, and fan control.");
 
+        // Kestrel creates the socket file during bind, inheriting this process's umask — under systemd
+        // that lands at 0755 root:root, and connect(2) needs WRITE permission, so the unprivileged app
+        // could never reach its own service. ApplicationStarted fires after the listener is bound, which
+        // is the earliest point the file exists to be chmod'd.
+        app.Lifetime.ApplicationStarted.Register(() =>
+        {
+            FrameworkGrpcSocketSecurity.AllowLocalClientsToConnect(socketPath);
+
+            if (OperatingSystem.IsLinux())
+            {
+                app.Logger.LogInformation(
+                    "Local gRPC socket {SocketPath} is open to unprivileged local clients; the containing directory stays restricted.",
+                    socketPath);
+            }
+        });
+
         try
         {
             await app.RunAsync().ConfigureAwait(false);

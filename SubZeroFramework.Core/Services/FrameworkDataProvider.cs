@@ -504,7 +504,29 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 includeBytesPerSec: false,
                 includeNetworkAdapterConfiguration: true,
                 millisecondsDelayBetweenTwoMeasurements: 0);
-            _hardwareInfo.RefreshVideoControllerList(refreshMonitorList: true);
+            // Display/GPU enumeration is skipped entirely on Linux. Hardware.Info implements BOTH the
+            // video-controller list ("xrandr -q") and the monitor list ("xrandr --props") by shelling out
+            // to xrandr, and neither can work from here under ANY desktop stack:
+            //
+            //   * This process is a root systemd unit whose environment carries no DISPLAY,
+            //     WAYLAND_DISPLAY or XAUTHORITY (see SubZeroFramework.Service/subzeroframework.service),
+            //     so there is no display server to talk to. Verified by running xrandr with those
+            //     variables stripped, WITH the package installed: it prints "Can't open display".
+            //   * On a Wayland session (the reporting user runs Hyprland) xrandr can at best reach
+            //     XWayland, which warns it is doing so and reports a synthetic view rather than the real
+            //     outputs — so shipping the package would not have fixed it either.
+            //
+            // Cost of asking anyway: two failed process spawns per poll returning nothing — 56 failures
+            // in 22 s measured on Arch, ~96 over 3 min observed on a Framework 13.
+            //
+            // Doing this properly on Linux means reading EDID from /sys/class/drm, which needs no display
+            // server and works headless, on X11 and on Wayland alike; or querying from the client, which
+            // does have a display connection. Tracked as a post-0.1.0 item.
+            if (!OperatingSystem.IsLinux())
+            {
+                _hardwareInfo.RefreshVideoControllerList(refreshMonitorList: true);
+            }
+
             _hardwareInfo.RefreshMemoryStatus();
         }
         catch (Exception exception)

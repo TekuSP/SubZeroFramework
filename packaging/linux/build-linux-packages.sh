@@ -43,8 +43,34 @@ mkdir -p "${output_dir}" "${output_dir}/aur"
 # ----------------------------------------------------------------------------------------------------
 # Shared payload staging
 # ----------------------------------------------------------------------------------------------------
-icon_source="${repo_root}/SubZeroFramework/Assets/Icons/icon.svg"
 desktop_source="${script_dir}/subzeroframework.desktop"
+
+# Desktop icon. NOTE: SubZeroFramework/Assets/Icons/icon.svg is NOT the app icon — it is only the
+# BACKGROUND layer of it (a bare <rect fill="#5b5b5c">, zero paths). Uno.Resizetizer composes it with
+# icon_foreground.svg at build time. Shipping icon.svg directly gave Linux users a plain grey square,
+# which reads as "no icon" on a dark desktop (reported on Framework 13 / Hyprland).
+# The composed results are already in the UI publish output as iconLogo.targetsize-<N>.png, at exactly
+# the pixel sizes the hicolor theme wants — so install those instead. There is no composed SVG to ship;
+# fixed-size PNGs are the normal and correct way to populate an icon theme.
+icon_sizes=(16 24 32 48 256)
+icon_publish_dir="${ui_publish_dir}/Assets/Icons"
+
+install_desktop_icons() { # $1 = destination root
+  local installed=0 size src
+  for size in "${icon_sizes[@]}"; do
+    src="${icon_publish_dir}/iconLogo.targetsize-${size}.png"
+    if [[ -f "${src}" ]]; then
+      install -Dm644 "${src}" "$1/usr/share/icons/hicolor/${size}x${size}/apps/subzeroframework.png"
+      installed=$((installed + 1))
+    fi
+  done
+
+  # Fail loudly rather than silently shipping an iconless desktop entry again.
+  if [[ "${installed}" -eq 0 ]]; then
+    echo "No composed icons found under ${icon_publish_dir} (expected iconLogo.targetsize-<size>.png)." >&2
+    exit 1
+  fi
+}
 
 # Package-path variant of the repo unit (the repo copy targets the in-app /usr/local install flow).
 packaged_unit="${work_dir}/subzeroframework.service"
@@ -54,8 +80,7 @@ sed \
   "${repo_root}/SubZeroFramework.Service/subzeroframework.service" > "${packaged_unit}"
 
 stage_ui_payload() { # $1 = destination root
-  mkdir -p "$1/usr/lib/subzeroframework/ui" "$1/usr/bin" \
-           "$1/usr/share/applications" "$1/usr/share/icons/hicolor/scalable/apps"
+  mkdir -p "$1/usr/lib/subzeroframework/ui" "$1/usr/bin" "$1/usr/share/applications"
   # The UI publish dir doubles as the artifact root; keep the service bundle out of the UI payload.
   (cd "${ui_publish_dir}" && find . -path ./service-package -prune -o -type f -print | while read -r f; do
       mkdir -p "$1/usr/lib/subzeroframework/ui/$(dirname "${f}")"
@@ -64,7 +89,7 @@ stage_ui_payload() { # $1 = destination root
   chmod +x "$1/usr/lib/subzeroframework/ui/SubZeroFramework"
   ln -sf /usr/lib/subzeroframework/ui/SubZeroFramework "$1/usr/bin/subzeroframework"
   cp "${desktop_source}" "$1/usr/share/applications/subzeroframework.desktop"
-  cp "${icon_source}" "$1/usr/share/icons/hicolor/scalable/apps/subzeroframework.svg"
+  install_desktop_icons "$1"
 }
 
 stage_service_payload() { # $1 = destination root
@@ -105,6 +130,10 @@ build_deb() { # $1 = package name, $2 = summary, $3 = stage function, $4 = with_
   local depends recommends
   if [[ "${with_service}" == "yes" ]]; then
     depends="libc6, libgcc-s1, libudev1, libicu76 | libicu74 | libicu72 | libicu71 | libicu70 | libicu67"
+    # Deliberately NOT depending on xrandr (x11-xserver-utils). Hardware.Info's display/GPU enumeration
+    # shells out to it, but this service is a root systemd unit with no DISPLAY/WAYLAND_DISPLAY, so xrandr
+    # answers "Can't open display" even when installed — verified. Those calls are now skipped on Linux
+    # (see FrameworkDataProvider), so the package would be dead weight on every install.
     recommends=""
   else
     # The UI is a pure gRPC client with no local hardware fallback, so it is useless without the
@@ -281,7 +310,12 @@ mkdir -p "${tar_root}/ui" "${tar_root}/service"
   done)
 cp "${packaged_unit}" "${tar_root}/subzeroframework.service"
 cp "${desktop_source}" "${tar_root}/subzeroframework.desktop"
-cp "${icon_source}" "${tar_root}/subzeroframework.svg"
+# Composed icons at the top of the tarball, so the PKGBUILD installs the same artwork the deb/rpm do
+# (icon.svg alone is just the grey background layer — see install_desktop_icons above).
+for size in "${icon_sizes[@]}"; do
+  [[ -f "${icon_publish_dir}/iconLogo.targetsize-${size}.png" ]] \
+    && cp "${icon_publish_dir}/iconLogo.targetsize-${size}.png" "${tar_root}/subzeroframework-${size}.png"
+done
 tar -C "${work_dir}/tar" -czf "${output_dir}/${tar_name}" "subzeroframework-${version}"
 
 # ----------------------------------------------------------------------------------------------------
@@ -338,7 +372,10 @@ package() {
 
     install -Dm644 subzeroframework.service "\${pkgdir}/usr/lib/systemd/system/subzeroframework.service"
     install -Dm644 subzeroframework.desktop "\${pkgdir}/usr/share/applications/subzeroframework.desktop"
-    install -Dm644 subzeroframework.svg "\${pkgdir}/usr/share/icons/hicolor/scalable/apps/subzeroframework.svg"
+    for _size in ${icon_sizes[*]}; do
+        [ -f "subzeroframework-\${_size}.png" ] && install -Dm644 "subzeroframework-\${_size}.png" \\
+            "\${pkgdir}/usr/share/icons/hicolor/\${_size}x\${_size}/apps/subzeroframework.png"
+    done
 }
 EOF
 
