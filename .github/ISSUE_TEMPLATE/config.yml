@@ -1,0 +1,9 @@
+# Blank issues stay enabled as an escape hatch for anything the forms don't fit —
+# the forms are the default path, not a gate.
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/TekuSP/SubZeroFramework/security/advisories/new
+    about: >-
+      IPC socket, privilege boundary, or fan-command authorization issues belong in private
+      vulnerability reporting, not a public issue. See SECURITY.md for what is in scope.

@@ -1,0 +1,68 @@
+name: Feature request
+description: Suggest an improvement or new capability.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: some things are **deliberately switched off in 0.1.0** rather than missing —
+        the Modules tab, cooling profile presets, and the read-only Dashboard are documented decisions
+        (see [README → Known limitations](https://github.com/TekuSP/SubZeroFramework#known-limitations-in-010)).
+        A request to *prioritize* one of those is still welcome — just mention that's what it is.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the situation where you miss this feature — the problem is often more useful than the proposed solution.
+      placeholder: "When my laptop is docked with the lid closed, I want different fan behaviour than on my lap, but …"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How do you imagine it working? UI sketches welcome.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the app?
+      options:
+        - Fan Curve Profiles / fan control
+        - Dashboard
+        - Thermal telemetry
+        - Power telemetry
+        - Device Capabilities
+        - Settings
+        - Background service / installation
+        - Linux support
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: Framework device (if relevant)
+      options:
+        - Framework Laptop 13
+        - Framework Laptop 13 Pro
+        - Framework Laptop 16
+        - Framework Laptop 12
+        - Framework Desktop
+        - Not device-specific
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+      description: Other tools, workarounds, or approaches — and why they don't cut it.
+    validations:
+      required: false

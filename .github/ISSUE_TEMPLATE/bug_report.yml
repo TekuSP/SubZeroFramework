@@ -1,0 +1,134 @@
+name: Bug report
+description: Something is broken or behaving wrong in SubZero Framework Edition.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug!
+
+        > [!IMPORTANT]
+        > **Security issues do not belong here.** If this is a vulnerability (anything about the
+        > IPC socket, privilege boundary, or getting fan commands executed without the opt-in),
+        > please use [private vulnerability reporting](https://github.com/TekuSP/SubZeroFramework/security/advisories/new)
+        > instead — see [SECURITY.md](https://github.com/TekuSP/SubZeroFramework/blob/master/SECURITY.md).
+
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: Shown in **Settings → About** (the "SubZero" row), or the installer filename.
+      placeholder: "0.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux — Arch / derivative
+        - Linux — Debian / Ubuntu / derivative
+        - Linux — Fedora / RHEL / derivative
+        - Linux — other
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version / kernel
+      description: Windows build (`winver`) or Linux kernel + desktop session (X11/Wayland).
+      placeholder: "Windows 11 24H2 build 26100 / Arch, kernel 6.15, Wayland (Hyprland)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: Framework device
+      options:
+        - Framework Laptop 13
+        - Framework Laptop 13 Pro
+        - Framework Laptop 16
+        - Framework Laptop 12
+        - Framework Desktop
+        - Other / not a Framework device
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How did you install it?
+      options:
+        - Windows MSI installer
+        - Linux .deb package
+        - Linux .rpm package
+        - Arch package (.pkg.tar.zst / AUR)
+        - Linux tarball
+        - Built from source
+    validations:
+      required: true
+
+  - type: dropdown
+    id: service-state
+    attributes:
+      label: Background service state when the bug happened
+      description: Check **Settings → Service** in the app, `services.msc` on Windows, or `systemctl status subzeroframework` on Linux.
+      options:
+        - Running
+        - Installed but stopped
+        - Not installed
+        - Not sure
+    validations:
+      required: true
+
+  - type: dropdown
+    id: fan-control
+    attributes:
+      label: Was fan control enabled?
+      description: The "Allow fan control commands" toggle under **Settings → Service**. It is off by default.
+      options:
+        - "Yes"
+        - "No"
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what actually happened? Screenshots help a lot.
+      placeholder: |
+        1. Open Fan Curve Profiles
+        2. Stage a custom curve on the left fan
+        3. Press "Apply all"
+        4. Expected the curve to apply; instead …
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Service logs
+      description: |
+        - **Windows**: Event Viewer → Windows Logs → Application, source `SubZeroFrameworkService` (copy the relevant entries).
+        - **Linux**: `journalctl -u subzeroframework -n 100 --no-pager`
+        Paste as text, not screenshots, when possible. This field is formatted as a code block automatically.
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: fan-safety
+    attributes:
+      label: Fan safety
+      description: Only relevant if the bug involves fan control.
+      options:
+        - label: After stopping/uninstalling the service, my fans did NOT return to automatic control (this makes the report urgent — say so above)
+          required: false
