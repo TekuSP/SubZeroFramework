@@ -11,6 +11,13 @@ socket. Nothing leaves your machine; there is no telemetry, no account, and no n
 > [Known limitations](#known-limitations-in-010) before you install — some surfaces are deliberately
 > switched off in this release.
 
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/1af5fc42-ca90-44a9-acaa-32a6a9103a3e" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/e1d11b50-3ff3-4063-b878-30fd47088f02" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/7c880731-2de0-47bd-8c74-0f874463f8f8" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/07d03fd3-c52c-4dfa-944d-1a2f919b11fb" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/b5845e83-a310-4969-92d9-fe2c1adae289" />
+
+
 ## Requirements
 
 - A **Framework laptop**. Detected chassis families: Framework 12, 13, 13 Pro, 16, and Framework Desktop.
