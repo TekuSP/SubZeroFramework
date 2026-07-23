@@ -47,6 +47,17 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     // slowly (plug/unplug), so it is sampled on a calmer cadence than the main telemetry poll.
     private static readonly TimeSpan ModuleInventoryReadInterval = TimeSpan.FromSeconds(2);
     private DateTimeOffset _lastModuleInventoryReadAt = DateTimeOffset.MinValue;
+
+    // STATIC hardware inventory (RAM modules, drives, motherboard, BIOS, network adapters, OS identity)
+    // refreshes on its own slow cadence, NOT every hardware-info poll. On Linux, Hardware.Info implements
+    // the memory and drive lists by spawning `lshw` — a full device-tree probe costing hundreds of ms of
+    // CPU per run — and the poll default is 1 s, which meant TWO lshw probes per second, forever. A user
+    // saw exactly that as constant CPU spikes in btop (follow-up to issue #51: before lshw was a package
+    // dependency the spawns failed instantly, which hid the cost). This data does not change second to
+    // second; ten minutes still catches USB drives and network changes. Only genuinely dynamic values
+    // (CPU usage — the fan-boost input — and memory free/used) stay on the fast poll.
+    private static readonly TimeSpan StaticInventoryRefreshInterval = TimeSpan.FromMinutes(10);
+    private DateTimeOffset _lastStaticInventoryRefreshAt = DateTimeOffset.MinValue;
     private readonly RetainedSnapshotStream<FrameworkThermalSnapshot> _thermalSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
     private readonly SourceCache<FanCapabilityState, int> _fanCapabilities = new(capability => capability.FanIndex);
     private readonly SourceCache<FanStateSnapshot, int> _fanStates = new(fanState => fanState.FanIndex);
@@ -488,46 +499,57 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         try
         {
+            // FAST tier — every hardware-info poll (default 1 s). Only what genuinely changes at that
+            // rate: CPU usage (drives the fan CPU-boost modifier) and memory free/used (cheap reads,
+            // /proc/meminfo on Linux). Skipped Refresh* calls leave Hardware.Info's previous lists in
+            // place, so the snapshot below always builds from complete (cached) inventory.
             using (var cpuCapture = _hardwareInfoNoiseBuffer.BeginCapture())
             {
                 _hardwareInfo.RefreshCPUList(true, 500, true);
                 cpuCapture.SetDataPresent(_hardwareInfo.CpuList?.Count > 0);
             }
 
-            _hardwareInfo.RefreshMemoryList();
-            _hardwareInfo.RefreshDriveList();
-            _hardwareInfo.RefreshMotherboardList();
-            _hardwareInfo.RefreshBIOSList();
-            _hardwareInfo.RefreshComputerSystemList();
-            _hardwareInfo.RefreshOperatingSystem();
-            _hardwareInfo.RefreshNetworkAdapterList(
-                includeBytesPerSec: false,
-                includeNetworkAdapterConfiguration: true,
-                millisecondsDelayBetweenTwoMeasurements: 0);
-            // Display/GPU enumeration is skipped entirely on Linux. Hardware.Info implements BOTH the
-            // video-controller list ("xrandr -q") and the monitor list ("xrandr --props") by shelling out
-            // to xrandr, and neither can work from here under ANY desktop stack:
-            //
-            //   * This process is a root systemd unit whose environment carries no DISPLAY,
-            //     WAYLAND_DISPLAY or XAUTHORITY (see SubZeroFramework.Service/subzeroframework.service),
-            //     so there is no display server to talk to. Verified by running xrandr with those
-            //     variables stripped, WITH the package installed: it prints "Can't open display".
-            //   * On a Wayland session (the reporting user runs Hyprland) xrandr can at best reach
-            //     XWayland, which warns it is doing so and reports a synthetic view rather than the real
-            //     outputs — so shipping the package would not have fixed it either.
-            //
-            // Cost of asking anyway: two failed process spawns per poll returning nothing — 56 failures
-            // in 22 s measured on Arch, ~96 over 3 min observed on a Framework 13.
-            //
-            // Doing this properly on Linux means reading EDID from /sys/class/drm, which needs no display
-            // server and works headless, on X11 and on Wayland alike; or querying from the client, which
-            // does have a display connection. Tracked as a post-0.1.0 item.
-            if (!OperatingSystem.IsLinux())
-            {
-                _hardwareInfo.RefreshVideoControllerList(refreshMonitorList: true);
-            }
-
             _hardwareInfo.RefreshMemoryStatus();
+
+            // SLOW tier — static inventory, at StaticInventoryRefreshInterval (see the field for the
+            // full story: on Linux the memory/drive lists each spawn a full `lshw` probe, and running
+            // that every second showed up as constant CPU spikes on a user's machine).
+            if (observedAt - _lastStaticInventoryRefreshAt >= StaticInventoryRefreshInterval)
+            {
+                // Stamped up front: if one probe throws, retrying the whole expensive tier every second
+                // until the interval elapses would reintroduce exactly the spike this exists to prevent.
+                _lastStaticInventoryRefreshAt = observedAt;
+
+                _hardwareInfo.RefreshMemoryList();
+                _hardwareInfo.RefreshDriveList();
+                _hardwareInfo.RefreshMotherboardList();
+                _hardwareInfo.RefreshBIOSList();
+                _hardwareInfo.RefreshComputerSystemList();
+                _hardwareInfo.RefreshOperatingSystem();
+                _hardwareInfo.RefreshNetworkAdapterList(
+                    includeBytesPerSec: false,
+                    includeNetworkAdapterConfiguration: true,
+                    millisecondsDelayBetweenTwoMeasurements: 0);
+                // Display/GPU enumeration is skipped entirely on Linux. Hardware.Info implements BOTH the
+                // video-controller list ("xrandr -q") and the monitor list ("xrandr --props") by shelling
+                // out to xrandr, and neither can work from here under ANY desktop stack:
+                //
+                //   * This process is a root systemd unit whose environment carries no DISPLAY,
+                //     WAYLAND_DISPLAY or XAUTHORITY (see SubZeroFramework.Service/subzeroframework.service),
+                //     so there is no display server to talk to. Verified by running xrandr with those
+                //     variables stripped, WITH the package installed: it prints "Can't open display".
+                //   * On a Wayland session (the reporting user runs Hyprland) xrandr can at best reach
+                //     XWayland, which warns it is doing so and reports a synthetic view rather than the
+                //     real outputs — so shipping the package would not have fixed it either.
+                //
+                // Doing this properly on Linux means reading EDID from /sys/class/drm, which needs no
+                // display server and works headless, on X11 and on Wayland alike; or querying from the
+                // client, which does have a display connection. Tracked as a post-0.1.0 item.
+                if (!OperatingSystem.IsLinux())
+                {
+                    _hardwareInfo.RefreshVideoControllerList(refreshMonitorList: true);
+                }
+            }
         }
         catch (Exception exception)
         {

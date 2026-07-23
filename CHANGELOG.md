@@ -2,7 +2,18 @@
 
 All notable changes to this repository should be documented in this file.
 
-## [0.1.1] - Unreleased
+## [0.1.2] - Unreleased
+
+### Fixed
+
+- **Linux: constant CPU spikes from `lshw`.** Static hardware inventory (RAM modules, drives,
+  motherboard, BIOS, network adapters, OS identity) was refreshed on the hardware-info poll — every
+  second by default — and on Linux the memory and drive lists each spawn a full `lshw` device-tree
+  probe, so making `lshw` a dependency in 0.1.1 turned that into two heavy probes per second. Static
+  inventory now refreshes every 10 minutes (still catching USB drives and network changes), while CPU
+  usage (the fan-boost input) and memory free/used keep the fast cadence.
+
+## [0.1.1] - 2026-07-23 (released as v0.1.1-alpha)
 
 First post-release fixes, driven by field reports.
 
