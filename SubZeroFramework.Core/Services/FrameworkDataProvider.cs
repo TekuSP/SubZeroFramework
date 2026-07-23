@@ -986,7 +986,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             FrameworkExpansionBaySnapshot? expansionBay = null;
             if (connectedStatus.PlatformFamily == FrameworkPlatformFamily.Framework16)
             {
-                TryReadSnapshot(connection.GetExpansionBaySnapshot, "expansion bay", ref snapshotError, out expansionBay);
+                TryReadExpansionBaySnapshot(connection, ref snapshotError, out expansionBay);
             }
 
             _powerDeliverySnapshots.Publish(BuildPowerDeliverySnapshot(moduleInventory!, expansionBay), observedAt);
@@ -1264,6 +1264,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         {
             _connection?.Dispose();
             _connection = null;
+            // A fresh connection gets one fresh "bay unavailable" notice if it still applies.
+            _expansionBayUnavailableLogged = false;
         }
     }
 
@@ -1325,6 +1327,65 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             _logger.LogWarning(exception, "Unable to read the {SnapshotName} snapshot.", snapshotName);
             snapshotError ??= exception.Message;
             snapshot = default;
+            return false;
+        }
+    }
+
+    /// <summary>True once "expansion bay reports Unavailable" has been logged for the current connection.</summary>
+    private bool _expansionBayUnavailableLogged;
+
+    /// <summary>
+    /// Reads the Framework 16 expansion-bay snapshot, treating an EC "Unavailable" response as an EMPTY
+    /// BAY rather than as a failure.
+    /// </summary>
+    /// <remarks>
+    /// The expansion bay is OPTIONAL hardware, and on FW16 configurations where the bay does not report
+    /// the EC answers <c>Unavailable (9)</c> on every poll. Routing that through
+    /// <see cref="TryReadSnapshot{T}"/> put its message into <c>FrameworkSystemStatus.LastError</c> each
+    /// cycle — and the client treats ANY non-empty LastError as unhealthy, so the whole app locked into
+    /// the recovery page on a machine whose fans and thermals were reading perfectly (first field
+    /// report: issue #51).
+    ///
+    /// An unavailable optional module is data, not an error, so a synthesized snapshot with
+    /// <see cref="FrameworkExpansionBayBoard.NoModule"/> is returned instead: the module inventory then
+    /// deliberately shows "empty bay" (NoModule) rather than "could not read" (the Unknown fallback a
+    /// null snapshot would produce), no phantom module appears (IsPresent=false ⇒ Identity=None, so the
+    /// identity overlay and the bay USB-C port are both skipped), and LastError stays clean. Any OTHER
+    /// exception still counts as a real failure exactly as before.
+    /// </remarks>
+    private bool TryReadExpansionBaySnapshot(IFrameworkEcConnection connection, ref string? snapshotError, out FrameworkExpansionBaySnapshot? snapshot)
+    {
+        try
+        {
+            snapshot = connection.GetExpansionBaySnapshot();
+            _expansionBayUnavailableLogged = false;
+            return true;
+        }
+        catch (FrameworkDotnet.Exceptions.EcResponseDetails.FrameworkUnavailableEcResponseException)
+        {
+            if (!_expansionBayUnavailableLogged)
+            {
+                _expansionBayUnavailableLogged = true;
+                _logger.LogInformation("The expansion bay reports Unavailable — presenting it as an empty bay. This is normal for bay configurations that do not report (logged once per connection).");
+            }
+
+            // Door state is unreadable in this state; "closed" is the benign assumption (an open door is
+            // a fault-adjacent signal nothing here can substantiate).
+            snapshot = new FrameworkExpansionBaySnapshot(
+                isPresent: false,
+                isEnabled: false,
+                hasFault: false,
+                isDoorClosed: true,
+                FrameworkExpansionBayBoard.NoModule,
+                FrameworkExpansionBayVendor.Unknown,
+                serialNumber: string.Empty);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Unable to read the expansion bay snapshot.");
+            snapshotError ??= exception.Message;
+            snapshot = null;
             return false;
         }
     }

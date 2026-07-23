@@ -2,7 +2,30 @@
 
 All notable changes to this repository should be documented in this file.
 
-## [0.1.0] - Unreleased (first public MVP)
+## [0.1.1] - Unreleased
+
+First post-release fixes, driven by field reports.
+
+### Fixed
+
+- **Framework 16: an unreporting expansion bay locked the whole app into recovery mode**
+  ([#51](https://github.com/TekuSP/SubZeroFramework/issues/51)). Bay configurations whose EC answers
+  "Unavailable" put that message into the service's global error state on every poll, which the app
+  treats as unhealthy — while fans and thermals were reading perfectly. The bay is now presented as an
+  **empty bay** (distinct from "could not read"), the app works normally, and the condition is logged
+  once per connection instead of a stack trace every poll.
+- **Missing hardware-probe tools no longer spam the journal.** A tool Hardware.Info shells out to but
+  which is not installed (e.g. `lshw`) produced two warning+stack-trace entries per poll; it now logs a
+  single actionable line naming the tool and what installing it enables.
+
+### Changed
+
+- **Linux packages now depend on `lshw`** (deb/rpm/Arch): the service uses it for the memory and
+  storage inventory in Device Capabilities. Tarball installs should install it manually.
+- Added [docs/INSTALL.md](docs/INSTALL.md) with per-platform install/uninstall commands, linked from
+  the README.
+
+## [0.1.0] - 2026-07-22 (first public MVP, released as v0.1.0-alpha)
 
 First public release. Ships the redesigned app with fan control (Auto / Manual / Max / Custom curve with
 staging + live preview safety holds), live thermal/power telemetry, device capabilities, client-local

@@ -129,11 +129,14 @@ build_deb() { # $1 = package name, $2 = summary, $3 = stage function, $4 = with_
   # notification service degrades to log-only without a session bus.
   local depends recommends
   if [[ "${with_service}" == "yes" ]]; then
-    depends="libc6, libgcc-s1, libudev1, libicu76 | libicu74 | libicu72 | libicu71 | libicu70 | libicu67"
+    depends="libc6, libgcc-s1, libudev1, lshw, libicu76 | libicu74 | libicu72 | libicu71 | libicu70 | libicu67"
     # Deliberately NOT depending on xrandr (x11-xserver-utils). Hardware.Info's display/GPU enumeration
     # shells out to it, but this service is a root systemd unit with no DISPLAY/WAYLAND_DISPLAY, so xrandr
     # answers "Can't open display" even when installed — verified. Those calls are now skipped on Linux
     # (see FrameworkDataProvider), so the package would be dead weight on every install.
+    # lshw is a hard Depends (added above), unlike xrandr: it probes hardware directly (no display
+    # server needed), works from the root service, and backs the memory/storage inventory in Device
+    # Capabilities. Without it those panes are empty (first field report: issue #51).
     recommends=""
   else
     # The UI is a pure gRPC client with no local hardware fallback, so it is useless without the
@@ -216,7 +219,11 @@ build_rpm() { # $1 = package name, $2 = summary, $3 = stage function, $4 = with_
   # the scanner does find it via DT_NEEDED, but naming it documents the requirement explicitly.
   local rpm_requires
   if [[ "${with_service}" == "yes" ]]; then
-    rpm_requires="Requires: systemd-libs"
+    rpm_requires=$(cat <<'EOF'
+Requires: systemd-libs
+Requires: lshw
+EOF
+)
   else
     # Same exact-version pin as the .deb: the UI cannot function without its service.
     rpm_requires=$(cat <<EOF
@@ -351,7 +358,7 @@ license=('MIT')
 # (which is managed), is the real systemd dependency. No dotnet runtime: the publish is self-contained.
 # No glibc version bound: CI builds on Ubuntu runners whose glibc is OLDER than Arch's, so the
 # binaries are more portable than the build host, not less.
-depends=('glibc' 'gcc-libs' 'systemd-libs' 'fontconfig' 'icu' 'libx11' 'libxext' 'libxfixes' 'libxi' 'libxrandr' 'libglvnd')
+depends=('glibc' 'gcc-libs' 'systemd-libs' 'fontconfig' 'icu' 'libx11' 'libxext' 'libxfixes' 'libxi' 'libxrandr' 'libglvnd' 'lshw')
 optdepends=('vulkan-icd-loader: GPU-accelerated rendering')
 options=('!strip' 'staticlibs')
 install=subzeroframework.install
@@ -399,6 +406,7 @@ pkgbase = subzeroframework-bin
 	depends = libxi
 	depends = libxrandr
 	depends = libglvnd
+	depends = lshw
 	optdepends = vulkan-icd-loader: GPU-accelerated rendering
 	options = !strip
 	options = staticlibs

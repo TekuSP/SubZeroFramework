@@ -283,7 +283,7 @@ jobs:
           # (that user has no sudo, so it cannot install them itself via --syncdeps).
           pacman -Sy --noconfirm --needed \
             glibc gcc-libs systemd-libs fontconfig icu \
-            libx11 libxext libxfixes libxi libxrandr libglvnd
+            libx11 libxext libxfixes libxi libxrandr libglvnd lshw
           useradd -m builder
           cp -r packages/aur /home/builder/aur
           chown -R builder:builder /home/builder/aur

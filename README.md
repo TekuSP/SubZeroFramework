@@ -31,6 +31,9 @@ socket. Nothing leaves your machine; there is no telemetry, no account, and no n
 
 ## Install
 
+Per-platform commands (Debian/Ubuntu, Fedora, Arch, tarball, silent Windows install, uninstall) live in
+**[docs/INSTALL.md](docs/INSTALL.md)**. The short version:
+
 ### Windows
 
 Download the installer for your architecture from the
