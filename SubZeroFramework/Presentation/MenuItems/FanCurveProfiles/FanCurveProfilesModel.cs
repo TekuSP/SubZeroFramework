@@ -413,6 +413,13 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         {
             fan.IsStaged = selectedStaged || IsTesting;
         }
+
+        // Counting a dark sensor as 0 °C only "ignores" it under Maximum; every other mode folds that 0 in and
+        // drags the driving temperature down.
+        MissingSensorAggregationWarningVisibility =
+            TreatMissingSensorsAsZero && SelectedAggregation != TemperatureAggregationMode.Maximum
+                ? Microsoft.UI.Xaml.Visibility.Visible
+                : Microsoft.UI.Xaml.Visibility.Collapsed;
     }
 
     public Microsoft.UI.Xaml.Visibility ActionBarStagedVisibility =>
@@ -753,6 +760,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         if (_session.PendingSnapshot is { } snapshot)
         {
             SelectedAggregation = snapshot.Aggregation;
+            TreatMissingSensorsAsZero = snapshot.TreatMissingSensorsAsZero;
 
             SensorSelection.SetSelected(snapshot.SensorIndices);
 
@@ -844,7 +852,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         {
             var name = SelectedFan?.ControlState?.CurveProfiles.ElementAtOrDefault(slot)?.Name;
             var result = await _fanControlClient
-                .SaveCurveProfileAsync(fan.Snapshot.FanIndex, slot, name, dictionary, selectedSensors, aggregation, followFanIndex, activate: true, cancellationToken)
+                .SaveCurveProfileAsync(fan.Snapshot.FanIndex, slot, name, dictionary, selectedSensors, aggregation, followFanIndex, activate: true, TreatMissingSensorsAsZero, cancellationToken)
                 .ConfigureAwait(true);
 
             if (result.Succeeded)
@@ -948,6 +956,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
                             draft.Aggregation,
                             draft.FollowFanIndex,
                             activate: true,
+                            draft.TreatMissingSensorsAsZero,
                             cancellationToken)
                         .ConfigureAwait(true);
 
@@ -1042,7 +1051,9 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             try
             {
                 var result = await _fanControlClient
-                    .SaveCurveProfileAsync(partnerIndex, slot, name: null, new Dictionary<int, double>(), [], TemperatureAggregationMode.Maximum, leader, activate: true, cancellationToken)
+                    // A follow slot mirrors its leader's curve, so it reads no sensors of its own — the
+                    // missing-sensor rule is the leader's to make.
+                    .SaveCurveProfileAsync(partnerIndex, slot, name: null, new Dictionary<int, double>(), [], TemperatureAggregationMode.Maximum, leader, activate: true, treatMissingSensorsAsZero: false, cancellationToken)
                     .ConfigureAwait(true);
 
                 if (result.Succeeded)
@@ -1162,14 +1173,14 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         try
         {
             var aggregation = SelectedAggregation ?? TemperatureAggregationMode.Maximum;
-            var result = await _actuator.ActuateCurveAsync(fan.Snapshot.FanIndex, dictionary, selectedSensors, aggregation, preview: true, cancellationToken).ConfigureAwait(true);
+            var result = await _actuator.ActuateCurveAsync(fan.Snapshot.FanIndex, dictionary, selectedSensors, aggregation, preview: true, TreatMissingSensorsAsZero, cancellationToken).ConfigureAwait(true);
             if (result.Succeeded)
             {
                 // Linked partners preview the same curve live (volatile) so the whole group runs it together.
                 foreach (var partner in group)
                 {
                     if (partner == fan.Snapshot.FanIndex) continue;
-                    await _actuator.ActuateCurveAsync(partner, dictionary, selectedSensors, aggregation, preview: true, cancellationToken).ConfigureAwait(true);
+                    await _actuator.ActuateCurveAsync(partner, dictionary, selectedSensors, aggregation, preview: true, TreatMissingSensorsAsZero, cancellationToken).ConfigureAwait(true);
                 }
 
                 _session.TestedSnapshot = CurrentDraftSnapshot();
@@ -1221,14 +1232,14 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         try
         {
             var aggregation = SelectedAggregation ?? TemperatureAggregationMode.Maximum;
-            var result = await _actuator.ActuateCurveAsync(fan.Snapshot.FanIndex, dictionary, selectedSensors, aggregation, preview: true, cancellationToken).ConfigureAwait(true);
+            var result = await _actuator.ActuateCurveAsync(fan.Snapshot.FanIndex, dictionary, selectedSensors, aggregation, preview: true, TreatMissingSensorsAsZero, cancellationToken).ConfigureAwait(true);
             if (result.Succeeded)
             {
                 // Keep the linked group in sync with the edited curve (still volatile — the holds remain open).
                 foreach (var partner in ActuationGroup(fan.Snapshot.FanIndex))
                 {
                     if (partner == fan.Snapshot.FanIndex) continue;
-                    await _actuator.ActuateCurveAsync(partner, dictionary, selectedSensors, aggregation, preview: true, cancellationToken).ConfigureAwait(true);
+                    await _actuator.ActuateCurveAsync(partner, dictionary, selectedSensors, aggregation, preview: true, TreatMissingSensorsAsZero, cancellationToken).ConfigureAwait(true);
                 }
 
                 _session.TestedSnapshot = CurrentDraftSnapshot();
@@ -1291,7 +1302,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
                 {
                     restored[pair.Key] = pair.Value;
                 }
-                await _actuator.ActuateCurveAsync(fanIndex, restored, [.. previous.DrivingSensorIndices], previous.DrivingTemperatureAggregation, preview: false, cancellationToken).ConfigureAwait(true);
+                await _actuator.ActuateCurveAsync(fanIndex, restored, [.. previous.DrivingSensorIndices], previous.DrivingTemperatureAggregation, preview: false, previous.TreatMissingSensorsAsZero, cancellationToken).ConfigureAwait(true);
             }
             else
             {
@@ -1337,7 +1348,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             profile.DrivingTemperatureAggregation,
             [.. profile.DrivingSensorIndices],
             FanCurveDomain.Normalize(profile.CurvePoints.Select(static pair => (pair.Key, pair.Value))),
-            profile.FollowFanIndex);
+            profile.FollowFanIndex,
+            profile.TreatMissingSensorsAsZero);
     }
 
     /// <summary>
@@ -1501,6 +1513,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     {
         SelectedFollowOption = FindFollowOption(null);
         SelectedAggregation = TemperatureAggregationMode.Maximum;
+        TreatMissingSensorsAsZero = false;
 
         _draft.Load(DefaultCurvePoints);
 
@@ -1513,10 +1526,16 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
     /// <summary>
     /// Keeps a self-driven custom curve from ever reaching the "no driving sensor" state. If the editor is
-    /// open, not following another fan, and no <em>usable</em> sensor is selected, auto-selects the first
-    /// usable one. Covers sensors that arrive after the default draft loads and a selected sensor that later
-    /// becomes unusable. No-op while not editing, while following, or when a usable sensor is already chosen.
+    /// open, not following another fan, and NOTHING is selected, auto-selects the first usable sensor — the
+    /// case of a slot whose stored selection is empty, or sensors that arrive after the default draft loads.
+    /// No-op while not editing, while following, or when anything is already chosen.
     /// </summary>
+    /// <remarks>
+    /// Deliberately keyed on "nothing selected", not "nothing USABLE selected": a selection whose sensors went
+    /// dark (the GPU powering down takes its four sensors with it) must be left exactly as the user saved it.
+    /// Adopting a replacement there rewrote the profile behind their back — see the matching note in
+    /// <see cref="FanSensorSelectionModel.Upsert"/>.
+    /// </remarks>
     private void EnsureUsableSensorSelected()
     {
         if (!ShowCustomEditor || IsFollowing)
@@ -1536,13 +1555,15 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         SelectedAggregation ?? TemperatureAggregationMode.Maximum,
         SensorSelection.SelectedIndices(),
         _draft.ToOrderedPairs(),
-        SelectedFollowOption?.FanIndex);
+        SelectedFollowOption?.FanIndex,
+        TreatMissingSensorsAsZero);
 
     /// <summary>Replaces the editable draft (follow target, points, aggregation, sensor selection) with the given snapshot.</summary>
     private void LoadDraftFrom(CustomCurveSnapshot snapshot)
     {
         SelectedFollowOption = FindFollowOption(snapshot.FollowFanIndex);
         SelectedAggregation = snapshot.Aggregation;
+        TreatMissingSensorsAsZero = snapshot.TreatMissingSensorsAsZero;
 
         SensorSelection.SetSelected(snapshot.SensorIndices);
 
@@ -1567,34 +1588,28 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     {
         var isCustom = SelectedFanMode == FanControlMode.CustomCurve;
         var draft = isCustom ? CurrentDraftSnapshot() : null;
-        HasPredictedDuty = CurveChart.RefreshPrediction(draft, isCustom ? CurrentDrivingTemperatureCelsius() : null, isCustom);
+        HasPredictedDuty = CurveChart.RefreshPrediction(
+            draft,
+            isCustom ? CurrentDrivingTemperatureCelsius() : null,
+            // Only when the SERVICE is curve-driving this fan: in any other state (firmware fallback because
+            // the driving sensors went dark, a staged-but-unapplied curve, Auto) there is no operating point
+            // to mark, and drawing one would claim a duty the fan is not running.
+            isCustom && SelectedFan?.ControlState is { Mode: FanControlMode.CustomCurve } running
+                ? running.LastDutyPercent
+                : null,
+            isCustom);
     }
 
-    private double? CurrentDrivingTemperatureCelsius()
-    {
-        var readings = new List<double>();
-        foreach (var chip in SensorSelection.SelectedChips)
-        {
-            if (chip.CurrentTemperatureCelsius is double celsius)
-            {
-                readings.Add(celsius);
-            }
-        }
-
-        if (readings.Count == 0)
-        {
-            return null;
-        }
-
-        return (SelectedAggregation ?? TemperatureAggregationMode.Maximum) switch
-        {
-            TemperatureAggregationMode.Average => readings.Average(),
-            TemperatureAggregationMode.Maximum => readings.Max(),
-            TemperatureAggregationMode.Minimum => readings.Min(),
-            TemperatureAggregationMode.Median => TemperatureSeriesMath.Median(readings),
-            _ => readings.Max(),
-        };
-    }
+    /// <summary>
+    /// The temperature the draft curve is currently being driven at. Uses the SAME reduction the service
+    /// applies (<see cref="FanDrivingTemperature"/>), including the profile's treat-missing-as-zero choice, so
+    /// the predicted duty matches what the fan will actually do.
+    /// </summary>
+    private double? CurrentDrivingTemperatureCelsius() =>
+        FanDrivingTemperature.Aggregate(
+            SensorSelection.SelectedChips.Select(static chip => chip.CurrentTemperatureCelsius),
+            SelectedAggregation ?? TemperatureAggregationMode.Maximum,
+            TreatMissingSensorsAsZero);
 
     private void NotifyCommandStates()
     {
@@ -2307,7 +2322,41 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [NotifyPropertyChangedFor(nameof(SensorAggregateLabel))]
     public partial TemperatureAggregationMode? SelectedAggregation { get; set; } = TemperatureAggregationMode.Maximum;
 
-    partial void OnSelectedAggregationChanged(TemperatureAggregationMode? value) => RefreshSensorChart();
+    partial void OnSelectedAggregationChanged(TemperatureAggregationMode? value)
+    {
+        RefreshSensorChart();
+        RefreshDerivedState();
+    }
+
+    /// <summary>
+    /// Per-profile: a driving sensor with no reading counts as 0 °C instead of being skipped. Suits sensors
+    /// that go dark because what they measure is switched off — a sleeping GPU genuinely reports no heat — and
+    /// keeps the curve running off whatever is still alive instead of leaving the fan blind.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool TreatMissingSensorsAsZero { get; set; }
+
+    partial void OnTreatMissingSensorsAsZeroChanged(bool value)
+    {
+        // A curve-reading rule exactly like the aggregation mode: toggling it is an edit to stage.
+        if (!_session.IsLoadingDraft)
+        {
+            RecomputeDirty();
+        }
+
+        RefreshDerivedState();
+        RefreshPredictedDuty();
+    }
+
+    /// <summary>
+    /// Shown when treating missing readings as 0 °C would drag the driving temperature DOWN rather than simply
+    /// ignoring a dark sensor. Harmless with Maximum (0 never wins); with Average, Median or Minimum a sleeping
+    /// sensor actively lowers the result and can slow the fan while something else is hot. Stored and assigned
+    /// by <see cref="RefreshDerivedState"/>, never a computed getter.
+    /// </summary>
+    [ObservableProperty]
+    public partial Microsoft.UI.Xaml.Visibility MissingSensorAggregationWarningVisibility { get; set; }
+        = Microsoft.UI.Xaml.Visibility.Collapsed;
 
     // Aggregation segmented control (Maximum / Average / Median / Minimum) — replaces the old combo.
     public bool IsAggregateMaximum => SelectedAggregation == TemperatureAggregationMode.Maximum;

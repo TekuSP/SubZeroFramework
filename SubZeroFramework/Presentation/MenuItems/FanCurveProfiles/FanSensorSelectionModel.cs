@@ -60,16 +60,23 @@ public sealed class FanSensorSelectionModel
     {
         var state = snapshot.TemperatureState ?? (snapshot.IsAvailable ? FrameworkTemperatureState.Ok : FrameworkTemperatureState.NotPresent);
 
-        // Not-present sensors are omitted from the selector entirely (design).
+        // A sensor that has NEVER reported is omitted from the selector entirely (design). One already on
+        // screen is a different matter: it must not vanish just because it stopped reporting. The GPU die
+        // sensor drops to NotPresent (not NotPowered) when the GPU powers down, and deleting its chip made the
+        // sensor list change length under the user — and took a selected sensor out of the selector with it.
         if (state == FrameworkTemperatureState.NotPresent)
         {
-            Remove(snapshot.SensorIndex);
+            if (_sensorChipIndex.TryGetValue(snapshot.SensorIndex, out var knownChip))
+            {
+                knownChip.State = state;
+                knownChip.CurrentTemperatureCelsius = null;
+            }
+
             return;
         }
 
         var chipName = ShortenSensorName($"{snapshot.DisplayName.Trim()}{Environment.NewLine}{FrameworkSensorNameDisplay.ToLocation(snapshot.SensorName)}", snapshot.SensorIndex);
 
-        var isNewChip = false;
         if (!_sensorChipIndex.TryGetValue(snapshot.SensorIndex, out var chip))
         {
             chip = new SensorChipModel(snapshot.SensorIndex, chipName, _unitFormattingService);
@@ -82,7 +89,6 @@ public sealed class FanSensorSelectionModel
                 insertIndex++;
             }
             _availableSensors.Insert(insertIndex, chip);
-            isNewChip = true;
         }
         else
         {
@@ -92,9 +98,10 @@ public sealed class FanSensorSelectionModel
         chip.State = state;
         chip.CurrentTemperatureCelsius = state == FrameworkTemperatureState.Ok ? snapshot.TemperatureCelsius : null;
 
-        // A chip the desired selection was waiting for finally streamed in: select it now so the draft
-        // matches the loaded profile again.
-        if (isNewChip && chip.IsUsable && _desiredSelection.Contains(chip.SensorIndex))
+        // A chip the desired selection was waiting for is now selectable: select it so the draft matches the
+        // loaded profile again. This covers both a chip streaming in for the first time AND one that was
+        // already on screen but unusable — e.g. GPU sensors coming back when the GPU powers up.
+        if (chip.IsUsable && !chip.IsSelected && _desiredSelection.Contains(chip.SensorIndex))
         {
             _suppressSensorSelectionReentry = true;
             try { chip.IsSelected = true; }
@@ -103,14 +110,11 @@ public sealed class FanSensorSelectionModel
             SelectionChanged?.Invoke();
         }
 
-        // An unusable sensor (error / no power / uncalibrated) can't drive a curve — drop it from the selection.
-        if (!chip.IsUsable && chip.IsSelected)
-        {
-            _suppressSensorSelectionReentry = true;
-            try { chip.IsSelected = false; }
-            finally { _suppressSensorSelectionReentry = false; }
-            SelectionChanged?.Invoke();
-        }
+        // A sensor going unusable (error / no power — e.g. the GPU powering down) deliberately does NOT change
+        // the selection. Deselecting it here silently rewrote the user's saved profile: the selection emptied,
+        // the editor's "never none" rule then adopted whichever sensor happened to be first, and the next Apply
+        // persisted that. The sensor stays selected and shows as unavailable; how a missing reading affects the
+        // curve is the profile's own choice (see the treat-missing-as-zero option), not a selection change.
     }
 
     public void Remove(int sensorIndex)
@@ -177,12 +181,17 @@ public sealed class FanSensorSelectionModel
     }
 
     /// <summary>
-    /// If no usable sensor is selected but one exists, selects the first usable and returns its index (so the
-    /// caller can ensure its history). Returns null when nothing needed selecting.
+    /// If NOTHING is selected but a usable sensor exists, selects the first usable one and returns its index
+    /// (so the caller can ensure its history). Returns null when nothing needed selecting.
     /// </summary>
+    /// <remarks>
+    /// The test is "nothing selected at all", NOT "nothing usable selected". A selection whose sensors merely
+    /// went unusable — a sleeping GPU — must survive untouched; treating that as "none selected" is what let a
+    /// replacement sensor be adopted into the user's profile silently.
+    /// </remarks>
     public int? SelectFirstUsableIfNoneSelected()
     {
-        if (_availableSensors.Any(static c => c.IsUsable && c.IsSelected))
+        if (_availableSensors.Any(static c => c.IsSelected))
         {
             return null;
         }

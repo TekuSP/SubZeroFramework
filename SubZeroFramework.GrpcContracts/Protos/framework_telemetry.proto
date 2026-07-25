@@ -359,6 +359,8 @@ message SetFanCustomCurveRequest {
   TemperatureAggregationModeValue driving_temperature_aggregation = 4;
   // When true, actuate the EC live but do not persist (volatile preview). See SetFanDutyRequest.preview.
   bool preview = 5;
+  // See FanCurveProfileReply.treat_missing_sensors_as_zero.
+  bool treat_missing_sensors_as_zero = 6;
 }
 
 message SetFanCustomCurveReply {
@@ -399,6 +401,9 @@ message FanCurveProfileReply {
   // When set, this slot mirrors the active curve of follow_fan_index instead of using its own points.
   bool has_follow_target = 8;
   int32 follow_fan_index = 9;
+  // A driving sensor with no reading (powered down, erroring) counts as 0 C instead of being skipped. Suits
+  // sensors that go dark because what they measure is switched off — a sleeping GPU reports no heat.
+  bool treat_missing_sensors_as_zero = 10;
 }
 
 message SaveFanCurveProfileRequest {
@@ -412,6 +417,8 @@ message SaveFanCurveProfileRequest {
   int32 follow_fan_index = 8;
   // When true, also make this the active slot and switch the fan into curve mode.
   bool activate = 9;
+  // See FanCurveProfileReply.treat_missing_sensors_as_zero.
+  bool treat_missing_sensors_as_zero = 10;
 }
 
 message SetActiveFanCurveProfileRequest {
@@ -730,6 +737,8 @@ message FanControlStateChangeReply {
   // Duty points added on top of the active custom curve at 100% smoothed CPU usage (exponential ramp).
   // Unset means the modifier is disabled.
   optional double cpu_usage_modifier_strength = 21;
+  // Active slot's setting; see FanCurveProfileReply.treat_missing_sensors_as_zero.
+  bool treat_missing_sensors_as_zero = 22;
 }
 
 message FanControlStateChangeBatchReply {

@@ -175,6 +175,8 @@ public partial class App : Application
 
         MainWindow.Title = $"SubZero Framework Edition";
 
+        ApplyWindowIcon();
+
 #if DEBUG
         MainWindow.UseStudio();
 #endif
@@ -209,6 +211,41 @@ public partial class App : Application
     private void CurrentDomain_UnhandledException(object sender, System.UnhandledExceptionEventArgs e)
     {
         Logger?.LogError(e.ExceptionObject as Exception, $"Current Domain unhandled exception! Is terminating: {e.IsTerminating}");
+    }
+
+    /// <summary>
+    /// Gives the window (and therefore the taskbar button and Alt+Tab) the app icon.
+    /// </summary>
+    /// <remarks>
+    /// An unpackaged WinUI 3 window does NOT inherit the icon embedded in the executable — without this it
+    /// shows the generic placeholder on the taskbar even though the .exe itself has the right icon in Explorer.
+    /// Uno.Resizetizer composes icon.ico next to the executable at build time, which is also what the installer
+    /// lays down, so the icon follows the app rather than being duplicated in the repo.
+    /// </remarks>
+    private void ApplyWindowIcon()
+    {
+        if (MainWindow is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var iconPath = Path.Combine(AppContext.BaseDirectory, "icon.ico");
+            if (File.Exists(iconPath))
+            {
+                MainWindow.AppWindow.SetIcon(iconPath);
+            }
+            else
+            {
+                Logger?.LogWarning("Window icon {IconPath} is missing; the window keeps the platform default.", iconPath);
+            }
+        }
+        catch (Exception exception)
+        {
+            // Cosmetic only — never let an icon stop the app from starting.
+            Logger?.LogWarning(exception, "Failed to apply the window icon.");
+        }
     }
 
     private void ConfigureWindowTitleBar()

@@ -2,7 +2,54 @@
 
 All notable changes to this repository should be documented in this file.
 
-## [0.1.4] - Unreleased
+## [0.1.4] - 2026-07-25
+
+Sensor-availability release: what happens to a fan curve when the hardware it watches goes dark.
+
+### Added
+
+- **"Treat missing readings as 0°" per curve profile.** A selected driving sensor that loses power counts as
+  cold instead of dropping out — for sensors that go quiet because whatever they measure is switched off, like
+  a sleeping GPU. With Maximum aggregation a dark sensor then simply stops mattering; with the other modes it
+  pulls the driving temperature down, so the editor warns about that combination.
+- **The curve chart shows where fan control actually is.** A red ✕ rides the curve at the live driving
+  temperature and the duty the service last applied. Because that duty already includes the CPU boost, the
+  marker can sit above the drawn curve — the gap is the boost. It disappears whenever no driving temperature
+  can be read, rather than freezing at a position the fan is no longer holding.
+- **Windows installer offers a clean install.** A new wizard page (before the install location) asks whether
+  to keep existing fan settings; ticking it deletes the service's saved configuration instead of upgrading
+  onto it. Off by default, and available unattended as `msiexec /i … CLEANINSTALL=1`. Per-user preferences
+  (display units, startup, alerts) are not touched — the installer only owns machine-wide service data.
+
+### Fixed
+
+- **A sleeping GPU rewrote the fan's saved profile.** When a driving sensor became unavailable the editor
+  deselected it and adopted whichever sensor happened to be first (Mainboard), and the next Apply persisted
+  that — the curve silently stopped following the GPU for good. Availability is runtime status, not user data:
+  a selection now survives its sensors going dark, comes back when they return, and is only auto-seeded for a
+  slot that has no selection at all.
+- **A powered-down sensor could under-cool the machine.** The service read every selected sensor's raw value
+  without checking whether it was reporting, so a dark sensor's 0 °C was folded into the aggregate — halving
+  an Average against a hot CPU. Sensor state is now honored, and the client and service share one
+  implementation of the reduction (`FanDrivingTemperature`), so the predicted duty matches what the fan does.
+- **"Falls back to its firmware-safe curve" is now true.** When no driving sensor of a curve-driven fan could
+  be read, the service simply skipped the fan — leaving the embedded controller holding the last duty the
+  curve asked for, with nothing observing the heat. It now hands that fan back to firmware fan control (once
+  per episode, retried if the handover fails) and resumes the curve automatically when a sensor reports again.
+  The stored profile is never altered by the fallback.
+- **Opening Fan Control showed the Auto panel for a fan that was not on Auto.** The mode selector correctly
+  read "Custom curve" while the body below it described automatic control. The mode body is a navigation
+  sub-region whose navigator does not exist yet on first entry; the sync gave up in that case and nothing ever
+  retried, because a fan already running a curve never raises a mode change to retrigger it.
+- **The sensor list changed length when the GPU powered down.** Its four sensors do not report the same way —
+  three go "not powered" while the die sensor goes "not present" — and a not-present sensor was deleted from
+  the selector outright, so eight chips became seven and a selected sensor disappeared from view. A sensor
+  that has never reported is still omitted, but one already on screen now stays put and dims.
+- **An unpowered sensor could not be picked as a driving sensor.** Its chip was disabled, so a GPU sensor was
+  unselectable exactly when you wanted to choose it (with the GPU idle) — and a selected sensor that went dark
+  could not be deselected either. Chips now stay interactive and simply dim while they have no reading.
+- **Windows: the taskbar showed a generic window icon.** An unpackaged WinUI 3 window does not inherit the
+  icon embedded in the executable, so the app icon appeared in Explorer but not on the taskbar or in Alt+Tab.
 
 ## [0.1.3] - 2026-07-25 (released as v0.1.3)
 

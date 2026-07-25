@@ -9,7 +9,8 @@ public sealed record CustomCurveSnapshot(
     TemperatureAggregationMode Aggregation,
     int[] SensorIndices,
     (int Temperature, double Duty)[] CurvePoints,
-    int? FollowFanIndex)
+    int? FollowFanIndex,
+    bool TreatMissingSensorsAsZero = false)
 {
     /// <summary>
     /// Editor-equality: a follow slot is defined solely by its target (its points/sensors are irrelevant); a
@@ -31,6 +32,12 @@ public sealed record CustomCurveSnapshot(
         }
 
         if (Aggregation != other.Aggregation)
+        {
+            return false;
+        }
+
+        // Part of how the curve reads its sensors, exactly like the aggregation mode — toggling it is an edit.
+        if (TreatMissingSensorsAsZero != other.TreatMissingSensorsAsZero)
         {
             return false;
         }

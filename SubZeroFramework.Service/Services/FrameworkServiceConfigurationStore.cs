@@ -296,6 +296,12 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
             node["FollowFanIndex"] = followFanIndex;
         }
 
+        // Only written when set, so an untouched profile keeps its existing on-disk shape.
+        if (profile.TreatMissingSensorsAsZero)
+        {
+            node["TreatMissingSensorsAsZero"] = true;
+        }
+
         return node;
     }
 

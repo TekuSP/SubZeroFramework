@@ -57,6 +57,10 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
     // Last duty written per fan. Only touched inside the serialized evaluation, so a plain dictionary is safe.
     private readonly Dictionary<int, double> _lastAppliedDuty = [];
 
+    // Fans currently handed back to firmware control because no driving sensor can be read, so the restore is
+    // issued once per episode rather than every evaluation. Same threading rules as _lastAppliedDuty.
+    private readonly HashSet<int> _fansInSafeFallback = [];
+
     // Smoothed CPU usage for the usage modifier. Only touched inside the serialized evaluation.
     private readonly FanUsageSmoothingFilter _cpuUsageFilter = new(CpuUsageDecayHalfLife);
     private long _lastCpuUsageSampleTimestamp;
@@ -170,16 +174,30 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
             // per-slot link to a leader); Max is 100%; Manual holds its last duty; Auto (or unresolved) yields
             // null so the EC keeps native control. Re-asserting Max/Manual here is what restores a persisted
             // simple override to the EC after a service restart — the gRPC handlers only actuate on a live command.
-            if (ResolveTargetDuty(state.FanIndex, thermalSnapshot, cpuUsageFraction, []) is not double resolvedDuty)
+            var decision = ResolveTargetDuty(state.FanIndex, thermalSnapshot, cpuUsageFraction, []);
+
+            if (decision.Outcome == FanDutyOutcome.NotDriven)
             {
                 // Not driven by us (Auto / unresolved): forget the last applied duty so re-entry re-applies at once.
                 _lastAppliedDuty.Remove(state.FanIndex);
+                _fansInSafeFallback.Remove(state.FanIndex);
                 continue;
+            }
+
+            if (decision.Outcome == FanDutyOutcome.SafeFallback)
+            {
+                await EnterSafeFallbackAsync(state.FanIndex, cancellationToken).ConfigureAwait(false);
+                continue;
+            }
+
+            if (_fansInSafeFallback.Remove(state.FanIndex))
+            {
+                _logger.LogInformation("Fan {FanIndex} can read a driving sensor again; resuming its curve.", state.FanIndex);
             }
 
             // Round to the whole percent the EC actually takes BEFORE the change-threshold check, so
             // sub-point boost jitter from idle CPU noise cannot trigger a write every evaluation.
-            var targetDuty = Math.Round(resolvedDuty, MidpointRounding.AwayFromZero);
+            var targetDuty = Math.Round(decision.Duty, MidpointRounding.AwayFromZero);
 
             if (_lastAppliedDuty.TryGetValue(state.FanIndex, out var lastDuty)
                 && Math.Abs(targetDuty - lastDuty) < DutyChangeThresholdPercent)
@@ -216,53 +234,119 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
         }
     }
 
+    /// <summary>
+    /// Hands a curve-driven fan back to the EC's own (firmware-safe) control while none of its driving sensors
+    /// can be read — the promise the curve editor makes. The stored mode stays CustomCurve: this is a runtime
+    /// fallback, NOT a mode change, so the profile is untouched and the curve resumes by itself as soon as a
+    /// sensor reports again.
+    /// </summary>
+    private async Task EnterSafeFallbackAsync(int fanIndex, CancellationToken cancellationToken)
+    {
+        // Forget the remembered duty FIRST: whatever happens to the restore below, leaving the fallback must
+        // re-apply the curve at full authority instead of being swallowed by the change threshold.
+        _lastAppliedDuty.Remove(fanIndex);
+
+        // Once per episode — after the restore the EC owns the fan, and re-issuing it every tick is noise.
+        if (!_fansInSafeFallback.Add(fanIndex))
+        {
+            return;
+        }
+
+        try
+        {
+            // Deliberately the EC-level restore, NOT FrameworkFanControlStateStore.MarkAuto: MarkAuto clears the
+            // mode, the curve points and the driving sensors, i.e. it would delete the user's profile to cope
+            // with a sensor blinking out.
+            await _frameworkDataProvider.RestoreAutoFanControlAsync(fanIndex, cancellationToken).ConfigureAwait(false);
+            _logger.LogWarning(
+                "Fan {FanIndex} has no readable driving sensor; handed back to firmware fan control until one returns.",
+                fanIndex);
+        }
+        catch (OperationCanceledException)
+        {
+            _fansInSafeFallback.Remove(fanIndex);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            // Retry on the next pass rather than sitting out on a duty we can no longer justify.
+            _fansInSafeFallback.Remove(fanIndex);
+            _logger.LogWarning(exception, "Failed to hand fan {FanIndex} back to firmware control after its driving sensors became unreadable.", fanIndex);
+        }
+    }
+
     // Resolves the duty a curve-driven fan should run, walking the active slot's per-slot follow link.
     // Follow chains are walked with cycle detection; a leader that is not curve-driven contributes its
     // last applied duty (Max => 100%, Manual => last duty, Auto/unknown => no actuation, fan holds).
     // The CPU usage modifier is applied where the curve is interpolated, so a follower fan inherits its
     // leader's already-boosted duty rather than boosting twice.
-    private double? ResolveTargetDuty(int fanIndex, FrameworkThermalSnapshot snapshot, double? cpuUsageFraction, HashSet<int> visited)
+    private FanDutyDecision ResolveTargetDuty(int fanIndex, FrameworkThermalSnapshot snapshot, double? cpuUsageFraction, HashSet<int> visited)
     {
         if (!_controlStates.TryGetValue(fanIndex, out var state))
         {
-            return null;
+            return FanDutyDecision.NotDriven;
         }
 
         if (state.Mode != FanControlMode.CustomCurve)
         {
             return state.Mode switch
             {
-                FanControlMode.Max => 100d,
-                FanControlMode.Manual => state.LastDutyPercent,
-                _ => null,
+                FanControlMode.Max => FanDutyDecision.Drive(100d),
+                FanControlMode.Manual => state.LastDutyPercent is double manualDuty ? FanDutyDecision.Drive(manualDuty) : FanDutyDecision.NotDriven,
+                _ => FanDutyDecision.NotDriven,
             };
         }
 
         if (!visited.Add(fanIndex))
         {
             // Follow cycle (A -> B -> A): stop rather than oscillate; this fan holds its last duty.
-            return null;
+            return FanDutyDecision.NotDriven;
         }
 
         var active = state.CurveProfiles.ElementAtOrDefault(state.ActiveCurveSlot);
         if (active is { FollowFanIndex: int leaderFanIndex } && leaderFanIndex != fanIndex)
         {
+            // A follower of a blind leader is blind too — it must fall back with it, not hold a stale duty.
             return ResolveTargetDuty(leaderFanIndex, snapshot, cpuUsageFraction, visited);
         }
 
         if (state.CustomCurvePoints.Count < 2 || state.DrivingSensorIndices.IsDefaultOrEmpty)
         {
-            return null;
+            return FanDutyDecision.NotDriven;
         }
 
-        var temperature = AggregateDrivingTemperature(snapshot, state.DrivingSensorIndices, state.DrivingTemperatureAggregation);
+        var temperature = AggregateDrivingTemperature(snapshot, state.DrivingSensorIndices, state.DrivingTemperatureAggregation, state.TreatMissingSensorsAsZero);
         if (temperature is not double celsius)
         {
-            return null;
+            // Curve-driven but BLIND: not the same as "we don't drive this fan". Holding the last duty here is
+            // what the editor's "falls back to its firmware-safe curve" promise rules out — the fan would sit
+            // at whatever the curve last asked for while nothing can observe the heat.
+            return FanDutyDecision.SafeFallback;
         }
 
         var curveDuty = InterpolateDuty(state.CustomCurvePoints, celsius);
-        return Clamp(curveDuty + FanUsageModifierMath.ComputeBoost(state.CpuUsageModifierStrength, cpuUsageFraction));
+        return FanDutyDecision.Drive(Clamp(curveDuty + FanUsageModifierMath.ComputeBoost(state.CpuUsageModifierStrength, cpuUsageFraction)));
+    }
+
+    private enum FanDutyOutcome
+    {
+        /// <summary>Not ours to drive (Auto, an unknown fan, or a follow cycle): leave the EC alone.</summary>
+        NotDriven,
+
+        /// <summary>Drive the fan at <see cref="FanDutyDecision.Duty"/>.</summary>
+        Drive,
+
+        /// <summary>Curve-driven but no driving temperature can be read: hand the fan back to firmware control.</summary>
+        SafeFallback,
+    }
+
+    private readonly record struct FanDutyDecision(FanDutyOutcome Outcome, double Duty)
+    {
+        public static readonly FanDutyDecision NotDriven = new(FanDutyOutcome.NotDriven, 0d);
+
+        public static readonly FanDutyDecision SafeFallback = new(FanDutyOutcome.SafeFallback, 0d);
+
+        public static FanDutyDecision Drive(double duty) => new(FanDutyOutcome.Drive, duty);
     }
 
     /// <summary>
@@ -336,38 +420,27 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
         }
     }
 
-    private static double? AggregateDrivingTemperature(FrameworkThermalSnapshot snapshot, ImmutableArray<int> sensorIndices, TemperatureAggregationMode aggregation)
+    private static double? AggregateDrivingTemperature(FrameworkThermalSnapshot snapshot, ImmutableArray<int> sensorIndices, TemperatureAggregationMode aggregation, bool treatMissingSensorsAsZero)
     {
+        // A sensor that is not reporting Ok has NO reading. It used to be folded in at whatever the EC left in
+        // the array — typically 0 °C for a powered-down GPU — which silently halved an Average and under-cooled
+        // the machine. Missing is now explicit, and the profile decides whether it counts as 0 °C or is skipped.
         var count = Math.Min((int)snapshot.SensorCount, snapshot.Temperatures.Count);
-        var readings = new List<double>(sensorIndices.Length);
+        var readings = new List<double?>(sensorIndices.Length);
         foreach (var sensorIndex in sensorIndices)
         {
-            if (sensorIndex >= 0 && sensorIndex < count)
+            double? celsius = null;
+            if (sensorIndex >= 0
+                && sensorIndex < count
+                && snapshot.Temperatures[sensorIndex] is { State: FrameworkDotnet.Enums.FrameworkTemperatureState.Ok } reading)
             {
-                readings.Add(snapshot.Temperatures[sensorIndex].Temperature.DegreesCelsius);
+                celsius = reading.Temperature.DegreesCelsius;
             }
+
+            readings.Add(celsius);
         }
 
-        if (readings.Count == 0)
-        {
-            return null;
-        }
-
-        return aggregation switch
-        {
-            TemperatureAggregationMode.Average => readings.Average(),
-            TemperatureAggregationMode.Maximum => readings.Max(),
-            TemperatureAggregationMode.Minimum => readings.Min(),
-            TemperatureAggregationMode.Median => Median(readings),
-            _ => readings.Max(),
-        };
-    }
-
-    private static double Median(List<double> readings)
-    {
-        readings.Sort();
-        var middle = readings.Count / 2;
-        return readings.Count % 2 == 0 ? (readings[middle - 1] + readings[middle]) / 2d : readings[middle];
+        return FanDrivingTemperature.Aggregate(readings, aggregation, treatMissingSensorsAsZero);
     }
 
     /// <summary>

@@ -42,8 +42,9 @@ public sealed class FanControlActuator : IFanControlActuator, IDisposable
         IReadOnlyCollection<int> drivingSensorIndices,
         TemperatureAggregationMode aggregation,
         bool preview,
+        bool treatMissingSensorsAsZero = false,
         CancellationToken cancellationToken = default)
-        => _client.SetCustomCurveAsync(fanIndex, curvePoints, drivingSensorIndices, aggregation, preview, cancellationToken);
+        => _client.SetCustomCurveAsync(fanIndex, curvePoints, drivingSensorIndices, aggregation, preview, treatMissingSensorsAsZero, cancellationToken);
 
     public async Task OpenPreviewHoldsAsync(IReadOnlyCollection<int> fanIndices)
     {

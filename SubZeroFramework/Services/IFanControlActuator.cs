@@ -19,6 +19,7 @@ public interface IFanControlActuator
         IReadOnlyCollection<int> drivingSensorIndices,
         TemperatureAggregationMode aggregation,
         bool preview,
+        bool treatMissingSensorsAsZero = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>

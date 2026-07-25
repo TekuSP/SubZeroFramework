@@ -141,7 +141,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             var points = request.CurvePoints.ToDictionary(static pair => pair.Key, static pair => pair.Value);
             var sensors = request.DrivingSensorIndices.ToArray();
 
-            _fanControlStateStore.SetCustomCurve(request.FanIndex, points, aggregationMode, sensors);
+            _fanControlStateStore.SetCustomCurve(request.FanIndex, points, aggregationMode, sensors, request.TreatMissingSensorsAsZero);
 
             // A preview actuates the EC live (and streams to clients via the in-memory store) but is not
             // written to the configuration store, so it does not survive a service restart. The commit path
@@ -286,7 +286,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             var sensors = request.DrivingSensorIndices.ToArray();
             var name = string.IsNullOrWhiteSpace(request.Name) ? null : request.Name;
 
-            _fanControlStateStore.SaveCurveProfile(request.FanIndex, request.Slot, name, points, aggregationMode, sensors, followFanIndex, request.Activate);
+            _fanControlStateStore.SaveCurveProfile(request.FanIndex, request.Slot, name, points, aggregationMode, sensors, followFanIndex, request.Activate, request.TreatMissingSensorsAsZero);
             await PersistFanControlStateAsync(request.FanIndex, preview: false, context.CancellationToken).ConfigureAwait(false);
 
             _logger.LogInformation("Saved fan curve profile for fan {FanIndex} slot {Slot}.", request.FanIndex, request.Slot);

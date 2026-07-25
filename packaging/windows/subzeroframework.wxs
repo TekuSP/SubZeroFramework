@@ -62,6 +62,49 @@
         <Publish Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" Control="Finish" Dialog="ExitDialog" Event="DoAction" Value="LaunchApplication" />
     </UI>
 
+    <!-- Clean install: wipe the service's saved settings (fan curve profiles, links, CPU boost, the
+         fan-control permission) instead of upgrading onto them. Off by default — an upgrade must never
+         silently discard a user's fan setup. Also settable unattended: msiexec /i ... CLEANINSTALL=1
+         Only the machine-wide service store is removed; per-user display-unit / startup preferences live
+         under each user's profile and are not the installer's to delete. -->
+    <Property Id="CLEANINSTALL" Value="0" Secure="yes" />
+    <SetProperty Id="SUBZEROSERVICEDATAFOLDER" Value="[CommonAppDataFolder]SubZeroFramework" Before="CostFinalize" Sequence="both" />
+
+    <Component Id="CleanInstallServiceData" Directory="INSTALLFOLDER" Guid="4C1E9F2A-7D63-4B18-9E5C-0A3F6B2D8E71" Condition="CLEANINSTALL = &quot;1&quot;">
+        <!-- Deferred + scheduled with the rest of the install, so it runs AFTER the ServiceControl above has
+             stopped the service and released its configuration file. -->
+        <util:RemoveFolderEx On="install" Property="SUBZEROSERVICEDATAFOLDER" />
+        <RegistryValue Root="HKLM" Key="Software\TekuSP\SubZeroFramework" Name="CleanInstallPerformed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <UI>
+        <Dialog Id="CleanInstallDlg" Width="370" Height="270" Title="[ProductName] Setup">
+            <Control Id="Title" Type="Text" X="15" Y="6" Width="340" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}Existing settings" />
+            <Control Id="Description" Type="Text" X="25" Y="23" Width="340" Height="20" Transparent="yes" NoPrefix="yes" Text="Choose what happens to fan settings already on this computer." />
+            <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" TabSkip="no" Text="!(loc.InstallDirDlgBannerBitmap)" />
+            <Control Id="BannerLine" Type="Line" X="0" Y="44" Width="370" Height="0" />
+            <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+
+            <Control Id="KeepText" Type="Text" X="20" Y="60" Width="330" Height="40" NoPrefix="yes" Text="By default your saved fan curve profiles, fan links, CPU boost and the fan-control permission are kept, so this installation picks up where the last one left off." />
+            <Control Id="CleanCheckBox" Type="CheckBox" X="20" Y="110" Width="330" Height="18" Property="CLEANINSTALL" CheckBoxValue="1" Text="Clean install — delete existing SubZero settings" />
+            <Control Id="CleanWarning" Type="Text" X="34" Y="130" Width="316" Height="40" NoPrefix="yes" Text="Every saved fan curve profile is removed and fans return to the controller's automatic mode. This cannot be undone." />
+
+            <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+                <Publish Event="NewDialog" Value="LicenseAgreementDlg" />
+            </Control>
+            <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+                <Publish Event="NewDialog" Value="InstallDirDlg" />
+            </Control>
+            <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.WixUICancel)">
+                <Publish Event="SpawnDialog" Value="CancelDlg" />
+            </Control>
+        </Dialog>
+
+        <!-- Splice the dialog into WixUI_InstallDir between the licence and the install-location pages. -->
+        <Publish Dialog="LicenseAgreementDlg" Control="Next" Event="NewDialog" Value="CleanInstallDlg" Order="3" Condition="LicenseAccepted = &quot;1&quot;" />
+        <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="CleanInstallDlg" Order="3" Condition="1" />
+    </UI>
+
     <StandardDirectory Id="ProgramFiles64Folder">
         <Directory Id="INSTALLFOLDER" Name="SubZeroFramework">
             <Directory Id="ServicePackageFolder" Name="service-package">
@@ -100,6 +143,7 @@
     <Feature Id="Main" Title="SubZero Framework Edition" Level="1">
         <ComponentRef Id="MainExecutable" />
         <ComponentRef Id="ServiceExecutable" />
+        <ComponentRef Id="CleanInstallServiceData" />
         <ComponentGroupRef Id="PayloadComponents" />
     </Feature>
 </Package>

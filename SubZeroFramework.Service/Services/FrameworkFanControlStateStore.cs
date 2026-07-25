@@ -154,7 +154,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
     }
 
     /// <summary>Legacy single-curve entry point: saves into the active slot and activates curve mode.</summary>
-    public void SetCustomCurve(int fanIndex, IReadOnlyDictionary<int, double> customCurvePoints, TemperatureAggregationMode aggregationMode, IReadOnlyCollection<int> drivingSensorIndices)
+    public void SetCustomCurve(int fanIndex, IReadOnlyDictionary<int, double> customCurvePoints, TemperatureAggregationMode aggregationMode, IReadOnlyCollection<int> drivingSensorIndices, bool treatMissingSensorsAsZero = false)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(customCurvePoints);
@@ -164,7 +164,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         var activeSlot = lookup.HasValue ? Math.Clamp(lookup.Value.ActiveCurveSlot, 0, MaxCurveProfileSlots - 1) : 0;
         var name = lookup.HasValue ? lookup.Value.CurveProfiles.ElementAtOrDefault(activeSlot)?.Name : null;
 
-        SaveCurveProfile(fanIndex, activeSlot, name, customCurvePoints, aggregationMode, drivingSensorIndices, followFanIndex: null, activate: true);
+        SaveCurveProfile(fanIndex, activeSlot, name, customCurvePoints, aggregationMode, drivingSensorIndices, followFanIndex: null, activate: true, treatMissingSensorsAsZero);
     }
 
     /// <summary>Saves (or overwrites) one curve profile slot, optionally activating it.</summary>
@@ -176,7 +176,8 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         TemperatureAggregationMode aggregationMode,
         IReadOnlyCollection<int> drivingSensorIndices,
         int? followFanIndex,
-        bool activate)
+        bool activate,
+        bool treatMissingSensorsAsZero = false)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(curvePoints);
@@ -200,6 +201,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     DrivingTemperatureAggregation = aggregationMode,
                     DrivingSensorIndices = [.. drivingSensorIndices],
                     FollowFanIndex = followFanIndex,
+                    TreatMissingSensorsAsZero = treatMissingSensorsAsZero,
                 };
 
                 var next = normalized with
@@ -349,6 +351,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                         DrivingTemperatureAggregation = profile.DrivingTemperatureAggregation,
                         DrivingSensorIndices = [.. profile.DrivingSensorIndices],
                         FollowFanIndex = profile.FollowFanIndex,
+                        TreatMissingSensorsAsZero = profile.TreatMissingSensorsAsZero,
                     }),
             ],
             LinkedLeaderIndex = state.LinkedLeaderIndex,
@@ -589,6 +592,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     DrivingTemperatureAggregation = profile.DrivingTemperatureAggregation,
                     DrivingSensorIndices = [.. profile.DrivingSensorIndices],
                     FollowFanIndex = profile.FollowFanIndex,
+                    TreatMissingSensorsAsZero = profile.TreatMissingSensorsAsZero,
                 };
             }
         }
@@ -656,6 +660,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
             CustomCurvePoints = active.CurvePoints,
             DrivingTemperatureAggregation = active.DrivingTemperatureAggregation,
             DrivingSensorIndices = active.DrivingSensorIndices,
+            TreatMissingSensorsAsZero = active.TreatMissingSensorsAsZero,
         };
     }
 

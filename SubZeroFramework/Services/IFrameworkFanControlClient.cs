@@ -37,6 +37,7 @@ public interface IFrameworkFanControlClient
         IReadOnlyCollection<int> drivingSensorIndices,
         TemperatureAggregationMode aggregationMode,
         bool preview = false,
+        bool treatMissingSensorsAsZero = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -59,6 +60,7 @@ public interface IFrameworkFanControlClient
         TemperatureAggregationMode aggregationMode,
         int? followFanIndex,
         bool activate,
+        bool treatMissingSensorsAsZero = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>Activates a stored curve profile slot for the specified fan.</summary>

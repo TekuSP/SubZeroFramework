@@ -88,6 +88,7 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         IReadOnlyCollection<int> drivingSensorIndices,
         TemperatureAggregationMode aggregationMode,
         bool preview = false,
+        bool treatMissingSensorsAsZero = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(curvePoints);
@@ -96,6 +97,7 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
         var request = new SetFanCustomCurveRequest
         {
+            TreatMissingSensorsAsZero = treatMissingSensorsAsZero,
             FanIndex = fanIndex,
             DrivingTemperatureAggregation = MapAggregationMode(aggregationMode),
             Preview = preview,
@@ -161,6 +163,7 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         TemperatureAggregationMode aggregationMode,
         int? followFanIndex,
         bool activate,
+        bool treatMissingSensorsAsZero = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(curvePoints);
@@ -176,6 +179,7 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
             HasFollowTarget = followFanIndex is not null,
             FollowFanIndex = followFanIndex ?? 0,
             Activate = activate,
+            TreatMissingSensorsAsZero = treatMissingSensorsAsZero,
         };
 
         foreach (var pair in curvePoints)

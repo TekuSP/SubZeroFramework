@@ -202,6 +202,7 @@ internal static class TelemetryGrpcMapper
         }));
 
         reply.ActiveCurveSlot = change.Current.ActiveCurveSlot;
+        reply.TreatMissingSensorsAsZero = change.Current.TreatMissingSensorsAsZero;
         foreach (var profile in change.Current.CurveProfiles)
         {
             reply.CurveProfiles.Add(MapCurveProfile(change.Key, profile));
@@ -229,6 +230,7 @@ internal static class TelemetryGrpcMapper
             Name = profile.Name ?? string.Empty,
             IsConfigured = profile.IsConfigured,
             Aggregation = MapTemperatureAggregationMode(profile.DrivingTemperatureAggregation),
+            TreatMissingSensorsAsZero = profile.TreatMissingSensorsAsZero,
         };
 
         reply.DrivingSensorIndices.AddRange(profile.DrivingSensorIndices);

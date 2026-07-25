@@ -43,4 +43,7 @@ public sealed record FanCurveProfileOptions
 
     /// <summary>When set, this slot mirrors the active curve of the given fan instead of its own points.</summary>
     public int? FollowFanIndex { get; init; }
+
+    /// <summary>See <see cref="FanCurveProfileSnapshot.TreatMissingSensorsAsZero"/>.</summary>
+    public bool TreatMissingSensorsAsZero { get; init; }
 }
