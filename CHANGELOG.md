@@ -2,7 +2,32 @@
 
 All notable changes to this repository should be documented in this file.
 
-## [0.1.2] - Unreleased
+## [0.1.3] - 2026-07-25
+
+### Added
+
+- **Settings → Service: "Reset fan settings to factory defaults".** Returns every fan to the controller's
+  automatic mode and deletes all saved fan settings in one confirmed action — curve profiles in every slot,
+  the active profile per fan, "Applies to" links, CPU boost, and manual/max overrides — including entries for
+  fan indices the hardware no longer reports, which no per-fan action could reach. Display units, startup and
+  alert settings are untouched.
+
+### Fixed
+
+- **Curve points could be dragged off the chart and stranded there.** The editor let a point be parked
+  outside the plotted temperature window (dragging past the plot edge keeps producing coordinates out in the
+  axis margin), where it was invisible and could never be grabbed again — the curve became uneditable. Points
+  now snap into a band inside the visible window, and curves already holding stranded points are pulled back
+  when they load. Pressing empty chart space also picks the new point straight up, so press-drag places a
+  point in one motion.
+- **A curve no longer flatlines above its last point.** The hidden anchor closing every curve at the top of
+  the temperature range inherited the last point's duty, so a curve ending at 0 % (or any low duty) held that
+  speed all the way to 130 °C instead of climbing. It is now pinned to full speed, matching the idle anchor at
+  the cold end: every curve ramps from idle to maximum across the range, however early the user's own points
+  stop. The client's drawn curve, its predicted-duty readout, and the service's actuation now share ONE
+  implementation of that rule (`FanCurveDomain`), so a preview cannot promise a speed the fan does not deliver.
+
+## [0.1.2] - 2026-07-23 (released as v0.1.2-alpha)
 
 ### Fixed
 

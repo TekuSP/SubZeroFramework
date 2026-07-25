@@ -1330,10 +1330,13 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             return null;
         }
 
+        // Normalized like the draft (FanCurveDraftModel.Load): a stored point outside the editable band snaps
+        // to the edge in the editor, so the baseline must snap identically or every open of such a curve would
+        // read as dirty and trip the unsaved-changes guard on a curve the user never touched.
         return new CustomCurveSnapshot(
             profile.DrivingTemperatureAggregation,
             [.. profile.DrivingSensorIndices],
-            [.. profile.CurvePoints.Select(static pair => (pair.Key, pair.Value))],
+            FanCurveDomain.Normalize(profile.CurvePoints.Select(static pair => (pair.Key, pair.Value))),
             profile.FollowFanIndex);
     }
 
@@ -1674,7 +1677,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         _draft.Remove(point);
     }
 
-    public void AddCurvePointAt(double temperatureCelsius, double dutyPercent) =>
+    public CurvePointModel AddCurvePointAt(double temperatureCelsius, double dutyPercent) =>
         _draft.Add(temperatureCelsius, dutyPercent);
 
     public void UpdateCurvePoint(CurvePointModel point, double temperatureCelsius, double dutyPercent) =>

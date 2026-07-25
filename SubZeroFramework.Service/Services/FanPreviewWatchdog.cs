@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 
 using SubZeroFramework.Models;
 
@@ -28,6 +29,23 @@ public sealed class FanPreviewWatchdog
     /// command arrives) or the client restores on its own, so a subsequent hold close does not double-revert.
     /// </summary>
     public void Release(int fanIndex) => _holds.TryRemove(fanIndex, out _);
+
+    /// <summary>
+    /// Drops every open hold without reverting, returning the fans that had one. Used by the factory reset:
+    /// the reset puts each fan back under EC automatic control, so a hold closing afterwards must NOT revert
+    /// its fan to the pre-preview state it captured — that would resurrect exactly what the reset wiped, and
+    /// automatic control is a safer end state than any revert target anyway.
+    /// </summary>
+    public ImmutableArray<int> ReleaseAll()
+    {
+        ImmutableArray<int> fanIndices = [.. _holds.Keys];
+        foreach (var fanIndex in fanIndices)
+        {
+            _holds.TryRemove(fanIndex, out _);
+        }
+
+        return fanIndices;
+    }
 
     /// <summary>
     /// Whether the fan currently has a live preview hold open. Commands that would persist the fan's

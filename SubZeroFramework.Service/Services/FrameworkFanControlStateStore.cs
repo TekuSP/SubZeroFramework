@@ -267,6 +267,55 @@ public sealed class FrameworkFanControlStateStore : IDisposable
             "clear curve profile");
     }
 
+    /// <summary>Every fan index the store tracks (live fans, plus any materialized by a command), ascending.</summary>
+    public ImmutableArray<int> GetKnownFanIndices()
+    {
+        lock (_stateLock)
+        {
+            return [.. _fanControlStates.Keys.Order()];
+        }
+    }
+
+    /// <summary>
+    /// Wipes every fan back to a fresh-install control state: Auto mode, no curve profiles, slot 0 active, no
+    /// "applies to" link, no CPU usage modifier, no remembered manual duty. Live telemetry fields (display
+    /// name, availability) and the safety overlay are preserved — the fan still exists, only its settings are
+    /// gone. In-memory only: the caller clears the persisted copy and restores the EC. Returns the fans reset.
+    /// </summary>
+    /// <remarks>
+    /// Publishes an UPSERT per fan rather than removing the entries: a Remove reaches clients as an
+    /// "unavailable" update that keeps the last known profiles, so the UI would keep showing slots that no
+    /// longer exist. An upsert carrying empty profiles reconciles correctly everywhere.
+    /// </remarks>
+    public ImmutableArray<int> ResetAllToFactoryDefaults()
+    {
+        ThrowIfDisposed();
+
+        var fanIndices = GetKnownFanIndices();
+        foreach (var fanIndex in fanIndices)
+        {
+            UpsertState(
+                fanIndex,
+                static existing => existing with
+                {
+                    Mode = FanControlMode.Auto,
+                    CustomCurvePoints = ImmutableSortedDictionary<int, double>.Empty,
+                    DrivingTemperatureAggregation = TemperatureAggregationMode.Maximum,
+                    DrivingSensorIndices = [],
+                    ActiveCurveSlot = 0,
+                    CurveProfiles = CreateEmptyProfiles(),
+                    LinkedLeaderIndex = null,
+                    CpuUsageModifierStrength = null,
+                    LastDutyPercent = null,
+                    ObservedAt = DateTimeOffset.UtcNow,
+                },
+                "factory reset");
+        }
+
+        _logger.LogInformation("Reset {FanCount} fan control state(s) to factory defaults in memory.", fanIndices.Length);
+        return fanIndices;
+    }
+
     /// <summary>Builds a persistable options snapshot of a fan's profiles, or null if the fan is unknown.</summary>
     public FanControlStateOptions? BuildFanControlOptions(int fanIndex)
     {

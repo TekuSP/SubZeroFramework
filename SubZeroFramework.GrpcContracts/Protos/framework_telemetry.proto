@@ -60,6 +60,11 @@ service FrameworkFanControlService {
   // Battery charge floor/ceiling. Get is a plain read; Set is an EC write gated by the same authorization.
   rpc GetChargeLimits (GetChargeLimitsRequest) returns (ChargeLimitsReply);
   rpc SetChargeLimits (SetChargeLimitsRequest) returns (ChargeLimitsReply);
+  // Factory reset of all fan control state: every fan goes back to EC automatic control and every persisted
+  // fan setting is deleted (curve profile slots, active slot, "applies to" links, CPU usage modifiers, and
+  // manual/max overrides), including entries for fan indices that no longer enumerate. Never a preview — it
+  // always persists.
+  rpc ResetFanControlToFactoryDefaults (ResetFanControlToFactoryDefaultsRequest) returns (ResetFanControlToFactoryDefaultsReply);
 }
 
 message GetStatusRequest {
@@ -459,6 +464,21 @@ message ChargeLimitsReply {
   bool is_available = 3;
   int32 minimum_percent = 4;
   int32 maximum_percent = 5;
+}
+
+message ResetFanControlToFactoryDefaultsRequest {
+}
+
+message ResetFanControlToFactoryDefaultsReply {
+  bool succeeded = 1;
+  string message = 2;
+  // Fans the service returned to EC automatic control (live fans only).
+  int32 fans_restored = 3;
+  // Fans whose EC restore failed; their in-memory and persisted state was still cleared.
+  int32 fans_failed = 4;
+  // Persisted per-fan entries removed from the configuration file, including orphans for fan indices the
+  // hardware no longer reports.
+  int32 persisted_entries_cleared = 5;
 }
 
 enum TelemetryChangeKind {

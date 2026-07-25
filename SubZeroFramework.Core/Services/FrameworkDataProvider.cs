@@ -1006,10 +1006,17 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         {
             _lastModuleInventoryReadAt = observedAt;
             FrameworkExpansionBaySnapshot? expansionBay = null;
+
+            // FD0001 is intentionally suppressed for this call: the bay read IS constrained to Framework 16 —
+            // by the runtime check on the very next line — but the analyzer recognizes only the attribute
+            // chain on containing symbols, and annotating this method would falsely mark the whole
+            // all-platform publish path as Framework16-only.
+#pragma warning disable FD0001
             if (connectedStatus.PlatformFamily == FrameworkPlatformFamily.Framework16)
             {
                 TryReadExpansionBaySnapshot(connection, ref snapshotError, out expansionBay);
             }
+#pragma warning restore FD0001
 
             _powerDeliverySnapshots.Publish(BuildPowerDeliverySnapshot(moduleInventory!, expansionBay), observedAt);
             _moduleInventorySnapshots.Publish(BuildModuleInventorySnapshot(moduleInventory!, expansionBay), observedAt);
@@ -1375,6 +1382,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     /// identity overlay and the bay USB-C port are both skipped), and LastError stays clean. Any OTHER
     /// exception still counts as a real failure exactly as before.
     /// </remarks>
+    [FrameworkDotnet.Attributes.FrameworkPlatformSpecific(FrameworkPlatformFamily.Framework16)]
     private bool TryReadExpansionBaySnapshot(IFrameworkEcConnection connection, ref string? snapshotError, out FrameworkExpansionBaySnapshot? snapshot)
     {
         try

@@ -142,6 +142,35 @@ public class FanPreviewWatchdogTests
         Assert.That(watchdog.HasOpenHold(0), Is.False, "Taking the hold for revert must also close it.");
     }
 
+    [Test]
+    public void ReleaseAll_DropsEveryHoldSoNothingReverts()
+    {
+        // The factory reset's safety requirement: a hold left open would revert its fan to the captured
+        // pre-preview state when the stream closes, resurrecting exactly the settings the reset just wiped.
+        FanPreviewWatchdog watchdog = new();
+        watchdog.Begin(0, Snapshot(0, FanControlMode.Manual, lastDutyPercent: 30d));
+        watchdog.Begin(2, Snapshot(2, FanControlMode.Max));
+
+        var released = watchdog.ReleaseAll();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(released, Is.EquivalentTo(new[] { 0, 2 }));
+            Assert.That(watchdog.TryTakeForRevert(0, out _), Is.False);
+            Assert.That(watchdog.TryTakeForRevert(2, out _), Is.False);
+            Assert.That(watchdog.HasOpenHold(0), Is.False);
+            Assert.That(watchdog.HasOpenHold(2), Is.False);
+        });
+    }
+
+    [Test]
+    public void ReleaseAll_WithNoHolds_ReturnsEmpty()
+    {
+        FanPreviewWatchdog watchdog = new();
+
+        Assert.That(watchdog.ReleaseAll(), Is.Empty);
+    }
+
     private static FanControlStateSnapshot Snapshot(int fanIndex, FanControlMode mode, double? lastDutyPercent = null)
         => new()
         {

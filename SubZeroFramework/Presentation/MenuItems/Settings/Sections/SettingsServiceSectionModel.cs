@@ -34,20 +34,24 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
     private readonly CompositeDisposable _subscriptions = [];
     private readonly IFrameworkServiceControlClient _serviceControlClient;
     private readonly IFrameworkServiceConfigurationClient _serviceConfigurationClient;
+    private readonly IFrameworkFanControlClient _fanControlClient;
 
     public SettingsServiceSectionModel(
         IFrameworkStatusClient frameworkStatusClient,
         IFrameworkServiceControlClient serviceControlClient,
         IFrameworkServiceConfigurationClient serviceConfigurationClient,
+        IFrameworkFanControlClient fanControlClient,
         DispatcherQueue dispatcherQueue)
     {
         ArgumentNullException.ThrowIfNull(frameworkStatusClient);
         ArgumentNullException.ThrowIfNull(serviceControlClient);
         ArgumentNullException.ThrowIfNull(serviceConfigurationClient);
+        ArgumentNullException.ThrowIfNull(fanControlClient);
         ArgumentNullException.ThrowIfNull(dispatcherQueue);
 
         _serviceControlClient = serviceControlClient;
         _serviceConfigurationClient = serviceConfigurationClient;
+        _fanControlClient = fanControlClient;
 
         LastStatusObservedAt = frameworkStatusClient.LastObservedAt is DateTimeOffset observedAt
             ? observedAt.LocalDateTime.ToString("T", CultureInfo.CurrentCulture)
@@ -62,6 +66,7 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
         ApplyConfigurationCommand = new AsyncRelayCommand(ApplyConfigurationAsync, CanRunApplyConfigurationAction);
         SaveConfigurationCommand = new AsyncRelayCommand(SaveConfigurationAsync, CanRunSaveConfigurationAction);
         ResetConfigurationCommand = new RelayCommand(ResetConfiguration, CanRunResetConfigurationAction);
+        ResetFanSettingsCommand = new AsyncRelayCommand(ResetFanSettingsAsync, CanRunResetFanSettingsAction);
 
         ApplyServiceControlInfo(_serviceControlClient.GetInfo());
 
@@ -257,6 +262,8 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
         ApplyConfigurationCommand.NotifyCanExecuteChanged();
         SaveConfigurationCommand.NotifyCanExecuteChanged();
         ResetConfigurationCommand.NotifyCanExecuteChanged();
+        ResetFanSettingsCommand.NotifyCanExecuteChanged();
+        CanResetFanSettings = CanRunResetFanSettingsAction();
     }
 
     private bool CanRunInstalledServiceAction()
@@ -415,6 +422,9 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
 
     partial void OnIsConfigurationOperationInProgressChanged(bool value) => RefreshCommandStates();
 
+    // The applied snapshot carries the fan-control permission the reset action depends on.
+    partial void OnCurrentConfigurationSnapshotChanged(FrameworkServiceConfigurationSnapshot? value) => RefreshCommandStates();
+
     partial void OnHasUnsavedConfigurationChangesChanged(bool value) => RefreshCommandStates();
 
     private bool CanRunApplyConfigurationAction()
@@ -534,6 +544,76 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
         TelemetryPollingIntervalMillisecondsText = FormatMilliseconds(snapshot.PollingInterval);
         HardwareInfoPollingIntervalMillisecondsText = FormatMilliseconds(snapshot.HardwareInfoPollingInterval);
         AllowFanControlCommandsDraft = snapshot.AllowFanControlCommands;
+    }
+
+    // ----- Reset fan settings to factory defaults -----
+
+    [ObservableProperty]
+    public partial bool IsFanResetOperationInProgress { get; set; }
+
+    [ObservableProperty]
+    public partial string FanResetActionTitle { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string FanResetActionMessage { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial InfoBarSeverity FanResetActionSeverity { get; set; } = InfoBarSeverity.Informational;
+
+    [ObservableProperty]
+    public partial bool IsFanResetActionVisible { get; set; }
+
+    public IAsyncRelayCommand ResetFanSettingsCommand { get; }
+
+    /// <summary>
+    /// Drives the reset button's enablement directly: it raises a confirmation dialog on Click (the dialog
+    /// needs a XamlRoot, which only the view has), so it does not inherit the command's CanExecute. Stored
+    /// and re-assigned by <see cref="RefreshCommandStates"/>, never a computed getter.
+    /// </summary>
+    [ObservableProperty]
+    public partial bool CanResetFanSettings { get; set; }
+
+    partial void OnIsFanResetOperationInProgressChanged(bool value) => RefreshCommandStates();
+
+    // The reset writes fans back to automatic control, so it needs the same permission every other fan
+    // command does — the service rejects it outright otherwise. Read the applied snapshot, not the draft
+    // toggle, since an unapplied draft is not what the service is enforcing.
+    private bool CanRunResetFanSettingsAction()
+        => CurrentConfigurationSnapshot?.AllowFanControlCommands == true
+            && !IsOperationInProgress
+            && !IsFanResetOperationInProgress;
+
+    private async Task ResetFanSettingsAsync()
+    {
+        IsFanResetOperationInProgress = true;
+
+        try
+        {
+            var result = await _fanControlClient.ResetFanControlToFactoryDefaultsAsync(CancellationToken.None);
+            ApplyFanResetActionResult(
+                result.Message,
+                result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Warning);
+        }
+        catch (Exception exception)
+        {
+            ApplyFanResetActionResult(exception.Message, InfoBarSeverity.Error);
+        }
+        finally
+        {
+            IsFanResetOperationInProgress = false;
+        }
+    }
+
+    private void ApplyFanResetActionResult(string message, InfoBarSeverity severity)
+    {
+        FanResetActionTitle = "Reset fan settings";
+        // Staged, unapplied edits on the Fan Control page survive the reset (they live in the client, not the
+        // service) and could be applied straight back, so say so rather than let that look like a failed wipe.
+        FanResetActionMessage = severity == InfoBarSeverity.Success
+            ? $"{message} Unapplied edits still open on the Fan Control page, if any, were left alone."
+            : message;
+        FanResetActionSeverity = severity;
+        IsFanResetActionVisible = true;
     }
 
     private void ApplyConfigurationActionResult(string title, string message, InfoBarSeverity severity)

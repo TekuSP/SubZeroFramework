@@ -371,53 +371,14 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
     }
 
     /// <summary>
-    /// Interpolates the duty for a temperature, mirroring the editor's rendered curve: an implicit
-    /// (0 C, 0%) anchor when the first point is above 0 C, and holding the last point's duty above it.
-    /// Keeping this identical to the client preview means "what you preview is what the fan does".
+    /// Interpolates the duty for a temperature. Deliberately delegates to the SAME implementation the client
+    /// uses to draw the curve and predict its duty — a second copy here is how a preview ends up promising one
+    /// speed while the fan does another.
     /// </summary>
     private static double InterpolateDuty(ImmutableSortedDictionary<int, double> curvePoints, double temperatureCelsius)
-    {
-        var points = new List<(double Temperature, double Duty)>(curvePoints.Count + 1);
-        if (curvePoints.Keys.First() > 0)
-        {
-            points.Add((0d, 0d));
-        }
-
-        foreach (var pair in curvePoints)
-        {
-            points.Add((pair.Key, pair.Value));
-        }
-
-        if (temperatureCelsius <= points[0].Temperature)
-        {
-            return Clamp(points[0].Duty);
-        }
-
-        var last = points[^1];
-        if (temperatureCelsius >= last.Temperature)
-        {
-            return Clamp(last.Duty);
-        }
-
-        for (var i = 1; i < points.Count; i++)
-        {
-            if (temperatureCelsius <= points[i].Temperature)
-            {
-                var lower = points[i - 1];
-                var upper = points[i];
-                var span = upper.Temperature - lower.Temperature;
-                if (span <= 0d)
-                {
-                    return Clamp(upper.Duty);
-                }
-
-                var ratio = (temperatureCelsius - lower.Temperature) / span;
-                return Clamp(lower.Duty + (ratio * (upper.Duty - lower.Duty)));
-            }
-        }
-
-        return Clamp(last.Duty);
-    }
+        => FanCurveDomain.InterpolateDuty(
+            curvePoints.Select(static pair => (pair.Key, pair.Value)),
+            temperatureCelsius);
 
     private static double Clamp(double duty) => Math.Clamp(duty, 0d, 100d);
 }

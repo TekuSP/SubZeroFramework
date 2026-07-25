@@ -247,6 +247,25 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         };
     }
 
+    public async Task<FrameworkFanControlResetCommandResult> ResetFanControlToFactoryDefaultsAsync(CancellationToken cancellationToken = default)
+    {
+        // The standard unary deadline covers this: the service restores a handful of fans on the EC and
+        // performs a single configuration write, all well inside the timeout.
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.ResetFanControlToFactoryDefaultsAsync(
+            new ResetFanControlToFactoryDefaultsRequest(),
+            cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+
+        return new FrameworkFanControlResetCommandResult
+        {
+            Succeeded = reply.Succeeded,
+            Message = reply.Message ?? string.Empty,
+            FansRestored = reply.FansRestored,
+            FansFailed = reply.FansFailed,
+            PersistedEntriesCleared = reply.PersistedEntriesCleared,
+        };
+    }
+
     public async Task OpenPreviewHoldAsync(int fanIndex, CancellationToken cancellationToken)
     {
         // A long-lived safety lease, so it is NOT wrapped in the unary timeout source — it must stay open for

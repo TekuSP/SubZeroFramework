@@ -316,6 +316,52 @@
                 IsOpen="{x:Bind ViewModel.IsConfigurationActionVisible, Mode=TwoWay}"
                 Message="{x:Bind ViewModel.ConfigurationActionMessage, Mode=OneWay}"
                 Severity="{x:Bind ViewModel.ConfigurationActionSeverity, Mode=OneWay}" />
+
+            <!--  Destructive and unrecoverable, so it is confirmed in code-behind (a ContentDialog needs a
+                  XamlRoot, which the ViewModel has no access to).  -->
+            <StackPanel Margin="0,10,0,0" Spacing="4">
+                <TextBlock
+                    FontSize="17"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Reset fan settings" />
+                <TextBlock
+                    FontSize="13"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="Returns every fan to the controller's automatic mode and deletes all saved fan settings: curve profiles in every slot, the active profile per fan, &quot;Applies to&quot; links, CPU boost, and manual or max overrides. Display units, startup and alert settings are left alone."
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+
+            <Button
+                MinHeight="38"
+                Padding="18,0"
+                HorizontalAlignment="Left"
+                Background="Transparent"
+                BorderBrush="{StaticResource StatusErrorTextBrush}"
+                BorderThickness="1"
+                Click="OnResetFanSettingsClick"
+                CornerRadius="8"
+                IsEnabled="{x:Bind ViewModel.CanResetFanSettings, Mode=OneWay}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <material:MaterialIcon
+                        Width="16"
+                        Height="16"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource StatusErrorTextBrush}"
+                        Kind="Restore" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource StatusErrorTextBrush}"
+                        Text="Reset fan settings to factory defaults" />
+                </StackPanel>
+            </Button>
+
+            <InfoBar
+                Title="{x:Bind ViewModel.FanResetActionTitle, Mode=OneWay}"
+                IsClosable="True"
+                IsOpen="{x:Bind ViewModel.IsFanResetActionVisible, Mode=TwoWay}"
+                Message="{x:Bind ViewModel.FanResetActionMessage, Mode=OneWay}"
+                Severity="{x:Bind ViewModel.FanResetActionSeverity, Mode=OneWay}" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

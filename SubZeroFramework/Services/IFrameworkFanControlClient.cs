@@ -83,6 +83,13 @@ public interface IFrameworkFanControlClient
     Task<FrameworkFanUsageModifierCommandResult> SetUsageModifierAsync(int fanIndex, double? cpuUsageModifierStrength, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Resets all fan control to factory defaults: every fan returns to the controller's automatic mode and
+    /// every persisted fan setting is deleted (curve profile slots, active slot, "Applies to" links, CPU
+    /// usage modifiers, manual / max overrides), including entries for fans that no longer enumerate.
+    /// </summary>
+    Task<FrameworkFanControlResetCommandResult> ResetFanControlToFactoryDefaultsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Opens a preview safety hold for a fan and returns once the service has captured its pre-preview state.
     /// The hold stays open until <paramref name="cancellationToken"/> is cancelled (commit / revert / app
     /// exit); if it drops before the preview is committed, the service reverts the fan to its prior state.

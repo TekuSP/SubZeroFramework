@@ -30,4 +30,35 @@ public sealed partial class SettingsServiceSectionView : UserControl, INotifyPro
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ViewModel)));
         }
     } = default!;
+
+    /// <summary>
+    /// Confirms the fan-settings factory reset before running it. The confirmation lives here rather than in
+    /// the ViewModel because a <see cref="ContentDialog"/> needs a XamlRoot, which only a visual has — the
+    /// same reason <see cref="UnsavedChangesPrompt"/> takes one.
+    /// </summary>
+    private async void OnResetFanSettingsClick(object sender, RoutedEventArgs e)
+    {
+        if (XamlRoot is not { } xamlRoot)
+        {
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = "Reset fan settings to factory defaults?",
+            Content = "Every fan goes back to the controller's automatic mode, and all saved fan settings are deleted: curve profiles in every slot, the active profile per fan, \"Applies to\" links, CPU boost, and manual or max overrides. This can't be undone.",
+            PrimaryButtonText = "Reset fan settings",
+            CloseButtonText = "Cancel",
+            // Enter must not confirm an unrecoverable wipe — default to cancelling.
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = xamlRoot,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        await ViewModel.ResetFanSettingsCommand.ExecuteAsync(null);
+    }
 }

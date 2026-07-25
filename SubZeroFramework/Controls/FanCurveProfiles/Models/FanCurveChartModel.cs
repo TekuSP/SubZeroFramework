@@ -134,29 +134,18 @@ public partial class FanCurveChartModel : ObservableObject
         return true;
     }
 
-    /// <summary>Rebuilds the editable draft series from the current curve points, anchoring at 0 °C / 130 °C.</summary>
+    /// <summary>
+    /// Rebuilds the editable draft series from the current curve points, closing it with the min/max-speed
+    /// anchors (<see cref="FanCurveDomain"/>). Both anchors sit outside the chart's axis window on purpose —
+    /// they are not editable points — but they are what makes every curve idle when cold and reach full speed
+    /// by the top of the domain, however early the user's own points stop.
+    /// </summary>
     public void RebuildCurve(IEnumerable<CurvePointModel> curvePoints)
     {
         _curveSeriesPoints.Clear();
-        var ordered = curvePoints.OrderBy(static p => p.TemperatureCelsius).ToArray();
-        if (ordered.Length == 0)
+        foreach (var (temperature, duty) in FanCurveDomain.BuildAnchoredSeries(curvePoints.Select(static p => (p.TemperatureCelsius, p.DutyPercent))))
         {
-            _curveSeriesPoints.Add(new ObservablePoint(0d, 0d));
-            _curveSeriesPoints.Add(new ObservablePoint(130d, 100d));
-            return;
-        }
-
-        if (ordered[0].TemperatureCelsius > 0)
-        {
-            _curveSeriesPoints.Add(new ObservablePoint(0d, 0d));
-        }
-        foreach (var point in ordered)
-        {
-            _curveSeriesPoints.Add(new ObservablePoint(point.TemperatureCelsius, point.DutyPercent));
-        }
-        if (ordered[^1].TemperatureCelsius < 130)
-        {
-            _curveSeriesPoints.Add(new ObservablePoint(130d, ordered[^1].DutyPercent));
+            _curveSeriesPoints.Add(new ObservablePoint(temperature, duty));
         }
     }
 
@@ -172,18 +161,10 @@ public partial class FanCurveChartModel : ObservableObject
             return false;
         }
 
-        var ordered = baseline.CurvePoints.OrderBy(static p => p.Temperature).ToArray();
-        if (ordered[0].Temperature > 0)
-        {
-            _appliedCurveSeriesPoints.Add(new ObservablePoint(0d, 0d));
-        }
-        foreach (var (temperature, duty) in ordered)
+        // Anchored identically to the draft series, so the overlay and the edited curve are comparable.
+        foreach (var (temperature, duty) in FanCurveDomain.BuildAnchoredSeries(baseline.CurvePoints))
         {
             _appliedCurveSeriesPoints.Add(new ObservablePoint(temperature, duty));
-        }
-        if (ordered[^1].Temperature < 130)
-        {
-            _appliedCurveSeriesPoints.Add(new ObservablePoint(130d, ordered[^1].Duty));
         }
 
         return true;

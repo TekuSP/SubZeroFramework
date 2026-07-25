@@ -98,6 +98,11 @@
             </lvc:CartesianChart.Series>
             <lvc:CartesianChart.XAxes>
                 <lvc:AxesCollection>
+                    <!--  Deliberately narrower than the 0–130 °C curve domain: the implicit min/max-speed
+                          anchors the series adds at 0 °C and 130 °C stay outside this window and so are never
+                          drawn as draggable-looking dots. Editable points are clamped to a band INSIDE this
+                          window (FanCurveDraftModel) so they can never park where they cannot be grabbed —
+                          keep the two in sync.  -->
                     <lvc:XamlAxis
                         Labeler="{x:Bind ViewModel.CurveChart.CurveTemperatureLabelFormatter, Mode=OneWay}"
                         LabelsPaint="{x:Bind ViewModel.CurveChart.CurveAxisLabelsPaint, Mode=OneWay}"
