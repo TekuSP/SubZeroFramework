@@ -2,7 +2,9 @@
 
 All notable changes to this repository should be documented in this file.
 
-## [0.1.4] - 2026-07-25
+## [0.1.5] - Unreleased
+
+## [0.1.4] - 2026-07-25 (released as v0.1.4)
 
 Sensor-availability release: what happens to a fan curve when the hardware it watches goes dark.
 

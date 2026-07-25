@@ -18,7 +18,7 @@ the app and registers + starts the background service automatically. Requires ad
 Silent install, for scripting:
 
 ```
-msiexec /i SubZeroFramework-Setup-0.1.3-x64.msi /qn
+msiexec /i SubZeroFramework-Setup-0.1.4-x64.msi /qn
 ```
 
 **Uninstall:** Settings → Apps (or `msiexec /x <the .msi> /qn`). The service is stopped and
@@ -31,7 +31,7 @@ deregistered automatically.
 The UI depends on the service package at the exact same version, so install **both in one command**:
 
 ```bash
-sudo apt install ./subzeroframework-service_0.1.3_amd64.deb ./subzeroframework_0.1.3_amd64.deb
+sudo apt install ./subzeroframework-service_0.1.4_amd64.deb ./subzeroframework_0.1.4_amd64.deb
 ```
 
 The service is enabled and started automatically.
@@ -43,7 +43,7 @@ The service is enabled and started automatically.
 ## Fedora / RHEL (x64 / ARM64)
 
 ```bash
-sudo dnf install ./subzeroframework-service-0.1.3-1.x86_64.rpm ./subzeroframework-0.1.3-1.x86_64.rpm
+sudo dnf install ./subzeroframework-service-0.1.4-1.x86_64.rpm ./subzeroframework-0.1.4-1.x86_64.rpm
 ```
 
 The service is enabled and started automatically.
@@ -57,7 +57,7 @@ The service is enabled and started automatically.
 One combined package (UI + service):
 
 ```bash
-sudo pacman -U subzeroframework-bin-0.1.3-1-x86_64.pkg.tar.zst
+sudo pacman -U subzeroframework-bin-0.1.4-1-x86_64.pkg.tar.zst
 sudo systemctl enable --now subzeroframework.service
 ```
 
@@ -79,8 +79,8 @@ sudo pacman -R subzeroframework-bin
 For distributions without a package above:
 
 ```bash
-tar -xzf subzeroframework-0.1.3-linux-x64.tar.gz
-cd subzeroframework-0.1.3
+tar -xzf subzeroframework-0.1.4-linux-x64.tar.gz
+cd subzeroframework-0.1.4
 sudo mkdir -p /usr/lib/subzeroframework
 sudo cp -r ui service /usr/lib/subzeroframework/
 sudo ln -sf /usr/lib/subzeroframework/ui/SubZeroFramework /usr/bin/subzeroframework
