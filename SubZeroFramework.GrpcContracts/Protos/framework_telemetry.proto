@@ -16,6 +16,9 @@ service FrameworkServiceConfigurationService {
   rpc SaveServiceConfiguration (SaveServiceConfigurationRequest) returns (ServiceConfigurationOperationReply);
   rpc LoadServiceConfiguration (LoadServiceConfigurationRequest) returns (ServiceConfigurationOperationReply);
   rpc RelocateServiceConfiguration (RelocateServiceConfigurationRequest) returns (ServiceConfigurationOperationReply);
+  // The service's own log since it started, from a bounded in-memory buffer. A snapshot, not a stream: the
+  // app shows it on demand rather than tailing a several-times-a-second log into a list view.
+  rpc GetServiceLogs (GetServiceLogsRequest) returns (ServiceLogsReply);
 }
 
 service FrameworkTelemetryService {
@@ -471,6 +474,29 @@ message ChargeLimitsReply {
   bool is_available = 3;
   int32 minimum_percent = 4;
   int32 maximum_percent = 5;
+}
+
+message GetServiceLogsRequest {
+  // Lowest level to return, matching Microsoft.Extensions.Logging.LogLevel (0=Trace .. 5=Critical). The
+  // default 0 returns everything the buffer holds.
+  int32 minimum_level = 1;
+}
+
+message ServiceLogEntryReply {
+  int64 observed_at_unix_time_milliseconds = 1;
+  int32 level = 2;
+  string category = 3;
+  string message = 4;
+  // Exception detail, empty when the entry carried none.
+  string exception = 5;
+}
+
+message ServiceLogsReply {
+  repeated ServiceLogEntryReply entries = 1;
+  // Entries evicted because the buffer is bounded. Non-zero means this is NOT everything since start, and
+  // the app says so rather than implying a complete history.
+  int64 dropped_count = 2;
+  int32 buffer_capacity = 3;
 }
 
 message ResetFanControlToFactoryDefaultsRequest {

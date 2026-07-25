@@ -308,7 +308,7 @@
                                     Grid.Column="2"
                                     VerticalAlignment="Bottom"
                                     Background="{StaticResource BrandPrimaryBrush}"
-                                    Command="{x:Bind ViewModel.SetChargeLimitsCommand}"
+                                    Command="{x:Bind ViewModel.SetChargeLimitsCommand, Mode=OneWay}"
                                     Content="Set limits"
                                     Foreground="White" />
                             </Grid>

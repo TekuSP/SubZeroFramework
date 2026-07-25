@@ -149,7 +149,8 @@ public sealed partial class SettingsPage : Page, INotifyPropertyChanged
             1 => await navigator.NavigateViewModelAsync<SettingsUnitsSectionModel>(this),
             2 => await navigator.NavigateViewModelAsync<SettingsStartupSectionModel>(this),
             3 => await navigator.NavigateViewModelAsync<SettingsLicensesSectionModel>(this),
-            4 => await navigator.NavigateViewModelAsync<SettingsAboutSectionModel>(this),
+            4 => await navigator.NavigateViewModelAsync<SettingsLogsSectionModel>(this),
+            5 => await navigator.NavigateViewModelAsync<SettingsAboutSectionModel>(this),
             _ => await navigator.NavigateViewModelAsync<SettingsServiceSectionModel>(this),
         };
 

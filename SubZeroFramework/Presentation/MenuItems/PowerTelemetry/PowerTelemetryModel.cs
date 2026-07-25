@@ -552,22 +552,25 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
         foreach (var metric in TrendMetrics)
         {
             var captured = metric;
+            // One subscription per metric, each re-emitting its whole window on every change. Sample first and
+            // build the chart points off the UI thread; only SynchronizePoints below touches it.
             _trendSubscriptions[metric] = _batteryTelemetryClient
                 .WatchBatteryHistory(batteryIndex, metric, TrendWindow)
                 .ToCollection()
+                .Sample(PresentationDefaults.HistoryProjectionInterval)
+                .Select(static points => points
+                    .OrderBy(static point => point.ObservedAt)
+                    .ThenBy(static point => point.SampleId)
+                    .Select(static point => new DateTimePoint(point.ObservedAt.LocalDateTime, point.NumericValue))
+                    .ToArray())
                 .ObserveOn(_synchronizationContext)
-                .Subscribe(points => UpdateTrend(captured, points));
+                .Subscribe(trend => UpdateTrend(captured, trend));
         }
     }
 
-    private void UpdateTrend(TelemetryMetric metric, IReadOnlyCollection<TelemetryPoint> points)
+    // Receives points already ordered and projected off the UI thread by the caller.
+    private void UpdateTrend(TelemetryMetric metric, DateTimePoint[] trend)
     {
-        var trend = points
-            .OrderBy(point => point.ObservedAt)
-            .ThenBy(point => point.SampleId)
-            .Select(point => new DateTimePoint(point.ObservedAt.LocalDateTime, point.NumericValue))
-            .ToArray();
-
         var (min, max) = TrendLimits(trend);
 
         switch (metric)

@@ -303,6 +303,7 @@ public partial class App : Application
             new ViewMap<SettingsUnitsSectionView, SettingsUnitsSectionModel>(),
             new ViewMap<SettingsStartupSectionView, SettingsStartupSectionModel>(),
             new ViewMap<SettingsLicensesSectionView, SettingsLicensesSectionModel>(),
+            new ViewMap<SettingsLogsSectionView, SettingsLogsSectionModel>(),
             new ViewMap<SettingsAboutSectionView, SettingsAboutSectionModel>()
         );
 
@@ -371,6 +372,7 @@ public partial class App : Application
                     new RouteMap("SettingsUnits", View: views.FindByViewModel<SettingsUnitsSectionModel>()),
                     new RouteMap("SettingsStartup", View: views.FindByViewModel<SettingsStartupSectionModel>()),
                     new RouteMap("SettingsLicenses", View: views.FindByViewModel<SettingsLicensesSectionModel>()),
+                    new RouteMap("SettingsLogs", View: views.FindByViewModel<SettingsLogsSectionModel>()),
                     new RouteMap("SettingsAbout", View: views.FindByViewModel<SettingsAboutSectionModel>()),
                 ]),
             ])

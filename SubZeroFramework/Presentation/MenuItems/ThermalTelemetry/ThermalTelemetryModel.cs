@@ -323,19 +323,22 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
         }
     }
 
+    // One subscription PER SENSOR, each re-emitting its whole window ~3x/s. Sample first, then sort and
+    // materialize off the UI thread; only the assignment and the chart refresh below run on it. Doing the sort
+    // after ObserveOn put every sensor's re-projection on the UI thread and starved rendering.
     private IDisposable SubscribeTemperatureHistory(int sensorIndex, TimeSpan window) =>
         _temperatureTelemetryClient
             .WatchTemperatureHistory(sensorIndex, window)
             .ToCollection()
+            .Sample(PresentationDefaults.HistoryProjectionInterval)
+            .Select(static points => points
+                .OrderBy(static point => point.ObservedAt)
+                .ThenBy(static point => point.SampleId)
+                .ToArray())
             .ObserveOn(_synchronizationContext)
-            .Subscribe(points =>
+            .Subscribe(ordered =>
             {
-                _historyPoints[sensorIndex] =
-                [
-                    .. points
-                        .OrderBy(point => point.ObservedAt)
-                        .ThenBy(point => point.SampleId)
-                ];
+                _historyPoints[sensorIndex] = ordered;
 
                 if (_sensorModelsByIndex.TryGetValue(sensorIndex, out var sensor))
                 {

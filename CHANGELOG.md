@@ -4,6 +4,33 @@ All notable changes to this repository should be documented in this file.
 
 ## [0.1.5] - Unreleased
 
+### Added
+
+- **Settings → Service logs.** Shows what the background service has logged since it started, with a level
+  filter and a one-click "Copy all" for pasting into a bug report — no more hunting through Event Viewer or
+  `journalctl`. The service mirrors its log into a bounded in-memory buffer (the last 2,000 entries) that sits
+  alongside the platform sinks rather than replacing them; when older entries have been dropped the page says
+  so instead of implying a complete history.
+
+### Fixed
+
+- **"Apply all" put an unselected fan back on its curve instead of applying the mode you staged.** Staging
+  Auto (or Manual/Max) on one fan, switching to another, and applying reached the first fan through the wrong
+  branch: it still looked curve-driven to the service — which is exactly what the staged change was about to
+  end — so its parked curve draft was re-applied and re-activated, and the staged mode was cleared without ever
+  running. The fan came back reporting no unsaved changes, still on Custom curve. A staged simple mode is now
+  applied ahead of any parked curve draft, matching the order the staged-work check already used.
+- **The UI thread was doing chart work it should never have seen.** Every telemetry history subscription
+  re-emits its whole window (~3×/s per series) and was sorted and rebuilt into an array *after* being marshalled
+  to the UI thread — once several series were live (one per sensor, per fan, per battery metric) that starved
+  rendering and left pages half-painted. History streams are now sampled and projected off the UI thread, which
+  only receives the finished array. Fixed in the fan/temperature history store, thermal telemetry and power
+  telemetry; the telemetry UI guide documented the broken order and now documents the correct one.
+- **A fan handed back to firmware control still reported the duty it was last commanded.** When no driving
+  sensor can be read the service stops driving the fan, but the remembered duty stayed on its control state,
+  so clients read it as a speed the curve was still holding. It is now cleared as part of the handover; the
+  mode, curve points and driving sensors are untouched, so the profile resumes intact when a sensor returns.
+
 ## [0.1.4] - 2026-07-25 (released as v0.1.4)
 
 Sensor-availability release: what happens to a fan curve when the hardware it watches goes dark.

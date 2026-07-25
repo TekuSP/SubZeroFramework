@@ -117,6 +117,43 @@ public class FrameworkFanControlFactoryResetTests
     }
 
     [Test]
+    public void ClearAppliedDuty_ForgetsTheDutyButKeepsTheProfile()
+    {
+        // The firmware-safe fallback path: the service stops driving the fan, so the last duty it wrote is no
+        // longer what the fan is running — but the user's profile must survive completely intact so the curve
+        // resumes by itself when a driving sensor reports again.
+        using var store = CreateStore();
+
+        store.SaveCurveProfile(
+            0,
+            slot: 1,
+            name: "Quiet",
+            curvePoints: new Dictionary<int, double> { [40] = 30d, [80] = 100d },
+            aggregationMode: TemperatureAggregationMode.Maximum,
+            drivingSensorIndices: [4, 5],
+            followFanIndex: null,
+            activate: true,
+            treatMissingSensorsAsZero: true);
+        store.RecordAppliedDuty(0, 62d);
+
+        store.ClearAppliedDuty(0);
+
+        var state = store.GetState(0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(state, Is.Not.Null);
+            Assert.That(state!.LastDutyPercent, Is.Null, "A duty nobody is commanding must not be reported.");
+            Assert.That(state.Mode, Is.EqualTo(FanControlMode.CustomCurve), "The fallback is not a mode change.");
+            Assert.That(state.ActiveCurveSlot, Is.EqualTo(1));
+            Assert.That(state.CurveProfiles[1].IsConfigured, Is.True);
+            Assert.That(state.CurveProfiles[1].CurvePoints, Has.Count.EqualTo(2));
+            Assert.That(state.CurveProfiles[1].TreatMissingSensorsAsZero, Is.True);
+            Assert.That(state.DrivingSensorIndices, Is.EqualTo(new[] { 4, 5 }));
+        });
+    }
+
+    [Test]
     public void ResetAllToFactoryDefaults_OnAnEmptyStore_ResetsNothing()
     {
         using var store = CreateStore();

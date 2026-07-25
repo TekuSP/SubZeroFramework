@@ -121,6 +121,28 @@ public sealed class FrameworkFanControlStateStore : IDisposable
             "applied duty update");
     }
 
+    /// <summary>
+    /// Forgets the duty last written to a fan, without touching its mode, curve or driving sensors.
+    /// </summary>
+    /// <remarks>
+    /// Used when the service stops driving a curve fan but the profile stays exactly as the user saved it —
+    /// the firmware-safe fallback, where no driving sensor can be read. The last duty is then a fact about a
+    /// command nobody is issuing any more: leaving it in place reports a speed the fan is not being held at.
+    /// Deliberately NOT <see cref="MarkAuto"/>, which would wipe the profile itself.
+    /// </remarks>
+    public void ClearAppliedDuty(int fanIndex)
+    {
+        ThrowIfDisposed();
+        UpsertState(
+            fanIndex,
+            existing => existing with
+            {
+                ObservedAt = DateTimeOffset.UtcNow,
+                LastDutyPercent = null,
+            },
+            "applied duty cleared");
+    }
+
     public void MarkAuto(int fanIndex)
     {
         ThrowIfDisposed();

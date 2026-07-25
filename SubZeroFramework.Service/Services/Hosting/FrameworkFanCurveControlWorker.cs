@@ -258,6 +258,12 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
             // mode, the curve points and the driving sensors, i.e. it would delete the user's profile to cope
             // with a sensor blinking out.
             await _frameworkDataProvider.RestoreAutoFanControlAsync(fanIndex, cancellationToken).ConfigureAwait(false);
+
+            // The EC owns the fan now, so the duty we last wrote is no longer what it is running. Clearing it
+            // keeps every client honest — a stale value here reads as "the curve is holding this speed".
+            // Mode / curve / sensors are untouched, so the profile resumes intact when a sensor returns.
+            _fanControlStateStore.ClearAppliedDuty(fanIndex);
+
             _logger.LogWarning(
                 "Fan {FanIndex} has no readable driving sensor; handed back to firmware fan control until one returns.",
                 fanIndex);
