@@ -2,7 +2,9 @@
 
 All notable changes to this repository should be documented in this file.
 
-## [0.1.3] - 2026-07-25
+## [0.1.4] - Unreleased
+
+## [0.1.3] - 2026-07-25 (released as v0.1.3)
 
 ### Added
 
