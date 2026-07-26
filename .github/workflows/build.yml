@@ -1,0 +1,491 @@
+name: Build, test and package
+
+# Reusable. Holds the ENTIRE build pipeline — version, both app heads, tests, packaging, smoke test —
+# and is called by ci.yml (push/PR) and release.yml (a created GitHub Release). Splitting it this way
+# rather than into a second standalone workflow is deliberate: `needs:` cannot cross workflow files, and
+# artifacts belong to a run, so a standalone release workflow would have to re-download them from
+# another run by id. A called workflow shares the caller's run, so the release job can simply
+# `needs:` these jobs and download their artifacts normally.
+#
+# The `github` context here is the CALLER'S event, which is what lets the version job below keep
+# reading github.event_name / github.event.release.tag_name unchanged.
+on:
+  workflow_call:
+    outputs:
+      version:
+        description: 'Version stamped into every artifact this run produced.'
+        value: ${{ jobs.version.outputs.version }}
+      is_release:
+        description: 'True when the caller was triggered by a created GitHub Release.'
+        value: ${{ jobs.version.outputs.is_release }}
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  VERSION_PREFIX: '0.1'
+  WINUI_PUBLISH_PROFILE: './SubZeroFramework/Properties/PublishProfiles/'
+  SOLUTION_NAME: './SubZeroFramework/SubZeroFramework.csproj'
+  # SOLUTION_NAME is the APP HEAD, which does not reference the tests, so the test project needs its own
+  # restore and build before `dotnet test --no-restore --no-build` can run. It targets plain net10.0
+  # (Core + Service + GrpcContracts + analyzers) — no Uno workloads, no RID, no -f.
+  TEST_PROJECT: './SubZeroFramework.Tests/SubZeroFramework.Tests.csproj'
+  ARTIFACT_OUTPUT: '${{ github.workspace }}/artifacts'
+  GITHUB_TOKEN: ${{ secrets.GTH_EXTENDED_TOKEN }}
+
+permissions:
+  packages: write
+  contents: read
+  actions: write
+  # dorny/test-reporter publishes the trx as a check run.
+  checks: write
+
+jobs:
+  # Single source of truth for the version every job stamps. Ordinary branch/PR builds keep the
+  # "<prefix>.<run_number>" scheme; a build triggered by creating a GitHub Release takes the version
+  # from that release's tag, so a release tagged v0.1.0 stamps 0.1.0 rather than 0.1.<run>.
+  # Every consumer MUST read needs.version.outputs.version — a job that references it without listing
+  # `version` in its `needs:` silently resolves to an empty string, which becomes a bare
+  # `-p:Version=` and a broken build.
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      is_release: ${{ steps.resolve.outputs.is_release }}
+    steps:
+      - name: Resolve version
+        id: resolve
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            version="${RELEASE_TAG#v}"
+            # RPM Version: and Arch pkgver= both reject '-', so a prerelease tag would break Linux
+            # packaging much later in the run. Fail here instead, where the cause is obvious.
+            if [[ "${version}" == *-* ]]; then
+              echo "::error::Prerelease tags are not supported yet: '${RELEASE_TAG}' contains '-', which RPM Version: and Arch pkgver= reject. Use a plain vX.Y.Z tag."
+              exit 1
+            fi
+            if [[ -z "${version}" ]]; then
+              echo "::error::Could not resolve a version from the release tag."
+              exit 1
+            fi
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+          else
+            version="${VERSION_PREFIX}.${GITHUB_RUN_NUMBER}"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "Resolved version: ${version}"
+
+  build_and_publish_windows:
+    name: Build and publish app on Windows - (${{ matrix.type }})
+    needs: [version]
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: Windows
+            runsOn: windows-latest
+            platform: win-x64
+            type: x64
+          - os: Windows
+            runsOn: windows-11-arm
+            platform: win-arm64
+            type: arm64
+
+    runs-on: ${{ matrix.runsOn }}
+
+    env:
+      PUBLISH_DOTNET_TARGET_FRAMEWORK: 'net10.0-windows10.0.26100'
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install UNO.Check
+        run: dotnet tool install -g uno.check
+
+      - name: Install UNO Workloads
+        run: uno-check -v --ci --non-interactive --fix --target windows --skip vswin --skip vsmac --skip xcode --skip vswinworkloads --skip androidemulator --skip dotnetnewunotemplates
+
+      - name: Add GitHub Package Registry as a NuGet Source
+        run: dotnet nuget add source --store-password-in-clear-text --name "GitHub" https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --username "${{ github.actor }}" --password "${{ env.GITHUB_TOKEN }}"
+
+      # -p:Configuration=Release is required, not cosmetic: Uno.Sdk conditions the Uno.WinUI.DevServer
+      # package reference on $(Optimize), which derives from Configuration. Restoring as Debug (the default)
+      # writes a real DevServer reference into project.assets.json, and the Release build then fails
+      # UNOB0019 for a package the restore it was handed had already committed to. Restore and build have to
+      # agree on Configuration whenever a package reference is conditioned on it. Note `dotnet restore` has
+      # no -c switch — it must be passed as a property.
+      - name: Restore
+        run: |
+          dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:Configuration=Release -p:PublishReadyToRun=true -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
+          dotnet restore ${{ env.TEST_PROJECT }} -v normal -p:Configuration=Release
+
+      - name: Build
+        run: |
+          dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
+          dotnet build --no-restore ${{ env.TEST_PROJECT }} -v normal -c Release
+
+      # Tests run BETWEEN build and publish, so nothing is published from a red suite. --no-build binds
+      # this to the exact assemblies built above rather than rebuilding a second, unverified copy.
+      - name: Test
+        run: dotnet test --no-restore --no-build ${{ env.TEST_PROJECT }} -v normal -c Release --logger "trx;LogFileName=test-results.trx" --results-directory "${{ github.workspace }}/test-results"
+
+      # always(): a failed suite is exactly when the report is worth having. The Test step above has
+      # already failed the job by then, so fail-on-error is off — it would only add a second, redundant
+      # failure, and it also makes the reporter non-fatal on fork PRs, where GITHUB_TOKEN is read-only
+      # and creating a check run is refused.
+      - name: Publish test report
+        if: ${{ always() }}
+        uses: dorny/test-reporter@v2
+        with:
+          name: Tests (${{ matrix.os }} ${{ matrix.type }})
+          path: ${{ github.workspace }}/test-results/*.trx
+          reporter: dotnet-trx
+          fail-on-error: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: Test results (${{ matrix.os }} ${{ matrix.type }})
+          path: ${{ github.workspace }}/test-results
+          if-no-files-found: ignore
+          # Test results are tiny, so they keep a week for debugging failed runs, unlike the ~2 GB
+          # build artifacts that are pure inter-job transport within one run.
+          retention-days: 7
+
+      - name: Publish
+        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
+
+      - name: Package Windows service bundle
+        shell: pwsh
+        # -Version is required: this script is the ONLY place the service is ever built, so omitting it
+        # let the service fall back to <Version> in Directory.Build.props while the app and installer
+        # were stamped with the CI version — one installer shipping the product at two versions.
+        run: ./SubZeroFramework.Service/Scripts/package-windows-service.ps1 -RuntimeIdentifier ${{ matrix.platform }} -OutputRoot "${{ env.ARTIFACT_OUTPUT }}" -Configuration Release -Version ${{ needs.version.outputs.version }}
+
+      # WiX v7 MSI. Migrated from Inno Setup 2026-07-22 (Inno 6.5+ is non-commercial-only without a paid
+      # license; WiX's OSMF applies only above USD $10k annual revenue — this project accepts the EULA and
+      # uses it free). The staging step exists because the .wxs harvests with a <Files> glob that cannot
+      # exclude, while the two executables are authored explicitly (ServiceInstall / shortcut) — shipping
+      # them twice would be a duplicate-file error.
+      - name: Build Windows installer (WiX MSI)
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix
+          wix eula accept wix7
+          wix extension add -g WixToolset.Util.wixext
+          wix extension add -g WixToolset.UI.wixext
+
+          $payload = "${{ env.ARTIFACT_OUTPUT }}"
+          $staging = "${{ github.workspace }}/msi-staging"
+          & robocopy $payload $staging /E /NFL /NDL /NJH /NJS /XF 'SubZeroFramework.exe' 'SubZeroFramework.Service.exe' | Out-Null
+          if ($LASTEXITCODE -ge 8) { throw "Staging the MSI payload failed (robocopy exit $LASTEXITCODE)." }
+          $global:LASTEXITCODE = 0
+
+          # WixUI's license page needs RTF; generate from LICENSE.txt so the license has one source of truth.
+          $licenseRtf = "${{ github.workspace }}/License.rtf"
+          $escaped = (Get-Content LICENSE.txt -Raw).Replace('\', '\\').Replace('{', '\{').Replace('}', '\}')
+          [IO.File]::WriteAllText($licenseRtf, '{\rtf1\ansi\deff0{\fonttbl{\f0 Consolas;}}\fs18 ' + (($escaped -split "\r?\n") -join '\par ') + '}')
+
+          New-Item -ItemType Directory -Force "${{ github.workspace }}/installer" | Out-Null
+          wix build packaging/windows/subzeroframework.wxs `
+            -arch ${{ matrix.type }} `
+            -d "Version=${{ needs.version.outputs.version }}" `
+            -d "PayloadDir=$staging" `
+            -d "FullPayloadDir=$payload" `
+            -d "LicenseRtf=$licenseRtf" `
+            -ext WixToolset.Util.wixext `
+            -ext WixToolset.UI.wixext `
+            -o "${{ github.workspace }}/installer/SubZeroFramework-Setup-${{ needs.version.outputs.version }}-${{ matrix.type }}.msi"
+          if ($LASTEXITCODE -ne 0) { throw "WiX build failed ($LASTEXITCODE)." }
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v7
+        continue-on-error: false
+        with:
+          name: SubZero Framework - Windows ${{ matrix.type }} Installer
+          path: ${{ github.workspace }}/installer
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        continue-on-error: false
+        with:
+          name: SubZero Framework - Windows ${{ matrix.type }} WinUI3
+          path: ${{ env.ARTIFACT_OUTPUT }}
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: "Cancel if failure"
+        if: ${{ failure() }}
+        uses: potiuk/cancel-workflow-runs@master
+        with:
+          cancelMode: self
+          cancelFutureDuplicates: false
+          selfPreservation: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  package_arch_binary:
+    # Builds the binary Arch packages (.pkg.tar.zst) from the AUR-format PKGBUILDs emitted by the Linux
+    # legs. Our package() is a pure binary repack (no compilation), so both architectures build on the
+    # official x86_64 archlinux container — the aarch64 leg only needs the CARCH label overridden in
+    # makepkg.conf (official Arch images are x86_64-only; Arch Linux ARM is a separate community distro).
+    name: Build Arch Linux binary package (${{ matrix.type }})
+    needs: [version, build_and_publish_linux]
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - type: x64
+            carch: x86_64
+          - type: arm64
+            carch: aarch64
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+
+    steps:
+      - name: Download Linux ${{ matrix.type }} packages artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: SubZero Framework - Linux ${{ matrix.type }} Packages
+          path: packages
+
+      - name: Build package with makepkg
+        run: |
+          sed -i 's/^CARCH=.*/CARCH="${{ matrix.carch }}"/' /etc/makepkg.conf
+          # makepkg RESOLVES runtime depends= before building and aborts on any it cannot satisfy, even
+          # though package() here is a pure binary repack that compiles nothing. archlinux:base-devel
+          # does not carry fontconfig/icu/libx11/..., so these must be present or the job fails the
+          # moment PKGBUILD declares real dependencies. Installed as root before dropping to `builder`
+          # (that user has no sudo, so it cannot install them itself via --syncdeps).
+          #
+          # Bring the image up to date BEFORE installing anything. Arch is a rolling release with no
+          # stable-version guarantees, so `-Sy pkg` refreshes the package DB while leaving everything
+          # already installed at its old version — a PARTIAL UPGRADE, which Arch explicitly does not
+          # support. The container image is rebuilt periodically while the repos move continuously, so
+          # as soon as a package the image ships gets rebuilt upstream, this fails:
+          #   installing systemd-libs (261.2-1) breaks dependency 'systemd-libs=261.1' required by systemd
+          # (the image carried systemd 261.1, which pins its -libs to that exact version, and the
+          # refreshed repo only offered 261.2). Note this is timing-dependent: it comes back green on
+          # its own once the image catches up, then breaks again on the next skew, so -Sy is a latent
+          # failure here whatever the job's current colour.
+          # No sudo: this step already runs as root — that is why it can useradd/chown below.
+          pacman -Syu --noconfirm
+
+          # base-devel is what the image is named for, but reinstall-if-missing keeps the build side
+          # explicit rather than inherited. The rest MIRRORS depends= in the generated PKGBUILD
+          # (packaging/linux/build-linux-packages.sh): makepkg resolves every runtime dependency before
+          # it will build, even though package() here is a pure binary repack that compiles nothing.
+          # They are installed as root because `builder` has no sudo and so cannot use --syncdeps.
+          # Keep this list and the PKGBUILD's depends= in step; a mismatch fails at makepkg time.
+          # optdepends (vulkan-icd-loader) is deliberately absent — makepkg does not resolve those.
+          pacman -S --noconfirm --needed \
+            base-devel \
+            glibc gcc-libs systemd-libs fontconfig icu \
+            libx11 libxext libxfixes libxi libxrandr libglvnd lshw
+          useradd -m builder
+          cp -r packages/aur /home/builder/aur
+          chown -R builder:builder /home/builder/aur
+          su builder -c "cd /home/builder/aur && makepkg -f --noconfirm"
+          mkdir -p packages/arch
+          cp /home/builder/aur/*.pkg.tar.zst packages/arch/
+
+      - name: Upload Arch package artifact
+        uses: actions/upload-artifact@v7
+        continue-on-error: false
+        with:
+          name: SubZero Framework - Arch Linux ${{ matrix.type }} Package
+          path: packages/arch
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: "Cancel if failure"
+        if: ${{ failure() }}
+        uses: potiuk/cancel-workflow-runs@master
+        with:
+          cancelMode: self
+          cancelFutureDuplicates: false
+          selfPreservation: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  smoke_test_windows:
+    # Startup smoke test on a clean machine: the published app must launch, create its main window, and
+    # keep a responsive UI thread. Runners have no service or Framework EC, so the app landing on the
+    # recovery page is the expected healthy outcome — this guards against the startup-crash/startup-hang
+    # class of regressions, which real UI automation on runners cannot do much better without hardware.
+    name: Windows startup smoke test (x64)
+    needs: [version, build_and_publish_windows]
+    runs-on: windows-latest
+
+    steps:
+      - name: Download Windows x64 artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: SubZero Framework - Windows x64 WinUI3
+          path: app
+
+      - name: Launch app and verify it stays responsive
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path app -Filter SubZeroFramework.exe -Recurse | Select-Object -First 1
+          if (-not $exe) { throw "SubZeroFramework.exe not found in the downloaded artifact" }
+          $p = Start-Process -FilePath $exe.FullName -PassThru
+          Start-Sleep -Seconds 45
+          $p.Refresh()
+          if ($p.HasExited) { throw "App exited during startup with code $($p.ExitCode)" }
+          if ($p.MainWindowHandle -eq 0) { throw "App is running but never created a main window" }
+          if (-not $p.Responding) { throw "App main window is not responding (startup hang)" }
+          Write-Host "App started, window created, UI thread responsive."
+          Stop-Process -Id $p.Id -Force
+
+      - name: "Cancel if failure"
+        if: ${{ failure() }}
+        uses: potiuk/cancel-workflow-runs@master
+        with:
+          cancelMode: self
+          cancelFutureDuplicates: false
+          selfPreservation: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build_and_publish_linux:
+    name: Build and publish app on Linux - (${{ matrix.type }})
+    needs: [version]
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: Linux
+            runsOn: ubuntu-latest
+            platform: linux-x64
+            type: x64
+          - os: Linux
+            runsOn: ubuntu-24.04-arm
+            platform: linux-arm64
+            type: arm64
+
+    runs-on: ${{ matrix.runsOn }}
+
+    env:
+      PUBLISH_DOTNET_TARGET_FRAMEWORK: 'net10.0-desktop'
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Install UNO.Check
+        run: dotnet tool install -g uno.check
+
+      - name: Install UNO Workloads
+        run: uno-check -v --ci --non-interactive --fix --target desktop --skip vswin --skip vsmac --skip xcode --skip vswinworkloads --skip androidemulator --skip dotnetnewunotemplates
+
+      - name: Add GitHub Package Registry as a NuGet Source
+        run: dotnet nuget add source --store-password-in-clear-text --name "GitHub" https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --username "${{ github.actor }}" --password "${{ env.GITHUB_TOKEN }}"
+
+      # NOTE: do NOT add -p:TargetFrameworks here. It is a GLOBAL property, so MSBuild and NuGet flow it into
+      # every ProjectReference, and net10.0-desktop is an Uno.Sdk alias that only the head understands — the
+      # plain Microsoft.NET.Sdk projects (Core, GrpcContracts, Analyzers) parse "desktop" as a target platform
+      # identifier and fail with NETSDK1139 before restore begins. -f alone is safe: reference resolution
+      # picks each referenced project's nearest matching TFM instead of forcing the head's. The Windows job
+      # never hit this only because its pinned TFM happens to be one plain SDK projects also accept.
+      # -p:Configuration=Release must match the Release build below; see the note on the Windows job's
+      # restore for why (Uno.Sdk conditions the DevServer package reference on $(Optimize)).
+      - name: Restore
+        run: |
+          dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:Configuration=Release
+          dotnet restore ${{ env.TEST_PROJECT }} -v normal -p:Configuration=Release
+
+      - name: Build
+        run: |
+          dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true
+          dotnet build --no-restore ${{ env.TEST_PROJECT }} -v normal -c Release
+
+      # Tests run BETWEEN build and publish, so nothing is published from a red suite. --no-build binds
+      # this to the exact assemblies built above rather than rebuilding a second, unverified copy.
+      - name: Test
+        run: dotnet test --no-restore --no-build ${{ env.TEST_PROJECT }} -v normal -c Release --logger "trx;LogFileName=test-results.trx" --results-directory "${{ github.workspace }}/test-results"
+
+      # See the note on the Windows job for why always() + fail-on-error: false.
+      - name: Publish test report
+        if: ${{ always() }}
+        uses: dorny/test-reporter@v2
+        with:
+          name: Tests (${{ matrix.os }} ${{ matrix.type }})
+          path: ${{ github.workspace }}/test-results/*.trx
+          reporter: dotnet-trx
+          fail-on-error: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: Test results (${{ matrix.os }} ${{ matrix.type }})
+          path: ${{ github.workspace }}/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Publish
+        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }}  -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
+
+      - name: Package Linux service bundle
+        run: |
+          chmod +x ./SubZeroFramework.Service/Scripts/package-linux-service.sh
+          # 4th arg is the version — see the note on the Windows equivalent above.
+          ./SubZeroFramework.Service/Scripts/package-linux-service.sh ${{ matrix.platform }} "${{ env.ARTIFACT_OUTPUT }}" Release ${{ needs.version.outputs.version }}
+
+      - name: Build Linux packages (deb, rpm, Arch/AUR)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rpm
+          chmod +x ./packaging/linux/build-linux-packages.sh
+          ./packaging/linux/build-linux-packages.sh \
+            "${{ needs.version.outputs.version }}" \
+            "${{ matrix.platform }}" \
+            "${{ env.ARTIFACT_OUTPUT }}" \
+            "${{ env.ARTIFACT_OUTPUT }}/service-package/linux" \
+            "${{ github.workspace }}/packages"
+
+      - name: Upload Linux packages artifact
+        uses: actions/upload-artifact@v7
+        continue-on-error: false
+        with:
+          name: SubZero Framework - Linux ${{ matrix.type }} Packages
+          path: ${{ github.workspace }}/packages
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        continue-on-error: false
+        with:
+          name: SubZero Framework - Linux ${{ matrix.type }} SKIA
+          path: ${{ env.ARTIFACT_OUTPUT }}
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: "Cancel if failure"
+        if: ${{ failure() }}
+        uses: potiuk/cancel-workflow-runs@master
+        with:
+          cancelMode: self
+          cancelFutureDuplicates: false
+          selfPreservation: false
+          token: ${{ secrets.GITHUB_TOKEN }}
