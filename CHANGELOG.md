@@ -67,6 +67,16 @@ All notable changes to this repository should be documented in this file.
   alongside the platform sinks rather than replacing them; when older entries have been dropped the page says
   so instead of implying a complete history.
 
+### Changed
+
+- **Uninstalling from inside the app now uninstalls the app.** The Uninstall button used to delete the
+  background service's registration — the same registration the Windows installer owns — so removing SubZero
+  afterwards through Add/Remove Programs left Windows Installer deleting a service that was already gone. On
+  an installed build the button now hands over to the real uninstaller and closes the app so its files can be
+  removed; the installer stops and removes the service itself. It asks first, and says plainly that saved fan
+  profiles are kept in case you reinstall. On a development build, where there is no installer, it still
+  removes just the service and the button says so.
+
 ### Fixed
 
 - **Error status text was unreadable.** "Unavailable", "Stalled", "Not Present", a critical battery and a

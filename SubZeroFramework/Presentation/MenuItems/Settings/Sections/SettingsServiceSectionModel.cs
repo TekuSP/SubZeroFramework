@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Globalization;
 using System.Reactive.Disposables;
 using System.Reactive.Disposables.Fluent;
@@ -61,7 +62,7 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
         RestartServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_serviceControlClient.RestartAsync), CanRunInstalledServiceAction);
         InstallServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_serviceControlClient.InstallAsync), CanRunInstallAction);
         UpdateServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_serviceControlClient.UpdateAsync), CanRunUpdateAction);
-        UninstallServiceCommand = new AsyncRelayCommand(() => ExecuteServiceActionAsync(_serviceControlClient.UninstallAsync), CanRunUninstallAction);
+        UninstallServiceCommand = new AsyncRelayCommand(UninstallAsync, CanRunUninstallAction);
         RecheckServiceCommand = new RelayCommand(RecheckService);
         ApplyConfigurationCommand = new AsyncRelayCommand(ApplyConfigurationAsync, CanRunApplyConfigurationAction);
         SaveConfigurationCommand = new AsyncRelayCommand(SaveConfigurationAsync, CanRunSaveConfigurationAction);
@@ -226,6 +227,36 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
     [ObservableProperty]
     public partial bool PackagedHelperAvailable { get; set; }
 
+    /// <summary>
+    /// True when this copy came from the Windows installer, so uninstalling means removing the whole
+    /// application rather than just deregistering the background service.
+    /// </summary>
+    /// <remarks>
+    /// The two cases are genuinely different actions and the button says so. On an installed build the MSI
+    /// owns the service entry, so removing it separately would leave Windows Installer's view of the machine
+    /// wrong; on a development or extracted build there is no installer, and the app must still be able to
+    /// remove a service it registered itself.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UninstallButtonLabel))]
+    public partial bool IsApplicationInstalledByInstaller { get; set; }
+
+    // An installed build can always be uninstalled, so the gate differs from the service-only case.
+    partial void OnIsApplicationInstalledByInstallerChanged(bool value) => RefreshCommandStates();
+
+    public string UninstallButtonLabel => IsApplicationInstalledByInstaller ? "Uninstall SubZero" : "Uninstall service";
+
+    /// <summary>
+    /// Mirrors the uninstall command's CanExecute for the button's enabled state.
+    /// </summary>
+    /// <remarks>
+    /// Needed because the button raises Click rather than binding Command — the confirmation dialog needs a
+    /// XamlRoot, which only a visual has. A bound <c>CanExecute()</c> call would evaluate once and never
+    /// again, since the command property itself never changes; this is refreshed alongside the commands.
+    /// </remarks>
+    [ObservableProperty]
+    public partial bool CanUninstall { get; set; }
+
     public Visibility InstallButtonVisibility => CanInstallService ? Visibility.Visible : Visibility.Collapsed;
 
     public IAsyncRelayCommand ShutdownServiceCommand { get; }
@@ -264,6 +295,7 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
         ResetConfigurationCommand.NotifyCanExecuteChanged();
         ResetFanSettingsCommand.NotifyCanExecuteChanged();
         CanResetFanSettings = CanRunResetFanSettingsAction();
+        CanUninstall = CanRunUninstallAction();
     }
 
     private bool CanRunInstalledServiceAction()
@@ -276,7 +308,81 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
         => IsServiceControlSupported && CanUpdateService && !IsOperationInProgress;
 
     private bool CanRunUninstallAction()
-        => IsServiceControlSupported && CanUninstallService && !IsOperationInProgress;
+        => IsApplicationInstalledByInstaller
+            ? !IsOperationInProgress
+            : IsServiceControlSupported && CanUninstallService && !IsOperationInProgress;
+
+    /// <summary>
+    /// Uninstalls the application through Windows Installer and quits, or falls back to removing just the
+    /// service on a build that did not come from the installer.
+    /// </summary>
+    /// <remarks>
+    /// Nothing here touches <see cref="IFrameworkServiceControlClient"/> in the installer case: the package
+    /// stops and deregisters the service as part of its own uninstall, and tearing it down first would strand
+    /// the machine without a service if the user then cancels the installer.
+    /// </remarks>
+    private async Task UninstallAsync()
+    {
+        if (!IsApplicationInstalledByInstaller)
+        {
+            await ExecuteServiceActionAsync(_serviceControlClient.UninstallAsync);
+            return;
+        }
+
+#if WINDOWS10_0_26100_0_OR_GREATER
+        if (IsOperationInProgress)
+        {
+            return;
+        }
+
+        IsOperationInProgress = true;
+
+        try
+        {
+            // Re-resolved rather than cached: an update between page load and this click replaces the
+            // ProductCode with a different one.
+            var productCode = await Task.Run(WindowsApplicationUninstaller.TryFindInstalledProductCode);
+            if (productCode is null)
+            {
+                LastActionTitle = "Uninstall SubZero";
+                LastActionMessage = "Windows Installer no longer has a record of this installation, so there is nothing to uninstall.";
+                LastActionSeverity = InfoBarSeverity.Warning;
+                IsLastActionVisible = true;
+                IsApplicationInstalledByInstaller = false;
+                return;
+            }
+
+            // Off the UI thread: elevation blocks until the consent prompt is dismissed, and blocking the
+            // dispatcher behind the secure desktop freezes the window.
+            await Task.Run(() => WindowsApplicationUninstaller.StartInteractiveUninstall(productCode));
+        }
+        catch (Win32Exception exception) when (exception.NativeErrorCode == WindowsApplicationUninstaller.ElevationCancelledErrorCode)
+        {
+            LastActionTitle = "Uninstall SubZero";
+            LastActionMessage = "Administrator approval was cancelled, so SubZero was not uninstalled.";
+            LastActionSeverity = InfoBarSeverity.Informational;
+            IsLastActionVisible = true;
+            return;
+        }
+        catch (Exception exception)
+        {
+            LastActionTitle = "Uninstall SubZero";
+            LastActionMessage = exception.Message;
+            LastActionSeverity = InfoBarSeverity.Error;
+            IsLastActionVisible = true;
+            return;
+        }
+        finally
+        {
+            IsOperationInProgress = false;
+        }
+
+        // Quit immediately, and only once the installer is actually running. This app's own executable is
+        // mapped while it lives, so staying alive is precisely what would force Windows Installer into its
+        // files-in-use dialog or a reboot-deferred deletion.
+        Application.Current.Exit();
+#endif
+    }
 
     private async Task ExecuteServiceActionAsync(Func<CancellationToken, Task<FrameworkServiceCommandResult>> action)
     {
@@ -324,6 +430,10 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
         CanUpdateService = serviceInfo.CanUpdate;
         CanUninstallService = serviceInfo.CanUninstall;
         PackagedHelperAvailable = serviceInfo.PackagedHelperAvailable;
+#if WINDOWS10_0_26100_0_OR_GREATER
+        // Cheap registry-backed lookup, so it can ride the same refresh as the rest of the service state.
+        IsApplicationInstalledByInstaller = WindowsApplicationUninstaller.TryFindInstalledProductCode() is not null;
+#endif
     }
 
     private static InfoBarSeverity MapSeverity(FrameworkServiceCommandResultKind kind)
