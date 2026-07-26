@@ -27,10 +27,16 @@ public sealed class FrameworkFanControlStateStore : IDisposable
     private readonly CompositeDisposable _subscriptions = [];
     private readonly FrameworkFanControlSafetyTracker _fanControlSafetyTracker;
     private readonly IOptionsMonitor<FrameworkServiceOptions> _optionsMonitor;
+    private readonly FanPreviewWatchdog? _previewWatchdog;
     private readonly ILogger<FrameworkFanControlStateStore> _logger;
     private bool _disposed;
 
-    public FrameworkFanControlStateStore(IFrameworkDataProvider frameworkDataProvider, FrameworkFanControlSafetyTracker fanControlSafetyTracker, IOptionsMonitor<FrameworkServiceOptions> optionsMonitor, ILogger<FrameworkFanControlStateStore> logger)
+    public FrameworkFanControlStateStore(
+        IFrameworkDataProvider frameworkDataProvider,
+        FrameworkFanControlSafetyTracker fanControlSafetyTracker,
+        IOptionsMonitor<FrameworkServiceOptions> optionsMonitor,
+        ILogger<FrameworkFanControlStateStore> logger,
+        FanPreviewWatchdog? previewWatchdog = null)
     {
         ArgumentNullException.ThrowIfNull(frameworkDataProvider);
         ArgumentNullException.ThrowIfNull(fanControlSafetyTracker);
@@ -38,6 +44,9 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
         _fanControlSafetyTracker = fanControlSafetyTracker;
         _optionsMonitor = optionsMonitor;
+        // Optional so existing tests can construct the store without one; a null watchdog simply means no
+        // fan is ever considered to be previewing.
+        _previewWatchdog = previewWatchdog;
         _logger = logger;
 
         frameworkDataProvider
@@ -464,6 +473,32 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         _disposed = true;
     }
 
+    /// <summary>
+    /// Re-seeds live fan state from the persisted configuration.
+    /// </summary>
+    /// <remarks>
+    /// Runs at startup AND on every configuration reload — and the service watches the very file it writes, so
+    /// any persisting command (or a Settings save) re-enters here for EVERY fan, not just the one that changed.
+    /// That made the persisted file behave as a live authority, which is exactly what the per-tick path
+    /// refuses to do for the same reason (see the comment on the telemetry overlay): it re-asserted stale
+    /// persisted state over whatever a fan was actually doing.
+    ///
+    /// Two guards make the re-entry harmless:
+    /// <list type="bullet">
+    /// <item>A fan with an OPEN PREVIEW HOLD is skipped. A preview is deliberately unpersisted volatile state;
+    /// overlaying the persisted mode on top of it reverted what the user was in the middle of testing, and
+    /// for a fan persisted as Auto it left the EC holding the preview duty — possibly a stopped fan — while
+    /// every client reported Auto.</item>
+    /// </list>
+    ///
+    /// A no-op check was tried here and removed: <see cref="FanControlStateSnapshot"/> is a record, but its
+    /// <c>CurveProfiles</c> is an <see cref="ImmutableArray{T}"/>, whose equality compares the underlying
+    /// array REFERENCE rather than its contents. The overlay rebuilds that array on every call, so an
+    /// unchanged fan never compares equal and the check silently never fired. Skipping the republish would
+    /// need a deep comparison the snapshot types do not offer; the redundant notifications are cheap and
+    /// idempotent, so they are left alone rather than papered over with a comparison that looks right and
+    /// does nothing.
+    /// </remarks>
     private void ApplyConfiguredStates()
     {
         var optionsByFanIndex = _optionsMonitor.CurrentValue.FanControlStates
@@ -477,6 +512,14 @@ public sealed class FrameworkFanControlStateStore : IDisposable
             {
                 if (!optionsByFanIndex.TryGetValue(existingState.FanIndex, out var configuredState))
                 {
+                    continue;
+                }
+
+                if (_previewWatchdog?.HasOpenHold(existingState.FanIndex) == true)
+                {
+                    _logger.LogDebug(
+                        "Skipping the configured overlay for fan {FanIndex} because a preview hold is open; its live preview state stands until the preview is applied or reverted.",
+                        existingState.FanIndex);
                     continue;
                 }
 

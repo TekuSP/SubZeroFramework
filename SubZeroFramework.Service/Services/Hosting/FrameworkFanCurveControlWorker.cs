@@ -178,9 +178,22 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
 
             if (decision.Outcome == FanDutyOutcome.NotDriven)
             {
-                // Not driven by us (Auto / unresolved): forget the last applied duty so re-entry re-applies at once.
-                _lastAppliedDuty.Remove(state.FanIndex);
-                _fansInSafeFallback.Remove(state.FanIndex);
+                // Not driven by us (Auto / unresolved): forget the last applied duty so re-entry re-applies at
+                // once. The removal doubles as the record of whether WE were the last thing driving this fan.
+                var wasDrivenByUs = _lastAppliedDuty.Remove(state.FanIndex);
+                var alreadyHandedBack = _fansInSafeFallback.Remove(state.FanIndex);
+
+                // Forgetting the duty is not enough: the EC is still holding whatever we last wrote. Until
+                // this restore existed, a fan that stopped being driven — because its mode was overlaid back
+                // to Auto, or a link/curve stopped resolving — stayed physically overridden at our last duty,
+                // possibly 0%, while the store, the streams and the UI all reported Auto. A stopped fan
+                // reported as Auto is the worst state this service can leave hardware in.
+                // Safe-fallback already handed the fan to the EC, so it needs no second restore.
+                if (wasDrivenByUs && !alreadyHandedBack)
+                {
+                    await RestoreUndrivenFanAsync(state.FanIndex, cancellationToken).ConfigureAwait(false);
+                }
+
                 continue;
             }
 
@@ -231,6 +244,44 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
             {
                 _logger.LogWarning(exception, "Failed to apply curve duty for fan {FanIndex}.", state.FanIndex);
             }
+        }
+    }
+
+    /// <summary>
+    /// Returns a fan we were driving to EC control once nothing drives it any more.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="EnterSafeFallbackAsync"/>: that one is a temporary handover while a sensor is
+    /// unreadable and the fan is still logically curve-driven, whereas this is the permanent case — the fan's
+    /// mode no longer asks us to drive it at all. Both end at the same EC restore, and neither touches the
+    /// stored mode, curve or sensors.
+    /// </remarks>
+    private async Task RestoreUndrivenFanAsync(int fanIndex, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _frameworkDataProvider.RestoreAutoFanControlAsync(fanIndex, cancellationToken).ConfigureAwait(false);
+            _fanControlStateStore.ClearAppliedDuty(fanIndex);
+
+            _logger.LogInformation(
+                "Fan {FanIndex} is no longer driven by a mode or curve; returned it to firmware fan control.",
+                fanIndex);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            // Put the marker back so the next pass retries. Leaving it removed would strand the fan on our
+            // duty forever after a single transient failure, which is the very state this method exists to
+            // prevent. The value is stale but only ever read as "we were driving this fan".
+            _lastAppliedDuty[fanIndex] = 0d;
+
+            _logger.LogWarning(
+                exception,
+                "Failed to return undriven fan {FanIndex} to firmware control; it may still be held at the last duty we applied. Retrying on the next pass.",
+                fanIndex);
         }
     }
 
