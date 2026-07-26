@@ -287,7 +287,29 @@ jobs:
           # does not carry fontconfig/icu/libx11/..., so these must be present or the job fails the
           # moment PKGBUILD declares real dependencies. Installed as root before dropping to `builder`
           # (that user has no sudo, so it cannot install them itself via --syncdeps).
-          pacman -Sy --noconfirm --needed \
+          #
+          # Bring the image up to date BEFORE installing anything. Arch is a rolling release with no
+          # stable-version guarantees, so `-Sy pkg` refreshes the package DB while leaving everything
+          # already installed at its old version — a PARTIAL UPGRADE, which Arch explicitly does not
+          # support. The container image is rebuilt periodically while the repos move continuously, so
+          # as soon as a package the image ships gets rebuilt upstream, this fails:
+          #   installing systemd-libs (261.2-1) breaks dependency 'systemd-libs=261.1' required by systemd
+          # (the image carried systemd 261.1, which pins its -libs to that exact version, and the
+          # refreshed repo only offered 261.2). Note this is timing-dependent: it comes back green on
+          # its own once the image catches up, then breaks again on the next skew, so -Sy is a latent
+          # failure here whatever the job's current colour.
+          # No sudo: this step already runs as root — that is why it can useradd/chown below.
+          pacman -Syu --noconfirm
+
+          # base-devel is what the image is named for, but reinstall-if-missing keeps the build side
+          # explicit rather than inherited. The rest MIRRORS depends= in the generated PKGBUILD
+          # (packaging/linux/build-linux-packages.sh): makepkg resolves every runtime dependency before
+          # it will build, even though package() here is a pure binary repack that compiles nothing.
+          # They are installed as root because `builder` has no sudo and so cannot use --syncdeps.
+          # Keep this list and the PKGBUILD's depends= in step; a mismatch fails at makepkg time.
+          # optdepends (vulkan-icd-loader) is deliberately absent — makepkg does not resolve those.
+          pacman -S --noconfirm --needed \
+            base-devel \
             glibc gcc-libs systemd-libs fontconfig icu \
             libx11 libxext libxfixes libxi libxrandr libglvnd lshw
           useradd -m builder
