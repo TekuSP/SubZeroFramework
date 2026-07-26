@@ -184,12 +184,17 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                 // channel, so a freshly opened page charts the last window instead of starting empty. One
                 // subscription per device for the model's lifetime — a channel that goes quiet simply stops
                 // producing points (the card greys via availability), and resumes charting when it returns.
+                // Sampled and projected OFF the UI thread, with only the finished arrays marshalled — the
+                // rule in the telemetry UI guide. The first version of this violated it: it marshalled first
+                // and then sorted, projected and rebuilt axes on the UI thread, once per device per emission.
                 var seriesCard = card;
                 _telemetryClient
                     .WatchTelemetrySeries(change.Key, PresentationDefaults.RecentTelemetryHistoryWindow)
                     .ToCollection()
-                    .ObserveOn(_synchronizationContext)
-                    .Subscribe(points => ApplyComputeUsageHistory(seriesCard, points))
+                    .Sample(PresentationDefaults.HistoryProjectionInterval)
+                    .Select(points => Observable.FromAsync(() => ApplyComputeUsageHistoryAsync(seriesCard, points)))
+                    .Concat()
+                    .Subscribe(_ => { })
                     .DisposeWith(_subscriptions);
             }
 
@@ -220,8 +225,14 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Projects one compute channel's retained series into its card's sparkline (UI thread).</summary>
-    private void ApplyComputeUsageHistory(ComputeDeviceUsageCardModel card, IReadOnlyCollection<TelemetryPoint> points)
+    /// <summary>
+    /// Projects one compute channel's retained series into its card's sparkline.
+    /// </summary>
+    /// <remarks>
+    /// The sort, the projection and the axis rebuild all run on the CALLING thread, which is deliberately not
+    /// the UI thread; only the assignment is marshalled.
+    /// </remarks>
+    private Task ApplyComputeUsageHistoryAsync(ComputeDeviceUsageCardModel card, IReadOnlyCollection<TelemetryPoint> points)
     {
         var history = points
             .OrderBy(point => point.ObservedAt)
@@ -231,7 +242,8 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             .ToArray();
 
         var (minLimit, maxLimit, separators) = BuildUsageHistoryAxis(history);
-        card.UpdateHistory(history, minLimit, maxLimit, separators);
+
+        return _dispatcherQueue.EnqueueAsync(() => card.UpdateHistory(history, minLimit, maxLimit, separators));
     }
 
     // GPU utilization renders on the adapter's detail card. The PDH identity (SetupAPI device description) and
@@ -790,10 +802,22 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             .Subscribe(_ => { })
             .DisposeWith(_subscriptions);
 
+        // Ask for exactly the window the sparklines draw. This used to request the MAXIMUM (one hour) to
+        // render 30 seconds, so every emission carried ~120x the records that could ever be displayed, and
+        // sampling collapses a burst of upstream emissions into one projection pass.
+        //
+        // The ObserveOn STAYS, and stays ahead of the projection, even though the telemetry UI guide asks for
+        // the opposite ordering. Moving the projection off the UI thread here was measured and made things
+        // markedly worse (~40% of a core, up from single digits): _cpuHistoryRecords is shared with the
+        // snapshot subscription, which is UI-thread bound, so an off-thread writer let RefreshCpuVisualsAsync
+        // run concurrently with itself over shared state — a race as well as duplicated work. The UI thread
+        // is what serialises the two paths. Fixing that properly means giving the CPU visuals their own
+        // projection state rather than reordering the operators.
         _hardwareInfoClient
             .WatchHardwareInfoHistory(TelemetryHistoryLimits.MaximumHistoryWindow)
             .ObserveOn(_synchronizationContext)
             .ToCollection()
+            .Sample(PresentationDefaults.HistoryProjectionInterval)
             .Select(history => Observable.FromAsync(() => UpdateCpuClockHistoryAsync(history)))
             .Concat()
             .Subscribe(_ => { })
@@ -815,8 +839,9 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             .Subscribe(_ => { })
             .DisposeWith(_subscriptions);
 
-        // GPU/NPU utilization rides the generic channel stream: a handful of scalar upserts per second, so a
-        // plain synchronous apply on the UI thread is fine (no history windows, no per-tick projection).
+        // GPU/NPU current values ride the generic channel stream: a handful of scalar upserts per second, so
+        // a plain synchronous apply on the UI thread is fine. The per-device HISTORY series each card also
+        // subscribes to is a different matter and is sampled and projected off-thread — see below.
         _telemetryClient
             .WatchCurrentTelemetryValues()
             .ObserveOn(_synchronizationContext)
@@ -1075,7 +1100,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             }
         }
 
-        return [.. points];
+        return TrimHistoryToRecentWindow(points);
     }
 
     private DateTimePoint[] BuildCpuUsageHistory()
@@ -1164,9 +1189,11 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             }
         }
 
+        // Trimmed like the usage histories are. The clock ones were missed, so LiveCharts was handed every
+        // point the source held for an axis that only ever spans the recent window.
         return pointsByPackage.ToDictionary(
             pair => pair.Key,
-            pair => (DateTimePoint[])[.. pair.Value]);
+            pair => TrimHistoryToRecentWindow(pair.Value));
     }
 
     private (double? AxisStartTicks, double? AxisEndTicks, double[] Separators) BuildCpuClockHistoryAxis(DateTimePoint[] cpuClockHistory)
