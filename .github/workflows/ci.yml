@@ -388,14 +388,20 @@ jobs:
       - name: Add GitHub Package Registry as a NuGet Source
         run: dotnet nuget add source --store-password-in-clear-text --name "GitHub" https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --username "${{ github.actor }}" --password "${{ env.GITHUB_TOKEN }}"
 
+      # NOTE: do NOT add -p:TargetFrameworks here. It is a GLOBAL property, so MSBuild and NuGet flow it into
+      # every ProjectReference, and net10.0-desktop is an Uno.Sdk alias that only the head understands — the
+      # plain Microsoft.NET.Sdk projects (Core, GrpcContracts, Analyzers) parse "desktop" as a target platform
+      # identifier and fail with NETSDK1139 before restore begins. -f alone is safe: reference resolution
+      # picks each referenced project's nearest matching TFM instead of forcing the head's. The Windows job
+      # never hit this only because its pinned TFM happens to be one plain SDK projects also accept.
       - name: Restore
-        run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
+        run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }}
 
       - name: Build
-        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }}
+        run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true
 
       - name: Publish
-        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:TargetFrameworks=${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }}  -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
+        run: dotnet publish --no-restore --no-build ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }}  -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true -p:PublishDir=${{ env.ARTIFACT_OUTPUT }} -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
 
       - name: Package Linux service bundle
         run: |

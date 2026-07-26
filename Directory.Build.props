@@ -7,6 +7,12 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+        <!-- The Linux CI job restores the app head without pinning a TFM (pinning leaks into referenced
+             projects — see the note in ci.yml), so restore has to evaluate the head's windows TFM on a Linux
+             runner. That fails with NETSDK1100 unless this is set. It only permits EVALUATING and restoring
+             the windows flavor cross-OS; nothing Windows-only is built or shipped from a Linux publish.
+             Core already set this locally for the ubuntu test job; hoisted here so the head gets it too. -->
+        <EnableWindowsTargeting>true</EnableWindowsTargeting>
         <LangVersion>preview</LangVersion>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <!--
