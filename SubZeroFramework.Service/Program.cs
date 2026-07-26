@@ -159,6 +159,15 @@ public static class Program
             }
         });
 
+        // Resolved BEFORE the host runs, and deliberately not inside the catch below: by the time RunAsync
+        // throws, the host has already disposed its service provider, so resolving anything from it there
+        // throws ObjectDisposedException. That exception would replace the crash handler entirely — the fans
+        // would never be restored, the real cause would never be logged, and the process would die as an
+        // unhandled exception instead of exiting with FatalExitCode, which is precisely the signal
+        // systemd/SCM restart-on-failure keys off. The coordinator is a singleton the host constructs anyway
+        // (it is also registered as a hosted service), so holding it here costs nothing.
+        var shutdownCoordinator = app.Services.GetRequiredService<FrameworkShutdownCoordinator>();
+
         try
         {
             await app.RunAsync().ConfigureAwait(false);
@@ -168,9 +177,10 @@ public static class Program
         {
             // A crashed host must exit NON-ZERO so the SCM/systemd restart-on-failure recovery engages
             // (a clean exit 0 reads as a normal stop and is never restarted). Restore fans first —
-            // StopTelemetryLoops is idempotent with the ProcessExit hook, so double handling is safe.
+            // StopTelemetryLoops is idempotent with the ProcessExit hook, so double handling is safe, and it
+            // already tolerates a provider that disposal has beaten it to.
             app.Logger.LogCritical(exception, "SubZeroFramework service host crashed.");
-            app.Services.GetRequiredService<FrameworkShutdownCoordinator>().StopTelemetryLoops("Program.Main host crash");
+            shutdownCoordinator.StopTelemetryLoops("Program.Main host crash");
             return FrameworkFatalExitHandler.FatalExitCode;
         }
         finally
