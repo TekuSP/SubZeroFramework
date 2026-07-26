@@ -385,6 +385,25 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Runner images are rebuilt periodically rather than continuously, so bring the host current
+      # before anything runs against it. Scope note: this does NOT affect the .NET SDK or the Uno
+      # workloads — those come from actions/setup-dotnet and uno-check, not from apt. What it does
+      # update is the PACKAGING toolchain that build-linux-packages.sh shells out to (dpkg-deb, rpm,
+      # tar, gzip), which is the part of this job apt actually owns.
+      #
+      # rpm is installed here rather than next to its use so there is a single apt phase per run;
+      # apt-get (not apt) because apt deliberately has no stable CLI for scripts, and
+      # DEBIAN_FRONTEND=noninteractive so a package with a config prompt cannot hang the runner.
+      - name: Update Ubuntu packages
+        shell: bash
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euo pipefail
+          sudo -E apt-get update
+          sudo -E apt-get upgrade -y
+          sudo -E apt-get install -y --no-install-recommends rpm
+
       - name: Install .NET
         uses: actions/setup-dotnet@v6
         with:
@@ -451,10 +470,10 @@ jobs:
           # 4th arg is the version — see the note on the Windows equivalent above.
           ./SubZeroFramework.Service/Scripts/package-linux-service.sh ${{ matrix.platform }} "${{ env.ARTIFACT_OUTPUT }}" Release ${{ needs.version.outputs.version }}
 
+      # rpm and the rest of the packaging toolchain are installed/updated in the "Update Ubuntu
+      # packages" step at the top of this job.
       - name: Build Linux packages (deb, rpm, Arch/AUR)
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends rpm
           chmod +x ./packaging/linux/build-linux-packages.sh
           ./packaging/linux/build-linux-packages.sh \
             "${{ needs.version.outputs.version }}" \
