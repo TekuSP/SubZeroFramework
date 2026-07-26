@@ -169,8 +169,14 @@ jobs:
       - name: Add GitHub Package Registry as a NuGet Source
         run: dotnet nuget add source --store-password-in-clear-text --name "GitHub" https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --username "${{ github.actor }}" --password "${{ env.GITHUB_TOKEN }}"
 
+      # -p:Configuration=Release is required, not cosmetic: Uno.Sdk conditions the Uno.WinUI.DevServer
+      # package reference on $(Optimize), which derives from Configuration. Restoring as Debug (the default)
+      # writes a real DevServer reference into project.assets.json, and the Release build then fails
+      # UNOB0019 for a package the restore it was handed had already committed to. Restore and build have to
+      # agree on Configuration whenever a package reference is conditioned on it. Note `dotnet restore` has
+      # no -c switch — it must be passed as a property.
       - name: Restore
-        run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:PublishReadyToRun=true -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
+        run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:Configuration=Release -p:PublishReadyToRun=true -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml
 
       - name: Build
         run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
@@ -394,8 +400,10 @@ jobs:
       # identifier and fail with NETSDK1139 before restore begins. -f alone is safe: reference resolution
       # picks each referenced project's nearest matching TFM instead of forcing the head's. The Windows job
       # never hit this only because its pinned TFM happens to be one plain SDK projects also accept.
+      # -p:Configuration=Release must match the Release build below; see the note on the Windows job's
+      # restore for why (Uno.Sdk conditions the DevServer package reference on $(Optimize)).
       - name: Restore
-        run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }}
+        run: dotnet restore ${{ env.SOLUTION_NAME }} -v normal -r ${{ matrix.platform }} -p:Configuration=Release
 
       - name: Build
         run: dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true
