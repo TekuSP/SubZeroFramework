@@ -29,9 +29,6 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DisplayName))]
-    [NotifyPropertyChangedFor(nameof(UsageBrush))]
-    [NotifyPropertyChangedFor(nameof(UsageStrokePaint))]
-    [NotifyPropertyChangedFor(nameof(UsageStrokeHex))]
     public partial HardwareInfoCpuCore Snapshot { get; set; } = default!;
 
     [ObservableProperty]
@@ -59,11 +56,37 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
     [ObservableProperty]
     public partial double UsageAxisMaxLimit { get; private set; }
 
-    public Brush UsageBrush => UsageChartStyle.GetUsageBrush(Snapshot.PercentProcessorTime);
+    /// <summary>
+    /// Tier colour for the load figure and the sparkline stroke.
+    /// </summary>
+    /// <remarks>
+    /// STORED rather than computed, and rebuilt only when the tier changes. As getters these re-evaluated on
+    /// every snapshot — once per core, per second — and each evaluation allocated a native-backed
+    /// <see cref="SolidColorPaint"/> that nobody disposed. On a many-core machine that was the bulk of the
+    /// Skia finalizer load a release CPU trace attributed a quarter of process time to.
+    /// </remarks>
+    [ObservableProperty]
+    public partial Brush UsageBrush { get; private set; } = UsageChartStyle.GetUsageBrush(0d);
 
-    public SolidColorPaint UsageStrokePaint => new(SKColor.Parse(UsageStrokeHex), 2);
+    [ObservableProperty]
+    public partial SolidColorPaint UsageStrokePaint { get; private set; } = UsageChartStyle.CreateUsageStrokePaint(0d);
 
-    public string UsageStrokeHex => UsageChartStyle.GetUsageStrokeHex(Snapshot.PercentProcessorTime);
+    [ObservableProperty]
+    public partial string UsageStrokeHex { get; private set; } = UsageChartStyle.GetUsageStrokeHex(0d);
+
+    private void RefreshUsageTier()
+    {
+        var strokeHex = UsageChartStyle.GetUsageStrokeHex(Snapshot.PercentProcessorTime);
+        if (string.Equals(strokeHex, UsageStrokeHex, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        UsageStrokeHex = strokeHex;
+        UsageBrush = UsageChartStyle.GetUsageBrush(Snapshot.PercentProcessorTime);
+        // Previous paint intentionally not disposed — LiveCharts may still be drawing with it.
+        UsageStrokePaint = UsageChartStyle.CreateUsageStrokePaint(Snapshot.PercentProcessorTime);
+    }
 
     public void UpdateHistory(IReadOnlyList<DateTimePoint> usageHistory, double? minLimit, double? maxLimit, IReadOnlyList<double> separators)
     {
@@ -75,8 +98,11 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
 
     // The DisplayLoad string follows the snapshot's live load; the axis formatter + max follow the unit
     // preference. Assignment raises PropertyChanged only on a real change.
-    partial void OnSnapshotChanged(HardwareInfoCpuCore value) =>
+    partial void OnSnapshotChanged(HardwareInfoCpuCore value)
+    {
         DisplayLoad = _unitFormattingService.FormatRatio(value.PercentProcessorTime, decimals: 1);
+        RefreshUsageTier();
+    }
 
     public void RefreshUnitFormatting()
     {

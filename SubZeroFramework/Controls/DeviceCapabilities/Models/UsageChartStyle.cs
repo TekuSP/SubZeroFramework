@@ -1,6 +1,10 @@
 using System;
 
+using LiveChartsCore.SkiaSharpView.Painting;
+
 using Microsoft.UI.Xaml.Media;
+
+using SkiaSharp;
 
 using SubZeroFramework.Themes;
 
@@ -32,6 +36,18 @@ public static class UsageChartStyle
 
         return AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor);
     }
+
+    /// <summary>
+    /// Builds the sparkline stroke paint for a load value.
+    /// </summary>
+    /// <remarks>
+    /// Callers must STORE the result and rebuild only when the tier changes — a paint wraps a native Skia
+    /// object, and creating one per binding evaluation is what put a quarter of the app's CPU into Skia
+    /// finalizers. Not cached centrally on purpose: each chart series keeps its own paint, so no series can
+    /// dispose or mutate another's.
+    /// </remarks>
+    public static SolidColorPaint CreateUsageStrokePaint(double usagePercent) =>
+        new(SKColor.Parse(GetUsageStrokeHex(usagePercent)), 2);
 
     public static string GetUsageStrokeHex(double usagePercent)
     {

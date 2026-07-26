@@ -46,15 +46,11 @@ public partial class ComputeDeviceUsageCardModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(UtilizationBarWidthRatio))]
-    [NotifyPropertyChangedFor(nameof(UsageBrush))]
-    [NotifyPropertyChangedFor(nameof(UsageStrokePaint))]
     public partial double? UtilizationPercent { get; set; }
 
     /// <summary>False once the service stops reporting the device (driver reload, dGPU powered down, unplugged).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(UtilizationBarWidthRatio))]
-    [NotifyPropertyChangedFor(nameof(UsageBrush))]
-    [NotifyPropertyChangedFor(nameof(UsageStrokePaint))]
     public partial bool IsAvailable { get; set; } = true;
 
     /// <summary>NPU vs GPU only — the two report the same unit but not the same kind of thing.</summary>
@@ -110,9 +106,41 @@ public partial class ComputeDeviceUsageCardModel : ObservableObject
         ? Math.Clamp(percent / 100d, 0d, 1d)
         : 0d;
 
-    public Brush UsageBrush => UsageChartStyle.GetUsageBrush(EffectiveUsagePercent);
+    /// <summary>
+    /// Tier colour for the value text and the sparkline stroke.
+    /// </summary>
+    /// <remarks>
+    /// STORED, not computed. These used to be getters, so every utilization change re-evaluated them and each
+    /// evaluation allocated a fresh <see cref="SolidColorPaint"/> wrapping a native Skia object that nobody
+    /// disposed. Multiplied by every device and every telemetry tick, that abandoned native garbage showed up
+    /// in a release CPU trace as a quarter of all process time spent in Skia finalizers. The paint is now
+    /// rebuilt only when the tier actually changes, which is rare — the colour only moves when load crosses
+    /// 1%, 50% or 90%.
+    /// </remarks>
+    [ObservableProperty]
+    public partial Brush UsageBrush { get; private set; } = UsageChartStyle.GetUsageBrush(0d);
 
-    public SolidColorPaint UsageStrokePaint => new(SKColor.Parse(UsageChartStyle.GetUsageStrokeHex(EffectiveUsagePercent)), 2);
+    [ObservableProperty]
+    public partial SolidColorPaint UsageStrokePaint { get; private set; } = UsageChartStyle.CreateUsageStrokePaint(0d);
+
+    /// <summary>Rebuilds the tier visuals, and only allocates a paint when the tier really changed.</summary>
+    private void RefreshUsageTier()
+    {
+        var strokeHex = UsageChartStyle.GetUsageStrokeHex(EffectiveUsagePercent);
+        if (string.Equals(strokeHex, _usageStrokeHex, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _usageStrokeHex = strokeHex;
+        UsageBrush = UsageChartStyle.GetUsageBrush(EffectiveUsagePercent);
+        // Deliberately not disposing the previous paint: LiveCharts may still be holding it for a frame, and
+        // a use-after-dispose on a native Skia handle is far worse than letting the GC take one object per
+        // tier transition.
+        UsageStrokePaint = UsageChartStyle.CreateUsageStrokePaint(EffectiveUsagePercent);
+    }
+
+    private string? _usageStrokeHex = UsageChartStyle.GetUsageStrokeHex(0d);
 
     // ----- Usage history sparkline (same members and update shape as the CPU per-core card) -----
 
@@ -154,9 +182,17 @@ public partial class ComputeDeviceUsageCardModel : ObservableObject
     // An unavailable or not-yet-read device renders in the idle tier rather than holding its last busy color.
     private double EffectiveUsagePercent => IsAvailable && UtilizationPercent is double percent ? percent : 0d;
 
-    partial void OnUtilizationPercentChanged(double? value) => RefreshUtilizationDisplay();
+    partial void OnUtilizationPercentChanged(double? value)
+    {
+        RefreshUtilizationDisplay();
+        RefreshUsageTier();
+    }
 
-    partial void OnIsAvailableChanged(bool value) => RefreshUtilizationDisplay();
+    partial void OnIsAvailableChanged(bool value)
+    {
+        RefreshUtilizationDisplay();
+        RefreshUsageTier();
+    }
 
     private void RefreshUtilizationDisplay() =>
         UtilizationDisplay = IsAvailable
