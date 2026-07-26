@@ -10,8 +10,8 @@ using SubZeroFramework.Themes;
 namespace SubZeroFramework.Controls.Settings.Models;
 
 /// <summary>
-/// One line on the Service logs page: the timestamp, a severity chip, the logger category, and the message
-/// (plus exception detail when the entry carried one).
+/// One line on the Logs page: the timestamp, a source chip, a severity chip, the logger category, and the
+/// message (plus exception detail when the entry carried one).
 /// </summary>
 public sealed class ServiceLogEntryModel
 {

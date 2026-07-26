@@ -46,7 +46,7 @@ public partial class SettingsModel : ObservableObject, IDisposable
             new SettingsSectionRailItemModel(1, "Display units", "Temperature, power, speed", MaterialIconKind.Ruler),
             new SettingsSectionRailItemModel(2, "Startup & alerts", "Launch behavior", MaterialIconKind.RocketLaunchOutline),
             new SettingsSectionRailItemModel(3, "Licenses", "Open-source notices", MaterialIconKind.ScaleBalance),
-            new SettingsSectionRailItemModel(4, "Service logs", "What the service reported", MaterialIconKind.TextBoxOutline),
+            new SettingsSectionRailItemModel(4, "Logs", "What the app and service reported", MaterialIconKind.TextBoxOutline),
             new SettingsSectionRailItemModel(5, "About", "Version & links", MaterialIconKind.InformationOutline),
         ];
         Sections[0].IsSelected = true;
@@ -55,6 +55,7 @@ public partial class SettingsModel : ObservableObject, IDisposable
 
         frameworkStatusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .Select(status => Observable.FromAsync(_ => dispatcherQueue.EnqueueAsync(() => ApplyStatus(status))))
             .Concat()
             .Subscribe()

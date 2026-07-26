@@ -1,4 +1,5 @@
 using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
 using System.Threading;
 
@@ -50,6 +51,7 @@ public sealed class FanHistoryStore : IFanHistoryStore, IDisposable
 
         var subscription = _fanTelemetryClient
             .WatchFanHistory(fanIndex, range)
+            .Batch(TelemetryRateLimits.History)
             .ToCollection()
             .Sample(PresentationDefaults.HistoryProjectionInterval)
             // Sort and materialize BEFORE marshalling — see the temperature subscription below.
@@ -59,10 +61,10 @@ public sealed class FanHistoryStore : IFanHistoryStore, IDisposable
             {
                 _fanHistory[fanIndex] = ordered;
                 FanHistoryChanged?.Invoke(fanIndex);
-            });
+            })
+            .DisposeWith(_subscriptions);
 
         _fanSubscriptions[fanIndex] = subscription;
-        _subscriptions.Add(subscription);
     }
 
     public void EnsureTemperatureHistory(int sensorIndex, TimeSpan range)
@@ -74,6 +76,7 @@ public sealed class FanHistoryStore : IFanHistoryStore, IDisposable
 
         var subscription = _temperatureTelemetryClient
             .WatchTemperatureHistory(sensorIndex, range)
+            .Batch(TelemetryRateLimits.History)
             .ToCollection()
             .Sample(PresentationDefaults.HistoryProjectionInterval)
             // Sort and materialize BEFORE marshalling: everything above this line runs off the UI thread, and
@@ -84,10 +87,10 @@ public sealed class FanHistoryStore : IFanHistoryStore, IDisposable
             {
                 _temperatureHistory[sensorIndex] = ordered;
                 TemperatureHistoryChanged?.Invoke(sensorIndex);
-            });
+            })
+            .DisposeWith(_subscriptions);
 
         _temperatureSubscriptions[sensorIndex] = subscription;
-        _subscriptions.Add(subscription);
     }
 
     public void StopTemperatureHistory(int sensorIndex)

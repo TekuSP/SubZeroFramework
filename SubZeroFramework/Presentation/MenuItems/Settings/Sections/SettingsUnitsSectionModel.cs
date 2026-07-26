@@ -113,6 +113,7 @@ public partial class SettingsUnitsSectionModel : ObservableObject, IUnsavedChang
         // UI churn to one refresh per two seconds.
         temperatureTelemetryClient
             .WatchTemperatures()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .QueryWhenChanged(query => query.Items.Max(sensor => sensor.TemperatureCelsius))
             .Sample(TimeSpan.FromSeconds(2))
             .Subscribe(celsius => UpdateSample(() => _sampleTemperatureCelsius = celsius))
@@ -120,6 +121,7 @@ public partial class SettingsUnitsSectionModel : ObservableObject, IUnsavedChang
 
         fanTelemetryClient
             .WatchFans()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .QueryWhenChanged(query => query.Items.Where(fan => fan.IsAvailable).Select(fan => (double?)fan.SpeedRpm).Max())
             .Sample(TimeSpan.FromSeconds(2))
             .Subscribe(rpm => UpdateSample(() => _sampleFanRpm = rpm))
@@ -127,6 +129,7 @@ public partial class SettingsUnitsSectionModel : ObservableObject, IUnsavedChang
 
         batteryTelemetryClient
             .WatchBatteries()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .QueryWhenChanged(query => query.Items.FirstOrDefault(battery => battery.IsAvailable))
             .Sample(TimeSpan.FromSeconds(2))
             .Subscribe(battery => UpdateSample(() =>
@@ -143,6 +146,7 @@ public partial class SettingsUnitsSectionModel : ObservableObject, IUnsavedChang
 
         hardwareInfoClient
             .WatchHardwareInfo()
+            .Sample(TelemetryRateLimits.Inventory)
             .Subscribe(snapshot => UpdateSample(() =>
             {
                 _sampleClockMegahertz = snapshot.Cpus

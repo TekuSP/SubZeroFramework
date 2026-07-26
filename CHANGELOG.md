@@ -69,6 +69,46 @@ All notable changes to this repository should be documented in this file.
 
 ### Changed
 
+- **Settings ▸ Service logs is now Settings ▸ Logs, and shows the app's logs too.** The page only ever showed
+  the background service. The app's own records had nowhere to go on Windows at all: the desktop head is a
+  GUI-subsystem binary, so its console sink writes to a console that does not exist and its debug sink only
+  exists under a debugger. A released build could warn about a broken service connection every second and none
+  of it would reach you. The app now keeps the same bounded buffer the service does, and the page interleaves
+  both by timestamp with a source column and a Service / App / Both filter — so a client reconnect warning
+  reads directly next to the service restart that caused it. Copy-all tags each line with its source, because
+  "which process said this" is the first question asked of a pasted log. If the service cannot be reached, its
+  half fails alone and the app's own entries still appear — those are exactly the ones explaining why it looks
+  dead.
+
+- **Telemetry no longer reaches the UI faster than the UI can use it.** Thirty-five subscriptions across the
+  view models and telemetry clients inherited the service's poll cadence directly, so lowering the poll
+  interval multiplied UI work with it. Each now states its own ceiling — 250 ms for live readouts, 500 ms for
+  chart history, 1 s for inventory — applied *before* marshalling to the UI thread, so coalescing happens off
+  it. These are ceilings, not floors: the operators only emit when something actually arrived, so a
+  one-second poll still updates once a second.
+
+### Fixed
+
+- **Two code-analysis rules had been silently inert.** SZF0004 (require `ObserveOn`) and SZF0005 (require
+  `DisposeWith`) skipped every subscription whose receiver was typed as `IObservable<T>` — which is nearly all
+  of them, since every `Watch*`/`Connect*` method and every Rx operator returns the interface. The type check
+  compared a display string (`System.IObservable<T>`) against a metadata name (``System.IObservable`1``),
+  which never matches for a generic, and the interface check looked at implemented interfaces, which do not
+  include the type itself. Both rules now apply where they always should have.
+
+  Fixing that exposed ~53 violations, and working through them showed the rules had been over-broad as well as
+  under-applied. They now recognise the legitimate patterns they used to flag: `Observable.Create` factories
+  (whose disposal is the returned disposable, and whose scheduler is the consumer's choice), ownership by
+  storage in a member, `SerialDisposable` slots and keyed registries, `using var`, returning the subscription
+  to a caller, and marshalling inside the handler via the dispatcher rather than upstream. `ObserveOn` is also
+  no longer required in the service and Core, which have no UI thread for it to marshal to.
+
+- **New rule: SZF0013, telemetry subscriptions must rate-limit.** Flags a subscription that starts at a
+  per-poll telemetry source without bounding its rate. The operator it asks for depends on the stream: change
+  sets must use `Batch`, which coalesces, because `Sample` and `Throttle` *drop* items and a dropped change set
+  loses an add or a remove permanently — DynamicData ships no `Sample`/`Throttle` for change sets for exactly
+  this reason. Snapshot streams carry the whole value each time and may use either.
+
 - **Uninstalling from inside the app now uninstalls the app.** The Uninstall button used to delete the
   background service's registration — the same registration the Windows installer owns — so removing SubZero
   afterwards through Add/Remove Programs left Windows Installer deleting a service that was already gone. On

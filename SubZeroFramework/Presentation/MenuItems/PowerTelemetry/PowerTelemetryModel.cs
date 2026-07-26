@@ -71,10 +71,12 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
             .Subscribe(UpdatePorts));
 
         _subscriptions.Add(batteryTelemetryClient.WatchBatteries()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(UpdateBatteries));
 
         _subscriptions.Add(frameworkStatusClient.WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(OnStatusChanged));
     }
@@ -556,6 +558,7 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
             // build the chart points off the UI thread; only SynchronizePoints below touches it.
             _trendSubscriptions[metric] = _batteryTelemetryClient
                 .WatchBatteryHistory(batteryIndex, metric, TrendWindow)
+                .Batch(TelemetryRateLimits.History)
                 .ToCollection()
                 .Sample(PresentationDefaults.HistoryProjectionInterval)
                 .Select(static points => points

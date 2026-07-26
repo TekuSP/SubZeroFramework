@@ -14,3 +14,4 @@ SZF0009 | SubZeroFramework.Mvvm | Warning | Avoid direct PropertyChanged event i
 SZF0010 | SubZeroFramework.Reactive | Warning | Disposable registry values must be disposed in Dispose().
 SZF0011 | SubZeroFramework.Reactive | Warning | Removed disposable registry values must be disposed.
 SZF0012 | SubZeroFramework.Mvvm | Warning | Use ObservableProperty public partial properties instead of SetProperty.
+SZF0013 | SubZeroFramework.Reactive | Warning | Require a rate-limiting operator on subscriptions to high-frequency telemetry sources.

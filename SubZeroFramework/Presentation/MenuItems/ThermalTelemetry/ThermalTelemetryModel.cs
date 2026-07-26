@@ -64,12 +64,14 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
 
         frameworkStatusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(status => LastStatus = status)
             .DisposeWith(_subscriptions);
 
         _temperatureTelemetryClient
             .WatchTemperatures()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(ApplyTemperatureChanges)
             .DisposeWith(_subscriptions);
@@ -329,6 +331,7 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
     private IDisposable SubscribeTemperatureHistory(int sensorIndex, TimeSpan window) =>
         _temperatureTelemetryClient
             .WatchTemperatureHistory(sensorIndex, window)
+            .Batch(TelemetryRateLimits.History)
             .ToCollection()
             .Sample(PresentationDefaults.HistoryProjectionInterval)
             .Select(static points => points

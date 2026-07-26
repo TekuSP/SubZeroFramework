@@ -2,7 +2,7 @@ using System.ComponentModel;
 
 namespace SubZeroFramework.Presentation.MenuItems.Settings.Sections;
 
-/// <summary>Service logs section body, resolved by the section navigation sub-region. DataContext is the <see cref="SettingsLogsSectionModel"/>.</summary>
+/// <summary>Logs section body, resolved by the section navigation sub-region. DataContext is the <see cref="SettingsLogsSectionModel"/>.</summary>
 public sealed partial class SettingsLogsSectionView : UserControl, INotifyPropertyChanged
 {
     public SettingsLogsSectionView()

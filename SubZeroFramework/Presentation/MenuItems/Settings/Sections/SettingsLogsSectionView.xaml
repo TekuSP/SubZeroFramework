@@ -83,11 +83,11 @@
                 FontSize="22"
                 FontWeight="SemiBold"
                 Foreground="{StaticResource TextPrimaryBrush}"
-                Text="Service logs" />
+                Text="Logs" />
             <TextBlock
                 FontSize="13"
                 Foreground="{StaticResource TextSecondaryBrush}"
-                Text="What the background service has logged since it started. Copy these into a bug report rather than hunting through Event Viewer or journalctl."
+                Text="What this app and the background service have logged since they started. Copy these into a bug report rather than hunting through Event Viewer or journalctl."
                 TextWrapping="WrapWholeWords" />
         </StackPanel>
 

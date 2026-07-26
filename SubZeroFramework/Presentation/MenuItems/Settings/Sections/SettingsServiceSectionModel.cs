@@ -73,6 +73,7 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
 
         frameworkStatusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .Select(status => Observable.FromAsync(_ => dispatcherQueue.EnqueueAsync(() => ApplyStatus(status))))
             .Concat()
             .Subscribe()

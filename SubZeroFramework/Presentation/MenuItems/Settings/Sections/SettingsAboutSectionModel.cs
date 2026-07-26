@@ -43,6 +43,7 @@ public sealed partial class SettingsAboutSectionModel : ObservableObject, IDispo
 
         frameworkStatusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .Select(status => Observable.FromAsync(_ => dispatcherQueue.EnqueueAsync(() => ApplyStatus(status))))
             .Concat()
             .Subscribe()

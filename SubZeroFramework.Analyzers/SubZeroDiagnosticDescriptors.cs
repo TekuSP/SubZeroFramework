@@ -103,6 +103,15 @@ internal static class SubZeroDiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Removing an IDisposable from a keyed registry should dispose the removed value immediately to avoid leaks when subscriptions are replaced or removed incrementally.");
 
+    internal static readonly DiagnosticDescriptor TelemetrySubscriptionMustRateLimit = new(
+        id: "SZF0013",
+        title: "Telemetry subscriptions must rate-limit",
+        messageFormat: "Subscription to high-frequency telemetry source '{0}' must apply {1} before Subscribe(...)",
+        category: "SubZeroFramework.Reactive",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "Telemetry streams tick on every poll. A subscription that does work per tick — especially one marshalled to the UI thread — should bound its rate explicitly rather than inheriting the poll cadence, which is configurable and can be lowered to milliseconds. Change-set streams must use Batch, which COALESCES deltas; Sample and Throttle drop items, and a dropped change set loses an add or a remove permanently. DynamicData deliberately offers no Sample/Throttle for change sets for this reason.");
+
     internal static readonly DiagnosticDescriptor AvoidSetProperty = new(
         id: "SZF0012",
         title: "Use ObservableProperty partial properties",

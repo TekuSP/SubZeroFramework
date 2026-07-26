@@ -150,6 +150,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         _frameworkStatusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(status => LastStatus = status)
             .DisposeWith(_subscriptions);
@@ -162,24 +163,28 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         _fanControlStateClient
             .WatchFanControlStates()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(ApplyControlStateChanges)
             .DisposeWith(_subscriptions);
 
         _fanStateClient
             .WatchFanStates()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(ApplyFanStateChanges)
             .DisposeWith(_subscriptions);
 
         _fanTelemetryClient
             .WatchFans()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(ApplyFanTelemetryChanges)
             .DisposeWith(_subscriptions);
 
         _temperatureTelemetryClient
             .WatchTemperatures()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(ApplyTemperatureChanges)
             .DisposeWith(_subscriptions);

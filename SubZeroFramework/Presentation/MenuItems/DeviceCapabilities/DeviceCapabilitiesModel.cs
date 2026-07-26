@@ -190,6 +190,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                 var seriesCard = card;
                 _telemetryClient
                     .WatchTelemetrySeries(change.Key, PresentationDefaults.RecentTelemetryHistoryWindow)
+                    .Batch(TelemetryRateLimits.History)
                     .ToCollection()
                     .Sample(PresentationDefaults.HistoryProjectionInterval)
                     .Select(points => Observable.FromAsync(() => ApplyComputeUsageHistoryAsync(seriesCard, points)))
@@ -796,6 +797,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         _hardwareInfoClient
             .WatchHardwareInfo()
+            .Sample(TelemetryRateLimits.Inventory)
             .ObserveOn(_synchronizationContext)
             .Select(snapshot => Observable.FromAsync(() => UpdateSnapshotAsync(snapshot)))
             .Concat()
@@ -815,6 +817,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         // projection state rather than reordering the operators.
         _hardwareInfoClient
             .WatchHardwareInfoHistory(TelemetryHistoryLimits.MaximumHistoryWindow)
+            .Batch(TelemetryRateLimits.History)
             .ObserveOn(_synchronizationContext)
             .ToCollection()
             .Sample(PresentationDefaults.HistoryProjectionInterval)
@@ -825,6 +828,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         _frameworkStatusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Select(status => Observable.FromAsync(() => UpdateFrameworkStatusAsync(status)))
             .Concat()
@@ -833,6 +837,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         _temperatureTelemetryClient
             .WatchTemperatures()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Select(set => Observable.FromAsync(() => ApplyTemperatureChangesAsync(set)))
             .Concat()
@@ -844,6 +849,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         // subscribes to is a different matter and is sampled and projected off-thread — see below.
         _telemetryClient
             .WatchCurrentTelemetryValues()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(ApplyComputeTelemetryChanges)
             .DisposeWith(_subscriptions);
@@ -858,6 +864,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         _fanTelemetryClient
             .WatchFans()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Select(set => Observable.FromAsync(() => ApplyFanTelemetryChangesAsync(set)))
             .Concat()
@@ -866,6 +873,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         _fanStateClient
             .WatchFanStates()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Select(set => Observable.FromAsync(() => ApplyFanStateChangesAsync(set)))
             .Concat()
@@ -874,6 +882,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         _batteryTelemetryClient
             .WatchBatteries()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Select(set => Observable.FromAsync(() => ApplyBatteryChangesAsync(set)))
             .Concat()
