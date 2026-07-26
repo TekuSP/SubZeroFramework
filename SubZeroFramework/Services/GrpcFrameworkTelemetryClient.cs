@@ -292,9 +292,14 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
     private static void ApplyTelemetryChannelChange(ISourceUpdater<TelemetryChannel, TelemetryChannelId> channels, TelemetryChannelChangeReply reply)
     {
+        if (!TryMapChannelId(reply.ChannelId, out var channelId))
+        {
+            return;
+        }
+
         var channel = new TelemetryChannel
         {
-            Id = MapChannelId(reply.ChannelId),
+            Id = channelId,
             DisplayName = reply.DisplayName,
             UnitSymbol = string.IsNullOrEmpty(reply.UnitSymbol) ? null : reply.UnitSymbol,
             FirstObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.FirstObservedAtUnixTimeMilliseconds),
@@ -318,9 +323,14 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
     private static void ApplyCurrentTelemetryValueChange(ISourceUpdater<CurrentTelemetryValue, TelemetryChannelId> currentValues, CurrentTelemetryValueChangeReply reply)
     {
+        if (!TryMapChannelId(reply.ChannelId, out var channelId))
+        {
+            return;
+        }
+
         var value = new CurrentTelemetryValue
         {
-            ChannelId = MapChannelId(reply.ChannelId),
+            ChannelId = channelId,
             DisplayName = reply.DisplayName,
             UnitSymbol = string.IsNullOrEmpty(reply.UnitSymbol) ? null : reply.UnitSymbol,
             ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
@@ -364,23 +374,36 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             return;
         }
 
+        if (!TryMapChannelId(reply.ChannelId, out var channelId))
+        {
+            return;
+        }
+
         points.AddOrUpdate(new TelemetryPoint(
             SampleId: reply.SampleId,
-            ChannelId: MapChannelId(reply.ChannelId),
+            ChannelId: channelId,
             ObservedAt: DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
             NumericValue: reply.NumericValue));
     }
 
-    private static TelemetryChannelId MapChannelId(TelemetryChannelIdReply reply)
+    /// <summary>
+    /// False when the service sent an enum value this client does not know — a newer service. The caller
+    /// SKIPS that change: throwing here killed the whole telemetry stream over one unknown channel, and
+    /// defaulting produced a colliding channel identity. A skipped channel is just a reading this client
+    /// version cannot show.
+    /// </summary>
+    private static bool TryMapChannelId(TelemetryChannelIdReply reply, out TelemetryChannelId channelId)
     {
         if (!TryParseTelemetryArea(reply.Area, out var area)
             || !TryParseTelemetryEntityKind(reply.EntityKind, out var entityKind)
             || !TryParseTelemetryMetric(reply.Metric, out var metric))
         {
-            throw new InvalidOperationException("The service returned an invalid telemetry channel identifier.");
+            channelId = default;
+            return false;
         }
 
-        return new TelemetryChannelId(area, entityKind, reply.Index, metric);
+        channelId = new TelemetryChannelId(area, entityKind, reply.Index, metric);
+        return true;
     }
 
     private static TelemetryAreaValue MapTelemetryArea(TelemetryArea area)
@@ -389,6 +412,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
         {
             TelemetryArea.Thermal => TelemetryAreaValue.Thermal,
             TelemetryArea.Power => TelemetryAreaValue.Power,
+            TelemetryArea.Compute => TelemetryAreaValue.Compute,
             _ => TelemetryAreaValue.Unspecified,
         };
     }
@@ -400,6 +424,8 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             TelemetryEntityKind.TemperatureSensor => TelemetryEntityKindValue.TemperatureSensor,
             TelemetryEntityKind.Fan => TelemetryEntityKindValue.Fan,
             TelemetryEntityKind.Battery => TelemetryEntityKindValue.Battery,
+            TelemetryEntityKind.Gpu => TelemetryEntityKindValue.Gpu,
+            TelemetryEntityKind.Npu => TelemetryEntityKindValue.Npu,
             _ => TelemetryEntityKindValue.Unspecified,
         };
     }
@@ -413,48 +439,54 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             TelemetryMetric.BatteryChargePercent => TelemetryMetricValue.BatteryChargePercent,
             TelemetryMetric.BatteryPresentRateAmperes => TelemetryMetricValue.BatteryPresentRateAmperes,
             TelemetryMetric.BatteryPresentVoltageVolts => TelemetryMetricValue.BatteryPresentVoltageVolts,
+            TelemetryMetric.UtilizationPercent => TelemetryMetricValue.UtilizationPercent,
             _ => TelemetryMetricValue.Unspecified,
         };
     }
 
+    // The TryParse trio REJECTS values it does not know (out stays default, returns false). The previous
+    // shape — map unknowns to default and return true for anything non-Unspecified — silently turned every
+    // enum value added on the service side into (Thermal, TemperatureSensor, TemperatureCelsius), the SAME
+    // channel identity as a real EC temperature sensor: GPU utilization percentages were being injected into
+    // the thermal cache as degrees. An unknown value now means "newer service than client" and the channel is
+    // skipped, which degrades to a missing reading instead of a corrupted one.
+
     private static bool TryParseTelemetryArea(TelemetryAreaValue value, out TelemetryArea area)
     {
-        area = value switch
+        switch (value)
         {
-            TelemetryAreaValue.Thermal => TelemetryArea.Thermal,
-            TelemetryAreaValue.Power => TelemetryArea.Power,
-            _ => default,
-        };
-
-        return value is not TelemetryAreaValue.Unspecified;
+            case TelemetryAreaValue.Thermal: area = TelemetryArea.Thermal; return true;
+            case TelemetryAreaValue.Power: area = TelemetryArea.Power; return true;
+            case TelemetryAreaValue.Compute: area = TelemetryArea.Compute; return true;
+            default: area = default; return false;
+        }
     }
 
     private static bool TryParseTelemetryEntityKind(TelemetryEntityKindValue value, out TelemetryEntityKind entityKind)
     {
-        entityKind = value switch
+        switch (value)
         {
-            TelemetryEntityKindValue.TemperatureSensor => TelemetryEntityKind.TemperatureSensor,
-            TelemetryEntityKindValue.Fan => TelemetryEntityKind.Fan,
-            TelemetryEntityKindValue.Battery => TelemetryEntityKind.Battery,
-            _ => default,
-        };
-
-        return value is not TelemetryEntityKindValue.Unspecified;
+            case TelemetryEntityKindValue.TemperatureSensor: entityKind = TelemetryEntityKind.TemperatureSensor; return true;
+            case TelemetryEntityKindValue.Fan: entityKind = TelemetryEntityKind.Fan; return true;
+            case TelemetryEntityKindValue.Battery: entityKind = TelemetryEntityKind.Battery; return true;
+            case TelemetryEntityKindValue.Gpu: entityKind = TelemetryEntityKind.Gpu; return true;
+            case TelemetryEntityKindValue.Npu: entityKind = TelemetryEntityKind.Npu; return true;
+            default: entityKind = default; return false;
+        }
     }
 
     private static bool TryParseTelemetryMetric(TelemetryMetricValue value, out TelemetryMetric metric)
     {
-        metric = value switch
+        switch (value)
         {
-            TelemetryMetricValue.TemperatureCelsius => TelemetryMetric.TemperatureCelsius,
-            TelemetryMetricValue.FanSpeedRpm => TelemetryMetric.FanSpeedRpm,
-            TelemetryMetricValue.BatteryChargePercent => TelemetryMetric.BatteryChargePercent,
-            TelemetryMetricValue.BatteryPresentRateAmperes => TelemetryMetric.BatteryPresentRateAmperes,
-            TelemetryMetricValue.BatteryPresentVoltageVolts => TelemetryMetric.BatteryPresentVoltageVolts,
-            _ => default,
-        };
-
-        return value is not TelemetryMetricValue.Unspecified;
+            case TelemetryMetricValue.TemperatureCelsius: metric = TelemetryMetric.TemperatureCelsius; return true;
+            case TelemetryMetricValue.FanSpeedRpm: metric = TelemetryMetric.FanSpeedRpm; return true;
+            case TelemetryMetricValue.BatteryChargePercent: metric = TelemetryMetric.BatteryChargePercent; return true;
+            case TelemetryMetricValue.BatteryPresentRateAmperes: metric = TelemetryMetric.BatteryPresentRateAmperes; return true;
+            case TelemetryMetricValue.BatteryPresentVoltageVolts: metric = TelemetryMetric.BatteryPresentVoltageVolts; return true;
+            case TelemetryMetricValue.UtilizationPercent: metric = TelemetryMetric.UtilizationPercent; return true;
+            default: metric = default; return false;
+        }
     }
 
     private static FrameworkTemperatureState? ParseTemperatureState(TemperatureStateValue value)

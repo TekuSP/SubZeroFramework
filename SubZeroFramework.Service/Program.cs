@@ -7,8 +7,10 @@ using Microsoft.Extensions.Logging.Configuration;
 using Microsoft.Extensions.Logging.EventLog;
 using Microsoft.Extensions.Options;
 
+using SubZeroFramework.Models;
 using SubZeroFramework.Service.Models;
 using SubZeroFramework.Service.Services;
+using SubZeroFramework.Services.Compute;
 using SubZeroFramework.Service.Services.Hosting;
 using SubZeroFramework.Services;
 
@@ -76,6 +78,19 @@ public static class Program
         builder.Services.AddSingleton<IHardwareInfoLogNoiseBuffer>(x => x.GetRequiredService<HardwareInfoNoiseFilteringLogger>());
         builder.Services.AddSingleton<IHardwareInfo, HardwareInfo>(x =>
             new HardwareInfo(logger: x.GetRequiredService<HardwareInfoNoiseFilteringLogger>()));
+        // GPU/NPU utilization. Optional by design: a TFM with no reader registers the null-object pair, the
+        // provider publishes no compute channels, and the UI simply shows no devices. Compile-time (#if)
+        // rather than a runtime OS check so the Linux build carries neither the readers nor their interop —
+        // the Windows publish profiles build the windows TFM, the Linux ones build net10.0.
+#if WINDOWS10_0_26100_0_OR_GREATER
+        builder.Services.AddSingleton<IComputeDeviceIdentityResolver, WindowsComputeDeviceIdentityResolver>();
+        builder.Services.AddSingleton<IComputeUtilizationReader, WindowsPdhComputeUtilizationReader>();
+#else
+        // Linux readers land in phase 2 (AMD sysfs) and phase 3 (NVML / Intel PMU).
+        builder.Services.AddSingleton<IComputeDeviceIdentityResolver>(UnavailableComputeDeviceIdentityResolver.Instance);
+        builder.Services.AddSingleton<IComputeUtilizationReader>(UnavailableComputeUtilizationReader.Instance);
+#endif
+
         builder.Services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
         builder.Services.AddSingleton<FrameworkFanControlSafetyTracker>();
         builder.Services.AddSingleton<IFrameworkDataProvider, FrameworkDataProvider>();

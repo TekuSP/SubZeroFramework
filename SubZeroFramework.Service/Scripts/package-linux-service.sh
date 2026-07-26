@@ -31,8 +31,11 @@ if [[ -n "${ARTIFACTS_PATH:-}" ]]; then
   artifacts_args=("-p:ArtifactsPath=${ARTIFACTS_PATH}")
 fi
 
+# The service multi-targets; net10.0 is the Linux flavor (the windows TFM adds the Windows-only GPU/NPU
+# readers and their interop). A multi-TFM project refuses to publish without -f.
 dotnet publish "${service_root}/SubZeroFramework.Service.csproj" \
   -c "${configuration}" \
+  -f net10.0 \
   -r "${runtime_id}" \
   --self-contained true \
   -o "${output_dir}" \

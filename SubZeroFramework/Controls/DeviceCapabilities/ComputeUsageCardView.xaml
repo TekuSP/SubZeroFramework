@@ -1,0 +1,94 @@
+<UserControl
+    x:Class="SubZeroFramework.Controls.DeviceCapabilities.ComputeUsageCardView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--  The CPU per-core card, stretched: GPU/NPU details host exactly one of these, so it fills the pane
+          width instead of the 190px grid tile the core cards use.  -->
+    <Border
+        Height="170"
+        MinWidth="190"
+        Padding="12"
+        HorizontalAlignment="Stretch"
+        Background="{StaticResource CardMetricBackgroundBrush}"
+        CornerRadius="12">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Spacing="4">
+                <TextBlock
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="{x:Bind ViewModel.DisplayName, Mode=OneWay}"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="NoWrap" />
+                <TextBlock
+                    FontSize="30"
+                    FontWeight="SemiBold"
+                    Foreground="{x:Bind ViewModel.UsageBrush, Mode=OneWay}"
+                    Text="{x:Bind ViewModel.UtilizationDisplay, Mode=OneWay}"
+                    TextWrapping="NoWrap" />
+            </StackPanel>
+
+            <lvc:CartesianChart
+                Grid.Row="1"
+                Height="92"
+                Margin="-6,4,-8,-4"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Bottom"
+                AutoUpdateEnabled="True"
+                Background="Transparent"
+                LegendPosition="Hidden"
+                TooltipPosition="Hidden"
+                ZoomMode="None">
+                <lvc:CartesianChart.Series>
+                    <lvc:SeriesCollection>
+                        <lvc:XamlLineSeries
+                            AnimationsSpeed="0"
+                            Fill="{x:Null}"
+                            GeometryFill="{x:Null}"
+                            GeometryStroke="{x:Null}"
+                            Stroke="{x:Bind ViewModel.UsageStrokePaint, Mode=OneWay}"
+                            Values="{x:Bind ViewModel.UsageHistory, Mode=OneWay}" />
+                    </lvc:SeriesCollection>
+                </lvc:CartesianChart.Series>
+                <lvc:CartesianChart.XAxes>
+                    <lvc:AxesCollection>
+                        <lvc:XamlDateTimeAxis
+                            AnimationsSpeed="0"
+                            CustomSeparators="{x:Bind ViewModel.UsageSeparators, Mode=OneWay}"
+                            DateFormatter="{x:Bind ViewModel.LabelsFormatter, Mode=OneWay}"
+                            Interval="0:0:5"
+                            LabelsPaint="{x:Null}"
+                            Padding="{lvc:Padding Value='0,0'}"
+                            MaxLimit="{x:Bind ViewModel.UsageMaxLimit, Mode=OneWay}"
+                            MinLimit="{x:Bind ViewModel.UsageMinLimit, Mode=OneWay}"
+                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                            ShowSeparatorLines="True"
+                            TextSize="0" />
+                    </lvc:AxesCollection>
+                </lvc:CartesianChart.XAxes>
+                <lvc:CartesianChart.YAxes>
+                    <lvc:AxesCollection>
+                        <lvc:XamlAxis
+                            AnimationsSpeed="0"
+                            Labeler="{x:Bind ViewModel.UsageLabelFormatter, Mode=OneWay}"
+                            LabelsPaint="{x:Null}"
+                            Padding="{lvc:Padding Value='0,0'}"
+                            MaxLimit="{x:Bind ViewModel.UsageAxisMaxLimit, Mode=OneWay}"
+                            MinLimit="0"
+                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                            ShowSeparatorLines="True"
+                            TextSize="0" />
+                    </lvc:AxesCollection>
+                </lvc:CartesianChart.YAxes>
+            </lvc:CartesianChart>
+        </Grid>
+    </Border>
+</UserControl>

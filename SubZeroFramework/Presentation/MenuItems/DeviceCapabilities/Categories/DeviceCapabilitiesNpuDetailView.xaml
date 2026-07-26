@@ -1,0 +1,39 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.DeviceCapabilities.Categories.DeviceCapabilitiesNpuDetailView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--  Processor detail per the CPU package layout: plain heading + stat tiles + the usage graph card.  -->
+    <StackPanel Spacing="12">
+        <TextBlock
+            FontSize="16"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource TextPrimaryBrush}"
+            IsTextSelectionEnabled="True"
+            Text="{x:Bind ViewModel.Device.DisplayName, Mode=OneWay}" />
+
+        <deviceCapabilitiesControls:StatTilePanel>
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Speedometer"
+                Label="Current utilization"
+                Value="{x:Bind ViewModel.Device.UtilizationDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Chip"
+                Label="Device type"
+                Value="{x:Bind ViewModel.Device.KindLabel}" />
+        </deviceCapabilitiesControls:StatTilePanel>
+
+        <StackPanel Spacing="8">
+            <TextBlock
+                FontSize="12"
+                CharacterSpacing="60"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="LIVE UTILIZATION" />
+            <deviceCapabilitiesControls:ComputeUsageCardView ViewModel="{x:Bind ViewModel.Device, Mode=OneWay}" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

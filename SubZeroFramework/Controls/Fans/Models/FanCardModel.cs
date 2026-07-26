@@ -579,7 +579,7 @@ public partial class FanCardModel : ObservableObject
         {
             OverrideStateText = "Auto restore failed";
             OverrideStateIcon = MaterialIconKind.AlertCircle;
-            OverrideStateBrush = AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
+            OverrideStateBrush = AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor);
             OverrideStateVisibility = Visibility.Visible;
             return;
         }
@@ -632,14 +632,14 @@ public partial class FanCardModel : ObservableObject
             StatusText = Snapshot.IsAvailable ? "Status: Checking" : "Status: Unavailable";
             StatusBrush = Snapshot.IsAvailable
                 ? AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor)
-                : AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
+                : AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor);
             return;
         }
 
         if (!FanState.IsAvailable)
         {
             StatusText = "Status: Unavailable";
-            StatusBrush = AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
+            StatusBrush = AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor);
             return;
         }
 
@@ -651,11 +651,11 @@ public partial class FanCardModel : ObservableObject
                 break;
             case FrameworkFanState.Stalled:
                 StatusText = "Status: Stalled";
-                StatusBrush = AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
+                StatusBrush = AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor);
                 break;
             case FrameworkFanState.NotPresent:
                 StatusText = "Status: Not Present";
-                StatusBrush = AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
+                StatusBrush = AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor);
                 break;
             default:
                 StatusText = "Status: Unknown";

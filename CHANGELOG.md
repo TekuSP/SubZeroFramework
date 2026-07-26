@@ -6,6 +6,22 @@ All notable changes to this repository should be documented in this file.
 
 ### Added
 
+- **Windows: live GPU and NPU utilization.** Each graphics adapter's detail now carries its own live
+  utilization — the current percentage over a rolling 30-second graph, the same card the CPU uses per core —
+  and a new **Neural processor** category presents the NPU the way the CPU category presents packages: a
+  count, a processor list, and the picked device's detail. On a Framework 16 that is the integrated Radeon,
+  the discrete GPU module and the Ryzen AI NPU, each with its own reading, never blended into one number.
+  The service reads the Windows GPU Engine performance counters through one persistent PDH query (~1.5 ms per
+  second-tick, measured) and derives busy time per adapter the same way Task Manager does; devices are named
+  via SetupAPI and matched by adapter LUID. Software adapters with no physical device behind them (WARP) are
+  excluded. The Windows readers and their interop are compiled only into Windows builds — Linux ships none of
+  it, needs nothing new at install time, and shows an honest empty state until its per-vendor readers land.
+
+- **Device Capabilities categories with nothing in them are disabled.** A category whose body could only show
+  an empty state no longer opens: the rail entry dims and says why on hover ("No graphics detected"). Onboard
+  devices and System profile always stay open. This is what a Linux machine sees for Graphics today, and what
+  any machine sees for a category its hardware does not have.
+
 - **Settings → Service logs.** Shows what the background service has logged since it started, with a level
   filter and a one-click "Copy all" for pasting into a bug report — no more hunting through Event Viewer or
   `journalctl`. The service mirrors its log into a bounded in-memory buffer (the last 2,000 entries) that sits
@@ -13,6 +29,16 @@ All notable changes to this repository should be documented in this file.
   so instead of implying a complete history.
 
 ### Fixed
+
+- **Error status text was unreadable.** "Unavailable", "Stalled", "Not Present", a critical battery and a
+  ≥85 °C reading were drawn in the palette's dark red *fill* tone (#442726) as foreground — near-invisible on
+  the dark card. They now use the error text tone, like the rest of the app. Same swap for the storage/memory
+  usage bar past 90%, whose fill was the odd one out next to its bright green and amber siblings.
+- **A newer service could kill the telemetry stream on an older client.** The app's copy of the wire enum
+  mapper parsed an unknown value into the *first* member instead of rejecting it, producing a valid-looking
+  channel identity that collided with a real sensor — a GPU percentage could land in the thermal cache as
+  degrees. Unknown values are now rejected on both sides and the offending update is skipped rather than
+  throwing, so an unrecognized channel is ignored instead of ending the subscription.
 
 - **"Apply all" put an unselected fan back on its curve instead of applying the mode you staged.** Staging
   Auto (or Manual/Max) on one fan, switching to another, and applying reached the first fan through the wrong

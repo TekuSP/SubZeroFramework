@@ -15,6 +15,7 @@ using FrameworkDotnet.Snapshots;
 using Hardware.Info;
 using HardwareMonitor = Hardware.Info.Monitor;
 using HardwareVideoController = Hardware.Info.VideoController;
+using SubZeroFramework.Services.Compute;
 using UnitsNet;
 
 namespace SubZeroFramework.Services;
@@ -56,6 +57,13 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     // dependency the spawns failed instantly, which hid the cost). This data does not change second to
     // second; ten minutes still catches USB drives and network changes. Only genuinely dynamic values
     // (CPU usage — the fan-boost input — and memory free/used) stay on the fast poll.
+    private readonly IComputeUtilizationReader _computeUtilizationReader;
+
+    /// <summary>Stable per-process channel index per compute device, keyed by its durable device key.</summary>
+    private readonly Dictionary<string, int> _computeChannelIndexes = [];
+
+    private bool _computeUtilizationFailureLogged;
+
     private static readonly TimeSpan StaticInventoryRefreshInterval = TimeSpan.FromMinutes(10);
     private DateTimeOffset _lastStaticInventoryRefreshAt = DateTimeOffset.MinValue;
     private readonly RetainedSnapshotStream<FrameworkThermalSnapshot> _thermalSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
@@ -108,13 +116,17 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         IHardwareInfo hardwareInfo,
         FrameworkFanControlSafetyTracker fanControlSafetyTracker,
         ILogger<FrameworkDataProvider> logger,
-        IHardwareInfoLogNoiseBuffer? hardwareInfoNoiseBuffer = null)
+        IHardwareInfoLogNoiseBuffer? hardwareInfoNoiseBuffer = null,
+        IComputeUtilizationReader? computeUtilizationReader = null)
     {
         _frameworkSystem = frameworkSystem;
         _hardwareInfo = hardwareInfo;
         _fanControlSafetyTracker = fanControlSafetyTracker;
         _logger = logger;
         _hardwareInfoNoiseBuffer = hardwareInfoNoiseBuffer ?? NullHardwareInfoLogNoiseBuffer.Instance;
+        // Optional by construction: a host that does not supply a reader (or a platform without one) simply
+        // never publishes compute channels. GPU/NPU telemetry must never be a reason the provider fails.
+        _computeUtilizationReader = computeUtilizationReader ?? UnavailableComputeUtilizationReader.Instance;
         SystemStatus = _systemStatus;
         FlashSnapshots = _flashSnapshots;
         FanCapabilitiesSnapshots = _fanCapabilitiesSnapshots;
@@ -1023,6 +1035,10 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             successfulReads += 1;
         }
 
+        // Independent of the EC: GPU/NPU load comes from the OS, so it is published even when an EC read
+        // above failed. Cheap enough for the fast tier (measured ~1.7 ms on Windows).
+        PublishComputeUtilization(observedAt);
+
         if (TryReadSnapshot(connection.GetThermalSnapshot, "thermal", ref snapshotError, out var thermalSnapshot))
         {
             _logger.LogDebug("Publishing thermal snapshot for {SensorCount} sensor(s) and {FanCount} reported fan(s) at {ObservedAt}.", thermalSnapshot!.SensorCount, thermalSnapshot.ReportedFans.Count(), observedAt);
@@ -1362,6 +1378,79 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     /// <summary>True once "expansion bay reports Unavailable" has been logged for the current connection.</summary>
     private bool _expansionBayUnavailableLogged;
+
+    /// <summary>
+    /// Publishes one utilization channel per GPU / NPU the reader can see. Runs on the FAST tier: the Windows
+    /// PDH reader costs ~1.7 ms per collect (measured), which is affordable at 1 s. Devices are published
+    /// individually — never blended — and a device the reader stops seeing goes unavailable rather than
+    /// freezing at its last value.
+    /// </summary>
+    private void PublishComputeUtilization(DateTimeOffset observedAt)
+    {
+        if (!_computeUtilizationReader.IsAvailable)
+        {
+            return;
+        }
+
+        IReadOnlyList<ComputeDeviceUtilization> devices;
+        try
+        {
+            devices = _computeUtilizationReader.Sample();
+        }
+        catch (Exception exception)
+        {
+            // A telemetry tick must survive a misbehaving counter/driver. Log once, then stay quiet.
+            if (!_computeUtilizationFailureLogged)
+            {
+                _computeUtilizationFailureLogged = true;
+                _logger.LogWarning(exception, "Reading GPU/NPU utilization failed; the devices will show as unavailable. Further failures are suppressed.");
+            }
+
+            return;
+        }
+
+        var observedGpuChannels = new HashSet<TelemetryChannelId>();
+        var observedNpuChannels = new HashSet<TelemetryChannelId>();
+
+        foreach (var device in devices)
+        {
+            var entityKind = device.Kind == ComputeDeviceKind.Npu ? TelemetryEntityKind.Npu : TelemetryEntityKind.Gpu;
+
+            // The channel index must be stable for the life of the process so a device keeps its identity in
+            // the UI. DeviceKey is the durable id (PCI path / device instance path); the index is just its
+            // first-seen slot, assigned once and never reused.
+            var index = GetComputeChannelIndex(device.DeviceKey);
+            var channelId = new TelemetryChannelId(
+                Area: TelemetryArea.Compute,
+                EntityKind: entityKind,
+                Index: index,
+                Metric: TelemetryMetric.UtilizationPercent);
+
+            (entityKind == TelemetryEntityKind.Npu ? observedNpuChannels : observedGpuChannels).Add(channelId);
+
+            PublishNumericTelemetry(
+                channelId: channelId,
+                displayName: device.DisplayName,
+                unitSymbol: "%",
+                observedAt: observedAt,
+                numericValue: device.UtilizationPercent);
+        }
+
+        SetChannelsAvailability(TelemetryArea.Compute, TelemetryEntityKind.Gpu, observedGpuChannels, observedAt);
+        SetChannelsAvailability(TelemetryArea.Compute, TelemetryEntityKind.Npu, observedNpuChannels, observedAt);
+    }
+
+    private int GetComputeChannelIndex(string deviceKey)
+    {
+        if (_computeChannelIndexes.TryGetValue(deviceKey, out var index))
+        {
+            return index;
+        }
+
+        index = _computeChannelIndexes.Count;
+        _computeChannelIndexes[deviceKey] = index;
+        return index;
+    }
 
     /// <summary>
     /// Reads the Framework 16 expansion-bay snapshot, treating an EC "Unavailable" response as an EMPTY

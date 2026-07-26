@@ -11,9 +11,7 @@ using Microsoft.UI.Xaml.Media;
 using SkiaSharp;
 
 using SubZeroFramework.Models;
-using SubZeroFramework.Presentation;
 using SubZeroFramework.Services.Units;
-using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
@@ -48,7 +46,7 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
     [ObservableProperty]
     public partial double? UsageMaxLimit { get; set; }
 
-    public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
+    public Func<DateTime, string> LabelsFormatter { get; } = UsageChartStyle.FormatElapsedLabel;
 
     [ObservableProperty]
     public partial Func<double, string> UsageLabelFormatter { get; private set; }
@@ -61,11 +59,11 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
     [ObservableProperty]
     public partial double UsageAxisMaxLimit { get; private set; }
 
-    public Brush UsageBrush => GetUsageBrush(Snapshot.PercentProcessorTime);
+    public Brush UsageBrush => UsageChartStyle.GetUsageBrush(Snapshot.PercentProcessorTime);
 
     public SolidColorPaint UsageStrokePaint => new(SKColor.Parse(UsageStrokeHex), 2);
 
-    public string UsageStrokeHex => GetUsageStrokeHex(Snapshot.PercentProcessorTime);
+    public string UsageStrokeHex => UsageChartStyle.GetUsageStrokeHex(Snapshot.PercentProcessorTime);
 
     public void UpdateHistory(IReadOnlyList<DateTimePoint> usageHistory, double? minLimit, double? maxLimit, IReadOnlyList<double> separators)
     {
@@ -118,62 +116,4 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
             : $"Core {candidate}";
     }
 
-    // Mockup load tiers: idle muted, light blue, busy amber, saturated red — value and sparkline share the tier.
-    private static Brush GetUsageBrush(double usagePercent)
-    {
-        if (usagePercent <= 1d)
-        {
-            return AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextPrimaryColor);
-        }
-
-        if (usagePercent < 50d)
-        {
-            return AppThemeBrushes.Get("StatusInfoBrush", AppThemeBrushes.TemperatureAccentColor);
-        }
-
-        if (usagePercent < 90d)
-        {
-            return AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor);
-        }
-
-        return AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor);
-    }
-
-    private static string GetUsageStrokeHex(double usagePercent)
-    {
-        if (usagePercent <= 1d)
-        {
-            return AppThemeBrushes.ChartMutedColorHex;
-        }
-
-        if (usagePercent < 50d)
-        {
-            return AppThemeBrushes.ChartAccentColorHex;
-        }
-
-        if (usagePercent < 90d)
-        {
-            return AppThemeBrushes.ChartWarningColorHex;
-        }
-
-        // Bright danger tone (StatusErrorTextBrush); the chart-palette error hex is too muted for the mockup.
-        return "#D9706A";
-    }
-
-    private static string Formatter(DateTime date)
-    {
-        var elapsed = DateTime.Now - date;
-
-        if (elapsed.TotalSeconds < 1d)
-        {
-            return "now";
-        }
-
-        if (elapsed.TotalMinutes < 1d)
-        {
-            return $"{elapsed.TotalSeconds:N0}s";
-        }
-
-        return $"{elapsed.TotalMinutes:N0}m";
-    }
 }

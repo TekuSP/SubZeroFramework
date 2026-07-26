@@ -1,7 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- The windows TFM carries Core's Windows-only GPU/NPU readers (and their Vanara interop); net10.0 is
+         the Linux service. Windows FIRST on purpose: Visual Studio's run target defaults to the first TFM,
+         and defaulting to net10.0 made F5 on a Windows dev machine silently run the Linux flavor — no
+         compute telemetry, nothing else visibly wrong. Publish paths are explicit (-f in the scripts and
+         pubxml), so ordering only affects local runs. -->
+    <TargetFrameworks>net10.0-windows10.0.26100;net10.0</TargetFrameworks>
+    <!-- See SubZeroFramework.Core.csproj: the ubuntu test job restores this project. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>SubZeroFramework.Service</RootNamespace>

@@ -275,6 +275,7 @@ public partial class App : Application
             new ViewMap<DeviceCapabilitiesMemoryCategoryView, DeviceCapabilitiesMemoryCategoryModel>(),
             new ViewMap<DeviceCapabilitiesStorageCategoryView, DeviceCapabilitiesStorageCategoryModel>(),
             new ViewMap<DeviceCapabilitiesGraphicsCategoryView, DeviceCapabilitiesGraphicsCategoryModel>(),
+            new ViewMap<DeviceCapabilitiesNpuCategoryView, DeviceCapabilitiesNpuCategoryModel>(),
             new ViewMap<DeviceCapabilitiesNetworkCategoryView, DeviceCapabilitiesNetworkCategoryModel>(),
             new ViewMap<DeviceCapabilitiesSystemProfileCategoryView, DeviceCapabilitiesSystemProfileCategoryModel>(),
             // Instance detail bodies: resolved by DATA navigation — the category pickers pass the live card model.
@@ -284,6 +285,7 @@ public partial class App : Application
             new DataViewMap<DeviceCapabilitiesGraphicsAdapterDetailView, DeviceCapabilitiesGraphicsAdapterDetailModel, DeviceCapabilitiesGraphicsCardGroupModel>(),
             new DataViewMap<DeviceCapabilitiesGraphicsMonitorDetailView, DeviceCapabilitiesGraphicsMonitorDetailModel, DeviceCapabilitiesMonitorCardModel>(),
             new DataViewMap<DeviceCapabilitiesNetworkAdapterDetailView, DeviceCapabilitiesNetworkAdapterDetailModel, DeviceCapabilitiesNetworkAdapterCardModel>(),
+            new DataViewMap<DeviceCapabilitiesNpuDetailView, DeviceCapabilitiesNpuDetailModel, ComputeDeviceUsageCardModel>(),
             new ViewMap<ModulesPage, ModulesModel>(),
             new ViewMap<ModulesFw16View, ModulesFw16Model>(),
             new ViewMap<ModulesFw13View, ModulesFw13Model>(),
@@ -337,6 +339,11 @@ public partial class App : Application
                     [
                         new RouteMap("GraphicsAdapter", View: views.FindByViewModel<DeviceCapabilitiesGraphicsAdapterDetailModel>()),
                         new RouteMap("GraphicsMonitor", View: views.FindByViewModel<DeviceCapabilitiesGraphicsMonitorDetailModel>()),
+                    ]),
+                    new RouteMap("Npu", View: views.FindByViewModel<DeviceCapabilitiesNpuCategoryModel>(),
+                    Nested:
+                    [
+                        new RouteMap("NpuDevice", View: views.FindByViewModel<DeviceCapabilitiesNpuDetailModel>()),
                     ]),
                     new RouteMap("Network", View: views.FindByViewModel<DeviceCapabilitiesNetworkCategoryModel>(),
                     Nested:

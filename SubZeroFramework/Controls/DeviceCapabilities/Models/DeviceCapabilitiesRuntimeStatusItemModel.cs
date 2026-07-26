@@ -66,7 +66,8 @@ public partial class DeviceCapabilitiesRuntimeStatusItemModel : ObservableObject
     {
         DeviceCapabilitiesStatusTone.Success => AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor),
         DeviceCapabilitiesStatusTone.Warning => AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor),
-        DeviceCapabilitiesStatusTone.Error => AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor),
+        // TEXT tone, not StatusErrorBrush: that one is a dark fill (#442726) and is unreadable as a foreground.
+        DeviceCapabilitiesStatusTone.Error => AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor),
         _ => AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.StatusErrorColor),
     };
 
