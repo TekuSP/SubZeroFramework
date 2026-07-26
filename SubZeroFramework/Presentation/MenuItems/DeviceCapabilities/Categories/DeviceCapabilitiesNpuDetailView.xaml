@@ -25,6 +25,30 @@
                 IconKind="Chip"
                 Label="Device type"
                 Value="{x:Bind ViewModel.Device.KindLabel}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Factory"
+                Label="Vendor"
+                Value="{x:Bind ViewModel.Device.VendorDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Cog"
+                Label="Driver"
+                Value="{x:Bind ViewModel.Device.DriverDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Tag"
+                Label="Driver version"
+                Value="{x:Bind ViewModel.Device.DriverVersionDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Memory"
+                Label="Firmware"
+                Value="{x:Bind ViewModel.Device.FirmwareVersionDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="MapMarker"
+                Label="Location"
+                Value="{x:Bind ViewModel.Device.LocationDisplay, Mode=OneWay}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="InformationOutline"
+                Label="Description"
+                Value="{x:Bind ViewModel.Device.DescriptionDisplay, Mode=OneWay}" />
         </deviceCapabilitiesControls:StatTilePanel>
 
         <StackPanel Spacing="8">

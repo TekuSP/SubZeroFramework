@@ -106,7 +106,13 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     public partial HardwareInfoSnapshot? Snapshot { get; set; }
 
     // The unit-formatted aggregate displays are STORED properties; re-project them whenever the snapshot changes.
-    partial void OnSnapshotChanged(HardwareInfoSnapshot? value) => RefreshUnitFormattedDisplays();
+    partial void OnSnapshotChanged(HardwareInfoSnapshot? value)
+    {
+        RefreshUnitFormattedDisplays();
+        // The accelerator list arrives with the snapshot, while the cards come from the telemetry stream;
+        // whichever lands second has to do the join.
+        RefreshComputeAcceleratorDetails();
+    }
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesCpuPackageCardModel> CpuPackageCards { get; }
 
@@ -209,6 +215,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             }
 
             LinkGpuUsageCardsToAdapters();
+            RefreshComputeAcceleratorDetails();
             RefreshCategoryCounts();
         }
     }
@@ -292,6 +299,26 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             .Replace("©", string.Empty, StringComparison.Ordinal);
 
         return string.Join(' ', normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// Attaches inventory identity (model, vendor, driver, firmware) to each live compute device.
+    /// </summary>
+    /// <remarks>
+    /// Runs whenever either side changes — a new telemetry channel appears, or a fresh hardware snapshot
+    /// arrives — because neither ordering is guaranteed. Matching is by display name: both the utilization
+    /// reader and the inventory resolver take the name from the same platform source, so equal names mean the
+    /// same device rather than a guess. An unmatched card keeps its reading and shows "Unknown" details.
+    /// </remarks>
+    private void RefreshComputeAcceleratorDetails()
+    {
+        var accelerators = Snapshot?.ComputeAccelerators ?? [];
+
+        foreach (var card in _npuUsageCards)
+        {
+            card.Accelerator = accelerators.FirstOrDefault(accelerator =>
+                string.Equals(accelerator.Name, card.DisplayName, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     // Display order only, never identity: within a category, the service's stable channel index. The insert

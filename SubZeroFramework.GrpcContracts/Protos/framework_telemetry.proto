@@ -293,6 +293,26 @@ message HardwareInfoNetworkAdapterReply {
   repeated string default_gateways = 11;
 }
 
+// A neural processor or other compute accelerator, as inventory. Every field beyond the name is optional:
+// what a platform can say about an NPU varies from a full driver and firmware version down to a bus address.
+message HardwareInfoComputeAcceleratorReply {
+  string device_key = 1;
+  ComputeDeviceKindValue kind = 2;
+  string name = 3;
+  string vendor = 4;
+  string description = 5;
+  string driver_name = 6;
+  string driver_version = 7;
+  string firmware_version = 8;
+  string location = 9;
+}
+
+enum ComputeDeviceKindValue {
+  COMPUTE_DEVICE_KIND_VALUE_UNSPECIFIED = 0;
+  COMPUTE_DEVICE_KIND_VALUE_GPU = 1;
+  COMPUTE_DEVICE_KIND_VALUE_NPU = 2;
+}
+
 message HardwareInfoReply {
   int64 observed_at_unix_time_milliseconds = 1;
   bool is_available = 2;
@@ -308,6 +328,7 @@ message HardwareInfoReply {
   repeated HardwareInfoMonitorReply monitors = 12;
   repeated HardwareInfoDriveReply drives = 13;
   repeated HardwareInfoNetworkAdapterReply network_adapters = 14;
+  repeated HardwareInfoComputeAcceleratorReply compute_accelerators = 15;
 }
 
 message HardwareInfoHistoryChangeReply {

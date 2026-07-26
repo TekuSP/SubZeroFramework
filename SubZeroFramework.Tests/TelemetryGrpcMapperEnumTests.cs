@@ -1,6 +1,7 @@
 using NUnit.Framework;
 
 using SubZeroFramework.GrpcContracts;
+using SubZeroFramework.GrpcContracts.Mapping;
 using SubZeroFramework.Models;
 using SubZeroFramework.Service.Services;
 
@@ -65,6 +66,22 @@ public class TelemetryGrpcMapperEnumTests
     }
 
     [Test]
+    public void EveryComputeDeviceKind_RoundTripsThroughTheWireEnum()
+    {
+        foreach (var kind in Enum.GetValues<ComputeDeviceKind>())
+        {
+            var wire = TelemetryWireMapper.MapComputeDeviceKind(kind);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(wire, Is.Not.EqualTo(ComputeDeviceKindValue.Unspecified), $"{kind} has no wire value — the accelerator would be dropped by every client.");
+                Assert.That(TelemetryWireMapper.TryParseComputeDeviceKind(wire, out var parsed), Is.True);
+                Assert.That(parsed, Is.EqualTo(kind));
+            });
+        }
+    }
+
+    [Test]
     public void UnknownWireValues_AreRejected_NeverGuessedAsTheFirstMember()
     {
         Assert.Multiple(() =>
@@ -75,6 +92,41 @@ public class TelemetryGrpcMapperEnumTests
             Assert.That(TelemetryGrpcMapper.TryParseTelemetryArea(TelemetryAreaValue.Unspecified, out _), Is.False);
             Assert.That(TelemetryGrpcMapper.TryParseTelemetryEntityKind(TelemetryEntityKindValue.Unspecified, out _), Is.False);
             Assert.That(TelemetryGrpcMapper.TryParseTelemetryMetric(TelemetryMetricValue.Unspecified, out _), Is.False);
+            Assert.That(TelemetryWireMapper.TryParseComputeDeviceKind((ComputeDeviceKindValue)999, out _), Is.False);
+            Assert.That(TelemetryWireMapper.TryParseComputeDeviceKind(ComputeDeviceKindValue.Unspecified, out _), Is.False);
+        });
+    }
+
+    /// <summary>
+    /// The service-side entry points must be the shared mapper, not a second implementation.
+    /// </summary>
+    /// <remarks>
+    /// The bug this whole fixture exists for was two copies of the mapping drifting apart. The copies are now
+    /// forwarders onto <see cref="TelemetryWireMapper"/>; this asserts they agree for every value, so a future
+    /// "quick fix" that re-inlines one of them fails here rather than in the field.
+    /// </remarks>
+    [Test]
+    public void ServiceMapperAndSharedMapper_AgreeOnEveryValue()
+    {
+        Assert.Multiple(() =>
+        {
+            foreach (var area in Enum.GetValues<TelemetryArea>())
+            {
+                var channelId = new TelemetryChannelId(area, TelemetryEntityKind.Fan, 0, TelemetryMetric.FanSpeedRpm);
+                Assert.That(TelemetryGrpcMapper.MapChannelId(channelId).Area, Is.EqualTo(TelemetryWireMapper.MapTelemetryArea(area)));
+            }
+
+            foreach (var entityKind in Enum.GetValues<TelemetryEntityKind>())
+            {
+                var channelId = new TelemetryChannelId(TelemetryArea.Compute, entityKind, 0, TelemetryMetric.UtilizationPercent);
+                Assert.That(TelemetryGrpcMapper.MapChannelId(channelId).EntityKind, Is.EqualTo(TelemetryWireMapper.MapTelemetryEntityKind(entityKind)));
+            }
+
+            foreach (var metric in Enum.GetValues<TelemetryMetric>())
+            {
+                var channelId = new TelemetryChannelId(TelemetryArea.Compute, TelemetryEntityKind.Gpu, 0, metric);
+                Assert.That(TelemetryGrpcMapper.MapChannelId(channelId).Metric, Is.EqualTo(TelemetryWireMapper.MapTelemetryMetric(metric)));
+            }
         });
     }
 }

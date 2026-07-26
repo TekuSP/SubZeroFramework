@@ -26,6 +26,8 @@ public sealed record HardwareInfoSnapshot
 
     public ImmutableArray<HardwareInfoNetworkAdapter> NetworkAdapters => Inventory.NetworkAdapters;
 
+    public ImmutableArray<HardwareInfoComputeAccelerator> ComputeAccelerators => Inventory.ComputeAccelerators;
+
     public HardwareInfoMemoryStatus? MemoryStatus => Runtime.MemoryStatus;
 
     public ImmutableArray<HardwareInfoMonitor> Monitors => Runtime.Monitors;

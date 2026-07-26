@@ -66,6 +66,12 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     private readonly IGraphicsInventoryReader _graphicsInventoryReader;
     private GraphicsInventory _graphicsInventory = GraphicsInventory.Empty;
 
+    // Compute-accelerator identity (the NPU's model, driver and firmware). Static, so it is resolved on the
+    // slow inventory tier and cached here — the Windows resolver alone costs hundreds of milliseconds.
+    private readonly IComputeDeviceIdentityResolver _computeDeviceIdentityResolver;
+    private ImmutableArray<HardwareInfoComputeAccelerator> _computeAccelerators = [];
+    private bool _loggedComputeAcceleratorFailure;
+
     /// <summary>Stable per-process channel index per compute device, keyed by its durable device key.</summary>
     private readonly Dictionary<string, int> _computeChannelIndexes = [];
 
@@ -125,7 +131,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         ILogger<FrameworkDataProvider> logger,
         IHardwareInfoLogNoiseBuffer? hardwareInfoNoiseBuffer = null,
         IComputeUtilizationReader? computeUtilizationReader = null,
-        IGraphicsInventoryReader? graphicsInventoryReader = null)
+        IGraphicsInventoryReader? graphicsInventoryReader = null,
+        IComputeDeviceIdentityResolver? computeDeviceIdentityResolver = null)
     {
         _frameworkSystem = frameworkSystem;
         _hardwareInfo = hardwareInfo;
@@ -138,6 +145,9 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         // Same contract for graphics inventory: a platform whose display enumeration comes from Hardware.Info
         // supplies no reader here and nothing changes.
         _graphicsInventoryReader = graphicsInventoryReader ?? UnavailableGraphicsInventoryReader.Instance;
+        // The same resolver the Windows utilization reader uses for LUID mapping also describes the devices,
+        // so the NPU can be listed with a driver and firmware version rather than just a name and a percentage.
+        _computeDeviceIdentityResolver = computeDeviceIdentityResolver ?? UnavailableComputeDeviceIdentityResolver.Instance;
         SystemStatus = _systemStatus;
         FlashSnapshots = _flashSnapshots;
         FanCapabilitiesSnapshots = _fanCapabilitiesSnapshots;
@@ -577,6 +587,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 {
                     _hardwareInfo.RefreshVideoControllerList(refreshMonitorList: true);
                 }
+
+                RefreshComputeAccelerators();
             }
         }
         catch (Exception exception)
@@ -670,6 +682,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         {
             CaptureFailure(exception, "read memory status data");
         }
+
+        var computeAccelerators = _computeAccelerators;
 
         // A platform-supplied inventory (Linux DRM) is authoritative where it exists: Hardware.Info's lists
         // are empty there, and re-deriving them below would only produce the same nothing.
@@ -919,6 +933,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 MemoryModules = memoryModules,
                 Drives = drives,
                 NetworkAdapters = networkAdapters,
+                ComputeAccelerators = computeAccelerators,
             },
             Runtime = new HardwareInfoRuntimeSnapshot
             {
@@ -1402,6 +1417,47 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     /// <summary>True once "expansion bay reports Unavailable" has been logged for the current connection.</summary>
     private bool _expansionBayUnavailableLogged;
+
+    /// <summary>
+    /// Re-resolves compute-accelerator identity. Runs on the SLOW inventory tier — the device set is static
+    /// and the Windows resolver costs hundreds of milliseconds.
+    /// </summary>
+    /// <remarks>
+    /// Only NPUs are published here: GPUs already reach the UI as video controllers, and listing them a second
+    /// time under a different name would read as duplicate hardware. A resolver that reports nothing — every
+    /// platform without one — simply leaves the list empty, and a failure keeps the previous list rather than
+    /// blanking the NPU while the rest of the snapshot is fine.
+    /// </remarks>
+    private void RefreshComputeAccelerators()
+    {
+        try
+        {
+            _computeAccelerators =
+            [
+                .. _computeDeviceIdentityResolver
+                    .Enumerate()
+                    .Where(identity => identity.Kind == ComputeDeviceKind.Npu)
+                    .Select(identity => new HardwareInfoComputeAccelerator(
+                        DeviceKey: identity.DeviceKey,
+                        Kind: identity.Kind,
+                        Name: identity.DisplayName,
+                        Vendor: identity.Vendor,
+                        Description: identity.Description,
+                        DriverName: identity.DriverName,
+                        DriverVersion: identity.DriverVersion,
+                        FirmwareVersion: identity.FirmwareVersion,
+                        Location: identity.Location)),
+            ];
+        }
+        catch (Exception exception)
+        {
+            if (!_loggedComputeAcceleratorFailure)
+            {
+                _loggedComputeAcceleratorFailure = true;
+                _logger.LogWarning(exception, "Unable to enumerate compute accelerators; the Neural processor page will show what was last known.");
+            }
+        }
+    }
 
     /// <summary>
     /// Publishes one utilization channel per GPU / NPU the reader can see. Runs on the FAST tier: the Windows

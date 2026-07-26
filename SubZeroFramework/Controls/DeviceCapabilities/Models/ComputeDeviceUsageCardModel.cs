@@ -71,6 +71,35 @@ public partial class ComputeDeviceUsageCardModel : ObservableObject
     /// <summary>Short picker label ("NPU 0"), the CPU picker's "Package 0" parity.</summary>
     public string PickerLabel => $"{KindLabel} {DisplayIndex}";
 
+    /// <summary>
+    /// Static identity for this device from the hardware inventory, when one matched.
+    /// </summary>
+    /// <remarks>
+    /// Matched by display name, which is exact rather than heuristic here: the utilization reader and the
+    /// inventory resolver derive the name from the SAME platform source on each OS, so the strings are equal
+    /// by construction. A device with no match keeps its live reading and shows "Unknown" details.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VendorDisplay))]
+    [NotifyPropertyChangedFor(nameof(DriverDisplay))]
+    [NotifyPropertyChangedFor(nameof(DriverVersionDisplay))]
+    [NotifyPropertyChangedFor(nameof(FirmwareVersionDisplay))]
+    [NotifyPropertyChangedFor(nameof(LocationDisplay))]
+    [NotifyPropertyChangedFor(nameof(DescriptionDisplay))]
+    public partial HardwareInfoComputeAccelerator? Accelerator { get; set; }
+
+    public string VendorDisplay => Accelerator?.DisplayVendor ?? "Unknown";
+
+    public string DriverDisplay => Accelerator?.DisplayDriver ?? "Unknown";
+
+    public string DriverVersionDisplay => Accelerator?.DisplayDriverVersion ?? "Unknown";
+
+    public string FirmwareVersionDisplay => Accelerator?.DisplayFirmwareVersion ?? "Unknown";
+
+    public string LocationDisplay => Accelerator?.DisplayLocation ?? "Unknown";
+
+    public string DescriptionDisplay => Accelerator?.DisplayDescription ?? "Unknown";
+
     // Through the unit service like every other quantity: the user can display ratios as percent or fraction.
     // Stored (not computed) so a unit-preference change can re-project it without a source-value change.
     [ObservableProperty]

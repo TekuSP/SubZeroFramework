@@ -3,6 +3,7 @@ using DynamicData;
 using System.Linq;
 
 using SubZeroFramework.GrpcContracts;
+using SubZeroFramework.GrpcContracts.Mapping;
 using SubZeroFramework.Models;
 
 namespace SubZeroFramework.Service.Services;
@@ -86,6 +87,7 @@ internal static class HardwareInfoGrpcMapper
         reply.VideoControllers.AddRange(snapshot.Runtime.VideoControllers.Select(MapHardwareInfoVideoController));
         reply.Drives.AddRange(snapshot.Inventory.Drives.Select(MapHardwareInfoDrive));
         reply.NetworkAdapters.AddRange(snapshot.Inventory.NetworkAdapters.Select(MapHardwareInfoNetworkAdapter));
+        reply.ComputeAccelerators.AddRange(snapshot.Inventory.ComputeAccelerators.Select(MapHardwareInfoComputeAccelerator));
 
         return reply;
     }
@@ -233,6 +235,19 @@ internal static class HardwareInfoGrpcMapper
 
         return reply;
     }
+
+    private static HardwareInfoComputeAcceleratorReply MapHardwareInfoComputeAccelerator(HardwareInfoComputeAccelerator accelerator) => new()
+    {
+        DeviceKey = accelerator.DeviceKey,
+        Kind = TelemetryWireMapper.MapComputeDeviceKind(accelerator.Kind),
+        Name = accelerator.Name,
+        Vendor = accelerator.Vendor ?? string.Empty,
+        Description = accelerator.Description ?? string.Empty,
+        DriverName = accelerator.DriverName ?? string.Empty,
+        DriverVersion = accelerator.DriverVersion ?? string.Empty,
+        FirmwareVersion = accelerator.FirmwareVersion ?? string.Empty,
+        Location = accelerator.Location ?? string.Empty,
+    };
 
     private static HardwareInfoVideoControllerReply MapHardwareInfoVideoController(HardwareInfoVideoController videoController)
     {

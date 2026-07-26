@@ -3,6 +3,7 @@ using DynamicData;
 using FrameworkDotnet.Enums;
 
 using SubZeroFramework.GrpcContracts;
+using SubZeroFramework.GrpcContracts.Mapping;
 using SubZeroFramework.Models;
 
 namespace SubZeroFramework.Service.Services;
@@ -16,16 +17,8 @@ internal static class TelemetryGrpcMapper
             : TelemetryChangeKind.Upsert;
     }
 
-    public static TelemetryChannelIdReply MapChannelId(TelemetryChannelId channelId)
-    {
-        return new TelemetryChannelIdReply
-        {
-            Area = MapTelemetryArea(channelId.Area),
-            EntityKind = MapTelemetryEntityKind(channelId.EntityKind),
-            Index = channelId.Index,
-            Metric = MapTelemetryMetric(channelId.Metric),
-        };
-    }
+    public static TelemetryChannelIdReply MapChannelId(TelemetryChannelId channelId) =>
+        TelemetryWireMapper.MapChannelId(channelId);
 
     public static TelemetryChannelChangeReply MapChannelChange(Change<TelemetryChannel, TelemetryChannelId> change)
     {
@@ -350,63 +343,21 @@ internal static class TelemetryGrpcMapper
         return batch;
     }
 
-    public static bool TryParseChannelId(TelemetryChannelIdReply reply, out TelemetryChannelId channelId)
-    {
-        if (!TryParseTelemetryArea(reply.Area, out var area)
-            || !TryParseTelemetryEntityKind(reply.EntityKind, out var entityKind)
-            || !TryParseTelemetryMetric(reply.Metric, out var metric))
-        {
-            channelId = default;
-            return false;
-        }
+    // The telemetry enum translation lives in SubZeroFramework.GrpcContracts.Mapping.TelemetryWireMapper so
+    // the service and the app share ONE implementation — see that type for why. These forwarders keep the
+    // call sites (and the tests that pin the wire contract) reading naturally.
 
-        channelId = new TelemetryChannelId(area, entityKind, reply.Index, metric);
-        return true;
-    }
+    public static bool TryParseChannelId(TelemetryChannelIdReply reply, out TelemetryChannelId channelId) =>
+        TelemetryWireMapper.TryParseChannelId(reply, out channelId);
 
-    // The TryParse trio REJECTS values it does not know (out stays default, returns false). The previous
-    // shape — map unknowns to default and return true for anything non-Unspecified — turned an unrecognized
-    // enum value into (Thermal, TemperatureSensor, TemperatureCelsius), a VALID identity that collides with a
-    // real temperature sensor's channel. The client-side copy of this mapper shipped that exact bug when the
-    // compute values were added; unknown must always mean "reject", never "guess the first member".
+    public static bool TryParseTelemetryArea(TelemetryAreaValue value, out TelemetryArea area) =>
+        TelemetryWireMapper.TryParseTelemetryArea(value, out area);
 
-    public static bool TryParseTelemetryArea(TelemetryAreaValue value, out TelemetryArea area)
-    {
-        switch (value)
-        {
-            case TelemetryAreaValue.Thermal: area = TelemetryArea.Thermal; return true;
-            case TelemetryAreaValue.Power: area = TelemetryArea.Power; return true;
-            case TelemetryAreaValue.Compute: area = TelemetryArea.Compute; return true;
-            default: area = default; return false;
-        }
-    }
+    public static bool TryParseTelemetryEntityKind(TelemetryEntityKindValue value, out TelemetryEntityKind entityKind) =>
+        TelemetryWireMapper.TryParseTelemetryEntityKind(value, out entityKind);
 
-    public static bool TryParseTelemetryEntityKind(TelemetryEntityKindValue value, out TelemetryEntityKind entityKind)
-    {
-        switch (value)
-        {
-            case TelemetryEntityKindValue.TemperatureSensor: entityKind = TelemetryEntityKind.TemperatureSensor; return true;
-            case TelemetryEntityKindValue.Fan: entityKind = TelemetryEntityKind.Fan; return true;
-            case TelemetryEntityKindValue.Battery: entityKind = TelemetryEntityKind.Battery; return true;
-            case TelemetryEntityKindValue.Gpu: entityKind = TelemetryEntityKind.Gpu; return true;
-            case TelemetryEntityKindValue.Npu: entityKind = TelemetryEntityKind.Npu; return true;
-            default: entityKind = default; return false;
-        }
-    }
-
-    public static bool TryParseTelemetryMetric(TelemetryMetricValue value, out TelemetryMetric metric)
-    {
-        switch (value)
-        {
-            case TelemetryMetricValue.TemperatureCelsius: metric = TelemetryMetric.TemperatureCelsius; return true;
-            case TelemetryMetricValue.FanSpeedRpm: metric = TelemetryMetric.FanSpeedRpm; return true;
-            case TelemetryMetricValue.BatteryChargePercent: metric = TelemetryMetric.BatteryChargePercent; return true;
-            case TelemetryMetricValue.BatteryPresentRateAmperes: metric = TelemetryMetric.BatteryPresentRateAmperes; return true;
-            case TelemetryMetricValue.BatteryPresentVoltageVolts: metric = TelemetryMetric.BatteryPresentVoltageVolts; return true;
-            case TelemetryMetricValue.UtilizationPercent: metric = TelemetryMetric.UtilizationPercent; return true;
-            default: metric = default; return false;
-        }
-    }
+    public static bool TryParseTelemetryMetric(TelemetryMetricValue value, out TelemetryMetric metric) =>
+        TelemetryWireMapper.TryParseTelemetryMetric(value, out metric);
 
     public static bool TryParseFanControlMode(FanControlModeValue value, out FanControlMode mode)
     {
@@ -436,43 +387,14 @@ internal static class TelemetryGrpcMapper
         return value is not TemperatureAggregationModeValue.Unspecified;
     }
 
-    private static TelemetryAreaValue MapTelemetryArea(TelemetryArea area)
-    {
-        return area switch
-        {
-            TelemetryArea.Thermal => TelemetryAreaValue.Thermal,
-            TelemetryArea.Power => TelemetryAreaValue.Power,
-            TelemetryArea.Compute => TelemetryAreaValue.Compute,
-            _ => TelemetryAreaValue.Unspecified,
-        };
-    }
+    private static TelemetryAreaValue MapTelemetryArea(TelemetryArea area) =>
+        TelemetryWireMapper.MapTelemetryArea(area);
 
-    private static TelemetryEntityKindValue MapTelemetryEntityKind(TelemetryEntityKind entityKind)
-    {
-        return entityKind switch
-        {
-            TelemetryEntityKind.TemperatureSensor => TelemetryEntityKindValue.TemperatureSensor,
-            TelemetryEntityKind.Fan => TelemetryEntityKindValue.Fan,
-            TelemetryEntityKind.Battery => TelemetryEntityKindValue.Battery,
-            TelemetryEntityKind.Gpu => TelemetryEntityKindValue.Gpu,
-            TelemetryEntityKind.Npu => TelemetryEntityKindValue.Npu,
-            _ => TelemetryEntityKindValue.Unspecified,
-        };
-    }
+    private static TelemetryEntityKindValue MapTelemetryEntityKind(TelemetryEntityKind entityKind) =>
+        TelemetryWireMapper.MapTelemetryEntityKind(entityKind);
 
-    private static TelemetryMetricValue MapTelemetryMetric(TelemetryMetric metric)
-    {
-        return metric switch
-        {
-            TelemetryMetric.TemperatureCelsius => TelemetryMetricValue.TemperatureCelsius,
-            TelemetryMetric.FanSpeedRpm => TelemetryMetricValue.FanSpeedRpm,
-            TelemetryMetric.BatteryChargePercent => TelemetryMetricValue.BatteryChargePercent,
-            TelemetryMetric.BatteryPresentRateAmperes => TelemetryMetricValue.BatteryPresentRateAmperes,
-            TelemetryMetric.BatteryPresentVoltageVolts => TelemetryMetricValue.BatteryPresentVoltageVolts,
-            TelemetryMetric.UtilizationPercent => TelemetryMetricValue.UtilizationPercent,
-            _ => TelemetryMetricValue.Unspecified,
-        };
-    }
+    private static TelemetryMetricValue MapTelemetryMetric(TelemetryMetric metric) =>
+        TelemetryWireMapper.MapTelemetryMetric(metric);
 
     private static FanStateValue MapFanState(FrameworkFanState fanState)
     {

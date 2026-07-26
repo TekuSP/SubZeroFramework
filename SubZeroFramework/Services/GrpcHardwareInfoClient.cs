@@ -5,6 +5,7 @@ using System.Reactive.Linq;
 using Grpc.Core;
 
 using SubZeroFramework.GrpcContracts;
+using SubZeroFramework.GrpcContracts.Mapping;
 using SubZeroFramework.Models;
 
 namespace SubZeroFramework.Services;
@@ -227,6 +228,13 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
                 MemoryModules = reply.MemoryModules.Select(MapMemoryModule).ToImmutableArray(),
                 Drives = reply.Drives.Select(MapDrive).ToImmutableArray(),
                 NetworkAdapters = reply.NetworkAdapters.Select(MapNetworkAdapter).ToImmutableArray(),
+                // An accelerator whose kind the service reports but this build does not recognise is dropped
+                // rather than mapped to a guessed kind — the same rule the telemetry channel mapper follows.
+                ComputeAccelerators = reply.ComputeAccelerators
+                    .Select(MapComputeAccelerator)
+                    .Where(accelerator => accelerator is not null)
+                    .Select(accelerator => accelerator!)
+                    .ToImmutableArray(),
             },
             Runtime = new HardwareInfoRuntimeSnapshot
             {
@@ -370,6 +378,27 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
             reply.Speed,
             reply.IpAddresses.ToImmutableArray(),
             reply.DefaultGateways.ToImmutableArray());
+    }
+
+    private static HardwareInfoComputeAccelerator? MapComputeAccelerator(HardwareInfoComputeAcceleratorReply reply)
+    {
+        if (!TelemetryWireMapper.TryParseComputeDeviceKind(reply.Kind, out var kind))
+        {
+            return null;
+        }
+
+        return new HardwareInfoComputeAccelerator(
+            DeviceKey: reply.DeviceKey,
+            Kind: kind,
+            Name: reply.Name,
+            Vendor: NullIfEmpty(reply.Vendor),
+            Description: NullIfEmpty(reply.Description),
+            DriverName: NullIfEmpty(reply.DriverName),
+            DriverVersion: NullIfEmpty(reply.DriverVersion),
+            FirmwareVersion: NullIfEmpty(reply.FirmwareVersion),
+            Location: NullIfEmpty(reply.Location));
+
+        static string? NullIfEmpty(string value) => string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
     private static HardwareInfoVideoController MapVideoController(HardwareInfoVideoControllerReply reply)

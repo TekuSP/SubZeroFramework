@@ -47,6 +47,12 @@ public sealed class WindowsComputeDeviceIdentityResolver : IComputeDeviceIdentit
     private static readonly DEVPROPKEY NameKey = DEVPKEY_NAME;
     private static readonly DEVPROPKEY FriendlyNameKey = DEVPKEY_Device_FriendlyName;
     private static readonly DEVPROPKEY DeviceDescriptionKey = DEVPKEY_Device_DeviceDesc;
+    // Descriptive properties for the Neural processor detail pane. All optional: a device that does not carry
+    // one simply shows "Unknown" for that tile rather than dropping out of the list.
+    private static readonly DEVPROPKEY ManufacturerKey = DEVPKEY_Device_Manufacturer;
+    private static readonly DEVPROPKEY DriverVersionKey = DEVPKEY_Device_DriverVersion;
+    private static readonly DEVPROPKEY DriverDescriptionKey = DEVPKEY_Device_DriverDesc;
+    private static readonly DEVPROPKEY LocationInfoKey = DEVPKEY_Device_LocationInfo;
 
     // A device name or instance path that needs more than this is not a shape we understand; refusing the read
     // is cheaper than trusting a driver-supplied length.
@@ -122,6 +128,15 @@ public sealed class WindowsComputeDeviceIdentityResolver : IComputeDeviceIdentit
                 DeviceKey = deviceKey,
                 Kind = kind,
                 DisplayName = ReadDisplayName(deviceInfoSet, in deviceInfo, kind),
+                Vendor = TryReadStringProperty(deviceInfoSet, in deviceInfo, in ManufacturerKey),
+                Description = TryReadStringProperty(deviceInfoSet, in deviceInfo, in DeviceDescriptionKey),
+                // Windows has no separate kernel-module name; the driver's own description is the closest
+                // equivalent to the Linux module name and is what Device Manager shows.
+                DriverName = TryReadStringProperty(deviceInfoSet, in deviceInfo, in DriverDescriptionKey),
+                DriverVersion = TryReadStringProperty(deviceInfoSet, in deviceInfo, in DriverVersionKey),
+                // No firmware property exists for these device classes on Windows.
+                FirmwareVersion = null,
+                Location = TryReadStringProperty(deviceInfoSet, in deviceInfo, in LocationInfoKey),
                 AdapterLuid = adapterLuid is { } luid ? unchecked((long)luid) : null,
                 PhysicalAdapterIndex = physicalAdapterIndex is { } physicalIndex && physicalIndex <= int.MaxValue
                     ? (int)physicalIndex

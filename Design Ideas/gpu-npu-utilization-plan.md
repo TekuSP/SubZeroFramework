@@ -1,7 +1,22 @@
 # GPU & NPU utilization — implementation plan
 
-Status: **Phase 1 (Windows GPU + NPU) IMPLEMENTED, 2026-07-26**, shipping in 0.1.5. Phases 2–4 (Linux) remain
-planned. Implementation deviations from this document:
+Status: **ALL PHASES IMPLEMENTED, 2026-07-26**, shipping in 0.1.5 — Windows GPU + NPU (phase 1), Linux AMD
+(2), NVIDIA and Intel GPUs (3), Linux NPUs (4). Nothing on the Linux side has yet run on real Framework
+hardware; the parsers are pinned against captured data and the failure paths are covered, but the readings
+themselves await field verification.
+
+Phase-4 outcome, which the plan asked to research before committing to:
+
+- **Intel (ivpu): shipped.** `npu_busy_time_us` is a cumulative busy-microsecond counter that costs nothing
+  to read and does not resume a suspended NPU. The kernel's own documentation asks for ~1 s sampling, which
+  is the telemetry tier's cadence. Semantically it is a queue-non-empty duty cycle, not occupancy.
+- **AMD (XDNA): shipped, narrowly.** Per-column utilization arrives through a sensor ioctl and is available
+  only on kernels new enough to carry it, with AMD's platform-management driver bound, on Strix/Krackan
+  parts. Adversarial verification overturned the research's headline claim here: the query DOES resume the
+  NPU (the runtime-PM reference lives in the driver callback, not the ioctl entry point), so the reader is
+  gated on the device already being awake and reports a suspended NPU as 0% without touching it.
+
+Implementation deviations from this document:
 
 - **Interop is via `Vanara.PInvoke.Pdh` / `Vanara.PInvoke.SetupAPI`** (MIT, verified on nuget.org) rather than
   hand-written P/Invoke — a standing project rule adopted mid-implementation. Two deliberate raw-call

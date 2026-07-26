@@ -12,6 +12,23 @@ public sealed record ComputeDeviceIdentity
 
     public required string DisplayName { get; init; }
 
+    /// <summary>Chip or board vendor, e.g. "Advanced Micro Devices, Inc." — null when unknown.</summary>
+    public string? Vendor { get; init; }
+
+    /// <summary>Longer OS-provided description, when it says something the name does not.</summary>
+    public string? Description { get; init; }
+
+    /// <summary>Kernel module or Windows driver bound to the device, e.g. "amdxdna", "intel_vpu".</summary>
+    public string? DriverName { get; init; }
+
+    public string? DriverVersion { get; init; }
+
+    /// <summary>Device firmware version, where the platform exposes one separately from the driver.</summary>
+    public string? FirmwareVersion { get; init; }
+
+    /// <summary>Where the device sits, e.g. the PCI address "0000:c7:00.1".</summary>
+    public string? Location { get; init; }
+
     /// <summary>
     /// Windows adapter LUID, when the platform has one. SESSION-SCOPED: Windows regenerates LUIDs across
     /// reboots, so this correlates a device to its performance-counter instances within one run and must

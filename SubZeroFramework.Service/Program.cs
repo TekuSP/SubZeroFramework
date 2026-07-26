@@ -94,8 +94,6 @@ public static class Program
         // keeps publishing the rest. Unlike the Windows readers these are gated at REGISTRATION rather than
         // by #if, because they are ordinary file I/O over an injectable root (which is what makes them
         // testable off Linux) and net10.0 is shared with the desktop app head.
-        builder.Services.AddSingleton<IComputeDeviceIdentityResolver>(UnavailableComputeDeviceIdentityResolver.Instance);
-
         if (OperatingSystem.IsLinux())
         {
             builder.Services.AddSingleton<IComputeUtilizationReader>(x => new CompositeComputeUtilizationReader(
@@ -103,16 +101,20 @@ public static class Program
                     new LinuxAmdGpuUtilizationReader(x.GetRequiredService<ILogger<LinuxAmdGpuUtilizationReader>>()),
                     new LinuxNvmlGpuUtilizationReader(x.GetRequiredService<ILogger<LinuxNvmlGpuUtilizationReader>>()),
                     new LinuxIntelGpuUtilizationReader(x.GetRequiredService<ILogger<LinuxIntelGpuUtilizationReader>>()),
+                    new LinuxIntelNpuUtilizationReader(x.GetRequiredService<ILogger<LinuxIntelNpuUtilizationReader>>()),
+                    new LinuxAmdXdnaNpuUtilizationReader(x.GetRequiredService<ILogger<LinuxAmdXdnaNpuUtilizationReader>>()),
                 ],
                 x.GetRequiredService<ILogger<CompositeComputeUtilizationReader>>()));
 
             // Replaces Hardware.Info's xrandr-based enumeration, which cannot work without a display server.
             builder.Services.AddSingleton<IGraphicsInventoryReader, LinuxDrmGraphicsInventoryReader>();
+            builder.Services.AddSingleton<IComputeDeviceIdentityResolver, LinuxComputeDeviceIdentityResolver>();
         }
         else
         {
             builder.Services.AddSingleton<IComputeUtilizationReader>(UnavailableComputeUtilizationReader.Instance);
             builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
+            builder.Services.AddSingleton<IComputeDeviceIdentityResolver>(UnavailableComputeDeviceIdentityResolver.Instance);
         }
 #endif
 

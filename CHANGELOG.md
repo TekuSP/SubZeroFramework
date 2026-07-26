@@ -44,6 +44,18 @@ All notable changes to this repository should be documented in this file.
   residency, or summing per-process figures — were rejected as misleading rather than shipped as an
   approximation.
 
+- **Linux: NPU utilization.** Intel NPUs (Core Ultra) report through the driver's busy-time counter, which
+  costs nothing to read and leaves an idle NPU asleep. AMD Ryzen AI NPUs report per-column utilization, on
+  kernels new enough to expose it and on the Ryzen AI 300 parts where it is wired up; where it is not
+  available the device is still listed, just without a reading. As with the GPUs, a sleeping NPU is reported
+  as 0% rather than being woken to be asked — for AMD that gate is the difference between a monitoring
+  feature and a battery-life regression.
+
+- **The Neural processor page now describes the hardware, not just its load.** Vendor, driver and driver
+  version, firmware version, location and description sit alongside the utilization graph, the way the CPU
+  and graphics pages have always shown their devices. Windows reads them from the device properties; Linux
+  from the kernel's accelerator class, including the NPU firmware version where the driver publishes one.
+
 - **Device Capabilities categories with nothing in them are disabled.** A category whose body could only show
   an empty state no longer opens: the rail entry dims and says why on hover ("No graphics detected"). Onboard
   devices and System profile always stay open. This is what a Linux machine sees for Graphics today, and what
