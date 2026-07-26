@@ -97,8 +97,8 @@ public static class Program
         // Service logs) without reading back the Event Log or journald. Added ALONGSIDE the platform sinks,
         // never instead of them. Registered as a singleton first so the provider and the gRPC handler share
         // the one buffer.
-        builder.Services.AddSingleton<InMemoryServiceLogBuffer>();
-        builder.Services.AddSingleton<ILoggerProvider>(x => new InMemoryServiceLogProvider(x.GetRequiredService<InMemoryServiceLogBuffer>()));
+        builder.Services.AddSingleton<InMemoryLogBuffer>();
+        builder.Services.AddSingleton<ILoggerProvider>(x => new InMemoryLogProvider(x.GetRequiredService<InMemoryLogBuffer>()));
         builder.Services.AddSingleton<HardwareInfoNoiseFilteringLogger>(x =>
             new HardwareInfoNoiseFilteringLogger(x.GetRequiredService<ILogger<HardwareInfo>>()));
         builder.Services.AddSingleton<IHardwareInfoLogNoiseBuffer>(x => x.GetRequiredService<HardwareInfoNoiseFilteringLogger>());

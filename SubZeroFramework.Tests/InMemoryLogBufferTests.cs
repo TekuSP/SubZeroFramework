@@ -4,17 +4,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 
 using SubZeroFramework.Models;
-using SubZeroFramework.Service.Services;
+using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Tests;
 
 [TestFixture]
-public class InMemoryServiceLogBufferTests
+public class InMemoryLogBufferTests
 {
     [Test]
     public void Snapshot_ReturnsEntriesOldestFirst()
     {
-        InMemoryServiceLogBuffer buffer = new();
+        InMemoryLogBuffer buffer = new();
         buffer.Add(Entry("first"));
         buffer.Add(Entry("second"));
 
@@ -32,8 +32,8 @@ public class InMemoryServiceLogBufferTests
     {
         // The whole reason the reply carries a dropped count: past capacity this is the most recent slice,
         // not the full history, and the UI must be able to say so.
-        InMemoryServiceLogBuffer buffer = new();
-        for (var i = 0; i < InMemoryServiceLogBuffer.Capacity + 5; i++)
+        InMemoryLogBuffer buffer = new();
+        for (var i = 0; i < InMemoryLogBuffer.Capacity + 5; i++)
         {
             buffer.Add(Entry($"entry-{i}"));
         }
@@ -42,18 +42,18 @@ public class InMemoryServiceLogBufferTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(entries, Has.Length.EqualTo(InMemoryServiceLogBuffer.Capacity), "The buffer must stay bounded.");
+            Assert.That(entries, Has.Length.EqualTo(InMemoryLogBuffer.Capacity), "The buffer must stay bounded.");
             Assert.That(dropped, Is.EqualTo(5));
             Assert.That(entries[0].Message, Is.EqualTo("entry-5"), "The oldest entries are the ones dropped.");
-            Assert.That(entries[^1].Message, Is.EqualTo($"entry-{InMemoryServiceLogBuffer.Capacity + 4}"));
+            Assert.That(entries[^1].Message, Is.EqualTo($"entry-{InMemoryLogBuffer.Capacity + 4}"));
         });
     }
 
     [Test]
     public void Clear_EmptiesTheBufferAndTheDroppedCount()
     {
-        InMemoryServiceLogBuffer buffer = new();
-        for (var i = 0; i < InMemoryServiceLogBuffer.Capacity + 1; i++)
+        InMemoryLogBuffer buffer = new();
+        for (var i = 0; i < InMemoryLogBuffer.Capacity + 1; i++)
         {
             buffer.Add(Entry($"entry-{i}"));
         }
@@ -72,8 +72,8 @@ public class InMemoryServiceLogBufferTests
     [Test]
     public void Provider_RecordsWhatWasLogged()
     {
-        InMemoryServiceLogBuffer buffer = new();
-        using InMemoryServiceLogProvider provider = new(buffer);
+        InMemoryLogBuffer buffer = new();
+        using InMemoryLogProvider provider = new(buffer);
 
         var logger = provider.CreateLogger("SubZeroFramework.Service.Services.Example");
         logger.LogWarning(new InvalidOperationException("boom"), "Something went {State}.", "wrong");
@@ -94,8 +94,8 @@ public class InMemoryServiceLogBufferTests
     public void Provider_WhenTheFormatterThrows_RecordsAPlaceholderInsteadOfPropagating()
     {
         // A log line must never be able to take the service down.
-        InMemoryServiceLogBuffer buffer = new();
-        using InMemoryServiceLogProvider provider = new(buffer);
+        InMemoryLogBuffer buffer = new();
+        using InMemoryLogProvider provider = new(buffer);
         var logger = provider.CreateLogger("Example");
 
         Assert.DoesNotThrow(() => logger.Log<object>(
@@ -116,8 +116,8 @@ public class InMemoryServiceLogBufferTests
     {
         // Sanity: the provider is additive. NullLogger stands in for the platform sinks here — the point is
         // that creating our logger does not require or replace them.
-        InMemoryServiceLogBuffer buffer = new();
-        using InMemoryServiceLogProvider provider = new(buffer);
+        InMemoryLogBuffer buffer = new();
+        using InMemoryLogProvider provider = new(buffer);
 
         Assert.That(provider.CreateLogger("Example"), Is.Not.SameAs(NullLogger.Instance));
         Assert.That(buffer.Snapshot().Entries, Is.Empty);

@@ -15,6 +15,7 @@
                 <Grid ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="30" />
                         <ColumnDefinition Width="34" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -26,22 +27,29 @@
                         Foreground="{StaticResource TextSecondaryBrush}"
                         IsTextSelectionEnabled="True"
                         Text="{x:Bind Timestamp}" />
+                    <!--  Which process logged it. App and service entries are interleaved by time.  -->
                     <TextBlock
                         Grid.Column="1"
+                        FontFamily="Consolas"
+                        FontSize="11.5"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind SourceLabel}" />
+                    <TextBlock
+                        Grid.Column="2"
                         FontFamily="Consolas"
                         FontSize="11.5"
                         FontWeight="SemiBold"
                         Foreground="{x:Bind LevelForeground}"
                         Text="{x:Bind Level}" />
                     <TextBlock
-                        Grid.Column="2"
+                        Grid.Column="3"
                         MaxWidth="160"
                         FontSize="11.5"
                         Foreground="{StaticResource TextSecondaryBrush}"
                         Text="{x:Bind Category}"
                         TextTrimming="CharacterEllipsis" />
                     <TextBlock
-                        Grid.Column="3"
+                        Grid.Column="4"
                         FontSize="12"
                         Foreground="{StaticResource TextPrimaryBrush}"
                         IsTextSelectionEnabled="True"
@@ -83,7 +91,7 @@
                 TextWrapping="WrapWholeWords" />
         </StackPanel>
 
-        <!--  Level filter + actions.  -->
+        <!--  Level and source filters + actions.  -->
         <Grid Grid.Row="1" ColumnSpacing="12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -108,6 +116,17 @@
                     MinWidth="120"
                     ItemsSource="{x:Bind ViewModel.LevelOptions, Mode=OneWay}"
                     SelectedIndex="{x:Bind ViewModel.SelectedLevelIndex, Mode=TwoWay}" />
+
+                <TextBlock
+                    Margin="8,0,0,0"
+                    VerticalAlignment="Center"
+                    FontSize="12.5"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="Source" />
+                <ComboBox
+                    MinWidth="120"
+                    ItemsSource="{x:Bind ViewModel.SourceOptions, Mode=OneWay}"
+                    SelectedIndex="{x:Bind ViewModel.SelectedSourceIndex, Mode=TwoWay}" />
             </StackPanel>
 
             <StackPanel

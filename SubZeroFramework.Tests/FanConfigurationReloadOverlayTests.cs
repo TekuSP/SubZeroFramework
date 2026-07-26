@@ -101,7 +101,7 @@ public class FanConfigurationReloadOverlayTests
         using var store = CreateStore(provider, options, watchdog);
         provider.FanStateSource.AddOrUpdate(NewFanState(0));
 
-        watchdog.Begin(0, store.GetState(0)!);
+        var holdToken = watchdog.Begin(0, store.GetState(0)!);
         store.MarkManual(0);
 
         options.Set(new FrameworkServiceOptions
@@ -112,7 +112,7 @@ public class FanConfigurationReloadOverlayTests
         Assert.That(store.GetState(0)!.Mode, Is.EqualTo(FanControlMode.Manual));
 
         // And once the preview ends, the fan is seeded normally again by the next reload.
-        watchdog.TryTakeForRevert(0, out _);
+        watchdog.TryTakeForRevert(0, holdToken, out _);
         options.RaiseChanged();
 
         Assert.That(store.GetState(0)!.Mode, Is.EqualTo(FanControlMode.CustomCurve));

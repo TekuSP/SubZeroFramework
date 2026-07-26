@@ -15,27 +15,35 @@ using SubZeroFramework.Services;
 namespace SubZeroFramework.Presentation.MenuItems.Settings.Sections;
 
 /// <summary>
-/// ViewModel for the Service logs section: fetches what the background service has logged since it started and
-/// presents it as a scrollable list. Navigation constructs it (ViewMap-registered).
+/// ViewModel for the logs section: shows what the background service AND this app have logged since they
+/// started, interleaved into one list. Navigation constructs it (ViewMap-registered).
 /// </summary>
 /// <remarks>
 /// A snapshot on demand, NOT a live tail. The service logs several times a second while polling; streaming that
 /// into a list view would spend the UI thread redrawing instead of showing the user the line they are looking
 /// for. Refresh is one click, and the point of the page is usually "copy this into a bug report".
+///
+/// Both sides are shown because they fail independently: the service can lose the EC while the app is fine,
+/// and the app can lose the service connection while the service is healthy. Reading only one half hides
+/// exactly the case where the two disagree.
 /// </remarks>
 public partial class SettingsLogsSectionModel : ObservableObject
 {
     private readonly IFrameworkServiceConfigurationClient _serviceConfigurationClient;
+    private readonly InMemoryLogBuffer _appLogBuffer;
     private readonly DispatcherQueue _dispatcherQueue;
 
     public SettingsLogsSectionModel(
         IFrameworkServiceConfigurationClient serviceConfigurationClient,
+        InMemoryLogBuffer appLogBuffer,
         DispatcherQueue dispatcherQueue)
     {
         ArgumentNullException.ThrowIfNull(serviceConfigurationClient);
+        ArgumentNullException.ThrowIfNull(appLogBuffer);
         ArgumentNullException.ThrowIfNull(dispatcherQueue);
 
         _serviceConfigurationClient = serviceConfigurationClient;
+        _appLogBuffer = appLogBuffer;
         _dispatcherQueue = dispatcherQueue;
 
         RefreshCommand = new AsyncRelayCommand(LoadAsync);
@@ -49,8 +57,15 @@ public partial class SettingsLogsSectionModel : ObservableObject
     /// <summary>Level filter, in the order shown by the segmented control.</summary>
     public IReadOnlyList<string> LevelOptions { get; } = ["All", "Info", "Warning", "Error"];
 
+    /// <summary>Source filter, in the order shown by the segmented control.</summary>
+    public IReadOnlyList<string> SourceOptions { get; } = ["Both", "Service", "App"];
+
     [ObservableProperty]
     public partial int SelectedLevelIndex { get; set; } = 1;
+
+    /// <summary>Defaults to Both — that is what belongs in a bug report.</summary>
+    [ObservableProperty]
+    public partial int SelectedSourceIndex { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusMessageVisibility))]
@@ -74,6 +89,8 @@ public partial class SettingsLogsSectionModel : ObservableObject
 
     partial void OnSelectedLevelIndexChanged(int value) => _ = LoadAsync();
 
+    partial void OnSelectedSourceIndexChanged(int value) => _ = LoadAsync();
+
     // Index into LevelOptions -> the lowest level the service should return.
     private LogLevel MinimumLevel => SelectedLevelIndex switch
     {
@@ -83,42 +100,85 @@ public partial class SettingsLogsSectionModel : ObservableObject
         _ => LogLevel.Trace,
     };
 
+    private bool IncludesService => SelectedSourceIndex != 2;
+
+    private bool IncludesApp => SelectedSourceIndex != 1;
+
     private async Task LoadAsync()
     {
         IsLoading = true;
 
         try
         {
-            var snapshot = await _serviceConfigurationClient.GetServiceLogsAsync(MinimumLevel, CancellationToken.None);
+            List<ServiceLogEntryModel> merged = [];
+            string? serviceError = null;
+            var truncationNotices = new List<string>();
 
-            await _dispatcherQueue.EnqueueAsync(() =>
+            if (IncludesService)
             {
-                Entries.Clear();
-                foreach (var entry in snapshot.Entries)
+                // The service half is the only part that can fail — it is a gRPC call to another process.
+                // A dead service must still leave the app's own entries readable, since those are exactly
+                // what explain why it looks dead, so this failure is reported without discarding the rest.
+                try
                 {
-                    Entries.Add(new ServiceLogEntryModel(entry));
+                    var snapshot = await _serviceConfigurationClient.GetServiceLogsAsync(MinimumLevel, CancellationToken.None);
+                    foreach (var entry in snapshot.Entries)
+                    {
+                        merged.Add(new ServiceLogEntryModel(entry, ServiceLogEntrySource.Service));
+                    }
+
+                    if (snapshot.IsTruncated)
+                    {
+                        truncationNotices.Add($"the service keeps the last {snapshot.BufferCapacity:N0} and has dropped {snapshot.DroppedCount:N0} older one(s)");
+                    }
+                }
+                catch (Exception exception)
+                {
+                    serviceError = exception.Message;
+                }
+            }
+
+            if (IncludesApp)
+            {
+                var (appEntries, appDropped) = _appLogBuffer.Snapshot();
+
+                // The buffer holds whatever the app's configured filters let through, so the level filter is
+                // applied here rather than at capture time — the service applies the same filter its side.
+                foreach (var entry in appEntries.Where(entry => entry.Level >= MinimumLevel))
+                {
+                    merged.Add(new ServiceLogEntryModel(entry, ServiceLogEntrySource.App));
                 }
 
-                StatusMessage = Entries.Count == 0
-                    ? "The service has not logged anything at this level since it started."
-                    : string.Empty;
+                if (appDropped > 0)
+                {
+                    truncationNotices.Add($"the app keeps the last {InMemoryLogBuffer.Capacity:N0} and has dropped {appDropped:N0} older one(s)");
+                }
+            }
 
-                // Say plainly that this is the most recent slice rather than everything since start.
-                TruncationNotice = snapshot.IsTruncated
-                    ? $"Showing the most recent entries — the service keeps the last {snapshot.BufferCapacity:N0} and has dropped {snapshot.DroppedCount:N0} older one(s)."
-                    : string.Empty;
+            // Interleave by time so cause and effect read in order across the process boundary — a client
+            // reconnect warning next to the service restart that caused it is the whole point of merging.
+            merged.Sort(static (left, right) => left.ObservedAt.CompareTo(right.ObservedAt));
 
-                CopyAllCommand.NotifyCanExecuteChanged();
-            });
-        }
-        catch (Exception exception)
-        {
             await _dispatcherQueue.EnqueueAsync(() =>
             {
                 Entries.Clear();
+                foreach (var entry in merged)
+                {
+                    Entries.Add(entry);
+                }
+
+                StatusMessage = serviceError is not null
+                    ? $"Could not read the service logs: {serviceError}"
+                    : Entries.Count == 0
+                        ? "Nothing has been logged at this level since startup."
+                        : string.Empty;
+
+                // Say plainly that this is the most recent slice rather than everything since start.
+                TruncationNotice = truncationNotices.Count == 0
+                    ? string.Empty
+                    : $"Showing the most recent entries — {string.Join("; ", truncationNotices)}.";
+
                 CopyAllCommand.NotifyCanExecuteChanged();
-                TruncationNotice = string.Empty;
-                StatusMessage = $"Could not read the service logs: {exception.Message}";
             });
         }
         finally

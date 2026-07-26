@@ -28,7 +28,11 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     private const double DutyChangeThresholdPercent = 1.0d;
 
     // Evaluate at a calmer cadence than the raw telemetry poll so the EC is not written every poll.
-    private static readonly TimeSpan EvaluationInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan DefaultEvaluationInterval = TimeSpan.FromSeconds(1);
+
+    // Instance-level so tests can drive evaluations without a real-time wait per assertion. Production
+    // always uses the default; nothing but the test constructor overload passes anything else.
+    private readonly TimeSpan _evaluationInterval;
 
     // Smoothing for the CPU usage feeding the per-fan usage modifier: rising load is taken instantly so
     // fans ramp before heat reaches the sensors, falling load decays with this half-life so one-second
@@ -75,13 +79,15 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
         FrameworkFanControlAuthorizationService authorizationService,
         FrameworkFatalExitHandler fatalExitHandler,
         IHostApplicationLifetime applicationLifetime,
-        ILogger<FrameworkFanCurveControlWorker> logger)
+        ILogger<FrameworkFanCurveControlWorker> logger,
+        TimeSpan? evaluationInterval = null)
     {
         _frameworkDataProvider = frameworkDataProvider;
         _fanControlStateStore = fanControlStateStore;
         _authorizationService = authorizationService;
         _fatalExitHandler = fatalExitHandler;
         _logger = logger;
+        _evaluationInterval = evaluationInterval ?? DefaultEvaluationInterval;
         _applicationStoppingRegistration = applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
     }
 
@@ -89,7 +95,7 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     {
         _logger.LogInformation(
             "Fan curve control loop is active. EvaluationInterval={EvaluationInterval}, DutyChangeThreshold={DutyChangeThreshold}%.",
-            EvaluationInterval,
+            _evaluationInterval,
             DutyChangeThresholdPercent);
 
         // A faulted stream is fatal, not loggable-and-ignorable: it permanently stops curve actuation while
@@ -106,7 +112,7 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
 
         // Evaluate curves on a sampled thermal cadence; Concat serializes evaluations so EC writes never overlap.
         _frameworkDataProvider.ThermalSnapshots
-            .Sample(EvaluationInterval)
+            .Sample(_evaluationInterval)
             .Select(snapshot => Observable.FromAsync(token => EvaluateAsync(snapshot, token)))
             .Concat()
             .Subscribe(

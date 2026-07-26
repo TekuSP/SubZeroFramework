@@ -48,12 +48,20 @@ public partial class App : Application
     [SuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Uno.Extensions APIs are used in a way that is safe for trimming in this template context.")]
     protected async override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        LiveChartsCore.LiveCharts.Configure(config => 
+        LiveChartsCore.LiveCharts.Configure(config =>
             config
                 .AddSkiaSharp()
                 .AddDefaultMappers()
                 .AddDarkTheme()
                 .AddMyCustomTheme());
+
+        // The app's own log records had nowhere to go on Windows: this is a GUI-subsystem binary, so the
+        // console sink writes to a console that does not exist and the debug sink only exists under a
+        // debugger. A released build could warn about a broken service connection every second and the user
+        // would never see one line of it. The same bounded buffer the service uses captures them instead,
+        // and Settings > Logs shows them alongside the service's. Created here rather than resolved from DI
+        // because the logging pipeline is configured before the container exists.
+        var appLogBuffer = new InMemoryLogBuffer();
 
         var builder = this.CreateBuilder(args)
             // Add navigation support for toolkit controls such as TabBar and NavigationView
@@ -96,6 +104,10 @@ public partial class App : Application
                     logBuilder.AddFilter("Microsoft", LogLevel.Warning);
                     logBuilder.AddFilter("Uno", LogLevel.Warning);
 #endif
+
+                    // Retains whatever the filters above let through, so the buffer shows the same records
+                    // the platform sinks received rather than a second, differently-filtered view.
+                    logBuilder.AddProvider(new InMemoryLogProvider(appLogBuffer));
                 }, enableUnoLogging: true)
                 .UseConfiguration(configure: configBuilder =>
                     configBuilder
@@ -108,6 +120,10 @@ public partial class App : Application
                 {
                     services.AddOptions<FrameworkServiceControlOptions>()
                         .Bind(context.Configuration.GetSection("ServiceControl"));
+
+                    // The same instance the logging provider above writes into, so the logs view reads the
+                    // live buffer rather than an empty second one.
+                    services.AddSingleton(appLogBuffer);
                     services.AddSingleton<UnitPreferenceCatalog>();
                     services.AddSingleton<FrameworkGrpcChannelFactory>();
                     services.AddSingleton<IFrameworkStatusClient, GrpcFrameworkStatusClient>();

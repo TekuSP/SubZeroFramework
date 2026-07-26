@@ -17,10 +17,12 @@ public sealed class ServiceLogEntryModel
 {
     private readonly ServiceLogEntry _entry;
 
-    public ServiceLogEntryModel(ServiceLogEntry entry)
+    public ServiceLogEntryModel(ServiceLogEntry entry, ServiceLogEntrySource source)
     {
         ArgumentNullException.ThrowIfNull(entry);
         _entry = entry;
+        Source = source;
+        SourceLabel = source == ServiceLogEntrySource.App ? "APP" : "SVC";
 
         // Local time: the user is reading this against their own clock and their own recollection of when
         // something went wrong. The wire carries UTC.
@@ -48,6 +50,18 @@ public sealed class ServiceLogEntryModel
 
     public string Timestamp { get; }
 
+    /// <summary>Which process logged this — the two are interleaved in one list.</summary>
+    public ServiceLogEntrySource Source { get; }
+
+    /// <summary>Short chip text for <see cref="Source"/>, sized to sit next to the level chip.</summary>
+    public string SourceLabel { get; }
+
+    /// <summary>Sort key for interleaving app and service entries. UTC, as carried on the wire.</summary>
+    public DateTimeOffset ObservedAt => _entry.ObservedAt;
+
+    /// <summary>The raw severity, for filtering. <see cref="Level"/> is the three-letter display form.</summary>
+    public LogLevel Severity => _entry.Level;
+
     public string Level { get; }
 
     public string Category { get; }
@@ -66,10 +80,14 @@ public sealed class ServiceLogEntryModel
         _ => AppThemeBrushes.ChartSubtleAxisLabelColor,
     });
 
-    /// <summary>One line per entry, with the FULL category and UTC — this is what gets pasted into a bug report.</summary>
+    /// <summary>
+    /// One line per entry, with the FULL category — this is what gets pasted into a bug report. The source is
+    /// included because app and service entries are interleaved, and "which process said this" is usually the
+    /// first question asked of the paste.
+    /// </summary>
     public string ToClipboardLine()
     {
-        var line = $"{_entry.ObservedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss.fff} [{Level}] {_entry.Category}: {Message}";
+        var line = $"{_entry.ObservedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss.fff} [{SourceLabel}] [{Level}] {_entry.Category}: {Message}";
         return string.IsNullOrEmpty(Exception) ? line : $"{line}{Environment.NewLine}{Exception}";
     }
 }

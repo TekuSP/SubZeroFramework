@@ -17,29 +17,40 @@ namespace SubZeroFramework.Service.Services;
 /// </summary>
 public sealed partial class FanPreviewWatchdog
 {
-    // Pre-preview snapshot per fan with an open hold. First hold for a fan wins (captures the applied state).
-    private readonly ConcurrentDictionary<int, FanControlStateSnapshot> _holds = new();
+    // Pre-preview snapshot per fan with an open hold, tagged with the identity of the stream that opened it.
+    // First hold for a fan wins (captures the applied state).
+    private readonly ConcurrentDictionary<int, Hold> _holds = new();
     private readonly ILogger<FanPreviewWatchdog> _logger;
 
     // The logger is optional so the existing parameterless construction in tests keeps working.
     public FanPreviewWatchdog(ILogger<FanPreviewWatchdog>? logger = null)
         => _logger = logger ?? NullLogger<FanPreviewWatchdog>.Instance;
 
-    /// <summary>Records the fan's pre-preview state when a hold opens. No-op if a hold is already tracked.</summary>
-    public void Begin(int fanIndex, FanControlStateSnapshot prePreviewState)
+    /// <summary>
+    /// Records the fan's pre-preview state when a hold opens, returning a token identifying THIS hold.
+    /// Returns <see langword="null"/> when the fan already has a hold, meaning the caller does not own it.
+    /// </summary>
+    /// <remarks>
+    /// The token exists because a hold is per-fan but a revert must be per-owner. Without it, a second client
+    /// that opened a redundant hold on the same fan would, on disconnecting, revert the fan out from under the
+    /// client still previewing it — using a pre-preview state the second client never captured.
+    /// </remarks>
+    public Guid? Begin(int fanIndex, FanControlStateSnapshot prePreviewState)
     {
         ArgumentNullException.ThrowIfNull(prePreviewState);
 
+        var token = Guid.NewGuid();
+
         // A hold left open is a fan physically overridden with nothing persisted to explain it, so every
         // transition of this state is traced — the open/close pairing is the whole diagnostic.
-        if (_holds.TryAdd(fanIndex, prePreviewState))
+        if (_holds.TryAdd(fanIndex, new Hold(token, prePreviewState)))
         {
             LogHoldOpened(fanIndex, prePreviewState.Mode);
+            return token;
         }
-        else
-        {
-            LogHoldAlreadyOpen(fanIndex);
-        }
+
+        LogHoldAlreadyOpen(fanIndex);
+        return null;
     }
 
     /// <summary>
@@ -86,18 +97,37 @@ public sealed partial class FanPreviewWatchdog
     /// Atomically takes a fan's captured pre-preview state for reverting. Returns false when the hold was
     /// already released (committed / restored) — in which case the caller must not revert.
     /// </summary>
-    public bool TryTakeForRevert(int fanIndex, out FanControlStateSnapshot prePreviewState)
+    public bool TryTakeForRevert(int fanIndex, Guid? holdToken, out FanControlStateSnapshot prePreviewState)
     {
-        if (!_holds.TryRemove(fanIndex, out prePreviewState!))
+        prePreviewState = null!;
+
+        // No token means this caller never owned the hold (its Begin lost the race), so it must not revert.
+        if (holdToken is not Guid token)
         {
             return false;
         }
+
+        if (!_holds.TryGetValue(fanIndex, out var hold) || hold.Token != token)
+        {
+            return false;
+        }
+
+        // Remove by exact key/value so a hold reopened between the read above and here is not stolen.
+        if (!_holds.TryRemove(new KeyValuePair<int, Hold>(fanIndex, hold)))
+        {
+            return false;
+        }
+
+        prePreviewState = hold.PrePreviewState;
 
         // This is the watchdog actually doing its job: a previewing client vanished without committing.
         // Information, not Trace — an uncommitted preview being cleaned up is worth seeing in a normal log.
         LogHoldRevertClaimed(fanIndex, prePreviewState.Mode);
         return true;
     }
+
+    /// <summary>The captured pre-preview state plus the identity of the stream that captured it.</summary>
+    private sealed record Hold(Guid Token, FanControlStateSnapshot PrePreviewState);
 
     [LoggerMessage(
         Level = LogLevel.Trace,

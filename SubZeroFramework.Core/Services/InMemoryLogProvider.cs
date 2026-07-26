@@ -1,18 +1,16 @@
-using SubZeroFramework.Models;
-
-namespace SubZeroFramework.Service.Services;
+namespace SubZeroFramework.Services;
 
 /// <summary>
-/// Logging provider that mirrors every log entry into <see cref="InMemoryServiceLogBuffer"/> so the app can
-/// display the service's own logs. Sits alongside the platform sinks (Event Log / journald) rather than
+/// Logging provider that mirrors every log entry into an <see cref="InMemoryLogBuffer"/> so a process can
+/// display its own logs. Sits alongside the platform sinks (Event Log / journald / console) rather than
 /// replacing them.
 /// </summary>
 [ProviderAlias("InMemory")]
-public sealed class InMemoryServiceLogProvider : ILoggerProvider
+public sealed class InMemoryLogProvider : ILoggerProvider
 {
-    private readonly InMemoryServiceLogBuffer _buffer;
+    private readonly InMemoryLogBuffer _buffer;
 
-    public InMemoryServiceLogProvider(InMemoryServiceLogBuffer buffer)
+    public InMemoryLogProvider(InMemoryLogBuffer buffer)
     {
         ArgumentNullException.ThrowIfNull(buffer);
         _buffer = buffer;
@@ -27,10 +25,10 @@ public sealed class InMemoryServiceLogProvider : ILoggerProvider
 
     private sealed class BufferLogger : ILogger
     {
-        private readonly InMemoryServiceLogBuffer _buffer;
+        private readonly InMemoryLogBuffer _buffer;
         private readonly string _category;
 
-        public BufferLogger(InMemoryServiceLogBuffer buffer, string category)
+        public BufferLogger(InMemoryLogBuffer buffer, string category)
         {
             _buffer = buffer;
             _category = category;
@@ -53,7 +51,7 @@ public sealed class InMemoryServiceLogProvider : ILoggerProvider
                 return;
             }
 
-            // A throwing formatter must never take the service down over a log line.
+            // A throwing formatter must never take the process down over a log line.
             string message;
             try
             {

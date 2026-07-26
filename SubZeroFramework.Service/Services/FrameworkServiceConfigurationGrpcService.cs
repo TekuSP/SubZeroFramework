@@ -4,18 +4,19 @@ using Grpc.Core;
 
 using SubZeroFramework.GrpcContracts;
 using SubZeroFramework.Models;
+using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Service.Services;
 
 public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceConfigurationService.FrameworkServiceConfigurationServiceBase
 {
     private readonly FrameworkServiceConfigurationManager _configurationManager;
-    private readonly InMemoryServiceLogBuffer _logBuffer;
+    private readonly InMemoryLogBuffer _logBuffer;
     private readonly ILogger<FrameworkServiceConfigurationGrpcService> _logger;
 
     public FrameworkServiceConfigurationGrpcService(
         FrameworkServiceConfigurationManager configurationManager,
-        InMemoryServiceLogBuffer logBuffer,
+        InMemoryLogBuffer logBuffer,
         ILogger<FrameworkServiceConfigurationGrpcService> logger)
     {
         ArgumentNullException.ThrowIfNull(configurationManager);
@@ -40,7 +41,7 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
         var reply = new ServiceLogsReply
         {
             DroppedCount = droppedCount,
-            BufferCapacity = InMemoryServiceLogBuffer.Capacity,
+            BufferCapacity = InMemoryLogBuffer.Capacity,
         };
 
         foreach (var entry in entries)
