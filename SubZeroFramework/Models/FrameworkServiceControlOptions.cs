@@ -1,15 +1,31 @@
 namespace SubZeroFramework.Models;
 
+/// <summary>
+/// Where the service helper lives and what it is called, for the in-app lifecycle actions.
+/// </summary>
+/// <remarks>
+/// The path overrides below are BUILD-TIME ONLY and are not a post-install escape hatch. They are bound from
+/// the <c>ServiceControl</c> section of <c>appsettings.json</c>, which ships as an embedded resource and is
+/// never copied to the publish output — so an installed app has no file to edit and these cannot be changed
+/// after the fact. They exist so a developer can point a local build at a custom layout.
+///
+/// The supported layouts are the ones the packaging produces: on Windows the MSI installs the helper where
+/// the probe already looks, and on Linux the distro package (or the exact tarball layout in docs/INSTALL.md)
+/// puts it beside the UI. Neither needs an override, and support guidance must not suggest one.
+/// </remarks>
 public sealed record FrameworkServiceControlOptions
 {
     public string WindowsServiceName { get; init; } = "SubZeroFrameworkService";
 
+    /// <summary>Build-time override only — see the type remarks.</summary>
     public string? WindowsServiceExecutablePath { get; init; }
 
     public string LinuxUnitName { get; init; } = "subzeroframework.service";
 
+    /// <summary>Build-time override only — see the type remarks.</summary>
     public string? LinuxServiceExecutablePath { get; init; }
 
+    /// <summary>Build-time override only — see the type remarks.</summary>
     public string? LinuxServicePublishDirectory { get; init; }
 
     public string? LinuxUnitSourcePath { get; init; }

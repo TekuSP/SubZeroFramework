@@ -61,4 +61,45 @@ public sealed partial class SettingsServiceSectionView : UserControl, INotifyPro
 
         await ViewModel.ResetFanSettingsCommand.ExecuteAsync(null);
     }
+
+    /// <summary>
+    /// Confirms uninstalling before it runs. On an installed build this removes the whole application, which
+    /// is a much larger action than the button used to perform, so it is never done on a single click.
+    /// </summary>
+    /// <remarks>
+    /// Windows Installer will not ask again: <c>/x</c> preselects the remove action, which suppresses the
+    /// installer's own maintenance confirmation and goes straight to the progress UI. This dialog is
+    /// therefore the only confirmation the user gets.
+    /// </remarks>
+    private async void OnUninstallClick(object sender, RoutedEventArgs e)
+    {
+        if (XamlRoot is not { } xamlRoot)
+        {
+            return;
+        }
+
+        var uninstallsApplication = ViewModel.IsApplicationInstalledByInstaller;
+
+        var dialog = new ContentDialog
+        {
+            Title = uninstallsApplication ? "Uninstall SubZero?" : "Remove the background service?",
+            Content = uninstallsApplication
+                // Says plainly what survives: the package deliberately keeps machine settings so a reinstall
+                // does not lose fan profiles, and implying a clean wipe here would be untrue.
+                ? "Windows Installer will remove SubZero and its background service, and this app will close so its files can be deleted. Your saved fan profiles and settings are kept in case you reinstall."
+                : "This removes the background service only. Fan control and telemetry stop working until it is installed again; the app itself stays.",
+            PrimaryButtonText = uninstallsApplication ? "Uninstall SubZero" : "Remove service",
+            CloseButtonText = "Cancel",
+            // Enter must not trigger a removal.
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = xamlRoot,
+        };
+
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        await ViewModel.UninstallServiceCommand.ExecuteAsync(null);
+    }
 }

@@ -4,6 +4,148 @@ All notable changes to this repository should be documented in this file.
 
 ## [0.1.5] - Unreleased
 
+### Added
+
+- **Windows: live GPU and NPU utilization.** Each graphics adapter's detail now carries its own live
+  utilization — the current percentage over a rolling 30-second graph, the same card the CPU uses per core —
+  and a new **Neural processor** category presents the NPU the way the CPU category presents packages: a
+  count, a processor list, and the picked device's detail. On a Framework 16 that is the integrated Radeon,
+  the discrete GPU module and the Ryzen AI NPU, each with its own reading, never blended into one number.
+  The service reads the Windows GPU Engine performance counters through one persistent PDH query (~1.5 ms per
+  second-tick, measured) and derives busy time per adapter the same way Task Manager does; devices are named
+  via SetupAPI and matched by adapter LUID. Software adapters with no physical device behind them (WARP) are
+  excluded. The Windows readers and their interop are compiled only into Windows builds — Linux ships none of
+  it, needs nothing new at install time, and shows an honest empty state until its per-vendor readers land.
+
+- **Linux: Device Capabilities finally shows graphics and displays.** The page was empty on Linux because
+  Hardware.Info enumerates both lists by shelling out to `xrandr`, which needs a display server the background
+  service does not have. They now come from the kernel instead: adapters from `/sys/class/drm` with their
+  names resolved through the system `pci.ids` database, and displays from each DRM connector's EDID — model,
+  manufacturer, product code, serial, manufacture date, physical size and density. Works headless, and
+  identically under X11, Wayland or no session at all. The current resolution and refresh rate come from the
+  kernel's mode-setting state, so a 165 Hz panel reads 165 Hz rather than the 60 Hz its EDID advertises as
+  "preferred". Because a connector belongs to its card by kernel topology, each display is attributed to the
+  right GPU exactly, instead of by matching names as on Windows.
+
+- **Linux: GPU utilization for AMD, NVIDIA and Intel.** Same cards as on Windows, one per GPU. AMD reads the
+  amdgpu driver's own `gpu_busy_percent`. NVIDIA goes through NVML, loaded at runtime only if the proprietary
+  driver is already installed — there is no new package dependency, and on an AMD-only machine the attempt is
+  silently skipped. Intel reads the i915 or xe performance counters, discovering the available engines from
+  what the driver advertises rather than assuming a layout.
+
+  Sleeping GPUs are not woken to be measured. Reading AMD's busy attribute reaches the SMU, and an NVML query
+  takes a power-management reference on the card; either can hold a discrete GPU awake, which is how monitoring
+  tools have historically ruined laptop battery life. A GPU whose power state already reads "suspended" is
+  reported as 0% — which is what it is — without being touched.
+
+  Each source is independent and optional: one vendor's driver misbehaving cannot blank out the others. Where
+  a reading genuinely cannot be taken the device simply reports nothing. In particular Intel's counters need
+  kernel 6.15 or newer on the newest GPUs (the xe driver), and the alternatives — inferring load from power
+  residency, or summing per-process figures — were rejected as misleading rather than shipped as an
+  approximation.
+
+- **Linux: NPU utilization.** Intel NPUs (Core Ultra) report through the driver's busy-time counter, which
+  costs nothing to read and leaves an idle NPU asleep. AMD Ryzen AI NPUs report per-column utilization, on
+  kernels new enough to expose it and on the Ryzen AI 300 parts where it is wired up; where it is not
+  available the device is still listed, just without a reading. As with the GPUs, a sleeping NPU is reported
+  as 0% rather than being woken to be asked — for AMD that gate is the difference between a monitoring
+  feature and a battery-life regression.
+
+- **The Neural processor page now describes the hardware, not just its load.** Vendor, driver and driver
+  version, firmware version, location and description sit alongside the utilization graph, the way the CPU
+  and graphics pages have always shown their devices. Windows reads them from the device properties; Linux
+  from the kernel's accelerator class, including the NPU firmware version where the driver publishes one.
+
+- **Device Capabilities categories with nothing in them are disabled.** A category whose body could only show
+  an empty state no longer opens: the rail entry dims and says why on hover ("No graphics detected"). Onboard
+  devices and System profile always stay open. This is what a Linux machine sees for Graphics today, and what
+  any machine sees for a category its hardware does not have.
+
+- **Settings → Service logs.** Shows what the background service has logged since it started, with a level
+  filter and a one-click "Copy all" for pasting into a bug report — no more hunting through Event Viewer or
+  `journalctl`. The service mirrors its log into a bounded in-memory buffer (the last 2,000 entries) that sits
+  alongside the platform sinks rather than replacing them; when older entries have been dropped the page says
+  so instead of implying a complete history.
+
+### Changed
+
+- **Settings ▸ Service logs is now Settings ▸ Logs, and shows the app's logs too.** The page only ever showed
+  the background service. The app's own records had nowhere to go on Windows at all: the desktop head is a
+  GUI-subsystem binary, so its console sink writes to a console that does not exist and its debug sink only
+  exists under a debugger. A released build could warn about a broken service connection every second and none
+  of it would reach you. The app now keeps the same bounded buffer the service does, and the page interleaves
+  both by timestamp with a source column and a Service / App / Both filter — so a client reconnect warning
+  reads directly next to the service restart that caused it. Copy-all tags each line with its source, because
+  "which process said this" is the first question asked of a pasted log. If the service cannot be reached, its
+  half fails alone and the app's own entries still appear — those are exactly the ones explaining why it looks
+  dead.
+
+- **Telemetry no longer reaches the UI faster than the UI can use it.** Thirty-five subscriptions across the
+  view models and telemetry clients inherited the service's poll cadence directly, so lowering the poll
+  interval multiplied UI work with it. Each now states its own ceiling — 250 ms for live readouts, 500 ms for
+  chart history, 1 s for inventory — applied *before* marshalling to the UI thread, so coalescing happens off
+  it. These are ceilings, not floors: the operators only emit when something actually arrived, so a
+  one-second poll still updates once a second.
+
+### Fixed
+
+- **Two code-analysis rules had been silently inert.** SZF0004 (require `ObserveOn`) and SZF0005 (require
+  `DisposeWith`) skipped every subscription whose receiver was typed as `IObservable<T>` — which is nearly all
+  of them, since every `Watch*`/`Connect*` method and every Rx operator returns the interface. The type check
+  compared a display string (`System.IObservable<T>`) against a metadata name (``System.IObservable`1``),
+  which never matches for a generic, and the interface check looked at implemented interfaces, which do not
+  include the type itself. Both rules now apply where they always should have.
+
+  Fixing that exposed ~53 violations, and working through them showed the rules had been over-broad as well as
+  under-applied. They now recognise the legitimate patterns they used to flag: `Observable.Create` factories
+  (whose disposal is the returned disposable, and whose scheduler is the consumer's choice), ownership by
+  storage in a member, `SerialDisposable` slots and keyed registries, `using var`, returning the subscription
+  to a caller, and marshalling inside the handler via the dispatcher rather than upstream. `ObserveOn` is also
+  no longer required in the service and Core, which have no UI thread for it to marshal to.
+
+- **New rule: SZF0013, telemetry subscriptions must rate-limit.** Flags a subscription that starts at a
+  per-poll telemetry source without bounding its rate. The operator it asks for depends on the stream: change
+  sets must use `Batch`, which coalesces, because `Sample` and `Throttle` *drop* items and a dropped change set
+  loses an add or a remove permanently — DynamicData ships no `Sample`/`Throttle` for change sets for exactly
+  this reason. Snapshot streams carry the whole value each time and may use either.
+
+- **Uninstalling from inside the app now uninstalls the app.** The Uninstall button used to delete the
+  background service's registration — the same registration the Windows installer owns — so removing SubZero
+  afterwards through Add/Remove Programs left Windows Installer deleting a service that was already gone. On
+  an installed build the button now hands over to the real uninstaller and closes the app so its files can be
+  removed; the installer stops and removes the service itself. It asks first, and says plainly that saved fan
+  profiles are kept in case you reinstall. On a development build, where there is no installer, it still
+  removes just the service and the button says so.
+
+### Fixed
+
+- **Error status text was unreadable.** "Unavailable", "Stalled", "Not Present", a critical battery and a
+  ≥85 °C reading were drawn in the palette's dark red *fill* tone (#442726) as foreground — near-invisible on
+  the dark card. They now use the error text tone, like the rest of the app. Same swap for the storage/memory
+  usage bar past 90%, whose fill was the odd one out next to its bright green and amber siblings.
+- **A newer service could kill the telemetry stream on an older client.** The app's copy of the wire enum
+  mapper parsed an unknown value into the *first* member instead of rejecting it, producing a valid-looking
+  channel identity that collided with a real sensor — a GPU percentage could land in the thermal cache as
+  degrees. Unknown values are now rejected on both sides and the offending update is skipped rather than
+  throwing, so an unrecognized channel is ignored instead of ending the subscription.
+
+- **"Apply all" put an unselected fan back on its curve instead of applying the mode you staged.** Staging
+  Auto (or Manual/Max) on one fan, switching to another, and applying reached the first fan through the wrong
+  branch: it still looked curve-driven to the service — which is exactly what the staged change was about to
+  end — so its parked curve draft was re-applied and re-activated, and the staged mode was cleared without ever
+  running. The fan came back reporting no unsaved changes, still on Custom curve. A staged simple mode is now
+  applied ahead of any parked curve draft, matching the order the staged-work check already used.
+- **The UI thread was doing chart work it should never have seen.** Every telemetry history subscription
+  re-emits its whole window (~3×/s per series) and was sorted and rebuilt into an array *after* being marshalled
+  to the UI thread — once several series were live (one per sensor, per fan, per battery metric) that starved
+  rendering and left pages half-painted. History streams are now sampled and projected off the UI thread, which
+  only receives the finished array. Fixed in the fan/temperature history store, thermal telemetry and power
+  telemetry; the telemetry UI guide documented the broken order and now documents the correct one.
+- **A fan handed back to firmware control still reported the duty it was last commanded.** When no driving
+  sensor can be read the service stops driving the fan, but the remembered duty stayed on its control state,
+  so clients read it as a speed the curve was still holding. It is now cleared as part of the handover; the
+  mode, curve points and driving sensors are untouched, so the profile resumes intact when a sensor returns.
+
 ## [0.1.4] - 2026-07-25 (released as v0.1.4)
 
 Sensor-availability release: what happens to a fan curve when the hardware it watches goes dark.

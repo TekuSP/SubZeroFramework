@@ -1,4 +1,5 @@
 using System.Reactive.Disposables;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 
 using DynamicData;
@@ -68,8 +69,12 @@ public sealed class ThermalAlertMonitor : IDisposable
 
         _subscriptions.Add(_temperatureTelemetryClient
             .WatchTemperatures()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .QueryWhenChanged(query => query.Items.ToArray())
             .Sample(TimeSpan.FromSeconds(5))
+            // Deliberately NOT the UI thread: scanning sensors and raising a desktop notification needs no
+            // dispatcher, and doing it here keeps the scan off the UI thread entirely.
+            .ObserveOn(Scheduler.Default)
             .Subscribe(EvaluateSensors));
     }
 

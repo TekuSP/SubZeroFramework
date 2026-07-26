@@ -65,6 +65,7 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
 
         _frameworkStatusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(UpdateStatus)
             .DisposeWith(_subscriptions);

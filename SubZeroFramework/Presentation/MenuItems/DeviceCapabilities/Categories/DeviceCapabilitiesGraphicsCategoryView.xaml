@@ -6,6 +6,7 @@
     xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
+    xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:SubZeroFramework.Controls.DeviceCapabilities.Models"
     xmlns:uen="using:Uno.Extensions.Navigation.UI"
@@ -14,13 +15,84 @@
     <Grid RowSpacing="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <deviceCapabilitiesControls:GraphicsSectionView ViewModel="{x:Bind ViewModel.Section, Mode=OneWay}" />
 
+        <!--  Fallback utilization strip: only GPUs the service measures that could not be joined by name to
+              any adapter below — the adapter's detail card is the primary home (see GraphicsCardView), and a
+              failed name match must never hide live telemetry. Usually collapsed.  -->
+        <StackPanel
+            Grid.Row="1"
+            Spacing="8"
+            Visibility="{x:Bind ViewModel.Page.UnmatchedGpuUsageVisibility, Mode=OneWay}">
+            <TextBlock
+                FontSize="12"
+                CharacterSpacing="60"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="LIVE UTILIZATION" />
+            <ItemsControl ItemsSource="{x:Bind ViewModel.Page.UnmatchedGpuUsageCards, Mode=OneWay}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <controls:AutoWrapPanel
+                            HorizontalSpacing="10"
+                            ItemWidth="250"
+                            VerticalSpacing="10" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:ComputeDeviceUsageCardModel">
+                        <Border
+                            Padding="14,11"
+                            Background="{StaticResource CardBackgroundBrush}"
+                            CornerRadius="10">
+                            <StackPanel Spacing="7">
+                                <Grid ColumnSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <material:MaterialIcon
+                                        Width="15"
+                                        Height="15"
+                                        VerticalAlignment="Center"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Kind="{x:Bind IconKind}" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        FontSize="12.5"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Text="{x:Bind DisplayName, Mode=OneWay}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        VerticalAlignment="Center"
+                                        FontSize="14"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Text="{x:Bind UtilizationDisplay, Mode=OneWay}" />
+                                </Grid>
+                                <ProgressBar
+                                    Maximum="1"
+                                    Minimum="0"
+                                    Value="{x:Bind UtilizationBarWidthRatio, Mode=OneWay}" />
+                                <TextBlock
+                                    FontSize="11"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="{x:Bind KindLabel}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
         <!--  Adapter picker | monitor picker | detail sub-regions resolved by data navigation (mockup: adapter
               detail stacked above the picked monitor's detail in one scrolling pane).  -->
-        <Grid Grid.Row="1" ColumnSpacing="14">
+        <Grid Grid.Row="2" ColumnSpacing="14">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="260" />
                 <ColumnDefinition Width="240" />

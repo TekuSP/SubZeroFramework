@@ -220,13 +220,23 @@
           Condition="'@(IconifyIcon)' != '' and '@(_IconifyIcondata)' != ''"
           BeforeTargets="UnoResizetizeCollectItems"
           DependsOnTargets="_WriteIconifyImages">
+    <!-- Collect into a private item FIRST, then project into UnoImage with QUALIFIED metadata.
+         Writing the glob and `<Link>Assets\Iconify\%(RecursiveDir)%(Filename)%(Extension)</Link>` together
+         looks equivalent but is not: unqualified %() inside a target batches the ItemGroup over every
+         EXISTING @(UnoImage), so the whole Iconify set was re-added once per pre-existing image and stamped
+         with THAT image's path as its Link. The result was a cartesian blow-up in which several different
+         SVGs all claimed Assets/Iconify/main_logo.png, and Resizetizer's parallel resize then had two threads
+         creating the same file — an IOException that surfaced only when the timing lined up (it broke the
+         linux-arm64 job while linux-x64 passed). Qualifying the metadata pins the batch to this item. -->
+    <ItemGroup>
+      <_IconifySvgFile Include="$(_IconifyRelDir)**\*.svg" />
+    </ItemGroup>
     <ItemGroup>
       <!-- Link pins the logical ms-appx path deterministically (Resizetizer captures it into its manifest):
            ms-appx:///Assets/Iconify/<asset>.png. Without it, a glob added inside a target infers its path from
            the build's startup dir and picks up a stray project-name segment. -->
-      <UnoImage Include="$(_IconifyRelDir)**\*.svg">
-        <Link>Assets\Iconify\%(RecursiveDir)%(Filename)%(Extension)</Link>
-      </UnoImage>
+      <UnoImage Include="@(_IconifySvgFile)"
+                Link="Assets\Iconify\%(_IconifySvgFile.RecursiveDir)%(_IconifySvgFile.Filename)%(_IconifySvgFile.Extension)" />
     </ItemGroup>
   </Target>
 </Project>

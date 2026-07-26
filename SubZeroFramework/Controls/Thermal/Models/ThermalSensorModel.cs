@@ -234,7 +234,7 @@ public partial class ThermalSensorModel : ObservableObject
 		if (!Snapshot.IsAvailable)
 		{
 			StatusText = "Status: Unavailable";
-			StatusBrush = AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
+			StatusBrush = AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor);
 			TemperatureBrush = AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextSecondaryColor);
 			return;
 		}
@@ -245,7 +245,7 @@ public partial class ThermalSensorModel : ObservableObject
 		{
 			case FrameworkTemperatureState.NotPresent:
 				StatusText = "Status: Not Present";
-					StatusBrush = AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor);
+					StatusBrush = AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor);
 					TemperatureBrush = AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextSecondaryColor);
 				return;
 			case FrameworkTemperatureState.NotPowered:

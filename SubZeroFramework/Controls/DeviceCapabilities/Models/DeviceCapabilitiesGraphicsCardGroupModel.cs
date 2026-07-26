@@ -43,6 +43,17 @@ public partial class DeviceCapabilitiesGraphicsCardGroupModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(EmptyMonitorMessageVisibility))]
     private partial int MonitorCount { get; set; }
 
+    /// <summary>Live utilization for this adapter, joined by normalized display name (the PDH identity and the
+    /// WMI inventory describe the same device with independently sourced strings). Null when the service has no
+    /// reader on this platform or no channel matched this adapter.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UsageVisibility))]
+    public partial ComputeDeviceUsageCardModel? UsageCard { get; set; }
+
+    public Visibility UsageVisibility => UsageCard is null
+        ? Visibility.Collapsed
+        : Visibility.Visible;
+
     public ReadOnlyObservableCollection<DeviceCapabilitiesMonitorCardModel> MonitorCards { get; }
 
     public string DisplayName => IsUnknownGraphicsCard

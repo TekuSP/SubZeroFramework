@@ -14,6 +14,9 @@ public sealed record HardwareInfoInventorySnapshot
 
     public ImmutableArray<HardwareInfoNetworkAdapter> NetworkAdapters { get; init; } = ImmutableArray<HardwareInfoNetworkAdapter>.Empty;
 
+    /// <summary>Neural processors and other compute accelerators; static identity, not their live load.</summary>
+    public ImmutableArray<HardwareInfoComputeAccelerator> ComputeAccelerators { get; init; } = ImmutableArray<HardwareInfoComputeAccelerator>.Empty;
+
     public HardwareInfoMotherboard? Motherboard { get; init; }
 
     public HardwareInfoBios? Bios { get; init; }

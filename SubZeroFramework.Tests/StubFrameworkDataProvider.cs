@@ -1,4 +1,5 @@
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 
 using DynamicData;
 
@@ -20,8 +21,21 @@ public class StubFrameworkDataProvider : IFrameworkDataProvider
 
     public List<int> RestoreAutoCalls { get; } = [];
 
+    /// <summary>
+    /// Makes the next N <see cref="RestoreAutoFanControlAsync"/> calls throw, so tests can exercise the
+    /// retry path that keeps a fan from being stranded on an applied duty after a transient EC failure.
+    /// The call is still recorded — an attempt was genuinely made.
+    /// </summary>
+    public int RestoreAutoFailuresRemaining { get; set; }
+
     /// <summary>Controllable fan-state stream so tests can simulate telemetry ticks (AddOrUpdate to emit).</summary>
     public SourceCache<FanStateSnapshot, int> FanStateSource { get; } = new(static state => state.FanIndex);
+
+    /// <summary>
+    /// Controllable thermal stream. The fan curve worker evaluates once per snapshot that survives its
+    /// sampling window, so pushing here is how a test drives an evaluation.
+    /// </summary>
+    public Subject<FrameworkThermalSnapshot> ThermalSource { get; } = new();
 
     public bool IsPolling => false;
 
@@ -39,7 +53,7 @@ public class StubFrameworkDataProvider : IFrameworkDataProvider
 
     public IObservable<FrameworkPowerSnapshot> PowerSnapshots => Observable.Empty<FrameworkPowerSnapshot>();
 
-    public IObservable<FrameworkThermalSnapshot> ThermalSnapshots => Observable.Empty<FrameworkThermalSnapshot>();
+    public IObservable<FrameworkThermalSnapshot> ThermalSnapshots => ThermalSource;
 
     public IObservable<HardwareInfoSnapshot> HardwareInfoSnapshots => Observable.Empty<HardwareInfoSnapshot>();
 
@@ -124,6 +138,14 @@ public class StubFrameworkDataProvider : IFrameworkDataProvider
     public Task<FrameworkRestoreAutoFanControlCommandResult> RestoreAutoFanControlAsync(int fanIndex, CancellationToken cancellationToken = default)
     {
         RestoreAutoCalls.Add(fanIndex);
+
+        if (RestoreAutoFailuresRemaining > 0)
+        {
+            RestoreAutoFailuresRemaining--;
+            return Task.FromException<FrameworkRestoreAutoFanControlCommandResult>(
+                new InvalidOperationException($"Simulated EC failure restoring fan {fanIndex}."));
+        }
+
         return Task.FromResult(new FrameworkRestoreAutoFanControlCommandResult { FanIndex = fanIndex });
     }
 }

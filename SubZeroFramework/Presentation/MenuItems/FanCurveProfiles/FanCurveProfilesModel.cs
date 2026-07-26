@@ -150,6 +150,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         _frameworkStatusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(status => LastStatus = status)
             .DisposeWith(_subscriptions);
@@ -162,24 +163,28 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         _fanControlStateClient
             .WatchFanControlStates()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(ApplyControlStateChanges)
             .DisposeWith(_subscriptions);
 
         _fanStateClient
             .WatchFanStates()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(ApplyFanStateChanges)
             .DisposeWith(_subscriptions);
 
         _fanTelemetryClient
             .WatchFans()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(ApplyFanTelemetryChanges)
             .DisposeWith(_subscriptions);
 
         _temperatureTelemetryClient
             .WatchTemperatures()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(ApplyTemperatureChanges)
             .DisposeWith(_subscriptions);
@@ -926,7 +931,17 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
             try
             {
-                if (session.DraftSnapshot is { } draft
+                // A staged simple mode is checked FIRST because it is an explicit choice to stop curve-driving
+                // this fan, and it must beat the parked curve draft. Testing the curve first re-applied the very
+                // curve the user was switching away from: the service mode is still CustomCurve at this point —
+                // that is exactly what the staged change is about to end — so the curve branch always matched,
+                // wrote the old curve back with activate: true, and then cleared the staged mode unapplied.
+                if (session.StagedMode is { } stagedMode)
+                {
+                    await _actuator.ActuateSimpleAsync(fanIndex, stagedMode, session.StagedManualDuty, preview: false, cancellationToken).ConfigureAwait(true);
+                    applied++;
+                }
+                else if (session.DraftSnapshot is { } draft
                     && (session.WasCustomEditorOpen || fan.ControlState?.Mode == FanControlMode.CustomCurve))
                 {
                     if (draft.FollowFanIndex is null && (draft.CurvePoints.Length < 2 || draft.SensorIndices.Length == 0))
@@ -971,11 +986,6 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
                         await ApplyLinkedPartnersAsync(fanIndex, slot, cancellationToken).ConfigureAwait(true);
                     }
 
-                    applied++;
-                }
-                else if (session.StagedMode is { } mode)
-                {
-                    await _actuator.ActuateSimpleAsync(fanIndex, mode, session.StagedManualDuty, preview: false, cancellationToken).ConfigureAwait(true);
                     applied++;
                 }
                 else

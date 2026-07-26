@@ -44,6 +44,18 @@
                 Value="{x:Bind ViewModel.MonitorCountDisplay, Mode=OneWay}" />
         </deviceCapabilitiesControls:StatTilePanel>
 
+        <!--  This adapter's live utilization, rendered like the CPU per-core card (big value + recent-history
+              sparkline). Joined by name to the service's GPU channel; collapsed when the platform has no
+              reader or no channel matched (unmatched GPUs fall back to the category's utilization strip).  -->
+        <StackPanel Spacing="8" Visibility="{x:Bind ViewModel.UsageVisibility, Mode=OneWay}">
+            <TextBlock
+                FontSize="12"
+                CharacterSpacing="60"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="LIVE UTILIZATION" />
+            <deviceCapabilitiesControls:ComputeUsageCardView ViewModel="{x:Bind ViewModel.UsageCard, Mode=OneWay}" />
+        </StackPanel>
+
         <Border
             Padding="14,12"
             Background="{StaticResource CardBackgroundBrush}"

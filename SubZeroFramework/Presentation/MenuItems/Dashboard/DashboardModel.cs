@@ -69,6 +69,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
         frameworkStatusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(status => LastStatus = status)
             .DisposeWith(_subscriptions);
@@ -110,6 +111,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
         fanControlStateClient
             .WatchFanControlStates()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
             {
@@ -141,6 +143,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
         fanStateClient
             .WatchFanStates()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
             {
@@ -170,6 +173,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
         fanTelemetryClient
             .WatchFans()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
             {
@@ -227,6 +231,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
         temperatureTelemetryClient
             .WatchTemperatures()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
             {
@@ -266,6 +271,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
         batteryTelemetryClient
             .WatchBatteries()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(set =>
             {

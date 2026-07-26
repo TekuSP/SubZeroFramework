@@ -179,7 +179,8 @@
                     Background="Transparent"
                     BorderBrush="{StaticResource StatusErrorTextBrush}"
                     BorderThickness="1"
-                    Command="{x:Bind ViewModel.UninstallServiceCommand, Mode=OneWay}"
+                    Click="OnUninstallClick"
+                    IsEnabled="{x:Bind ViewModel.CanUninstall, Mode=OneWay}"
                     Style="{StaticResource ServiceActionButtonStyle}">
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <material:MaterialIcon
@@ -188,10 +189,12 @@
                             VerticalAlignment="Center"
                             Foreground="{StaticResource StatusErrorTextBrush}"
                             Kind="TrashCanOutline" />
+                        <!--  Label changes with what the action actually does: on an installed build this
+                              removes the whole application, on a dev build only the service.  -->
                         <TextBlock
                             VerticalAlignment="Center"
                             Foreground="{StaticResource StatusErrorTextBrush}"
-                            Text="Uninstall" />
+                            Text="{x:Bind ViewModel.UninstallButtonLabel, Mode=OneWay}" />
                     </StackPanel>
                 </Button>
 

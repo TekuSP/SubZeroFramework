@@ -1,0 +1,125 @@
+<UserControl
+    x:Class="SubZeroFramework.Presentation.MenuItems.DeviceCapabilities.Categories.DeviceCapabilitiesNpuCategoryView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:branding="using:SubZeroFramework.Controls.Branding"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:SubZeroFramework.Controls.DeviceCapabilities.Models"
+    xmlns:uen="using:Uno.Extensions.Navigation.UI"
+    mc:Ignorable="d">
+
+    <!--  Same shape as the CPU category: summary tiles, an instance picker, and a detail sub-region resolved
+          by data navigation (the picker passes the live card model via DataViewMap).  -->
+    <Grid RowSpacing="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.Page.NpuUsageVisibility, Mode=OneWay}">
+            <TextBlock
+                FontSize="16"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="Runtime metrics" />
+            <deviceCapabilitiesControls:StatTilePanel>
+                <deviceCapabilitiesControls:StatTileView
+                    IconKind="Brain"
+                    Label="Processor count"
+                    Value="{x:Bind ViewModel.Page.NpuCountDisplay, Mode=OneWay}" />
+            </deviceCapabilitiesControls:StatTilePanel>
+        </StackPanel>
+
+        <!--  Instance picker | detail sub-region resolved by data navigation  -->
+        <Grid
+            Grid.Row="1"
+            ColumnSpacing="14"
+            Visibility="{x:Bind ViewModel.Page.NpuUsageVisibility, Mode=OneWay}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <controls:InstancePickerView
+                x:Name="Picker"
+                Title="PROCESSORS"
+                EmptyText="None detected"
+                ItemsSource="{x:Bind ViewModel.Page.NpuUsageCards, Mode=OneWay}"
+                SelectionChanged="OnPickerSelectionChanged">
+                <controls:InstancePickerView.ItemTemplate>
+                            <DataTemplate x:DataType="models:ComputeDeviceUsageCardModel">
+                                <Grid Margin="0,6" ColumnSpacing="10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <branding:BrandLogoView
+                                        VerticalAlignment="Center"
+                                        FallbackGlyph="Chip"
+                                        IconSize="32"
+                                        Vendor="{x:Bind DisplayName, Mode=OneWay}" />
+                                    <StackPanel Grid.Column="1" Spacing="1">
+                                        <TextBlock
+                                            FontSize="14"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            Text="{x:Bind PickerLabel}" />
+                                        <TextBlock
+                                            FontSize="12"
+                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                            Text="{x:Bind DisplayName, Mode=OneWay}"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                </controls:InstancePickerView.ItemTemplate>
+            </controls:InstancePickerView>
+
+            <ScrollViewer
+                Grid.Column="1"
+                Padding="0,0,12,0"
+                VerticalScrollBarVisibility="Auto">
+                <ContentControl
+                    x:Name="DetailHost"
+                    Margin="0,0,0,14"
+                    HorizontalContentAlignment="Stretch"
+                    VerticalContentAlignment="Top"
+                    uen:Region.Attached="True" />
+            </ScrollViewer>
+        </Grid>
+
+        <!--  Empty state (app-error-feedback conventions): phrased as what the situation is, not a fault.  -->
+        <StackPanel
+            Grid.Row="1"
+            MaxWidth="360"
+            Margin="0,40,0,0"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Top"
+            Spacing="12"
+            Visibility="{x:Bind ViewModel.Page.NpuEmptyStateVisibility, Mode=OneWay}">
+            <material:MaterialIcon
+                Width="48"
+                Height="48"
+                HorizontalAlignment="Center"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Kind="Brain" />
+            <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="16"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="No neural processor reporting" />
+            <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="13"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="If this computer has an NPU, its utilization appears here automatically once the background service can read it. Utilization reporting is currently available on Windows."
+                TextAlignment="Center"
+                TextWrapping="WrapWholeWords" />
+        </StackPanel>
+    </Grid>
+</UserControl>

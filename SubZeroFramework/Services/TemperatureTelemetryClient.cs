@@ -47,6 +47,7 @@ public sealed class TemperatureTelemetryClient : ITemperatureTelemetryClient
             var cacheSubscription = cache.Connect().Subscribe(observer);
             
             var sourceSubscription = _frameworkTelemetryClient.WatchCurrentTelemetryValues()
+                .Batch(TelemetryRateLimits.LiveReadout)
                 .Subscribe(set => ApplyChanges(cache, set));
 
             return () =>

@@ -1,7 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!-- net10.0 serves Linux (service + desktop head); the windows TFM adds the GPU/NPU utilization readers
+         and their Vanara interop, so nothing Windows-only ever ships in a Linux publish. Windows-only source
+         is gated with #if WINDOWS10_0_26100_0_OR_GREATER, matching the app head's convention. -->
+    <TargetFrameworks>net10.0-windows10.0.26100;net10.0</TargetFrameworks>
+    <!-- CI runs the test job on ubuntu, and restoring a project that lists a windows TFM fails there
+         (NETSDK1100) without this. It only permits evaluating/building the windows flavor cross-OS. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Platforms>x64;ARM64</Platforms>
@@ -13,6 +19,11 @@
     <PackageReference Include="Hardware.Info.Aot" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="System.Reactive" />
+  </ItemGroup>
+
+  <ItemGroup Condition=" '$(TargetFramework)' == 'net10.0-windows10.0.26100' ">
+    <PackageReference Include="Vanara.PInvoke.Pdh" />
+    <PackageReference Include="Vanara.PInvoke.SetupAPI" />
   </ItemGroup>
 
 </Project>

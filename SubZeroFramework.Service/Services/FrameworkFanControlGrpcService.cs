@@ -390,9 +390,11 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
 
         // Capture the fan's current (applied) state before any preview command mutates it. The client waits
         // for the ready reply below before sending its preview command, so this captures the pre-preview state.
+        // The token identifies THIS stream's hold; it is null when another stream already holds the fan.
+        Guid? holdToken = null;
         if (_fanControlStateStore.GetState(fanIndex) is { } prePreview)
         {
-            _previewWatchdog.Begin(fanIndex, prePreview);
+            holdToken = _previewWatchdog.Begin(fanIndex, prePreview);
         }
 
         try
@@ -408,10 +410,18 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         }
         finally
         {
+            if (holdToken is null)
+            {
+                // This stream never owned a hold — either the fan had no state to capture, or another stream
+                // got there first. Reverting OR releasing here would act on someone else's hold and pull the
+                // fan out from under a client that is still previewing it.
+                _logger.LogInformation("Closed preview hold stream for fan {FanIndex} that held no hold of its own.", fanIndex);
+            }
+
             // Revert only if the hold is still active (not committed/released by an Apply or client-side
             // restore) and the service is not shutting down (the shutdown coordinator restores fans to Auto).
-            if (!_applicationLifetime.ApplicationStopping.IsCancellationRequested
-                && _previewWatchdog.TryTakeForRevert(fanIndex, out var snapshot))
+            else if (!_applicationLifetime.ApplicationStopping.IsCancellationRequested
+                && _previewWatchdog.TryTakeForRevert(fanIndex, holdToken, out var snapshot))
             {
                 _logger.LogWarning("Preview hold for fan {FanIndex} closed without commit; reverting to the pre-preview state.", fanIndex);
                 await RevertPreviewAsync(fanIndex, snapshot, CancellationToken.None).ConfigureAwait(false);

@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
@@ -73,11 +75,45 @@ public static class AppThemeBrushes
 
     public static Windows.UI.Color TemperatureAccentColor => ChartAccentColor;
 
+    // Resolved brushes, keyed by resource key. See Get for why this cache exists and why it never expires.
+    private static readonly ConcurrentDictionary<string, Brush> ResolvedBrushes = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// The application brush for a resource key, falling back to a solid brush of the given colour.
+    /// </summary>
+    /// <remarks>
+    /// CACHED, and the cache is the point. This is called from ~157 sites, many of them property getters that
+    /// re-evaluate on every telemetry tick, and each call used to reach
+    /// <c>Application.Current.Resources</c> — a WinRT projection allocated per call and then abandoned. A
+    /// release-build CPU trace of the idle Dashboard attributed 50% of all process CPU to
+    /// <c>WinRT.IObjectReference.Finalize</c> clearing exactly that garbage, with the finalizer thread alone
+    /// burning half a core.
+    ///
+    /// Caching changes no object lifetimes: a resource brush is already a single shared instance owned by the
+    /// application's ResourceDictionary, so handing out the same reference is what StaticResource does anyway.
+    /// Only the repeated lookup goes away.
+    ///
+    /// The cache never expires because the application pins itself to one theme (App.xaml sets
+    /// <c>RequestedTheme="Dark"</c>) and every colour here is a fixed constant. If a light theme or runtime
+    /// theme switching is ever added, this cache MUST be invalidated on the theme change — otherwise the UI
+    /// keeps the old theme's brushes and the bug looks like "some colours did not update".
+    /// </remarks>
     public static Brush Get(string resourceKey, Windows.UI.Color fallbackColor)
     {
-        return Application.Current?.Resources.TryGetValue(resourceKey, out var resource) == true
+        if (ResolvedBrushes.TryGetValue(resourceKey, out var cached))
+        {
+            return cached;
+        }
+
+        var resolved = Application.Current?.Resources.TryGetValue(resourceKey, out var resource) == true
             && resource is Brush brush
                 ? brush
                 : new SolidColorBrush(fallbackColor);
+
+        // A miss before Application.Current exists would cache a fallback forever, so only a real hit is kept.
+        // The fallback is still returned, it just does not poison the cache.
+        return Application.Current is null
+            ? resolved
+            : ResolvedBrushes.GetOrAdd(resourceKey, resolved);
     }
 }

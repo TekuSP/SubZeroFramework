@@ -4,23 +4,64 @@ using Grpc.Core;
 
 using SubZeroFramework.GrpcContracts;
 using SubZeroFramework.Models;
+using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Service.Services;
 
 public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceConfigurationService.FrameworkServiceConfigurationServiceBase
 {
     private readonly FrameworkServiceConfigurationManager _configurationManager;
+    private readonly InMemoryLogBuffer _logBuffer;
     private readonly ILogger<FrameworkServiceConfigurationGrpcService> _logger;
 
     public FrameworkServiceConfigurationGrpcService(
         FrameworkServiceConfigurationManager configurationManager,
+        InMemoryLogBuffer logBuffer,
         ILogger<FrameworkServiceConfigurationGrpcService> logger)
     {
         ArgumentNullException.ThrowIfNull(configurationManager);
+        ArgumentNullException.ThrowIfNull(logBuffer);
         ArgumentNullException.ThrowIfNull(logger);
 
         _configurationManager = configurationManager;
+        _logBuffer = logBuffer;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Returns the service's own log since it started, so the app can show it without the user opening Event
+    /// Viewer or journalctl. Read-only, and deliberately NOT logged at Information: logging every fetch would
+    /// add an entry to the very buffer being fetched.
+    /// </summary>
+    public override Task<ServiceLogsReply> GetServiceLogs(GetServiceLogsRequest request, ServerCallContext context)
+    {
+        var (entries, droppedCount) = _logBuffer.Snapshot();
+        var minimumLevel = (LogLevel)Math.Clamp(request.MinimumLevel, (int)LogLevel.Trace, (int)LogLevel.Critical);
+
+        var reply = new ServiceLogsReply
+        {
+            DroppedCount = droppedCount,
+            BufferCapacity = InMemoryLogBuffer.Capacity,
+        };
+
+        foreach (var entry in entries)
+        {
+            if (entry.Level < minimumLevel)
+            {
+                continue;
+            }
+
+            reply.Entries.Add(new ServiceLogEntryReply
+            {
+                ObservedAtUnixTimeMilliseconds = entry.ObservedAt.ToUnixTimeMilliseconds(),
+                Level = (int)entry.Level,
+                Category = entry.Category,
+                Message = entry.Message,
+                Exception = entry.Exception,
+            });
+        }
+
+        return Task.FromResult(reply);
     }
 
     public override Task<FrameworkServiceConfigurationReply> GetServiceConfiguration(GetServiceConfigurationRequest request, ServerCallContext context)

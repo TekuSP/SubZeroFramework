@@ -339,7 +339,7 @@
                         <HyperlinkButton
                             Grid.Column="2"
                             VerticalAlignment="Center"
-                            Command="{x:Bind ViewModel.ToggleSelectAllCommand}"
+                            Command="{x:Bind ViewModel.ToggleSelectAllCommand, Mode=OneWay}"
                             Content="{x:Bind ViewModel.SelectAllLabel, Mode=OneWay}" />
                     </Grid>
 

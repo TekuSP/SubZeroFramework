@@ -22,13 +22,17 @@ namespace SubZeroFramework.Service.Services.Hosting;
 /// restart (the gRPC handlers only actuate on a live command). Auto fans are left to the EC's native control.
 /// Without this loop a stored curve or restored override is only reported as active, never actually applied.
 /// </summary>
-public sealed class FrameworkFanCurveControlWorker : BackgroundService
+public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
 {
     // Re-apply only when the target duty moves at least this much, to avoid writing the EC on every sample.
     private const double DutyChangeThresholdPercent = 1.0d;
 
     // Evaluate at a calmer cadence than the raw telemetry poll so the EC is not written every poll.
-    private static readonly TimeSpan EvaluationInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan DefaultEvaluationInterval = TimeSpan.FromSeconds(1);
+
+    // Instance-level so tests can drive evaluations without a real-time wait per assertion. Production
+    // always uses the default; nothing but the test constructor overload passes anything else.
+    private readonly TimeSpan _evaluationInterval;
 
     // Smoothing for the CPU usage feeding the per-fan usage modifier: rising load is taken instantly so
     // fans ramp before heat reaches the sensors, falling load decays with this half-life so one-second
@@ -75,13 +79,15 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
         FrameworkFanControlAuthorizationService authorizationService,
         FrameworkFatalExitHandler fatalExitHandler,
         IHostApplicationLifetime applicationLifetime,
-        ILogger<FrameworkFanCurveControlWorker> logger)
+        ILogger<FrameworkFanCurveControlWorker> logger,
+        TimeSpan? evaluationInterval = null)
     {
         _frameworkDataProvider = frameworkDataProvider;
         _fanControlStateStore = fanControlStateStore;
         _authorizationService = authorizationService;
         _fatalExitHandler = fatalExitHandler;
         _logger = logger;
+        _evaluationInterval = evaluationInterval ?? DefaultEvaluationInterval;
         _applicationStoppingRegistration = applicationLifetime.ApplicationStopping.Register(OnApplicationStopping);
     }
 
@@ -89,7 +95,7 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
     {
         _logger.LogInformation(
             "Fan curve control loop is active. EvaluationInterval={EvaluationInterval}, DutyChangeThreshold={DutyChangeThreshold}%.",
-            EvaluationInterval,
+            _evaluationInterval,
             DutyChangeThresholdPercent);
 
         // A faulted stream is fatal, not loggable-and-ignorable: it permanently stops curve actuation while
@@ -106,7 +112,7 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
 
         // Evaluate curves on a sampled thermal cadence; Concat serializes evaluations so EC writes never overlap.
         _frameworkDataProvider.ThermalSnapshots
-            .Sample(EvaluationInterval)
+            .Sample(_evaluationInterval)
             .Select(snapshot => Observable.FromAsync(token => EvaluateAsync(snapshot, token)))
             .Concat()
             .Subscribe(
@@ -176,11 +182,29 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
             // simple override to the EC after a service restart — the gRPC handlers only actuate on a live command.
             var decision = ResolveTargetDuty(state.FanIndex, thermalSnapshot, cpuUsageFraction, []);
 
+            // Every pass, for every fan, including the passes where nothing happens. Without this a fan that
+            // does not move leaves no record of WHY — the applied-duty log below is skipped both when the
+            // fan is not driven and when the change threshold swallows the update, which is most ticks.
+            LogFanDecision(state.FanIndex, decision.Outcome, decision.Duty, state.Mode);
+
             if (decision.Outcome == FanDutyOutcome.NotDriven)
             {
-                // Not driven by us (Auto / unresolved): forget the last applied duty so re-entry re-applies at once.
-                _lastAppliedDuty.Remove(state.FanIndex);
-                _fansInSafeFallback.Remove(state.FanIndex);
+                // Not driven by us (Auto / unresolved): forget the last applied duty so re-entry re-applies at
+                // once. The removal doubles as the record of whether WE were the last thing driving this fan.
+                var wasDrivenByUs = _lastAppliedDuty.Remove(state.FanIndex);
+                var alreadyHandedBack = _fansInSafeFallback.Remove(state.FanIndex);
+
+                // Forgetting the duty is not enough: the EC is still holding whatever we last wrote. Until
+                // this restore existed, a fan that stopped being driven — because its mode was overlaid back
+                // to Auto, or a link/curve stopped resolving — stayed physically overridden at our last duty,
+                // possibly 0%, while the store, the streams and the UI all reported Auto. A stopped fan
+                // reported as Auto is the worst state this service can leave hardware in.
+                // Safe-fallback already handed the fan to the EC, so it needs no second restore.
+                if (wasDrivenByUs && !alreadyHandedBack)
+                {
+                    await RestoreUndrivenFanAsync(state.FanIndex, cancellationToken).ConfigureAwait(false);
+                }
+
                 continue;
             }
 
@@ -202,6 +226,7 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
             if (_lastAppliedDuty.TryGetValue(state.FanIndex, out var lastDuty)
                 && Math.Abs(targetDuty - lastDuty) < DutyChangeThresholdPercent)
             {
+                LogDutyUnchanged(state.FanIndex, targetDuty, lastDuty);
                 continue;
             }
 
@@ -234,6 +259,82 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
         }
     }
 
+    // Source-generated so the arguments are not boxed into an object[] before the level is checked. These
+    // fire once per fan per evaluation pass, so at Release verbosity — where they are filtered out — the
+    // remaining cost is the level check itself.
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "Fan {FanIndex} evaluated. Mode={Mode}, Outcome={Outcome}, TargetDuty={TargetDuty:0.#}%.")]
+    private partial void LogFanDecision(int fanIndex, FanDutyOutcome outcome, double targetDuty, FanControlMode mode);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "Fan {FanIndex} left alone: target {TargetDuty:0.#}% is within the change threshold of the applied {LastDuty:0.#}%.")]
+    private partial void LogDutyUnchanged(int fanIndex, double targetDuty, double lastDuty);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "Fan {FanIndex} curve evaluated. Sensors=[{SensorReadings}] Aggregation={Aggregation} => {DrivingTemperature:0.#}C; " +
+                  "curve gives {CurveDuty:0.#}%, CPU usage {CpuUsagePercent:0.#}% with strength {ModifierStrength} adds {UsageBoost:0.#}pp; target {TargetDuty:0.#}%.")]
+    private partial void LogCurveEvaluated(
+        int fanIndex,
+        string sensorReadings,
+        TemperatureAggregationMode aggregation,
+        double drivingTemperature,
+        double curveDuty,
+        double? cpuUsagePercent,
+        double? modifierStrength,
+        double usageBoost,
+        double targetDuty);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "Fan {FanIndex} is curve-driven but blind. Sensors=[{SensorReadings}] Aggregation={Aggregation}, TreatMissingAsZero={TreatMissingAsZero}; handing back to firmware control.")]
+    private partial void LogCurveBlind(
+        int fanIndex,
+        string sensorReadings,
+        TemperatureAggregationMode aggregation,
+        bool treatMissingAsZero);
+
+    /// <summary>
+    /// Returns a fan we were driving to EC control once nothing drives it any more.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="EnterSafeFallbackAsync"/>: that one is a temporary handover while a sensor is
+    /// unreadable and the fan is still logically curve-driven, whereas this is the permanent case — the fan's
+    /// mode no longer asks us to drive it at all. Both end at the same EC restore, and neither touches the
+    /// stored mode, curve or sensors.
+    /// </remarks>
+    private async Task RestoreUndrivenFanAsync(int fanIndex, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _frameworkDataProvider.RestoreAutoFanControlAsync(fanIndex, cancellationToken).ConfigureAwait(false);
+            _fanControlStateStore.ClearAppliedDuty(fanIndex);
+
+            _logger.LogInformation(
+                "Fan {FanIndex} is no longer driven by a mode or curve; returned it to firmware fan control.",
+                fanIndex);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            // Put the marker back so the next pass retries. Leaving it removed would strand the fan on our
+            // duty forever after a single transient failure, which is the very state this method exists to
+            // prevent. The value is stale but only ever read as "we were driving this fan".
+            _lastAppliedDuty[fanIndex] = 0d;
+
+            _logger.LogWarning(
+                exception,
+                "Failed to return undriven fan {FanIndex} to firmware control; it may still be held at the last duty we applied. Retrying on the next pass.",
+                fanIndex);
+        }
+    }
+
     /// <summary>
     /// Hands a curve-driven fan back to the EC's own (firmware-safe) control while none of its driving sensors
     /// can be read — the promise the curve editor makes. The stored mode stays CustomCurve: this is a runtime
@@ -258,6 +359,12 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
             // mode, the curve points and the driving sensors, i.e. it would delete the user's profile to cope
             // with a sensor blinking out.
             await _frameworkDataProvider.RestoreAutoFanControlAsync(fanIndex, cancellationToken).ConfigureAwait(false);
+
+            // The EC owns the fan now, so the duty we last wrote is no longer what it is running. Clearing it
+            // keeps every client honest — a stale value here reads as "the curve is holding this speed".
+            // Mode / curve / sensors are untouched, so the profile resumes intact when a sensor returns.
+            _fanControlStateStore.ClearAppliedDuty(fanIndex);
+
             _logger.LogWarning(
                 "Fan {FanIndex} has no readable driving sensor; handed back to firmware fan control until one returns.",
                 fanIndex);
@@ -318,6 +425,18 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
         var temperature = AggregateDrivingTemperature(snapshot, state.DrivingSensorIndices, state.DrivingTemperatureAggregation, state.TreatMissingSensorsAsZero);
         if (temperature is not double celsius)
         {
+            // The inputs matter more than the outcome here: "no driving temperature" is almost always one
+            // specific sensor having stopped reporting, and without the per-sensor readings the log cannot
+            // say which.
+            if (_logger.IsEnabled(LogLevel.Trace))
+            {
+                LogCurveBlind(
+                    fanIndex,
+                    DescribeSensorReadings(snapshot, state.DrivingSensorIndices),
+                    state.DrivingTemperatureAggregation,
+                    state.TreatMissingSensorsAsZero);
+            }
+
             // Curve-driven but BLIND: not the same as "we don't drive this fan". Holding the last duty here is
             // what the editor's "falls back to its firmware-safe curve" promise rules out — the fan would sit
             // at whatever the curve last asked for while nothing can observe the heat.
@@ -325,7 +444,66 @@ public sealed class FrameworkFanCurveControlWorker : BackgroundService
         }
 
         var curveDuty = InterpolateDuty(state.CustomCurvePoints, celsius);
-        return FanDutyDecision.Drive(Clamp(curveDuty + FanUsageModifierMath.ComputeBoost(state.CpuUsageModifierStrength, cpuUsageFraction)));
+        var usageBoost = FanUsageModifierMath.ComputeBoost(state.CpuUsageModifierStrength, cpuUsageFraction);
+        var targetDuty = Clamp(curveDuty + usageBoost);
+
+        // The whole derivation in one record: which sensors were read and what each said, how they were
+        // combined, the temperature that came out, the duty the curve interpolated for it, what the CPU
+        // usage modifier added, and the clamped result. This is what makes "why is my fan at 45%?"
+        // answerable from a log instead of a guess.
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            LogCurveEvaluated(
+                fanIndex,
+                DescribeSensorReadings(snapshot, state.DrivingSensorIndices),
+                state.DrivingTemperatureAggregation,
+                celsius,
+                curveDuty,
+                cpuUsageFraction * 100d,
+                state.CpuUsageModifierStrength,
+                usageBoost,
+                targetDuty);
+        }
+
+        return FanDutyDecision.Drive(targetDuty);
+    }
+
+    /// <summary>
+    /// Formats each driving sensor and its current reading, e.g. <c>"0=62.0C, 3=unreadable"</c>.
+    /// </summary>
+    /// <remarks>
+    /// Allocates, so every caller guards it behind <see cref="ILogger.IsEnabled"/> — at Release verbosity
+    /// this never runs.
+    /// </remarks>
+    private static string DescribeSensorReadings(FrameworkThermalSnapshot snapshot, ImmutableArray<int> sensorIndices)
+    {
+        if (sensorIndices.IsDefaultOrEmpty)
+        {
+            return "none selected";
+        }
+
+        var count = Math.Min((int)snapshot.SensorCount, snapshot.Temperatures.Count);
+        var descriptions = new List<string>(sensorIndices.Length);
+
+        foreach (var sensorIndex in sensorIndices)
+        {
+            if (sensorIndex >= 0
+                && sensorIndex < count
+                && snapshot.Temperatures[sensorIndex] is { State: FrameworkDotnet.Enums.FrameworkTemperatureState.Ok } reading)
+            {
+                descriptions.Add(FormattableString.Invariant($"{sensorIndex}={reading.Temperature.DegreesCelsius:0.#}C"));
+                continue;
+            }
+
+            // Naming the state rather than just "missing" distinguishes a powered-down sensor from one that
+            // is out of range, which is the difference between "expected" and "investigate".
+            var state = sensorIndex >= 0 && sensorIndex < count
+                ? snapshot.Temperatures[sensorIndex].State.ToString()
+                : "out of range";
+            descriptions.Add(FormattableString.Invariant($"{sensorIndex}={state}"));
+        }
+
+        return string.Join(", ", descriptions);
     }
 
     private enum FanDutyOutcome

@@ -11,9 +11,7 @@ using Microsoft.UI.Xaml.Media;
 using SkiaSharp;
 
 using SubZeroFramework.Models;
-using SubZeroFramework.Presentation;
 using SubZeroFramework.Services.Units;
-using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
@@ -31,9 +29,6 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DisplayName))]
-    [NotifyPropertyChangedFor(nameof(UsageBrush))]
-    [NotifyPropertyChangedFor(nameof(UsageStrokePaint))]
-    [NotifyPropertyChangedFor(nameof(UsageStrokeHex))]
     public partial HardwareInfoCpuCore Snapshot { get; set; } = default!;
 
     [ObservableProperty]
@@ -48,7 +43,7 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
     [ObservableProperty]
     public partial double? UsageMaxLimit { get; set; }
 
-    public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
+    public Func<DateTime, string> LabelsFormatter { get; } = UsageChartStyle.FormatElapsedLabel;
 
     [ObservableProperty]
     public partial Func<double, string> UsageLabelFormatter { get; private set; }
@@ -61,11 +56,37 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
     [ObservableProperty]
     public partial double UsageAxisMaxLimit { get; private set; }
 
-    public Brush UsageBrush => GetUsageBrush(Snapshot.PercentProcessorTime);
+    /// <summary>
+    /// Tier colour for the load figure and the sparkline stroke.
+    /// </summary>
+    /// <remarks>
+    /// STORED rather than computed, and rebuilt only when the tier changes. As getters these re-evaluated on
+    /// every snapshot — once per core, per second — and each evaluation allocated a native-backed
+    /// <see cref="SolidColorPaint"/> that nobody disposed. On a many-core machine that was the bulk of the
+    /// Skia finalizer load a release CPU trace attributed a quarter of process time to.
+    /// </remarks>
+    [ObservableProperty]
+    public partial Brush UsageBrush { get; private set; } = UsageChartStyle.GetUsageBrush(0d);
 
-    public SolidColorPaint UsageStrokePaint => new(SKColor.Parse(UsageStrokeHex), 2);
+    [ObservableProperty]
+    public partial SolidColorPaint UsageStrokePaint { get; private set; } = UsageChartStyle.CreateUsageStrokePaint(0d);
 
-    public string UsageStrokeHex => GetUsageStrokeHex(Snapshot.PercentProcessorTime);
+    [ObservableProperty]
+    public partial string UsageStrokeHex { get; private set; } = UsageChartStyle.GetUsageStrokeHex(0d);
+
+    private void RefreshUsageTier()
+    {
+        var strokeHex = UsageChartStyle.GetUsageStrokeHex(Snapshot.PercentProcessorTime);
+        if (string.Equals(strokeHex, UsageStrokeHex, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        UsageStrokeHex = strokeHex;
+        UsageBrush = UsageChartStyle.GetUsageBrush(Snapshot.PercentProcessorTime);
+        // Previous paint intentionally not disposed — LiveCharts may still be drawing with it.
+        UsageStrokePaint = UsageChartStyle.CreateUsageStrokePaint(Snapshot.PercentProcessorTime);
+    }
 
     public void UpdateHistory(IReadOnlyList<DateTimePoint> usageHistory, double? minLimit, double? maxLimit, IReadOnlyList<double> separators)
     {
@@ -77,8 +98,11 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
 
     // The DisplayLoad string follows the snapshot's live load; the axis formatter + max follow the unit
     // preference. Assignment raises PropertyChanged only on a real change.
-    partial void OnSnapshotChanged(HardwareInfoCpuCore value) =>
+    partial void OnSnapshotChanged(HardwareInfoCpuCore value)
+    {
         DisplayLoad = _unitFormattingService.FormatRatio(value.PercentProcessorTime, decimals: 1);
+        RefreshUsageTier();
+    }
 
     public void RefreshUnitFormatting()
     {
@@ -118,62 +142,4 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
             : $"Core {candidate}";
     }
 
-    // Mockup load tiers: idle muted, light blue, busy amber, saturated red — value and sparkline share the tier.
-    private static Brush GetUsageBrush(double usagePercent)
-    {
-        if (usagePercent <= 1d)
-        {
-            return AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextPrimaryColor);
-        }
-
-        if (usagePercent < 50d)
-        {
-            return AppThemeBrushes.Get("StatusInfoBrush", AppThemeBrushes.TemperatureAccentColor);
-        }
-
-        if (usagePercent < 90d)
-        {
-            return AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor);
-        }
-
-        return AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor);
-    }
-
-    private static string GetUsageStrokeHex(double usagePercent)
-    {
-        if (usagePercent <= 1d)
-        {
-            return AppThemeBrushes.ChartMutedColorHex;
-        }
-
-        if (usagePercent < 50d)
-        {
-            return AppThemeBrushes.ChartAccentColorHex;
-        }
-
-        if (usagePercent < 90d)
-        {
-            return AppThemeBrushes.ChartWarningColorHex;
-        }
-
-        // Bright danger tone (StatusErrorTextBrush); the chart-palette error hex is too muted for the mockup.
-        return "#D9706A";
-    }
-
-    private static string Formatter(DateTime date)
-    {
-        var elapsed = DateTime.Now - date;
-
-        if (elapsed.TotalSeconds < 1d)
-        {
-            return "now";
-        }
-
-        if (elapsed.TotalMinutes < 1d)
-        {
-            return $"{elapsed.TotalSeconds:N0}s";
-        }
-
-        return $"{elapsed.TotalMinutes:N0}m";
-    }
 }

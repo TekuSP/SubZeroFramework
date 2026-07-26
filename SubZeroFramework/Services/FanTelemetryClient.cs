@@ -42,6 +42,7 @@ public sealed class FanTelemetryClient : IFanTelemetryClient
 
         return _frameworkTelemetryClient
             .WatchTelemetrySeries(channelId, historyWindow)
+            .Batch(TelemetryRateLimits.History)
             .Transform(point => new FanTelemetrySeriesPoint(
                 SampleId: point.SampleId,
                 FanIndex: point.ChannelId.Index,
@@ -55,7 +56,9 @@ public sealed class FanTelemetryClient : IFanTelemetryClient
         {
             SourceCache<FanTelemetrySnapshot, int> fans = new(snapshot => snapshot.FanIndex);
             IDisposable cacheSubscription = fans.Connect().Subscribe(observer);
-            IDisposable sourceSubscription = _frameworkTelemetryClient.WatchCurrentTelemetryValues().Subscribe(set => ApplyCurrentFanChanges(fans, set));
+            IDisposable sourceSubscription = _frameworkTelemetryClient.WatchCurrentTelemetryValues()
+                .Batch(TelemetryRateLimits.LiveReadout)
+                .Subscribe(set => ApplyCurrentFanChanges(fans, set));
 
             return () =>
             {

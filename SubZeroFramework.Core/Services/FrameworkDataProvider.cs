@@ -1,6 +1,7 @@
 using DynamicData;
 
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Reflection;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
@@ -15,11 +16,13 @@ using FrameworkDotnet.Snapshots;
 using Hardware.Info;
 using HardwareMonitor = Hardware.Info.Monitor;
 using HardwareVideoController = Hardware.Info.VideoController;
+using SubZeroFramework.Services.Compute;
+using SubZeroFramework.Services.Linux;
 using UnitsNet;
 
 namespace SubZeroFramework.Services;
 
-public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
+public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 {
     private static readonly IScheduler TelemetryScheduler = Scheduler.Default;
 
@@ -56,6 +59,25 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     // dependency the spawns failed instantly, which hid the cost). This data does not change second to
     // second; ten minutes still catches USB drives and network changes. Only genuinely dynamic values
     // (CPU usage — the fan-boost input — and memory free/used) stay on the fast poll.
+    private readonly IComputeUtilizationReader _computeUtilizationReader;
+
+    // Graphics adapters and displays for platforms Hardware.Info cannot enumerate (see the Linux branch in
+    // the slow inventory tier). Refreshed on that same slow tier and cached here, because reading it walks
+    // sysfs and may parse the pci.ids database — far too much work for the one-second snapshot build.
+    private readonly IGraphicsInventoryReader _graphicsInventoryReader;
+    private GraphicsInventory _graphicsInventory = GraphicsInventory.Empty;
+
+    // Compute-accelerator identity (the NPU's model, driver and firmware). Static, so it is resolved on the
+    // slow inventory tier and cached here — the Windows resolver alone costs hundreds of milliseconds.
+    private readonly IComputeDeviceIdentityResolver _computeDeviceIdentityResolver;
+    private ImmutableArray<HardwareInfoComputeAccelerator> _computeAccelerators = [];
+    private bool _loggedComputeAcceleratorFailure;
+
+    /// <summary>Stable per-process channel index per compute device, keyed by its durable device key.</summary>
+    private readonly Dictionary<string, int> _computeChannelIndexes = [];
+
+    private bool _computeUtilizationFailureLogged;
+
     private static readonly TimeSpan StaticInventoryRefreshInterval = TimeSpan.FromMinutes(10);
     private DateTimeOffset _lastStaticInventoryRefreshAt = DateTimeOffset.MinValue;
     private readonly RetainedSnapshotStream<FrameworkThermalSnapshot> _thermalSnapshots = new(TelemetryHistoryLimits.MaximumHistoryWindow, TelemetryScheduler);
@@ -108,13 +130,25 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         IHardwareInfo hardwareInfo,
         FrameworkFanControlSafetyTracker fanControlSafetyTracker,
         ILogger<FrameworkDataProvider> logger,
-        IHardwareInfoLogNoiseBuffer? hardwareInfoNoiseBuffer = null)
+        IHardwareInfoLogNoiseBuffer? hardwareInfoNoiseBuffer = null,
+        IComputeUtilizationReader? computeUtilizationReader = null,
+        IGraphicsInventoryReader? graphicsInventoryReader = null,
+        IComputeDeviceIdentityResolver? computeDeviceIdentityResolver = null)
     {
         _frameworkSystem = frameworkSystem;
         _hardwareInfo = hardwareInfo;
         _fanControlSafetyTracker = fanControlSafetyTracker;
         _logger = logger;
         _hardwareInfoNoiseBuffer = hardwareInfoNoiseBuffer ?? NullHardwareInfoLogNoiseBuffer.Instance;
+        // Optional by construction: a host that does not supply a reader (or a platform without one) simply
+        // never publishes compute channels. GPU/NPU telemetry must never be a reason the provider fails.
+        _computeUtilizationReader = computeUtilizationReader ?? UnavailableComputeUtilizationReader.Instance;
+        // Same contract for graphics inventory: a platform whose display enumeration comes from Hardware.Info
+        // supplies no reader here and nothing changes.
+        _graphicsInventoryReader = graphicsInventoryReader ?? UnavailableGraphicsInventoryReader.Instance;
+        // The same resolver the Windows utilization reader uses for LUID mapping also describes the devices,
+        // so the NPU can be listed with a driver and firmware version rather than just a name and a percentage.
+        _computeDeviceIdentityResolver = computeDeviceIdentityResolver ?? UnavailableComputeDeviceIdentityResolver.Instance;
         SystemStatus = _systemStatus;
         FlashSnapshots = _flashSnapshots;
         FanCapabilitiesSnapshots = _fanCapabilitiesSnapshots;
@@ -542,13 +576,20 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 //     XWayland, which warns it is doing so and reports a synthetic view rather than the
                 //     real outputs — so shipping the package would not have fixed it either.
                 //
-                // Doing this properly on Linux means reading EDID from /sys/class/drm, which needs no
-                // display server and works headless, on X11 and on Wayland alike; or querying from the
-                // client, which does have a display connection. Tracked as a post-0.1.0 item.
-                if (!OperatingSystem.IsLinux())
+                // That is what IGraphicsInventoryReader now does on Linux: it reads the adapters and their
+                // EDIDs straight from /sys/class/drm, which needs no display server and behaves identically
+                // headless, on X11 and on Wayland. When such a reader is present it REPLACES the xrandr path
+                // rather than supplementing it, so Hardware.Info's shell-outs never happen there.
+                if (_graphicsInventoryReader.IsAvailable)
+                {
+                    _graphicsInventory = _graphicsInventoryReader.Read();
+                }
+                else if (!OperatingSystem.IsLinux())
                 {
                     _hardwareInfo.RefreshVideoControllerList(refreshMonitorList: true);
                 }
+
+                RefreshComputeAccelerators();
             }
         }
         catch (Exception exception)
@@ -641,6 +682,16 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         catch (Exception exception)
         {
             CaptureFailure(exception, "read memory status data");
+        }
+
+        var computeAccelerators = _computeAccelerators;
+
+        // A platform-supplied inventory (Linux DRM) is authoritative where it exists: Hardware.Info's lists
+        // are empty there, and re-deriving them below would only produce the same nothing.
+        if (!_graphicsInventory.IsEmpty)
+        {
+            videoControllers = [.. _graphicsInventory.VideoControllers];
+            monitors = [.. _graphicsInventory.Monitors];
         }
 
         try
@@ -883,6 +934,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 MemoryModules = memoryModules,
                 Drives = drives,
                 NetworkAdapters = networkAdapters,
+                ComputeAccelerators = computeAccelerators,
             },
             Runtime = new HardwareInfoRuntimeSnapshot
             {
@@ -902,8 +954,13 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             {
                 try
                 {
+                    var startedAt = Stopwatch.GetTimestamp();
                     var snapshot = ReadHardwareInfoSnapshot();
                     PublishHardwareInfoSnapshot(snapshot, snapshot.ObservedAt);
+                    LogHardwareInfoPollCompleted(
+                        Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+                        snapshot.IsAvailable,
+                        snapshot.LastError ?? "none");
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -975,6 +1032,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         var observedAt = DateTimeOffset.UtcNow;
         var connectedStatus = EnrichConnectionStatus(systemStatus with { ObservedAt = observedAt }, connection);
 
+        var refreshStartedAt = Stopwatch.GetTimestamp();
         var successfulReads = 0;
         string? snapshotError = null;
 
@@ -995,7 +1053,10 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         if (TryReadSnapshot(connection.GetPowerSnapshot, "power", ref snapshotError, out var powerSnapshot))
         {
-            _logger.LogDebug("Publishing power snapshot for {BatteryCount} battery or batteries at {ObservedAt}.", powerSnapshot!.ReportedBatteries.Count(), observedAt);
+            // BatteryCount, not ReportedBatteries.Count(): ReportedBatteries is a Take() iterator, so counting
+            // it allocated an enumerator and walked it on EVERY poll even with Debug logging switched off —
+            // the argument is evaluated before the level is checked. The plain count is the same number.
+            _logger.LogDebug("Publishing power snapshot for {BatteryCount} battery or batteries at {ObservedAt}.", powerSnapshot!.BatteryCount, observedAt);
             _powerSnapshots.Publish(powerSnapshot!, observedAt);
             PublishPowerTelemetry(powerSnapshot!, observedAt);
             successfulReads += 1;
@@ -1023,9 +1084,14 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             successfulReads += 1;
         }
 
+        // Independent of the EC: GPU/NPU load comes from the OS, so it is published even when an EC read
+        // above failed. Cheap enough for the fast tier (measured ~1.7 ms on Windows).
+        PublishComputeUtilization(observedAt);
+
         if (TryReadSnapshot(connection.GetThermalSnapshot, "thermal", ref snapshotError, out var thermalSnapshot))
         {
-            _logger.LogDebug("Publishing thermal snapshot for {SensorCount} sensor(s) and {FanCount} reported fan(s) at {ObservedAt}.", thermalSnapshot!.SensorCount, thermalSnapshot.ReportedFans.Count(), observedAt);
+            // FanCount rather than ReportedFans.Count() — see the power snapshot above for why.
+            _logger.LogDebug("Publishing thermal snapshot for {SensorCount} sensor(s) and {FanCount} reported fan(s) at {ObservedAt}.", thermalSnapshot!.SensorCount, thermalSnapshot.FanCount, observedAt);
             _thermalSnapshots.Publish(thermalSnapshot!, observedAt);
             PublishThermalTelemetry(thermalSnapshot!, observedAt);
             successfulReads += 1;
@@ -1044,6 +1110,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             LastError = snapshotError ?? connectedStatus.LastError,
         };
 
+        LogEcPollCompleted(successfulReads, Stopwatch.GetElapsedTime(refreshStartedAt).TotalMilliseconds, snapshotError ?? "none");
         _logger.LogDebug("Publishing system status after refresh. IsConnectionOpen={IsConnectionOpen}, SuccessfulReads={SuccessfulReads}, LastErrorPresent={HasLastError}.", publishedStatus.IsConnectionOpen, successfulReads, !string.IsNullOrEmpty(publishedStatus.LastError));
         _systemStatus.Publish(publishedStatus, publishedStatus.ObservedAt);
 
@@ -1100,8 +1167,10 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         }
 
         var connection = EnsureWritableConnection();
+        LogFanRpmWriteRequested(fanIndex, targetSpeedRpm);
         FrameworkSetFanRpmResponse response = connection.SetFanRpm(fanIndex, RotationalSpeed.FromRevolutionsPerMinute(targetSpeedRpm));
         _fanControlSafetyTracker.MarkOverrideActive(response.FanIndex);
+        LogFanRpmWriteApplied(response.FanIndex, targetSpeedRpm, response.AppliedSpeed.RevolutionsPerMinute);
 
         return Task.FromResult(new FrameworkFanRpmCommandResult
         {
@@ -1131,8 +1200,10 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         // fractional value. Curve interpolation against fractional sensor temperatures (and the CPU usage
         // boost) produces fractional duties, so round here at the single choke point before the EC write.
         var wholeDutyPercent = Math.Round(dutyPercent, MidpointRounding.AwayFromZero);
+        LogFanDutyWriteRequested(fanIndex, dutyPercent, wholeDutyPercent);
         FrameworkSetFanDutyResponse response = connection.SetFanDuty(fanIndex, Ratio.FromPercent(wholeDutyPercent));
         _fanControlSafetyTracker.MarkOverrideActive(response.FanIndex);
+        LogFanDutyWriteApplied(response.FanIndex, wholeDutyPercent, response.AppliedDutyCycle.Percent);
 
         return Task.FromResult(new FrameworkFanDutyCommandResult
         {
@@ -1152,8 +1223,10 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         }
 
         var connection = EnsureWritableConnection();
+        LogAutoFanControlRestoreRequested(fanIndex);
         FrameworkRestoreAutoFanControlResponse response = connection.RestoreAutoFanControl(fanIndex);
         _fanControlSafetyTracker.MarkAutoRestored(response.FanIndex);
+        LogAutoFanControlRestored(response.FanIndex);
 
         return Task.FromResult(new FrameworkRestoreAutoFanControlCommandResult
         {
@@ -1348,7 +1421,17 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     {
         try
         {
+            if (!_logger.IsEnabled(LogLevel.Trace))
+            {
+                snapshot = getSnapshot();
+                return true;
+            }
+
+            // Timing each EC read individually is the only way to tell a slow driver from a slow poll
+            // interval; the stopwatch is skipped entirely unless Trace is on.
+            var startedAt = Stopwatch.GetTimestamp();
             snapshot = getSnapshot();
+            LogSnapshotRead(snapshotName, Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
             return true;
         }
         catch (Exception exception)
@@ -1362,6 +1445,120 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
     /// <summary>True once "expansion bay reports Unavailable" has been logged for the current connection.</summary>
     private bool _expansionBayUnavailableLogged;
+
+    /// <summary>
+    /// Re-resolves compute-accelerator identity. Runs on the SLOW inventory tier — the device set is static
+    /// and the Windows resolver costs hundreds of milliseconds.
+    /// </summary>
+    /// <remarks>
+    /// Only NPUs are published here: GPUs already reach the UI as video controllers, and listing them a second
+    /// time under a different name would read as duplicate hardware. A resolver that reports nothing — every
+    /// platform without one — simply leaves the list empty, and a failure keeps the previous list rather than
+    /// blanking the NPU while the rest of the snapshot is fine.
+    /// </remarks>
+    private void RefreshComputeAccelerators()
+    {
+        try
+        {
+            _computeAccelerators =
+            [
+                .. _computeDeviceIdentityResolver
+                    .Enumerate()
+                    .Where(identity => identity.Kind == ComputeDeviceKind.Npu)
+                    .Select(identity => new HardwareInfoComputeAccelerator(
+                        DeviceKey: identity.DeviceKey,
+                        Kind: identity.Kind,
+                        Name: identity.DisplayName,
+                        Vendor: identity.Vendor,
+                        Description: identity.Description,
+                        DriverName: identity.DriverName,
+                        DriverVersion: identity.DriverVersion,
+                        FirmwareVersion: identity.FirmwareVersion,
+                        Location: identity.Location)),
+            ];
+        }
+        catch (Exception exception)
+        {
+            if (!_loggedComputeAcceleratorFailure)
+            {
+                _loggedComputeAcceleratorFailure = true;
+                _logger.LogWarning(exception, "Unable to enumerate compute accelerators; the Neural processor page will show what was last known.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Publishes one utilization channel per GPU / NPU the reader can see. Runs on the FAST tier: the Windows
+    /// PDH reader costs ~1.7 ms per collect (measured), which is affordable at 1 s. Devices are published
+    /// individually — never blended — and a device the reader stops seeing goes unavailable rather than
+    /// freezing at its last value.
+    /// </summary>
+    private void PublishComputeUtilization(DateTimeOffset observedAt)
+    {
+        if (!_computeUtilizationReader.IsAvailable)
+        {
+            return;
+        }
+
+        IReadOnlyList<ComputeDeviceUtilization> devices;
+        try
+        {
+            devices = _computeUtilizationReader.Sample();
+        }
+        catch (Exception exception)
+        {
+            // A telemetry tick must survive a misbehaving counter/driver. Log once, then stay quiet.
+            if (!_computeUtilizationFailureLogged)
+            {
+                _computeUtilizationFailureLogged = true;
+                _logger.LogWarning(exception, "Reading GPU/NPU utilization failed; the devices will show as unavailable. Further failures are suppressed.");
+            }
+
+            return;
+        }
+
+        var observedGpuChannels = new HashSet<TelemetryChannelId>();
+        var observedNpuChannels = new HashSet<TelemetryChannelId>();
+
+        foreach (var device in devices)
+        {
+            var entityKind = device.Kind == ComputeDeviceKind.Npu ? TelemetryEntityKind.Npu : TelemetryEntityKind.Gpu;
+
+            // The channel index must be stable for the life of the process so a device keeps its identity in
+            // the UI. DeviceKey is the durable id (PCI path / device instance path); the index is just its
+            // first-seen slot, assigned once and never reused.
+            var index = GetComputeChannelIndex(device.DeviceKey);
+            var channelId = new TelemetryChannelId(
+                Area: TelemetryArea.Compute,
+                EntityKind: entityKind,
+                Index: index,
+                Metric: TelemetryMetric.UtilizationPercent);
+
+            (entityKind == TelemetryEntityKind.Npu ? observedNpuChannels : observedGpuChannels).Add(channelId);
+
+            PublishNumericTelemetry(
+                channelId: channelId,
+                displayName: device.DisplayName,
+                unitSymbol: "%",
+                observedAt: observedAt,
+                numericValue: device.UtilizationPercent);
+        }
+
+        SetChannelsAvailability(TelemetryArea.Compute, TelemetryEntityKind.Gpu, observedGpuChannels, observedAt);
+        SetChannelsAvailability(TelemetryArea.Compute, TelemetryEntityKind.Npu, observedNpuChannels, observedAt);
+    }
+
+    private int GetComputeChannelIndex(string deviceKey)
+    {
+        if (_computeChannelIndexes.TryGetValue(deviceKey, out var index))
+        {
+            return index;
+        }
+
+        index = _computeChannelIndexes.Count;
+        _computeChannelIndexes[deviceKey] = index;
+        return index;
+    }
 
     /// <summary>
     /// Reads the Framework 16 expansion-bay snapshot, treating an EC "Unavailable" response as an EMPTY
@@ -2137,12 +2334,17 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             return;
         }
 
+        // Handing the fans back is the safety net that runs when polling stops, so record that it ran at
+        // all — a silent success and a never-called restore look identical after the fact otherwise.
+        LogAutomaticFanControlRestoreBatch(fansToRestore.Length);
+
         foreach (var fanIndex in fansToRestore)
         {
             try
             {
                 _connection.RestoreAutoFanControl(fanIndex);
                 _fanControlSafetyTracker.CompleteRestore(fanIndex, restored: true);
+                LogAutoFanControlRestored(fanIndex);
             }
             catch (Exception exception)
             {
@@ -2306,4 +2508,57 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         _ = StopPolling();
     }
+
+    // Trace records for the EC boundary. Every hardware write is logged twice — once with what we asked
+    // for and once with what the EC reported back — because those two values genuinely differ (duty is
+    // rounded to a whole percent here, and the EC is free to clamp anything it is handed).
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC write: fan {FanIndex} target speed {TargetSpeedRpm} RPM.")]
+    private partial void LogFanRpmWriteRequested(int fanIndex, int targetSpeedRpm);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC write applied: fan {FanIndex} asked for {TargetSpeedRpm} RPM, EC reports {AppliedSpeedRpm:F0} RPM.")]
+    private partial void LogFanRpmWriteApplied(int fanIndex, int targetSpeedRpm, double appliedSpeedRpm);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC write: fan {FanIndex} duty {RequestedDutyPercent:F2}% rounded to {WholeDutyPercent:F0}% for the duty register.")]
+    private partial void LogFanDutyWriteRequested(int fanIndex, double requestedDutyPercent, double wholeDutyPercent);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC write applied: fan {FanIndex} wrote {WholeDutyPercent:F0}%, EC reports {AppliedDutyPercent:F0}%.")]
+    private partial void LogFanDutyWriteApplied(int fanIndex, double wholeDutyPercent, double appliedDutyPercent);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC write: handing fan {FanIndex} back to automatic control.")]
+    private partial void LogAutoFanControlRestoreRequested(int fanIndex);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC write applied: fan {FanIndex} is back under automatic control.")]
+    private partial void LogAutoFanControlRestored(int fanIndex);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Restoring automatic fan control for {FanCount} fan(s) that this process had overridden.")]
+    private partial void LogAutomaticFanControlRestoreBatch(int fanCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "Read the {SnapshotName} snapshot in {ElapsedMilliseconds:F1} ms.")]
+    private partial void LogSnapshotRead(string snapshotName, double elapsedMilliseconds);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC poll finished: {SuccessfulReads} snapshot(s) read in {ElapsedMilliseconds:F1} ms. Error: {SnapshotError}.")]
+    private partial void LogEcPollCompleted(int successfulReads, double elapsedMilliseconds, string snapshotError);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "HardwareInfo poll finished in {ElapsedMilliseconds:F1} ms. IsAvailable={IsAvailable}. Error: {LastError}.")]
+    private partial void LogHardwareInfoPollCompleted(double elapsedMilliseconds, bool isAvailable, string lastError);
 }
