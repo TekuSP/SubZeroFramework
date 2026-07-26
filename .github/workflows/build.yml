@@ -137,7 +137,7 @@ jobs:
       # Tests run BETWEEN build and publish, so nothing is published from a red suite. --no-build binds
       # this to the exact assemblies built above rather than rebuilding a second, unverified copy.
       - name: Test
-        run: dotnet test --no-restore --no-build ${{ env.TEST_PROJECT }} -v normal -c Release --logger "trx;LogFileName=test-results.trx" --results-directory "${{ github.workspace }}/test-results"
+        run: dotnet test --no-restore --no-build ${{ env.TEST_PROJECT }} -v normal -c Release --logger "trx;LogFileName=test-results.trx" --results-directory test-results
 
       # always(): a failed suite is exactly when the report is worth having. The Test step above has
       # already failed the job by then, so fail-on-error is off — it would only add a second, redundant
@@ -148,7 +148,11 @@ jobs:
         uses: dorny/test-reporter@v2
         with:
           name: Tests (${{ matrix.os }} ${{ matrix.type }})
-          path: ${{ github.workspace }}/test-results/*.trx
+          # Workspace-RELATIVE with forward slashes, deliberately. This action globs with picomatch
+          # semantics, where a backslash is an ESCAPE character, so an absolute Windows path
+          # (D:\a\SubZeroFramework\...) can never match and the step fails with "No test report files
+          # were found" even though dotnet test wrote the trx exactly where it was told to.
+          path: test-results/*.trx
           reporter: dotnet-trx
           fail-on-error: false
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -158,8 +162,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Test results (${{ matrix.os }} ${{ matrix.type }})
-          path: ${{ github.workspace }}/test-results
-          if-no-files-found: ignore
+          path: test-results
+          # warn, not ignore: a silently absent trx is how the reporter's path bug hid itself.
+          if-no-files-found: warn
           # Test results are tiny, so they keep a week for debugging failed runs, unlike the ~2 GB
           # build artifacts that are pure inter-job transport within one run.
           retention-days: 7
@@ -439,7 +444,7 @@ jobs:
       # Tests run BETWEEN build and publish, so nothing is published from a red suite. --no-build binds
       # this to the exact assemblies built above rather than rebuilding a second, unverified copy.
       - name: Test
-        run: dotnet test --no-restore --no-build ${{ env.TEST_PROJECT }} -v normal -c Release --logger "trx;LogFileName=test-results.trx" --results-directory "${{ github.workspace }}/test-results"
+        run: dotnet test --no-restore --no-build ${{ env.TEST_PROJECT }} -v normal -c Release --logger "trx;LogFileName=test-results.trx" --results-directory test-results
 
       # See the note on the Windows job for why always() + fail-on-error: false.
       - name: Publish test report
@@ -447,7 +452,11 @@ jobs:
         uses: dorny/test-reporter@v2
         with:
           name: Tests (${{ matrix.os }} ${{ matrix.type }})
-          path: ${{ github.workspace }}/test-results/*.trx
+          # Workspace-RELATIVE with forward slashes, deliberately. This action globs with picomatch
+          # semantics, where a backslash is an ESCAPE character, so an absolute Windows path
+          # (D:\a\SubZeroFramework\...) can never match and the step fails with "No test report files
+          # were found" even though dotnet test wrote the trx exactly where it was told to.
+          path: test-results/*.trx
           reporter: dotnet-trx
           fail-on-error: false
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -457,8 +466,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Test results (${{ matrix.os }} ${{ matrix.type }})
-          path: ${{ github.workspace }}/test-results
-          if-no-files-found: ignore
+          path: test-results
+          # warn, not ignore: a silently absent trx is how the reporter's path bug hid itself.
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Publish
