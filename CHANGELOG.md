@@ -17,6 +17,33 @@ All notable changes to this repository should be documented in this file.
   excluded. The Windows readers and their interop are compiled only into Windows builds — Linux ships none of
   it, needs nothing new at install time, and shows an honest empty state until its per-vendor readers land.
 
+- **Linux: Device Capabilities finally shows graphics and displays.** The page was empty on Linux because
+  Hardware.Info enumerates both lists by shelling out to `xrandr`, which needs a display server the background
+  service does not have. They now come from the kernel instead: adapters from `/sys/class/drm` with their
+  names resolved through the system `pci.ids` database, and displays from each DRM connector's EDID — model,
+  manufacturer, product code, serial, manufacture date, physical size and density. Works headless, and
+  identically under X11, Wayland or no session at all. The current resolution and refresh rate come from the
+  kernel's mode-setting state, so a 165 Hz panel reads 165 Hz rather than the 60 Hz its EDID advertises as
+  "preferred". Because a connector belongs to its card by kernel topology, each display is attributed to the
+  right GPU exactly, instead of by matching names as on Windows.
+
+- **Linux: GPU utilization for AMD, NVIDIA and Intel.** Same cards as on Windows, one per GPU. AMD reads the
+  amdgpu driver's own `gpu_busy_percent`. NVIDIA goes through NVML, loaded at runtime only if the proprietary
+  driver is already installed — there is no new package dependency, and on an AMD-only machine the attempt is
+  silently skipped. Intel reads the i915 or xe performance counters, discovering the available engines from
+  what the driver advertises rather than assuming a layout.
+
+  Sleeping GPUs are not woken to be measured. Reading AMD's busy attribute reaches the SMU, and an NVML query
+  takes a power-management reference on the card; either can hold a discrete GPU awake, which is how monitoring
+  tools have historically ruined laptop battery life. A GPU whose power state already reads "suspended" is
+  reported as 0% — which is what it is — without being touched.
+
+  Each source is independent and optional: one vendor's driver misbehaving cannot blank out the others. Where
+  a reading genuinely cannot be taken the device simply reports nothing. In particular Intel's counters need
+  kernel 6.15 or newer on the newest GPUs (the xe driver), and the alternatives — inferring load from power
+  residency, or summing per-process figures — were rejected as misleading rather than shipped as an
+  approximation.
+
 - **Device Capabilities categories with nothing in them are disabled.** A category whose body could only show
   an empty state no longer opens: the rail entry dims and says why on hover ("No graphics detected"). Onboard
   devices and System profile always stay open. This is what a Linux machine sees for Graphics today, and what

@@ -11,6 +11,7 @@ using SubZeroFramework.Models;
 using SubZeroFramework.Service.Models;
 using SubZeroFramework.Service.Services;
 using SubZeroFramework.Services.Compute;
+using SubZeroFramework.Services.Linux;
 using SubZeroFramework.Service.Services.Hosting;
 using SubZeroFramework.Services;
 
@@ -85,10 +86,34 @@ public static class Program
 #if WINDOWS10_0_26100_0_OR_GREATER
         builder.Services.AddSingleton<IComputeDeviceIdentityResolver, WindowsComputeDeviceIdentityResolver>();
         builder.Services.AddSingleton<IComputeUtilizationReader, WindowsPdhComputeUtilizationReader>();
+        builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
 #else
-        // Linux readers land in phase 2 (AMD sysfs) and phase 3 (NVML / Intel PMU).
+        // Linux has no single counter set covering every vendor the way Windows' GPU Engine does, so each
+        // source is its own reader and a composite merges them: a Framework 16 with the graphics module
+        // fitted runs two at once. Each is independently optional — the composite drops one that fails and
+        // keeps publishing the rest. Unlike the Windows readers these are gated at REGISTRATION rather than
+        // by #if, because they are ordinary file I/O over an injectable root (which is what makes them
+        // testable off Linux) and net10.0 is shared with the desktop app head.
         builder.Services.AddSingleton<IComputeDeviceIdentityResolver>(UnavailableComputeDeviceIdentityResolver.Instance);
-        builder.Services.AddSingleton<IComputeUtilizationReader>(UnavailableComputeUtilizationReader.Instance);
+
+        if (OperatingSystem.IsLinux())
+        {
+            builder.Services.AddSingleton<IComputeUtilizationReader>(x => new CompositeComputeUtilizationReader(
+                [
+                    new LinuxAmdGpuUtilizationReader(x.GetRequiredService<ILogger<LinuxAmdGpuUtilizationReader>>()),
+                    new LinuxNvmlGpuUtilizationReader(x.GetRequiredService<ILogger<LinuxNvmlGpuUtilizationReader>>()),
+                    new LinuxIntelGpuUtilizationReader(x.GetRequiredService<ILogger<LinuxIntelGpuUtilizationReader>>()),
+                ],
+                x.GetRequiredService<ILogger<CompositeComputeUtilizationReader>>()));
+
+            // Replaces Hardware.Info's xrandr-based enumeration, which cannot work without a display server.
+            builder.Services.AddSingleton<IGraphicsInventoryReader, LinuxDrmGraphicsInventoryReader>();
+        }
+        else
+        {
+            builder.Services.AddSingleton<IComputeUtilizationReader>(UnavailableComputeUtilizationReader.Instance);
+            builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
+        }
 #endif
 
         builder.Services.AddSingleton<IFrameworkSystem, FrameworkSystem>();

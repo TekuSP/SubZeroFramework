@@ -16,6 +16,7 @@ using Hardware.Info;
 using HardwareMonitor = Hardware.Info.Monitor;
 using HardwareVideoController = Hardware.Info.VideoController;
 using SubZeroFramework.Services.Compute;
+using SubZeroFramework.Services.Linux;
 using UnitsNet;
 
 namespace SubZeroFramework.Services;
@@ -58,6 +59,12 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     // second; ten minutes still catches USB drives and network changes. Only genuinely dynamic values
     // (CPU usage — the fan-boost input — and memory free/used) stay on the fast poll.
     private readonly IComputeUtilizationReader _computeUtilizationReader;
+
+    // Graphics adapters and displays for platforms Hardware.Info cannot enumerate (see the Linux branch in
+    // the slow inventory tier). Refreshed on that same slow tier and cached here, because reading it walks
+    // sysfs and may parse the pci.ids database — far too much work for the one-second snapshot build.
+    private readonly IGraphicsInventoryReader _graphicsInventoryReader;
+    private GraphicsInventory _graphicsInventory = GraphicsInventory.Empty;
 
     /// <summary>Stable per-process channel index per compute device, keyed by its durable device key.</summary>
     private readonly Dictionary<string, int> _computeChannelIndexes = [];
@@ -117,7 +124,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         FrameworkFanControlSafetyTracker fanControlSafetyTracker,
         ILogger<FrameworkDataProvider> logger,
         IHardwareInfoLogNoiseBuffer? hardwareInfoNoiseBuffer = null,
-        IComputeUtilizationReader? computeUtilizationReader = null)
+        IComputeUtilizationReader? computeUtilizationReader = null,
+        IGraphicsInventoryReader? graphicsInventoryReader = null)
     {
         _frameworkSystem = frameworkSystem;
         _hardwareInfo = hardwareInfo;
@@ -127,6 +135,9 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         // Optional by construction: a host that does not supply a reader (or a platform without one) simply
         // never publishes compute channels. GPU/NPU telemetry must never be a reason the provider fails.
         _computeUtilizationReader = computeUtilizationReader ?? UnavailableComputeUtilizationReader.Instance;
+        // Same contract for graphics inventory: a platform whose display enumeration comes from Hardware.Info
+        // supplies no reader here and nothing changes.
+        _graphicsInventoryReader = graphicsInventoryReader ?? UnavailableGraphicsInventoryReader.Instance;
         SystemStatus = _systemStatus;
         FlashSnapshots = _flashSnapshots;
         FanCapabilitiesSnapshots = _fanCapabilitiesSnapshots;
@@ -554,10 +565,15 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
                 //     XWayland, which warns it is doing so and reports a synthetic view rather than the
                 //     real outputs — so shipping the package would not have fixed it either.
                 //
-                // Doing this properly on Linux means reading EDID from /sys/class/drm, which needs no
-                // display server and works headless, on X11 and on Wayland alike; or querying from the
-                // client, which does have a display connection. Tracked as a post-0.1.0 item.
-                if (!OperatingSystem.IsLinux())
+                // That is what IGraphicsInventoryReader now does on Linux: it reads the adapters and their
+                // EDIDs straight from /sys/class/drm, which needs no display server and behaves identically
+                // headless, on X11 and on Wayland. When such a reader is present it REPLACES the xrandr path
+                // rather than supplementing it, so Hardware.Info's shell-outs never happen there.
+                if (_graphicsInventoryReader.IsAvailable)
+                {
+                    _graphicsInventory = _graphicsInventoryReader.Read();
+                }
+                else if (!OperatingSystem.IsLinux())
                 {
                     _hardwareInfo.RefreshVideoControllerList(refreshMonitorList: true);
                 }
@@ -653,6 +669,14 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         catch (Exception exception)
         {
             CaptureFailure(exception, "read memory status data");
+        }
+
+        // A platform-supplied inventory (Linux DRM) is authoritative where it exists: Hardware.Info's lists
+        // are empty there, and re-deriving them below would only produce the same nothing.
+        if (!_graphicsInventory.IsEmpty)
+        {
+            videoControllers = [.. _graphicsInventory.VideoControllers];
+            monitors = [.. _graphicsInventory.Monitors];
         }
 
         try
