@@ -17,7 +17,7 @@ namespace SubZeroFramework.Services.Compute;
 /// <see cref="ComputeDeviceUtilization.DeviceKey"/> — first source wins — so a GPU visible to two sources
 /// (an AMD card readable through both sysfs and a future generic path) is published once.
 /// </remarks>
-public sealed class CompositeComputeUtilizationReader : IComputeUtilizationReader
+public sealed partial class CompositeComputeUtilizationReader : IComputeUtilizationReader
 {
     private readonly IReadOnlyList<IComputeUtilizationReader> _readers;
     private readonly ILogger<CompositeComputeUtilizationReader> _logger;
@@ -29,6 +29,10 @@ public sealed class CompositeComputeUtilizationReader : IComputeUtilizationReade
     {
         _readers = [.. readers];
         _logger = logger;
+
+        // "My GPU shows nothing" nearly always comes down to which readers were registered at all, so
+        // record the composition once at startup rather than making it inferable from later silence.
+        LogReadersRegistered(_readers.Count, string.Join(", ", _readers.Select(reader => reader.GetType().Name)));
     }
 
     public bool IsAvailable => _readers.Any(reader => SafeIsAvailable(reader));
@@ -51,13 +55,20 @@ public sealed class CompositeComputeUtilizationReader : IComputeUtilizationReade
                 continue;
             }
 
+            var duplicates = 0;
             foreach (var sample in samples)
             {
                 if (seenDeviceKeys.Add(sample.DeviceKey))
                 {
                     merged.Add(sample);
                 }
+                else
+                {
+                    duplicates += 1;
+                }
             }
+
+            LogReaderSampled(reader.GetType().Name, samples.Count, duplicates);
         }
 
         return merged;
@@ -99,4 +110,14 @@ public sealed class CompositeComputeUtilizationReader : IComputeUtilizationReade
             }
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Debug,
+        Message = "Composite GPU/NPU utilization is backed by {ReaderCount} reader(s): {Readers}.")]
+    private partial void LogReadersRegistered(int readerCount, string readers);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "{Reader} reported {SampleCount} device(s), {DuplicateCount} of which another reader had already claimed.")]
+    private partial void LogReaderSampled(string reader, int sampleCount, int duplicateCount);
 }

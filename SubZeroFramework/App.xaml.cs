@@ -65,32 +65,37 @@ public partial class App : Application
 #endif
                 .UseLogging(configure: (context, logBuilder) =>
                 {
-                    // Configure log levels for different categories of logging
+                    // Verbosity by build configuration. DEBUG turns the app's own categories all the way down
+                    // to Trace; RELEASE settles at Information, which is enough to reconstruct what the app
+                    // did without a record per telemetry tick.
+#if DEBUG
                     logBuilder
-                        .SetMinimumLevel(
-                            context.HostingEnvironment.IsDevelopment() ?
-                                LogLevel.Information :
-                                LogLevel.Warning)
-
-                        // Default filters for core Uno Platform namespaces
+                        .SetMinimumLevel(LogLevel.Trace)
                         .CoreLogLevel(LogLevel.Warning);
 
-                    // Uno Platform namespace filter groups
-                    // Uncomment individual methods to see more detailed logging
-                    //// Generic Xaml events
+                    logBuilder.AddFilter("SubZeroFramework", LogLevel.Trace);
+
+                    // The Uno diagnostic groups below are genuinely noisy and only make sense while
+                    // debugging the UI itself. BinderMemoryReference in particular tracks every binder
+                    // reference, so it is not something to leave on in a shipped build.
                     logBuilder.XamlLogLevel(LogLevel.Debug);
-                    //// Layout specific messages
                     logBuilder.XamlLayoutLogLevel(LogLevel.Debug);
-                    //// Storage messages
-                    //logBuilder.StorageLogLevel(LogLevel.Debug);
-                    //// Binding related messages
                     logBuilder.XamlBindingLogLevel(LogLevel.Debug);
-                    //// Binder memory references tracking
                     logBuilder.BinderMemoryReferenceLogLevel(LogLevel.Debug);
-                    //// DevServer and HotReload related
                     logBuilder.HotReloadCoreLogLevel(LogLevel.Information);
-                    //// Debug JS interop
-                    //logBuilder.WebAssemblyLogLevel(LogLevel.Debug);
+#else
+                    // Previously this was Warning, and — more importantly — the Xaml/Layout/Binding/Binder
+                    // groups above were configured at Debug in EVERY configuration. A category filter beats
+                    // the minimum level rather than being capped by it, so a release build really was
+                    // emitting Uno layout and binding diagnostics on the UI thread. They are DEBUG-only now.
+                    logBuilder
+                        .SetMinimumLevel(LogLevel.Information)
+                        .CoreLogLevel(LogLevel.Warning);
+
+                    logBuilder.AddFilter("SubZeroFramework", LogLevel.Information);
+                    logBuilder.AddFilter("Microsoft", LogLevel.Warning);
+                    logBuilder.AddFilter("Uno", LogLevel.Warning);
+#endif
                 }, enableUnoLogging: true)
                 .UseConfiguration(configure: configBuilder =>
                     configBuilder

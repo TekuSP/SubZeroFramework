@@ -33,7 +33,7 @@ namespace SubZeroFramework.Services.Compute;
 // platform is declared here rather than defended call by call: the service only ever constructs this type
 // inside an OperatingSystem.IsWindows() branch, which is what the compiler now checks.
 [SupportedOSPlatform("windows")]
-public sealed class WindowsPdhComputeUtilizationReader : IComputeUtilizationReader
+public sealed partial class WindowsPdhComputeUtilizationReader : IComputeUtilizationReader
 {
     private const string RunningTimeCounterPath = @"\GPU Engine(*)\Running Time";
 
@@ -263,9 +263,18 @@ public sealed class WindowsPdhComputeUtilizationReader : IComputeUtilizationRead
                 continue;
             }
 
-            if (CreateUtilization(adapter, Math.Clamp(busiest, 0d, 100d)) is { } utilization)
+            var adapterUtilization = Math.Clamp(busiest, 0d, 100d);
+            if (CreateUtilization(adapter, adapterUtilization) is { } utilization)
             {
+                LogAdapterSampled(utilization.DisplayName, adapterUtilization, engines.Count);
                 results.Add(utilization);
+            }
+            else
+            {
+                // Dropped for want of a resolved identity — the phantom-adapter filter described on
+                // CreateUtilization. Worth tracing: it is also what a genuinely hotplugged GPU looks like
+                // for the seconds before the resolver catches up.
+                LogAdapterWithoutIdentity(adapter.Luid, adapter.PhysicalIndex, adapterUtilization);
             }
         }
 
@@ -505,5 +514,15 @@ public sealed class WindowsPdhComputeUtilizationReader : IComputeUtilizationRead
         public StrPtrUni Name;
         public PDH_FMT_COUNTERVALUE Value;
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "{DisplayName} is {UtilizationPercent:F0}% busy (busiest of {EngineCount} engine type(s)).")]
+    private partial void LogAdapterSampled(string displayName, double utilizationPercent, int engineCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "PDH adapter LUID 0x{Luid:X} index {PhysicalIndex} measured {UtilizationPercent:F0}% but has no enumerated PnP device; not reported.")]
+    private partial void LogAdapterWithoutIdentity(long luid, int physicalIndex, double utilizationPercent);
 }
 #endif

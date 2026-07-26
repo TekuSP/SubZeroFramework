@@ -1,6 +1,7 @@
 using DynamicData;
 
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Reflection;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
@@ -21,7 +22,7 @@ using UnitsNet;
 
 namespace SubZeroFramework.Services;
 
-public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
+public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 {
     private static readonly IScheduler TelemetryScheduler = Scheduler.Default;
 
@@ -953,8 +954,13 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             {
                 try
                 {
+                    var startedAt = Stopwatch.GetTimestamp();
                     var snapshot = ReadHardwareInfoSnapshot();
                     PublishHardwareInfoSnapshot(snapshot, snapshot.ObservedAt);
+                    LogHardwareInfoPollCompleted(
+                        Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+                        snapshot.IsAvailable,
+                        snapshot.LastError ?? "none");
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
@@ -1026,6 +1032,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         var observedAt = DateTimeOffset.UtcNow;
         var connectedStatus = EnrichConnectionStatus(systemStatus with { ObservedAt = observedAt }, connection);
 
+        var refreshStartedAt = Stopwatch.GetTimestamp();
         var successfulReads = 0;
         string? snapshotError = null;
 
@@ -1046,7 +1053,10 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         if (TryReadSnapshot(connection.GetPowerSnapshot, "power", ref snapshotError, out var powerSnapshot))
         {
-            _logger.LogDebug("Publishing power snapshot for {BatteryCount} battery or batteries at {ObservedAt}.", powerSnapshot!.ReportedBatteries.Count(), observedAt);
+            // BatteryCount, not ReportedBatteries.Count(): ReportedBatteries is a Take() iterator, so counting
+            // it allocated an enumerator and walked it on EVERY poll even with Debug logging switched off —
+            // the argument is evaluated before the level is checked. The plain count is the same number.
+            _logger.LogDebug("Publishing power snapshot for {BatteryCount} battery or batteries at {ObservedAt}.", powerSnapshot!.BatteryCount, observedAt);
             _powerSnapshots.Publish(powerSnapshot!, observedAt);
             PublishPowerTelemetry(powerSnapshot!, observedAt);
             successfulReads += 1;
@@ -1080,7 +1090,8 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         if (TryReadSnapshot(connection.GetThermalSnapshot, "thermal", ref snapshotError, out var thermalSnapshot))
         {
-            _logger.LogDebug("Publishing thermal snapshot for {SensorCount} sensor(s) and {FanCount} reported fan(s) at {ObservedAt}.", thermalSnapshot!.SensorCount, thermalSnapshot.ReportedFans.Count(), observedAt);
+            // FanCount rather than ReportedFans.Count() — see the power snapshot above for why.
+            _logger.LogDebug("Publishing thermal snapshot for {SensorCount} sensor(s) and {FanCount} reported fan(s) at {ObservedAt}.", thermalSnapshot!.SensorCount, thermalSnapshot.FanCount, observedAt);
             _thermalSnapshots.Publish(thermalSnapshot!, observedAt);
             PublishThermalTelemetry(thermalSnapshot!, observedAt);
             successfulReads += 1;
@@ -1099,6 +1110,7 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             LastError = snapshotError ?? connectedStatus.LastError,
         };
 
+        LogEcPollCompleted(successfulReads, Stopwatch.GetElapsedTime(refreshStartedAt).TotalMilliseconds, snapshotError ?? "none");
         _logger.LogDebug("Publishing system status after refresh. IsConnectionOpen={IsConnectionOpen}, SuccessfulReads={SuccessfulReads}, LastErrorPresent={HasLastError}.", publishedStatus.IsConnectionOpen, successfulReads, !string.IsNullOrEmpty(publishedStatus.LastError));
         _systemStatus.Publish(publishedStatus, publishedStatus.ObservedAt);
 
@@ -1155,8 +1167,10 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         }
 
         var connection = EnsureWritableConnection();
+        LogFanRpmWriteRequested(fanIndex, targetSpeedRpm);
         FrameworkSetFanRpmResponse response = connection.SetFanRpm(fanIndex, RotationalSpeed.FromRevolutionsPerMinute(targetSpeedRpm));
         _fanControlSafetyTracker.MarkOverrideActive(response.FanIndex);
+        LogFanRpmWriteApplied(response.FanIndex, targetSpeedRpm, response.AppliedSpeed.RevolutionsPerMinute);
 
         return Task.FromResult(new FrameworkFanRpmCommandResult
         {
@@ -1186,8 +1200,10 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         // fractional value. Curve interpolation against fractional sensor temperatures (and the CPU usage
         // boost) produces fractional duties, so round here at the single choke point before the EC write.
         var wholeDutyPercent = Math.Round(dutyPercent, MidpointRounding.AwayFromZero);
+        LogFanDutyWriteRequested(fanIndex, dutyPercent, wholeDutyPercent);
         FrameworkSetFanDutyResponse response = connection.SetFanDuty(fanIndex, Ratio.FromPercent(wholeDutyPercent));
         _fanControlSafetyTracker.MarkOverrideActive(response.FanIndex);
+        LogFanDutyWriteApplied(response.FanIndex, wholeDutyPercent, response.AppliedDutyCycle.Percent);
 
         return Task.FromResult(new FrameworkFanDutyCommandResult
         {
@@ -1207,8 +1223,10 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
         }
 
         var connection = EnsureWritableConnection();
+        LogAutoFanControlRestoreRequested(fanIndex);
         FrameworkRestoreAutoFanControlResponse response = connection.RestoreAutoFanControl(fanIndex);
         _fanControlSafetyTracker.MarkAutoRestored(response.FanIndex);
+        LogAutoFanControlRestored(response.FanIndex);
 
         return Task.FromResult(new FrameworkRestoreAutoFanControlCommandResult
         {
@@ -1403,7 +1421,17 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
     {
         try
         {
+            if (!_logger.IsEnabled(LogLevel.Trace))
+            {
+                snapshot = getSnapshot();
+                return true;
+            }
+
+            // Timing each EC read individually is the only way to tell a slow driver from a slow poll
+            // interval; the stopwatch is skipped entirely unless Trace is on.
+            var startedAt = Stopwatch.GetTimestamp();
             snapshot = getSnapshot();
+            LogSnapshotRead(snapshotName, Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds);
             return true;
         }
         catch (Exception exception)
@@ -2306,12 +2334,17 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
             return;
         }
 
+        // Handing the fans back is the safety net that runs when polling stops, so record that it ran at
+        // all — a silent success and a never-called restore look identical after the fact otherwise.
+        LogAutomaticFanControlRestoreBatch(fansToRestore.Length);
+
         foreach (var fanIndex in fansToRestore)
         {
             try
             {
                 _connection.RestoreAutoFanControl(fanIndex);
                 _fanControlSafetyTracker.CompleteRestore(fanIndex, restored: true);
+                LogAutoFanControlRestored(fanIndex);
             }
             catch (Exception exception)
             {
@@ -2475,4 +2508,57 @@ public sealed class FrameworkDataProvider : IFrameworkDataProvider, IDisposable
 
         _ = StopPolling();
     }
+
+    // Trace records for the EC boundary. Every hardware write is logged twice — once with what we asked
+    // for and once with what the EC reported back — because those two values genuinely differ (duty is
+    // rounded to a whole percent here, and the EC is free to clamp anything it is handed).
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC write: fan {FanIndex} target speed {TargetSpeedRpm} RPM.")]
+    private partial void LogFanRpmWriteRequested(int fanIndex, int targetSpeedRpm);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC write applied: fan {FanIndex} asked for {TargetSpeedRpm} RPM, EC reports {AppliedSpeedRpm:F0} RPM.")]
+    private partial void LogFanRpmWriteApplied(int fanIndex, int targetSpeedRpm, double appliedSpeedRpm);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC write: fan {FanIndex} duty {RequestedDutyPercent:F2}% rounded to {WholeDutyPercent:F0}% for the duty register.")]
+    private partial void LogFanDutyWriteRequested(int fanIndex, double requestedDutyPercent, double wholeDutyPercent);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC write applied: fan {FanIndex} wrote {WholeDutyPercent:F0}%, EC reports {AppliedDutyPercent:F0}%.")]
+    private partial void LogFanDutyWriteApplied(int fanIndex, double wholeDutyPercent, double appliedDutyPercent);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC write: handing fan {FanIndex} back to automatic control.")]
+    private partial void LogAutoFanControlRestoreRequested(int fanIndex);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC write applied: fan {FanIndex} is back under automatic control.")]
+    private partial void LogAutoFanControlRestored(int fanIndex);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Restoring automatic fan control for {FanCount} fan(s) that this process had overridden.")]
+    private partial void LogAutomaticFanControlRestoreBatch(int fanCount);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "Read the {SnapshotName} snapshot in {ElapsedMilliseconds:F1} ms.")]
+    private partial void LogSnapshotRead(string snapshotName, double elapsedMilliseconds);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "EC poll finished: {SuccessfulReads} snapshot(s) read in {ElapsedMilliseconds:F1} ms. Error: {SnapshotError}.")]
+    private partial void LogEcPollCompleted(int successfulReads, double elapsedMilliseconds, string snapshotError);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "HardwareInfo poll finished in {ElapsedMilliseconds:F1} ms. IsAvailable={IsAvailable}. Error: {LastError}.")]
+    private partial void LogHardwareInfoPollCompleted(double elapsedMilliseconds, bool isAvailable, string lastError);
 }

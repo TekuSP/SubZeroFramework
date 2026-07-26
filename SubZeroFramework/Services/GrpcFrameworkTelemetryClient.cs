@@ -5,6 +5,11 @@ using System.Reactive.Linq;
 
 using Grpc.Core;
 
+using System.Runtime.CompilerServices;
+
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 using SubZeroFramework.GrpcContracts;
 using SubZeroFramework.GrpcContracts.Mapping;
 
@@ -17,12 +22,15 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
     private readonly IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> _sharedChannels;
     private readonly IObservable<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>> _sharedCurrentValues;
     private readonly RefCountedObservableCache<TelemetrySeriesStreamKey, IChangeSet<TelemetryPoint, long>> _seriesStreams = new();
+    private readonly ILogger<GrpcFrameworkTelemetryClient> _logger;
     private bool _disposed;
 
-    public GrpcFrameworkTelemetryClient(FrameworkGrpcChannelFactory channelFactory)
+    // Optional so the client stays constructible without a logging stack; DI always supplies one.
+    public GrpcFrameworkTelemetryClient(FrameworkGrpcChannelFactory channelFactory, ILogger<GrpcFrameworkTelemetryClient>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(channelFactory);
 
+        _logger = logger ?? NullLogger<GrpcFrameworkTelemetryClient>.Instance;
         _channelFactory = channelFactory;
         _client = new FrameworkTelemetryService.FrameworkTelemetryServiceClient(_channelFactory.Channel);
         _sharedChannels = _channelFactory.ShareLatest(CreateChannelsStream());
@@ -114,11 +122,13 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
                     {
                         break;
                     }
-                    catch (RpcException) when (!cancellationSource.IsCancellationRequested)
+                    catch (RpcException exception) when (!cancellationSource.IsCancellationRequested)
                     {
+                        LogStreamFaulted(exception);
                     }
-                    catch (Exception) when (!cancellationSource.IsCancellationRequested)
+                    catch (Exception exception) when (!cancellationSource.IsCancellationRequested)
                     {
+                        LogStreamFaultedUnexpectedly(exception);
                     }
                     finally
                     {
@@ -187,11 +197,13 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
                     {
                         break;
                     }
-                    catch (RpcException) when (!cancellationSource.IsCancellationRequested)
+                    catch (RpcException exception) when (!cancellationSource.IsCancellationRequested)
                     {
+                        LogStreamFaulted(exception);
                     }
-                    catch (Exception) when (!cancellationSource.IsCancellationRequested)
+                    catch (Exception exception) when (!cancellationSource.IsCancellationRequested)
                     {
+                        LogStreamFaultedUnexpectedly(exception);
                     }
                     finally
                     {
@@ -258,11 +270,13 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
                     {
                         break;
                     }
-                    catch (RpcException) when (!cancellationSource.IsCancellationRequested)
+                    catch (RpcException exception) when (!cancellationSource.IsCancellationRequested)
                     {
+                        LogStreamFaulted(exception);
                     }
-                    catch (Exception) when (!cancellationSource.IsCancellationRequested)
+                    catch (Exception exception) when (!cancellationSource.IsCancellationRequested)
                     {
+                        LogStreamFaultedUnexpectedly(exception);
                     }
                     finally
                     {
@@ -393,6 +407,31 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
     /// defaulting produced a colliding channel identity. A skipped channel is just a reading this client
     /// version cannot show.
     /// </summary>
+    /// <summary>
+    /// Reports a telemetry stream dropping out, before the reconnect delay.
+    /// </summary>
+    /// <remarks>
+    /// These catch blocks used to be EMPTY. All three telemetry streams reconnect on a loop, so a service
+    /// that was refusing connections, or a contract mismatch that faulted every attempt, produced a client
+    /// that showed stale data and said nothing at all — in a log, in the UI, anywhere. The stream identifies
+    /// itself through the caller name, so each of the three loops is distinguishable without threading a
+    /// label through.
+    /// </remarks>
+    private void LogStreamFaulted(RpcException exception, [CallerMemberName] string stream = "")
+        => _logger.LogWarning(
+            exception,
+            "The {Stream} telemetry stream faulted with {StatusCode}; reconnecting in {ReconnectDelay}.",
+            stream,
+            exception.StatusCode,
+            GrpcTransportDefaults.StreamReconnectDelay);
+
+    private void LogStreamFaultedUnexpectedly(Exception exception, [CallerMemberName] string stream = "")
+        => _logger.LogWarning(
+            exception,
+            "The {Stream} telemetry stream faulted unexpectedly; reconnecting in {ReconnectDelay}.",
+            stream,
+            GrpcTransportDefaults.StreamReconnectDelay);
+
     private static bool TryMapChannelId(TelemetryChannelIdReply reply, out TelemetryChannelId channelId) =>
         TelemetryWireMapper.TryParseChannelId(reply, out channelId);
 

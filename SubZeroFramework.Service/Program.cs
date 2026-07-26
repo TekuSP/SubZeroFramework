@@ -33,6 +33,31 @@ public static class Program
 
         builder.Configuration.AddJsonFile(persistentConfigurationPath, optional: true, reloadOnChange: true);
 
+        // Verbosity by build configuration, set in CODE rather than appsettings so it holds however the
+        // service is launched — a Debug build registered with the SCM or systemd has no Development
+        // environment to key off, so a configuration-only switch would silently not apply there.
+        // These filters are added AFTER the configuration providers, so for equally specific categories they
+        // win over the appsettings rules.
+#if DEBUG
+        // Everything we write, down to Trace. The framework namespaces stay quieter on purpose: at Trace,
+        // ASP.NET and Kestrel emit per-request and per-frame records that bury the service's own telemetry,
+        // which defeats the point of turning verbosity up.
+        builder.Logging.SetMinimumLevel(LogLevel.Trace);
+        builder.Logging.AddFilter("SubZeroFramework", LogLevel.Trace);
+        builder.Logging.AddFilter("Microsoft", LogLevel.Information);
+        builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
+        builder.Logging.AddFilter("Grpc", LogLevel.Information);
+        builder.Logging.AddFilter("System", LogLevel.Information);
+#else
+        // Release keeps Information: enough to reconstruct what the service did — lifecycle, fan actuation,
+        // mode changes, failures — without a per-poll record. Debug and Trace are compiled-in but filtered
+        // out, so their call sites cost only the level check.
+        builder.Logging.SetMinimumLevel(LogLevel.Information);
+        builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
+        builder.Logging.AddFilter("Grpc", LogLevel.Warning);
+        builder.Logging.AddFilter("System", LogLevel.Warning);
+#endif
+
         builder.Services.AddWindowsService(options =>
         {
             options.ServiceName = "SubZeroFrameworkService";

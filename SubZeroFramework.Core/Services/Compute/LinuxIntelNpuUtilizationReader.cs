@@ -27,7 +27,7 @@ namespace SubZeroFramework.Services.Compute;
 /// The device node is deliberately never opened. Closing an ivpu accel handle forces a synchronous runtime
 /// resume of the NPU, so a monitor that opened it would wake the very hardware it is only trying to observe.
 /// </remarks>
-public sealed class LinuxIntelNpuUtilizationReader : IComputeUtilizationReader
+public sealed partial class LinuxIntelNpuUtilizationReader : IComputeUtilizationReader
 {
     private const string IvpuDriverName = "intel_vpu";
     private const string BusyTimeAttribute = "npu_busy_time_us";
@@ -73,6 +73,18 @@ public sealed class LinuxIntelNpuUtilizationReader : IComputeUtilizationReader
             foreach (var device in _devices)
             {
                 var utilization = device.Sample();
+
+                // The first tick after startup has no previous counter to difference against, so a null
+                // here is normal exactly once and a symptom every time after that.
+                if (utilization is null)
+                {
+                    LogDeviceUnreadable(device.DisplayName, device.DeviceKey);
+                }
+                else
+                {
+                    LogDeviceSampled(device.DisplayName, utilization.Value);
+                }
+
                 if (utilization is not null)
                 {
                     samples.Add(new ComputeDeviceUtilization
@@ -212,4 +224,14 @@ public sealed class LinuxIntelNpuUtilizationReader : IComputeUtilizationReader
             return Math.Clamp(busyDelta * 100d / elapsedMicroseconds, 0d, 100d);
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "ivpu NPU {DisplayName} is {UtilizationPercent:F0}% busy.")]
+    private partial void LogDeviceSampled(string displayName, double utilizationPercent);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "ivpu NPU {DisplayName} ({DeviceKey}) produced no ratio this tick; expected on the first sample, otherwise the busy-time counter did not advance usably.")]
+    private partial void LogDeviceUnreadable(string displayName, string deviceKey);
 }

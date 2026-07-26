@@ -20,7 +20,7 @@ namespace SubZeroFramework.Services.Compute;
 /// "suspended" is reported as 0% from the sysfs power state alone, which is what a sleeping GPU's busy share
 /// actually is. This is the difference between a monitoring feature and a battery-life regression.
 /// </remarks>
-public sealed class LinuxAmdGpuUtilizationReader : IComputeUtilizationReader
+public sealed partial class LinuxAmdGpuUtilizationReader : IComputeUtilizationReader
 {
     private const string AmdGpuDriverName = "amdgpu";
 
@@ -73,8 +73,13 @@ public sealed class LinuxAmdGpuUtilizationReader : IComputeUtilizationReader
                 var utilization = ReadUtilizationPercent(device);
                 if (utilization is null)
                 {
+                    // Dropping the device here is what "the GPU card shows no reading" looks like from the
+                    // UI, so name it rather than leaving an unexplained gap in the sample set.
+                    LogDeviceUnreadable(device.DisplayName, device.DeviceKey);
                     continue;
                 }
+
+                LogDeviceSampled(device.DisplayName, utilization.Value);
 
                 samples.Add(new ComputeDeviceUtilization
                 {
@@ -205,6 +210,16 @@ public sealed class LinuxAmdGpuUtilizationReader : IComputeUtilizationReader
     {
         // Nothing held open: every sample is a fresh short read of a sysfs attribute.
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "amdgpu {DisplayName} is {UtilizationPercent:F0}% busy.")]
+    private partial void LogDeviceSampled(string displayName, double utilizationPercent);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "amdgpu {DisplayName} ({DeviceKey}) returned no reading this tick and is omitted from the sample.")]
+    private partial void LogDeviceUnreadable(string displayName, string deviceKey);
 
     private sealed record AmdGpuDevice
     {

@@ -109,7 +109,24 @@ public sealed partial class LinuxAmdXdnaNpuUtilizationReader : IComputeUtilizati
                 }
 
                 // A suspended NPU is 0% busy, and asking would resume it — see the class remarks.
-                var utilization = IsRuntimeSuspended(device) ? 0d : ReadUtilizationPercent(device);
+                var isSuspended = IsRuntimeSuspended(device);
+                var utilization = isSuspended ? 0d : ReadUtilizationPercent(device);
+
+                // A reported 0% has two very different causes — a suspended device we deliberately did not
+                // wake, and a genuinely idle one. Only the trace can tell them apart afterwards.
+                if (isSuspended)
+                {
+                    LogDeviceSuspended(device.DisplayName);
+                }
+                else if (utilization is null)
+                {
+                    LogDeviceUnreadable(device.DisplayName, device.DeviceKey);
+                }
+                else
+                {
+                    LogDeviceSampled(device.DisplayName, utilization.Value);
+                }
+
                 if (utilization is not null)
                 {
                     samples.Add(new ComputeDeviceUtilization
@@ -324,6 +341,21 @@ public sealed partial class LinuxAmdXdnaNpuUtilizationReader : IComputeUtilizati
         public byte Type;
         public fixed byte Pad[6];
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "amdxdna NPU {DisplayName} is {UtilizationPercent:F0}% busy.")]
+    private partial void LogDeviceSampled(string displayName, double utilizationPercent);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "amdxdna NPU {DisplayName} is runtime-suspended; reporting 0% without waking it.")]
+    private partial void LogDeviceSuspended(string displayName);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "amdxdna NPU {DisplayName} ({DeviceKey}) returned no reading this tick and is omitted from the sample.")]
+    private partial void LogDeviceUnreadable(string displayName, string deviceKey);
 
     private sealed class XdnaDevice
     {
