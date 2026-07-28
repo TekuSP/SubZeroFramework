@@ -14,6 +14,12 @@ public sealed record FanControlStateSnapshot
 
     public ImmutableArray<int> DrivingSensorIndices { get; init; } = [];
 
+    /// <summary>
+    /// Active slot's setting: a driving sensor with no reading counts as 0 °C instead of being skipped.
+    /// See <see cref="FanCurveProfileSnapshot.TreatMissingSensorsAsZero"/>.
+    /// </summary>
+    public bool TreatMissingSensorsAsZero { get; init; }
+
     /// <summary>Which curve profile slot (0-based) is currently active for this fan.</summary>
     public int ActiveCurveSlot { get; init; }
 

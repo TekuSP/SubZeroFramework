@@ -34,6 +34,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly ITemperatureTelemetryClient _temperatureTelemetryClient;
     private readonly IBatteryTelemetryClient _batteryTelemetryClient;
+    private readonly IFrameworkTelemetryClient _telemetryClient;
     private readonly IFrameworkStatusClient _frameworkStatusClient;
     private readonly SynchronizationContext _synchronizationContext;
     private readonly IUnitFormattingService _unitFormattingService;
@@ -48,6 +49,16 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     private readonly ObservableCollection<DeviceCapabilitiesStorageDriveCardModel> _storageDriveCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesNetworkAdapterCardModel> _networkAdapterCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesVideoControllerCardModel> _videoControllerCards = [];
+
+    // GPUs and NPUs with live utilization, split per category (GPUs live in Graphics, NPUs in Neural
+    // processor). Keyed by channel so a device that goes unavailable keeps its card (greyed) instead of
+    // disappearing and reshuffling the list under the user.
+    private readonly ObservableCollection<ComputeDeviceUsageCardModel> _gpuUsageCards = [];
+    private readonly ObservableCollection<ComputeDeviceUsageCardModel> _npuUsageCards = [];
+    private readonly Dictionary<TelemetryChannelId, ComputeDeviceUsageCardModel> _computeDeviceCardIndex = [];
+    // GPUs the service measures that could not be joined by name to any inventory adapter; they render in the
+    // category's fallback strip so a failed name match never hides live telemetry.
+    private readonly ObservableCollection<ComputeDeviceUsageCardModel> _unmatchedGpuUsageCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesGraphicsCardGroupModel> _graphicsCardGroups = [];
     private readonly ObservableCollection<DeviceCapabilitiesMonitorCardModel> _monitorCards = [];
     private readonly ObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel> _temperatureStatusItems = [];
@@ -95,7 +106,13 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     public partial HardwareInfoSnapshot? Snapshot { get; set; }
 
     // The unit-formatted aggregate displays are STORED properties; re-project them whenever the snapshot changes.
-    partial void OnSnapshotChanged(HardwareInfoSnapshot? value) => RefreshUnitFormattedDisplays();
+    partial void OnSnapshotChanged(HardwareInfoSnapshot? value)
+    {
+        RefreshUnitFormattedDisplays();
+        // The accelerator list arrives with the snapshot, while the cards come from the telemetry stream;
+        // whichever lands second has to do the join.
+        RefreshComputeAcceleratorDetails();
+    }
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesCpuPackageCardModel> CpuPackageCards { get; }
 
@@ -106,6 +123,229 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     public ReadOnlyObservableCollection<DeviceCapabilitiesNetworkAdapterCardModel> NetworkAdapterCards { get; }
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesVideoControllerCardModel> VideoControllerCards { get; }
+
+    /// <summary>Measured GPUs with no name-matched inventory adapter (see <see cref="LinkGpuUsageCardsToAdapters"/>).</summary>
+    public ReadOnlyObservableCollection<ComputeDeviceUsageCardModel> UnmatchedGpuUsageCards { get; }
+
+    /// <summary>Every NPU the service can measure (Neural processor category).</summary>
+    public ReadOnlyObservableCollection<ComputeDeviceUsageCardModel> NpuUsageCards { get; }
+
+    /// <summary>Shows the Graphics fallback strip only when a measured GPU matched no adapter by name.</summary>
+    [ObservableProperty]
+    public partial Visibility UnmatchedGpuUsageVisibility { get; set; } = Visibility.Collapsed;
+
+    /// <summary>Swaps the Neural processor category between its cards and its empty state.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NpuEmptyStateVisibility))]
+    public partial Visibility NpuUsageVisibility { get; set; } = Visibility.Collapsed;
+
+    public Visibility NpuEmptyStateVisibility => NpuUsageVisibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>Processor-count tile in the Neural processor category (the CPU category's "Package count" parity).</summary>
+    [ObservableProperty]
+    public partial string NpuCountDisplay { get; set; } = "0";
+
+    private void ApplyComputeTelemetryChanges(IChangeSet<CurrentTelemetryValue, TelemetryChannelId> changes)
+    {
+        var newDeviceAppeared = false;
+        foreach (var change in changes)
+        {
+            if (change.Key.Area != TelemetryArea.Compute || change.Key.Metric != TelemetryMetric.UtilizationPercent)
+            {
+                continue;
+            }
+
+            // A removed channel keeps its card, greyed: a dGPU powering down or a driver reload must not
+            // reshuffle the list under the user — the same availability-is-status rule the fan sensors use.
+            if (change.Reason == ChangeReason.Remove)
+            {
+                if (_computeDeviceCardIndex.TryGetValue(change.Key, out var removedCard))
+                {
+                    removedCard.IsAvailable = false;
+                    removedCard.UtilizationPercent = null;
+                }
+
+                continue;
+            }
+
+            var value = change.Current;
+            if (!_computeDeviceCardIndex.TryGetValue(change.Key, out var card))
+            {
+                card = new ComputeDeviceUsageCardModel(
+                    change.Key,
+                    value.DisplayName,
+                    isNpu: change.Key.EntityKind == TelemetryEntityKind.Npu,
+                    _unitFormattingService);
+                _computeDeviceCardIndex[change.Key] = card;
+                InsertComputeCardSorted(card.IsNpu ? _npuUsageCards : _gpuUsageCards, card);
+                newDeviceAppeared = true;
+
+                // History for the card's sparkline: the service retains recent points for every published
+                // channel, so a freshly opened page charts the last window instead of starting empty. One
+                // subscription per device for the model's lifetime — a channel that goes quiet simply stops
+                // producing points (the card greys via availability), and resumes charting when it returns.
+                // Sampled and projected OFF the UI thread, with only the finished arrays marshalled — the
+                // rule in the telemetry UI guide. The first version of this violated it: it marshalled first
+                // and then sorted, projected and rebuilt axes on the UI thread, once per device per emission.
+                var seriesCard = card;
+                _telemetryClient
+                    .WatchTelemetrySeries(change.Key, PresentationDefaults.RecentTelemetryHistoryWindow)
+                    .Batch(TelemetryRateLimits.History)
+                    .ToCollection()
+                    .Sample(PresentationDefaults.HistoryProjectionInterval)
+                    .Select(points => Observable.FromAsync(() => ApplyComputeUsageHistoryAsync(seriesCard, points)))
+                    .Concat()
+                    .Subscribe(_ => { })
+                    .DisposeWith(_subscriptions);
+            }
+
+            card.DisplayName = value.DisplayName;
+            card.IsAvailable = value.IsAvailable;
+            card.UtilizationPercent = value.NumericValue;
+        }
+
+        NpuUsageVisibility = _npuUsageCards.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        NpuCountDisplay = _npuUsageCards.Count.ToString("N0");
+
+        if (newDeviceAppeared)
+        {
+            // A new device can insert mid-list (sorted by channel index), shifting positions after it.
+            for (var index = 0; index < _gpuUsageCards.Count; index++)
+            {
+                _gpuUsageCards[index].DisplayIndex = index;
+            }
+
+            for (var index = 0; index < _npuUsageCards.Count; index++)
+            {
+                _npuUsageCards[index].DisplayIndex = index;
+            }
+
+            LinkGpuUsageCardsToAdapters();
+            RefreshComputeAcceleratorDetails();
+            RefreshCategoryCounts();
+        }
+    }
+
+    /// <summary>
+    /// Projects one compute channel's retained series into its card's sparkline.
+    /// </summary>
+    /// <remarks>
+    /// The sort, the projection and the axis rebuild all run on the CALLING thread, which is deliberately not
+    /// the UI thread; only the assignment is marshalled.
+    /// </remarks>
+    private Task ApplyComputeUsageHistoryAsync(ComputeDeviceUsageCardModel card, IReadOnlyCollection<TelemetryPoint> points)
+    {
+        var history = points
+            .OrderBy(point => point.ObservedAt)
+            .Select(point => new DateTimePoint(
+                point.ObservedAt.LocalDateTime,
+                _unitFormattingService.ConvertRatio(Math.Clamp(point.NumericValue, 0d, 100d))))
+            .ToArray();
+
+        var (minLimit, maxLimit, separators) = BuildUsageHistoryAxis(history);
+
+        return _dispatcherQueue.EnqueueAsync(() => card.UpdateHistory(history, minLimit, maxLimit, separators));
+    }
+
+    // GPU utilization renders on the adapter's detail card. The PDH identity (SetupAPI device description) and
+    // the hardware inventory (WMI video controller name) describe the same device with independently sourced
+    // strings, so the join is a documented heuristic: normalized names (trademark glyphs and spacing stripped),
+    // duplicates paired in display order. Anything left over goes to the category's fallback strip — a failed
+    // match must never hide live telemetry. Runs on the UI thread.
+    private void LinkGpuUsageCardsToAdapters()
+    {
+        List<ComputeDeviceUsageCardModel> remaining = [.. _gpuUsageCards];
+        foreach (var group in _graphicsCardGroups)
+        {
+            if (group.IsUnknownGraphicsCard)
+            {
+                group.UsageCard = null;
+                continue;
+            }
+
+            var normalizedName = NormalizeAdapterName(group.DisplayName);
+            var match = remaining.FirstOrDefault(card => NormalizeAdapterName(card.DisplayName) == normalizedName);
+            if (match is not null)
+            {
+                remaining.Remove(match);
+            }
+
+            group.UsageCard = match;
+        }
+
+        for (var index = 0; index < remaining.Count; index++)
+        {
+            if (index < _unmatchedGpuUsageCards.Count)
+            {
+                if (!ReferenceEquals(_unmatchedGpuUsageCards[index], remaining[index]))
+                {
+                    _unmatchedGpuUsageCards[index] = remaining[index];
+                }
+
+                continue;
+            }
+
+            _unmatchedGpuUsageCards.Add(remaining[index]);
+        }
+
+        while (_unmatchedGpuUsageCards.Count > remaining.Count)
+        {
+            _unmatchedGpuUsageCards.RemoveAt(_unmatchedGpuUsageCards.Count - 1);
+        }
+
+        UnmatchedGpuUsageVisibility = _unmatchedGpuUsageCards.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static string NormalizeAdapterName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        var normalized = name
+            .Replace("(TM)", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("(R)", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("(C)", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("™", string.Empty, StringComparison.Ordinal)
+            .Replace("®", string.Empty, StringComparison.Ordinal)
+            .Replace("©", string.Empty, StringComparison.Ordinal);
+
+        return string.Join(' ', normalized.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// Attaches inventory identity (model, vendor, driver, firmware) to each live compute device.
+    /// </summary>
+    /// <remarks>
+    /// Runs whenever either side changes — a new telemetry channel appears, or a fresh hardware snapshot
+    /// arrives — because neither ordering is guaranteed. Matching is by display name: both the utilization
+    /// reader and the inventory resolver take the name from the same platform source, so equal names mean the
+    /// same device rather than a guess. An unmatched card keeps its reading and shows "Unknown" details.
+    /// </remarks>
+    private void RefreshComputeAcceleratorDetails()
+    {
+        var accelerators = Snapshot?.ComputeAccelerators ?? [];
+
+        foreach (var card in _npuUsageCards)
+        {
+            card.Accelerator = accelerators.FirstOrDefault(accelerator =>
+                string.Equals(accelerator.Name, card.DisplayName, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    // Display order only, never identity: within a category, the service's stable channel index. The insert
+    // position is computed once per new device, so live updates never reorder existing cards.
+    private static void InsertComputeCardSorted(ObservableCollection<ComputeDeviceUsageCardModel> cards, ComputeDeviceUsageCardModel card)
+    {
+        var insertAt = 0;
+        while (insertAt < cards.Count && cards[insertAt].ChannelId.Index < card.ChannelId.Index)
+        {
+            insertAt++;
+        }
+
+        cards.Insert(insertAt, card);
+    }
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesGraphicsCardGroupModel> GraphicsCardGroups { get; }
 
@@ -135,17 +375,21 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     public DeviceCapabilitiesNetworkSectionModel NetworkSection { get; }
 
-    // ----- Category rail (two-pane layout): Onboard · CPU · Memory · Storage · Graphics · Network · System profile -----
+    // ----- Category rail (two-pane layout): Onboard · CPU · Memory · Storage · Graphics · Neural processor · Network · System profile -----
 
+    // Count-gated entries disable themselves while empty (a category body that could only show an empty state
+    // is not worth opening). Onboard devices is the default landing route and System profile has no count, so
+    // both stay enabled: with no service connected the whole rail would otherwise be dead.
     public ObservableCollection<DeviceCapabilitiesCategoryRailItemModel> Categories { get; } =
     [
-        new(0, "Onboard devices", MaterialIconKind.Devices),
+        new(0, "Onboard devices", MaterialIconKind.Devices, requiresItems: false),
         new(1, "CPU", MaterialIconKind.Chip),
         new(2, "Memory", MaterialIconKind.Memory),
         new(3, "Storage", MaterialIconKind.Harddisk),
         new(4, "Graphics", MaterialIconKind.ExpansionCard),
-        new(5, "Network", MaterialIconKind.Lan),
-        new(6, "System profile", MaterialIconKind.InformationOutline),
+        new(5, "Neural processor", MaterialIconKind.Brain),
+        new(6, "Network", MaterialIconKind.Lan),
+        new(7, "System profile", MaterialIconKind.InformationOutline, requiresItems: false),
     ];
 
     /// <summary>Selected rail entry; the page's code-behind mirrors it into the category navigation sub-region.</summary>
@@ -155,6 +399,12 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SelectCategory(DeviceCapabilitiesCategoryRailItemModel category)
     {
+        // The rail button is already disabled while empty; this also covers keyboard/automation paths.
+        if (!category.IsEnabled)
+        {
+            return;
+        }
+
         foreach (var entry in Categories)
         {
             entry.IsSelected = entry.Index == category.Index;
@@ -171,7 +421,15 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         Categories[2].Count = MemoryModuleCount;
         Categories[3].Count = StorageDriveCount;
         Categories[4].Count = GraphicsAdapterCount;
-        Categories[5].Count = NetworkAdapterCount;
+        Categories[5].Count = _npuUsageCards.Count;
+        Categories[6].Count = NetworkAdapterCount;
+
+        // A category can empty out while the user is standing in it (dGPU powered down, adapter unplugged);
+        // fall back to the always-available landing route rather than leaving a disabled entry selected.
+        if (!Categories[SelectedCategoryIndex].IsEnabled)
+        {
+            SelectCategory(Categories[0]);
+        }
     }
 
     public int CpuCount => Snapshot?.Runtime.Cpus.Length ?? 0;
@@ -492,6 +750,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         IFrameworkStatusClient frameworkStatusClient,
         IUserUnitPreferencesClient userUnitPreferencesClient,
         IUnitFormattingService unitFormattingService,
+        IFrameworkTelemetryClient telemetryClient,
         SynchronizationContext synchronizationContext,
         DispatcherQueue dispatcherQueue,
         DeviceCapabilitiesAccessor accessor)
@@ -504,6 +763,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         _fanTelemetryClient = fanTelemetryClient;
         _temperatureTelemetryClient = temperatureTelemetryClient;
         _batteryTelemetryClient = batteryTelemetryClient;
+        _telemetryClient = telemetryClient;
         _frameworkStatusClient = frameworkStatusClient;
         _unitFormattingService = unitFormattingService;
         _synchronizationContext = synchronizationContext;
@@ -515,6 +775,8 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         StorageDriveCards = new ReadOnlyObservableCollection<DeviceCapabilitiesStorageDriveCardModel>(_storageDriveCards);
         NetworkAdapterCards = new ReadOnlyObservableCollection<DeviceCapabilitiesNetworkAdapterCardModel>(_networkAdapterCards);
         VideoControllerCards = new ReadOnlyObservableCollection<DeviceCapabilitiesVideoControllerCardModel>(_videoControllerCards);
+        UnmatchedGpuUsageCards = new ReadOnlyObservableCollection<ComputeDeviceUsageCardModel>(_unmatchedGpuUsageCards);
+        NpuUsageCards = new ReadOnlyObservableCollection<ComputeDeviceUsageCardModel>(_npuUsageCards);
         GraphicsCardGroups = new ReadOnlyObservableCollection<DeviceCapabilitiesGraphicsCardGroupModel>(_graphicsCardGroups);
         MonitorCards = new ReadOnlyObservableCollection<DeviceCapabilitiesMonitorCardModel>(_monitorCards);
         TemperatureStatusItems = new ReadOnlyObservableCollection<DeviceCapabilitiesRuntimeStatusItemModel>(_temperatureStatusItems);
@@ -535,16 +797,30 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         _hardwareInfoClient
             .WatchHardwareInfo()
+            .Sample(TelemetryRateLimits.Inventory)
             .ObserveOn(_synchronizationContext)
             .Select(snapshot => Observable.FromAsync(() => UpdateSnapshotAsync(snapshot)))
             .Concat()
             .Subscribe(_ => { })
             .DisposeWith(_subscriptions);
 
+        // Ask for exactly the window the sparklines draw. This used to request the MAXIMUM (one hour) to
+        // render 30 seconds, so every emission carried ~120x the records that could ever be displayed, and
+        // sampling collapses a burst of upstream emissions into one projection pass.
+        //
+        // The ObserveOn STAYS, and stays ahead of the projection, even though the telemetry UI guide asks for
+        // the opposite ordering. Moving the projection off the UI thread here was measured and made things
+        // markedly worse (~40% of a core, up from single digits): _cpuHistoryRecords is shared with the
+        // snapshot subscription, which is UI-thread bound, so an off-thread writer let RefreshCpuVisualsAsync
+        // run concurrently with itself over shared state — a race as well as duplicated work. The UI thread
+        // is what serialises the two paths. Fixing that properly means giving the CPU visuals their own
+        // projection state rather than reordering the operators.
         _hardwareInfoClient
             .WatchHardwareInfoHistory(TelemetryHistoryLimits.MaximumHistoryWindow)
+            .Batch(TelemetryRateLimits.History)
             .ObserveOn(_synchronizationContext)
             .ToCollection()
+            .Sample(PresentationDefaults.HistoryProjectionInterval)
             .Select(history => Observable.FromAsync(() => UpdateCpuClockHistoryAsync(history)))
             .Concat()
             .Subscribe(_ => { })
@@ -552,6 +828,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         _frameworkStatusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Select(status => Observable.FromAsync(() => UpdateFrameworkStatusAsync(status)))
             .Concat()
@@ -560,10 +837,21 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         _temperatureTelemetryClient
             .WatchTemperatures()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Select(set => Observable.FromAsync(() => ApplyTemperatureChangesAsync(set)))
             .Concat()
             .Subscribe(_ => { })
+            .DisposeWith(_subscriptions);
+
+        // GPU/NPU current values ride the generic channel stream: a handful of scalar upserts per second, so
+        // a plain synchronous apply on the UI thread is fine. The per-device HISTORY series each card also
+        // subscribes to is a different matter and is sampled and projected off-thread — see below.
+        _telemetryClient
+            .WatchCurrentTelemetryValues()
+            .Batch(TelemetryRateLimits.LiveReadout)
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(ApplyComputeTelemetryChanges)
             .DisposeWith(_subscriptions);
 
         _fanCapabilityClient
@@ -576,6 +864,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         _fanTelemetryClient
             .WatchFans()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Select(set => Observable.FromAsync(() => ApplyFanTelemetryChangesAsync(set)))
             .Concat()
@@ -584,6 +873,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         _fanStateClient
             .WatchFanStates()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Select(set => Observable.FromAsync(() => ApplyFanStateChangesAsync(set)))
             .Concat()
@@ -592,6 +882,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
         _batteryTelemetryClient
             .WatchBatteries()
+            .Batch(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Select(set => Observable.FromAsync(() => ApplyBatteryChangesAsync(set)))
             .Concat()
@@ -670,7 +961,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     private async Task RefreshCpuVisualsAsync()
     {
         var cpuUsageHistory = BuildCpuUsageHistory();
-        var (usageAxisStartTicks, usageAxisEndTicks, usageSeparators) = BuildCpuUsageHistoryAxis(cpuUsageHistory);
+        var (usageAxisStartTicks, usageAxisEndTicks, usageSeparators) = BuildUsageHistoryAxis(cpuUsageHistory);
         var cpuClockHistory = BuildCpuClockHistory();
         var (axisStartTicks, axisEndTicks, separators) = BuildCpuClockHistoryAxis(cpuClockHistory);
         var cpuPackageUsageHistories = BuildCpuPackageUsageHistories();
@@ -692,7 +983,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             {
                 var packageCard = _cpuPackageCards[packageIndex];
                 var packageUsageHistory = cpuPackageUsageHistories.GetValueOrDefault(packageIndex) ?? [];
-                var (packageUsageMinLimit, packageUsageMaxLimit, packageUsageSeparators) = BuildCpuUsageHistoryAxis(packageUsageHistory);
+                var (packageUsageMinLimit, packageUsageMaxLimit, packageUsageSeparators) = BuildUsageHistoryAxis(packageUsageHistory);
                 packageCard.UpdateCpuUsageHistory(
                     packageUsageHistory,
                     packageUsageMinLimit,
@@ -818,7 +1109,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             }
         }
 
-        return [.. points];
+        return TrimHistoryToRecentWindow(points);
     }
 
     private DateTimePoint[] BuildCpuUsageHistory()
@@ -907,9 +1198,11 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             }
         }
 
+        // Trimmed like the usage histories are. The clock ones were missed, so LiveCharts was handed every
+        // point the source held for an axis that only ever spans the recent window.
         return pointsByPackage.ToDictionary(
             pair => pair.Key,
-            pair => (DateTimePoint[])[.. pair.Value]);
+            pair => TrimHistoryToRecentWindow(pair.Value));
     }
 
     private (double? AxisStartTicks, double? AxisEndTicks, double[] Separators) BuildCpuClockHistoryAxis(DateTimePoint[] cpuClockHistory)
@@ -927,9 +1220,10 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         return (axisStart.Ticks, axisEnd.Ticks, separators);
     }
 
-    private (double? AxisStartTicks, double? AxisEndTicks, double[] Separators) BuildCpuUsageHistoryAxis(DateTimePoint[] cpuUsageHistory)
+    // Shared by the CPU usage charts and the GPU/NPU sparklines — same recent window, same separator step.
+    private (double? AxisStartTicks, double? AxisEndTicks, double[] Separators) BuildUsageHistoryAxis(DateTimePoint[] usageHistory)
     {
-        var historyPoints = cpuUsageHistory
+        var historyPoints = usageHistory
             .Select(point => point.DateTime)
             .OrderBy(point => point)
             .ToArray();
@@ -1217,6 +1511,9 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         {
             await _dispatcherQueue.EnqueueAsync(() => _graphicsCardGroups.RemoveAt(_graphicsCardGroups.Count - 1));
         }
+
+        // The adapter list just changed shape — re-join the measured GPUs onto their detail cards.
+        await _dispatcherQueue.EnqueueAsync(LinkGpuUsageCardsToAdapters);
     }
 
     public string FormatBytes(ulong bytes)
@@ -1251,6 +1548,11 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             foreach (var monitorCard in _monitorCards)
             {
                 monitorCard.RefreshUnitFormatting();
+            }
+
+            foreach (var computeDeviceCard in _computeDeviceCardIndex.Values)
+            {
+                computeDeviceCard.RefreshUnitFormatting();
             }
 
             FanAdvancedInfo?.RefreshUnitFormatting();
@@ -1302,7 +1604,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         < 45d => AppThemeBrushes.Get("StatusInfoBrush", AppThemeBrushes.StatusSuccessColor),
         < 65d => AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor),
         < 85d => AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor),
-        _ => AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor),
+        _ => AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor),
     };
 
     private Task RefreshFanStatusItemsAsync()

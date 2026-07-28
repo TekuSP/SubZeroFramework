@@ -48,12 +48,20 @@ public partial class App : Application
     [SuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access otherwise can break functionality when trimming application code", Justification = "Uno.Extensions APIs are used in a way that is safe for trimming in this template context.")]
     protected async override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        LiveChartsCore.LiveCharts.Configure(config => 
+        LiveChartsCore.LiveCharts.Configure(config =>
             config
                 .AddSkiaSharp()
                 .AddDefaultMappers()
                 .AddDarkTheme()
                 .AddMyCustomTheme());
+
+        // The app's own log records had nowhere to go on Windows: this is a GUI-subsystem binary, so the
+        // console sink writes to a console that does not exist and the debug sink only exists under a
+        // debugger. A released build could warn about a broken service connection every second and the user
+        // would never see one line of it. The same bounded buffer the service uses captures them instead,
+        // and Settings > Logs shows them alongside the service's. Created here rather than resolved from DI
+        // because the logging pipeline is configured before the container exists.
+        var appLogBuffer = new InMemoryLogBuffer();
 
         var builder = this.CreateBuilder(args)
             // Add navigation support for toolkit controls such as TabBar and NavigationView
@@ -65,32 +73,41 @@ public partial class App : Application
 #endif
                 .UseLogging(configure: (context, logBuilder) =>
                 {
-                    // Configure log levels for different categories of logging
+                    // Verbosity by build configuration. DEBUG turns the app's own categories all the way down
+                    // to Trace; RELEASE settles at Information, which is enough to reconstruct what the app
+                    // did without a record per telemetry tick.
+#if DEBUG
                     logBuilder
-                        .SetMinimumLevel(
-                            context.HostingEnvironment.IsDevelopment() ?
-                                LogLevel.Information :
-                                LogLevel.Warning)
-
-                        // Default filters for core Uno Platform namespaces
+                        .SetMinimumLevel(LogLevel.Trace)
                         .CoreLogLevel(LogLevel.Warning);
 
-                    // Uno Platform namespace filter groups
-                    // Uncomment individual methods to see more detailed logging
-                    //// Generic Xaml events
+                    logBuilder.AddFilter("SubZeroFramework", LogLevel.Trace);
+
+                    // The Uno diagnostic groups below are genuinely noisy and only make sense while
+                    // debugging the UI itself. BinderMemoryReference in particular tracks every binder
+                    // reference, so it is not something to leave on in a shipped build.
                     logBuilder.XamlLogLevel(LogLevel.Debug);
-                    //// Layout specific messages
                     logBuilder.XamlLayoutLogLevel(LogLevel.Debug);
-                    //// Storage messages
-                    //logBuilder.StorageLogLevel(LogLevel.Debug);
-                    //// Binding related messages
                     logBuilder.XamlBindingLogLevel(LogLevel.Debug);
-                    //// Binder memory references tracking
                     logBuilder.BinderMemoryReferenceLogLevel(LogLevel.Debug);
-                    //// DevServer and HotReload related
                     logBuilder.HotReloadCoreLogLevel(LogLevel.Information);
-                    //// Debug JS interop
-                    //logBuilder.WebAssemblyLogLevel(LogLevel.Debug);
+#else
+                    // Previously this was Warning, and — more importantly — the Xaml/Layout/Binding/Binder
+                    // groups above were configured at Debug in EVERY configuration. A category filter beats
+                    // the minimum level rather than being capped by it, so a release build really was
+                    // emitting Uno layout and binding diagnostics on the UI thread. They are DEBUG-only now.
+                    logBuilder
+                        .SetMinimumLevel(LogLevel.Information)
+                        .CoreLogLevel(LogLevel.Warning);
+
+                    logBuilder.AddFilter("SubZeroFramework", LogLevel.Information);
+                    logBuilder.AddFilter("Microsoft", LogLevel.Warning);
+                    logBuilder.AddFilter("Uno", LogLevel.Warning);
+#endif
+
+                    // Retains whatever the filters above let through, so the buffer shows the same records
+                    // the platform sinks received rather than a second, differently-filtered view.
+                    logBuilder.AddProvider(new InMemoryLogProvider(appLogBuffer));
                 }, enableUnoLogging: true)
                 .UseConfiguration(configure: configBuilder =>
                     configBuilder
@@ -103,6 +120,10 @@ public partial class App : Application
                 {
                     services.AddOptions<FrameworkServiceControlOptions>()
                         .Bind(context.Configuration.GetSection("ServiceControl"));
+
+                    // The same instance the logging provider above writes into, so the logs view reads the
+                    // live buffer rather than an empty second one.
+                    services.AddSingleton(appLogBuffer);
                     services.AddSingleton<UnitPreferenceCatalog>();
                     services.AddSingleton<FrameworkGrpcChannelFactory>();
                     services.AddSingleton<IFrameworkStatusClient, GrpcFrameworkStatusClient>();
@@ -175,6 +196,8 @@ public partial class App : Application
 
         MainWindow.Title = $"SubZero Framework Edition";
 
+        ApplyWindowIcon();
+
 #if DEBUG
         MainWindow.UseStudio();
 #endif
@@ -211,6 +234,41 @@ public partial class App : Application
         Logger?.LogError(e.ExceptionObject as Exception, $"Current Domain unhandled exception! Is terminating: {e.IsTerminating}");
     }
 
+    /// <summary>
+    /// Gives the window (and therefore the taskbar button and Alt+Tab) the app icon.
+    /// </summary>
+    /// <remarks>
+    /// An unpackaged WinUI 3 window does NOT inherit the icon embedded in the executable — without this it
+    /// shows the generic placeholder on the taskbar even though the .exe itself has the right icon in Explorer.
+    /// Uno.Resizetizer composes icon.ico next to the executable at build time, which is also what the installer
+    /// lays down, so the icon follows the app rather than being duplicated in the repo.
+    /// </remarks>
+    private void ApplyWindowIcon()
+    {
+        if (MainWindow is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var iconPath = Path.Combine(AppContext.BaseDirectory, "icon.ico");
+            if (File.Exists(iconPath))
+            {
+                MainWindow.AppWindow.SetIcon(iconPath);
+            }
+            else
+            {
+                Logger?.LogWarning("Window icon {IconPath} is missing; the window keeps the platform default.", iconPath);
+            }
+        }
+        catch (Exception exception)
+        {
+            // Cosmetic only — never let an icon stop the app from starting.
+            Logger?.LogWarning(exception, "Failed to apply the window icon.");
+        }
+    }
+
     private void ConfigureWindowTitleBar()
     {
         if (MainWindow is null || !AppWindowTitleBar.IsCustomizationSupported())
@@ -238,6 +296,7 @@ public partial class App : Application
             new ViewMap<DeviceCapabilitiesMemoryCategoryView, DeviceCapabilitiesMemoryCategoryModel>(),
             new ViewMap<DeviceCapabilitiesStorageCategoryView, DeviceCapabilitiesStorageCategoryModel>(),
             new ViewMap<DeviceCapabilitiesGraphicsCategoryView, DeviceCapabilitiesGraphicsCategoryModel>(),
+            new ViewMap<DeviceCapabilitiesNpuCategoryView, DeviceCapabilitiesNpuCategoryModel>(),
             new ViewMap<DeviceCapabilitiesNetworkCategoryView, DeviceCapabilitiesNetworkCategoryModel>(),
             new ViewMap<DeviceCapabilitiesSystemProfileCategoryView, DeviceCapabilitiesSystemProfileCategoryModel>(),
             // Instance detail bodies: resolved by DATA navigation — the category pickers pass the live card model.
@@ -247,6 +306,7 @@ public partial class App : Application
             new DataViewMap<DeviceCapabilitiesGraphicsAdapterDetailView, DeviceCapabilitiesGraphicsAdapterDetailModel, DeviceCapabilitiesGraphicsCardGroupModel>(),
             new DataViewMap<DeviceCapabilitiesGraphicsMonitorDetailView, DeviceCapabilitiesGraphicsMonitorDetailModel, DeviceCapabilitiesMonitorCardModel>(),
             new DataViewMap<DeviceCapabilitiesNetworkAdapterDetailView, DeviceCapabilitiesNetworkAdapterDetailModel, DeviceCapabilitiesNetworkAdapterCardModel>(),
+            new DataViewMap<DeviceCapabilitiesNpuDetailView, DeviceCapabilitiesNpuDetailModel, ComputeDeviceUsageCardModel>(),
             new ViewMap<ModulesPage, ModulesModel>(),
             new ViewMap<ModulesFw16View, ModulesFw16Model>(),
             new ViewMap<ModulesFw13View, ModulesFw13Model>(),
@@ -266,6 +326,7 @@ public partial class App : Application
             new ViewMap<SettingsUnitsSectionView, SettingsUnitsSectionModel>(),
             new ViewMap<SettingsStartupSectionView, SettingsStartupSectionModel>(),
             new ViewMap<SettingsLicensesSectionView, SettingsLicensesSectionModel>(),
+            new ViewMap<SettingsLogsSectionView, SettingsLogsSectionModel>(),
             new ViewMap<SettingsAboutSectionView, SettingsAboutSectionModel>()
         );
 
@@ -299,6 +360,11 @@ public partial class App : Application
                     [
                         new RouteMap("GraphicsAdapter", View: views.FindByViewModel<DeviceCapabilitiesGraphicsAdapterDetailModel>()),
                         new RouteMap("GraphicsMonitor", View: views.FindByViewModel<DeviceCapabilitiesGraphicsMonitorDetailModel>()),
+                    ]),
+                    new RouteMap("Npu", View: views.FindByViewModel<DeviceCapabilitiesNpuCategoryModel>(),
+                    Nested:
+                    [
+                        new RouteMap("NpuDevice", View: views.FindByViewModel<DeviceCapabilitiesNpuDetailModel>()),
                     ]),
                     new RouteMap("Network", View: views.FindByViewModel<DeviceCapabilitiesNetworkCategoryModel>(),
                     Nested:
@@ -334,6 +400,7 @@ public partial class App : Application
                     new RouteMap("SettingsUnits", View: views.FindByViewModel<SettingsUnitsSectionModel>()),
                     new RouteMap("SettingsStartup", View: views.FindByViewModel<SettingsStartupSectionModel>()),
                     new RouteMap("SettingsLicenses", View: views.FindByViewModel<SettingsLicensesSectionModel>()),
+                    new RouteMap("SettingsLogs", View: views.FindByViewModel<SettingsLogsSectionModel>()),
                     new RouteMap("SettingsAbout", View: views.FindByViewModel<SettingsAboutSectionModel>()),
                 ]),
             ])

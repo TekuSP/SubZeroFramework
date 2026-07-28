@@ -7,8 +7,11 @@ using Microsoft.Extensions.Logging.Configuration;
 using Microsoft.Extensions.Logging.EventLog;
 using Microsoft.Extensions.Options;
 
+using SubZeroFramework.Models;
 using SubZeroFramework.Service.Models;
 using SubZeroFramework.Service.Services;
+using SubZeroFramework.Services.Compute;
+using SubZeroFramework.Services.Linux;
 using SubZeroFramework.Service.Services.Hosting;
 using SubZeroFramework.Services;
 
@@ -29,6 +32,31 @@ public static class Program
         var persistentConfigurationPath = FrameworkServiceConfigurationPaths.GetPersistentConfigurationPath();
 
         builder.Configuration.AddJsonFile(persistentConfigurationPath, optional: true, reloadOnChange: true);
+
+        // Verbosity by build configuration, set in CODE rather than appsettings so it holds however the
+        // service is launched — a Debug build registered with the SCM or systemd has no Development
+        // environment to key off, so a configuration-only switch would silently not apply there.
+        // These filters are added AFTER the configuration providers, so for equally specific categories they
+        // win over the appsettings rules.
+#if DEBUG
+        // Everything we write, down to Trace. The framework namespaces stay quieter on purpose: at Trace,
+        // ASP.NET and Kestrel emit per-request and per-frame records that bury the service's own telemetry,
+        // which defeats the point of turning verbosity up.
+        builder.Logging.SetMinimumLevel(LogLevel.Trace);
+        builder.Logging.AddFilter("SubZeroFramework", LogLevel.Trace);
+        builder.Logging.AddFilter("Microsoft", LogLevel.Information);
+        builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
+        builder.Logging.AddFilter("Grpc", LogLevel.Information);
+        builder.Logging.AddFilter("System", LogLevel.Information);
+#else
+        // Release keeps Information: enough to reconstruct what the service did — lifecycle, fan actuation,
+        // mode changes, failures — without a per-poll record. Debug and Trace are compiled-in but filtered
+        // out, so their call sites cost only the level check.
+        builder.Logging.SetMinimumLevel(LogLevel.Information);
+        builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
+        builder.Logging.AddFilter("Grpc", LogLevel.Warning);
+        builder.Logging.AddFilter("System", LogLevel.Warning);
+#endif
 
         builder.Services.AddWindowsService(options =>
         {
@@ -64,11 +92,57 @@ public static class Program
             .Bind(builder.Configuration.GetSection("FrameworkService"));
 
         builder.Services.AddGrpc();
+
+        // Mirrors the service's own log into a bounded in-memory buffer so the app can show it (Settings →
+        // Service logs) without reading back the Event Log or journald. Added ALONGSIDE the platform sinks,
+        // never instead of them. Registered as a singleton first so the provider and the gRPC handler share
+        // the one buffer.
+        builder.Services.AddSingleton<InMemoryLogBuffer>();
+        builder.Services.AddSingleton<ILoggerProvider>(x => new InMemoryLogProvider(x.GetRequiredService<InMemoryLogBuffer>()));
         builder.Services.AddSingleton<HardwareInfoNoiseFilteringLogger>(x =>
             new HardwareInfoNoiseFilteringLogger(x.GetRequiredService<ILogger<HardwareInfo>>()));
         builder.Services.AddSingleton<IHardwareInfoLogNoiseBuffer>(x => x.GetRequiredService<HardwareInfoNoiseFilteringLogger>());
         builder.Services.AddSingleton<IHardwareInfo, HardwareInfo>(x =>
             new HardwareInfo(logger: x.GetRequiredService<HardwareInfoNoiseFilteringLogger>()));
+        // GPU/NPU utilization. Optional by design: a TFM with no reader registers the null-object pair, the
+        // provider publishes no compute channels, and the UI simply shows no devices. Compile-time (#if)
+        // rather than a runtime OS check so the Linux build carries neither the readers nor their interop —
+        // the Windows publish profiles build the windows TFM, the Linux ones build net10.0.
+#if WINDOWS10_0_26100_0_OR_GREATER
+        builder.Services.AddSingleton<IComputeDeviceIdentityResolver, WindowsComputeDeviceIdentityResolver>();
+        builder.Services.AddSingleton<IComputeUtilizationReader, WindowsPdhComputeUtilizationReader>();
+        builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
+#else
+        // Linux has no single counter set covering every vendor the way Windows' GPU Engine does, so each
+        // source is its own reader and a composite merges them: a Framework 16 with the graphics module
+        // fitted runs two at once. Each is independently optional — the composite drops one that fails and
+        // keeps publishing the rest. Unlike the Windows readers these are gated at REGISTRATION rather than
+        // by #if, because they are ordinary file I/O over an injectable root (which is what makes them
+        // testable off Linux) and net10.0 is shared with the desktop app head.
+        if (OperatingSystem.IsLinux())
+        {
+            builder.Services.AddSingleton<IComputeUtilizationReader>(x => new CompositeComputeUtilizationReader(
+                [
+                    new LinuxAmdGpuUtilizationReader(x.GetRequiredService<ILogger<LinuxAmdGpuUtilizationReader>>()),
+                    new LinuxNvmlGpuUtilizationReader(x.GetRequiredService<ILogger<LinuxNvmlGpuUtilizationReader>>()),
+                    new LinuxIntelGpuUtilizationReader(x.GetRequiredService<ILogger<LinuxIntelGpuUtilizationReader>>()),
+                    new LinuxIntelNpuUtilizationReader(x.GetRequiredService<ILogger<LinuxIntelNpuUtilizationReader>>()),
+                    new LinuxAmdXdnaNpuUtilizationReader(x.GetRequiredService<ILogger<LinuxAmdXdnaNpuUtilizationReader>>()),
+                ],
+                x.GetRequiredService<ILogger<CompositeComputeUtilizationReader>>()));
+
+            // Replaces Hardware.Info's xrandr-based enumeration, which cannot work without a display server.
+            builder.Services.AddSingleton<IGraphicsInventoryReader, LinuxDrmGraphicsInventoryReader>();
+            builder.Services.AddSingleton<IComputeDeviceIdentityResolver, LinuxComputeDeviceIdentityResolver>();
+        }
+        else
+        {
+            builder.Services.AddSingleton<IComputeUtilizationReader>(UnavailableComputeUtilizationReader.Instance);
+            builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
+            builder.Services.AddSingleton<IComputeDeviceIdentityResolver>(UnavailableComputeDeviceIdentityResolver.Instance);
+        }
+#endif
+
         builder.Services.AddSingleton<IFrameworkSystem, FrameworkSystem>();
         builder.Services.AddSingleton<FrameworkFanControlSafetyTracker>();
         builder.Services.AddSingleton<IFrameworkDataProvider, FrameworkDataProvider>();
@@ -112,6 +186,15 @@ public static class Program
             }
         });
 
+        // Resolved BEFORE the host runs, and deliberately not inside the catch below: by the time RunAsync
+        // throws, the host has already disposed its service provider, so resolving anything from it there
+        // throws ObjectDisposedException. That exception would replace the crash handler entirely — the fans
+        // would never be restored, the real cause would never be logged, and the process would die as an
+        // unhandled exception instead of exiting with FatalExitCode, which is precisely the signal
+        // systemd/SCM restart-on-failure keys off. The coordinator is a singleton the host constructs anyway
+        // (it is also registered as a hosted service), so holding it here costs nothing.
+        var shutdownCoordinator = app.Services.GetRequiredService<FrameworkShutdownCoordinator>();
+
         try
         {
             await app.RunAsync().ConfigureAwait(false);
@@ -121,9 +204,10 @@ public static class Program
         {
             // A crashed host must exit NON-ZERO so the SCM/systemd restart-on-failure recovery engages
             // (a clean exit 0 reads as a normal stop and is never restarted). Restore fans first —
-            // StopTelemetryLoops is idempotent with the ProcessExit hook, so double handling is safe.
+            // StopTelemetryLoops is idempotent with the ProcessExit hook, so double handling is safe, and it
+            // already tolerates a provider that disposal has beaten it to.
             app.Logger.LogCritical(exception, "SubZeroFramework service host crashed.");
-            app.Services.GetRequiredService<FrameworkShutdownCoordinator>().StopTelemetryLoops("Program.Main host crash");
+            shutdownCoordinator.StopTelemetryLoops("Program.Main host crash");
             return FrameworkFatalExitHandler.FatalExitCode;
         }
         finally

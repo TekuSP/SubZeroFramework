@@ -25,8 +25,14 @@ if (-not [string]::IsNullOrWhiteSpace($Version))
     $versionArgs = @("-p:Version=$Version", "-p:InformationalVersion=$Version")
 }
 
+# The service multi-targets: the windows TFM carries the GPU/NPU utilization readers and their interop,
+# net10.0 is the Linux flavor. A multi-TFM project refuses to publish without -f, and silently getting the
+# wrong flavor here would ship a Windows service with no utilization support.
+$targetFramework = if ($RuntimeIdentifier.StartsWith("win")) { "net10.0-windows10.0.26100" } else { "net10.0" }
+
 & dotnet publish $projectPath `
     -c $Configuration `
+    -f $targetFramework `
     -r $RuntimeIdentifier `
     --self-contained true `
     -o $outputDirectory `

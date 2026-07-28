@@ -55,6 +55,29 @@ internal static class AnalyzerSymbolHelpers
     internal static bool IsType(ITypeSymbol? type, string metadataName)
         => type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat).TrimStart("global::".ToCharArray()) == metadataName;
 
+    /// <summary>
+    /// True when <paramref name="type"/> IS the named type or implements it.
+    /// </summary>
+    /// <remarks>
+    /// Needed because neither existing helper covers "the type is the interface itself" for a generic:
+    /// <see cref="IsType"/> compares a display string ("System.IObservable&lt;T&gt;") against a metadata name
+    /// ("System.IObservable`1"), which never matches for a generic type, and
+    /// <see cref="ImplementsInterface"/> looks at AllInterfaces, which does not include the type itself.
+    /// Together that meant a receiver STATICALLY typed as IObservable&lt;T&gt; — which is what every
+    /// Watch*/Connect* method and every Rx operator returns — failed both checks.
+    /// </remarks>
+    internal static bool IsOrImplementsInterface(ITypeSymbol? type, Compilation compilation, string metadataName)
+    {
+        var expectedType = compilation.GetTypeByMetadataName(metadataName);
+        if (expectedType is null || type is not INamedTypeSymbol namedType)
+        {
+            return false;
+        }
+
+        return SymbolEqualityComparer.Default.Equals(namedType.OriginalDefinition, expectedType)
+            || namedType.AllInterfaces.Any(candidate => SymbolEqualityComparer.Default.Equals(candidate.OriginalDefinition, expectedType));
+    }
+
     internal static bool IsCurrentTelemetryChangeSet(ITypeSymbol? type, Compilation compilation)
     {
         if (type is not INamedTypeSymbol namedType)

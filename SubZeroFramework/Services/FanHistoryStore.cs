@@ -1,4 +1,5 @@
 using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
 using System.Threading;
 
@@ -50,16 +51,20 @@ public sealed class FanHistoryStore : IFanHistoryStore, IDisposable
 
         var subscription = _fanTelemetryClient
             .WatchFanHistory(fanIndex, range)
+            .Batch(TelemetryRateLimits.History)
             .ToCollection()
+            .Sample(PresentationDefaults.HistoryProjectionInterval)
+            // Sort and materialize BEFORE marshalling — see the temperature subscription below.
+            .Select(static points => points.OrderBy(static p => p.ObservedAt).ThenBy(static p => p.SampleId).ToArray())
             .ObserveOn(_synchronizationContext)
-            .Subscribe(pts =>
+            .Subscribe(ordered =>
             {
-                _fanHistory[fanIndex] = [.. pts.OrderBy(p => p.ObservedAt).ThenBy(p => p.SampleId)];
+                _fanHistory[fanIndex] = ordered;
                 FanHistoryChanged?.Invoke(fanIndex);
-            });
+            })
+            .DisposeWith(_subscriptions);
 
         _fanSubscriptions[fanIndex] = subscription;
-        _subscriptions.Add(subscription);
     }
 
     public void EnsureTemperatureHistory(int sensorIndex, TimeSpan range)
@@ -71,16 +76,21 @@ public sealed class FanHistoryStore : IFanHistoryStore, IDisposable
 
         var subscription = _temperatureTelemetryClient
             .WatchTemperatureHistory(sensorIndex, range)
+            .Batch(TelemetryRateLimits.History)
             .ToCollection()
+            .Sample(PresentationDefaults.HistoryProjectionInterval)
+            // Sort and materialize BEFORE marshalling: everything above this line runs off the UI thread, and
+            // only the assignment plus the change notification below run on it.
+            .Select(static points => points.OrderBy(static p => p.ObservedAt).ThenBy(static p => p.SampleId).ToArray())
             .ObserveOn(_synchronizationContext)
-            .Subscribe(pts =>
+            .Subscribe(ordered =>
             {
-                _temperatureHistory[sensorIndex] = [.. pts.OrderBy(p => p.ObservedAt).ThenBy(p => p.SampleId)];
+                _temperatureHistory[sensorIndex] = ordered;
                 TemperatureHistoryChanged?.Invoke(sensorIndex);
-            });
+            })
+            .DisposeWith(_subscriptions);
 
         _temperatureSubscriptions[sensorIndex] = subscription;
-        _subscriptions.Add(subscription);
     }
 
     public void StopTemperatureHistory(int sensorIndex)

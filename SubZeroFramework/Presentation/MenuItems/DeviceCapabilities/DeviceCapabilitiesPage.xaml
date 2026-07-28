@@ -23,7 +23,10 @@
                 Background="{x:Bind RailBackground, Mode=OneWay}"
                 BorderThickness="0"
                 Click="OnCategoryItemClick"
-                CornerRadius="8">
+                CornerRadius="8"
+                IsEnabled="{x:Bind IsEnabled, Mode=OneWay}"
+                Opacity="{x:Bind RailOpacity, Mode=OneWay}"
+                ToolTipService.ToolTip="{x:Bind DisabledTooltip, Mode=OneWay}">
                 <Grid Height="40" ColumnSpacing="10">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />

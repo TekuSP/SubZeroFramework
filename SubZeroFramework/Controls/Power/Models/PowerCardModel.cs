@@ -396,9 +396,9 @@ public partial class PowerCardModel : ObservableObject
         {
             FrameworkBatteryState.Charging => AppThemeBrushes.Get("BrandPrimaryBrush", AppThemeBrushes.StatusSuccessColor),
             FrameworkBatteryState.Discharging => AppThemeBrushes.Get("BrandSecondaryBrush", AppThemeBrushes.StatusWarningColor),
-            FrameworkBatteryState.Critical => AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor),
-            FrameworkBatteryState.NotPresent => AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor),
-            _ => AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor),
+            FrameworkBatteryState.Critical => AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor),
+            FrameworkBatteryState.NotPresent => AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor),
+            _ => AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor),
         };
     }
 
@@ -406,11 +406,11 @@ public partial class PowerCardModel : ObservableObject
     {
         return powerSourceState switch
         {
-            FrameworkPowerSourceState.None => AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor),
+            FrameworkPowerSourceState.None => AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor),
             FrameworkPowerSourceState.AcAndBattery => AppThemeBrushes.Get("BrandSecondaryBrush", AppThemeBrushes.StatusWarningColor),
             FrameworkPowerSourceState.AcOnly => AppThemeBrushes.Get("BrandPrimaryBrush", AppThemeBrushes.StatusSuccessColor),
             FrameworkPowerSourceState.BatteryOnly => AppThemeBrushes.Get("BrandPrimaryBrush", AppThemeBrushes.StatusSuccessColor),
-            _ => AppThemeBrushes.Get("StatusErrorBrush", AppThemeBrushes.StatusErrorColor),
+            _ => AppThemeBrushes.Get("StatusErrorTextBrush", AppThemeBrushes.StatusErrorColor),
         };
     }
 

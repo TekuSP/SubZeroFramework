@@ -125,8 +125,9 @@ public sealed partial class DeviceCapabilitiesPage : Page, INotifyPropertyChange
             2 => await navigator.NavigateViewModelAsync<DeviceCapabilitiesMemoryCategoryModel>(this),
             3 => await navigator.NavigateViewModelAsync<DeviceCapabilitiesStorageCategoryModel>(this),
             4 => await navigator.NavigateViewModelAsync<DeviceCapabilitiesGraphicsCategoryModel>(this),
-            5 => await navigator.NavigateViewModelAsync<DeviceCapabilitiesNetworkCategoryModel>(this),
-            6 => await navigator.NavigateViewModelAsync<DeviceCapabilitiesSystemProfileCategoryModel>(this),
+            5 => await navigator.NavigateViewModelAsync<DeviceCapabilitiesNpuCategoryModel>(this),
+            6 => await navigator.NavigateViewModelAsync<DeviceCapabilitiesNetworkCategoryModel>(this),
+            7 => await navigator.NavigateViewModelAsync<DeviceCapabilitiesSystemProfileCategoryModel>(this),
             _ => await navigator.NavigateViewModelAsync<DeviceCapabilitiesOnboardCategoryModel>(this),
         };
     }

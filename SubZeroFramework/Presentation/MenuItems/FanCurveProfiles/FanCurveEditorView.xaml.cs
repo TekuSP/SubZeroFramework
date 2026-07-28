@@ -78,16 +78,13 @@ public sealed partial class FanCurveEditorView : UserControl, INotifyPropertyCha
             return;
         }
 
+        // A miss adds a point at the press position and picks it up in the same gesture, so press-drag places
+        // a point in one motion. The pointer keeps producing data coordinates out in the axis margin, past the
+        // plotted range — the draft snaps every add / move into its editable band, so a point can never land
+        // where it is neither visible nor grabbable.
         var existing = ViewModel.FindNearestCurvePoint(temperature, duty, DragHitTemperatureRadius, DragHitDutyRadius);
-        if (existing is not null)
-        {
-            _draggingPoint = existing;
-            CurveChart.CapturePointer(e.Pointer);
-            e.Handled = true;
-            return;
-        }
-
-        ViewModel.AddCurvePointAt(temperature, duty);
+        _draggingPoint = existing ?? ViewModel.AddCurvePointAt(temperature, duty);
+        CurveChart.CapturePointer(e.Pointer);
         e.Handled = true;
     }
 

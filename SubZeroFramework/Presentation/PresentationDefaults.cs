@@ -4,6 +4,17 @@ public static class PresentationDefaults
 {
     public static readonly TimeSpan RecentTelemetryHistoryWindow = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// How often a history stream may be re-projected for the UI.
+    /// <para>
+    /// Every history subscription re-emits its WHOLE window on each telemetry change (~3x/s per series), and
+    /// projecting that means sorting the window and rebuilding an array. Unsampled, with several series live
+    /// at once, that starves the UI thread and the page paints half-drawn. Sample FIRST, then project OFF the
+    /// UI thread, and marshal only the assignment — see FanHistoryStore for the worked example.
+    /// </para>
+    /// </summary>
+    public static readonly TimeSpan HistoryProjectionInterval = TimeSpan.FromMilliseconds(300);
+
     public static readonly TimeSpan RecentTelemetrySeparatorStep = TimeSpan.FromSeconds(5);
 
     public static readonly TimeSpan ShortTelemetryHistorySeparatorStep = TimeSpan.FromSeconds(30);

@@ -88,6 +88,7 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         IReadOnlyCollection<int> drivingSensorIndices,
         TemperatureAggregationMode aggregationMode,
         bool preview = false,
+        bool treatMissingSensorsAsZero = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(curvePoints);
@@ -96,6 +97,7 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
         var request = new SetFanCustomCurveRequest
         {
+            TreatMissingSensorsAsZero = treatMissingSensorsAsZero,
             FanIndex = fanIndex,
             DrivingTemperatureAggregation = MapAggregationMode(aggregationMode),
             Preview = preview,
@@ -161,6 +163,7 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         TemperatureAggregationMode aggregationMode,
         int? followFanIndex,
         bool activate,
+        bool treatMissingSensorsAsZero = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(curvePoints);
@@ -176,6 +179,7 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
             HasFollowTarget = followFanIndex is not null,
             FollowFanIndex = followFanIndex ?? 0,
             Activate = activate,
+            TreatMissingSensorsAsZero = treatMissingSensorsAsZero,
         };
 
         foreach (var pair in curvePoints)
@@ -244,6 +248,25 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
             FanIndex = reply.FanIndex,
             Succeeded = reply.Succeeded,
             Message = reply.Message ?? string.Empty,
+        };
+    }
+
+    public async Task<FrameworkFanControlResetCommandResult> ResetFanControlToFactoryDefaultsAsync(CancellationToken cancellationToken = default)
+    {
+        // The standard unary deadline covers this: the service restores a handful of fans on the EC and
+        // performs a single configuration write, all well inside the timeout.
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.ResetFanControlToFactoryDefaultsAsync(
+            new ResetFanControlToFactoryDefaultsRequest(),
+            cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+
+        return new FrameworkFanControlResetCommandResult
+        {
+            Succeeded = reply.Succeeded,
+            Message = reply.Message ?? string.Empty,
+            FansRestored = reply.FansRestored,
+            FansFailed = reply.FansFailed,
+            PersistedEntriesCleared = reply.PersistedEntriesCleared,
         };
     }
 

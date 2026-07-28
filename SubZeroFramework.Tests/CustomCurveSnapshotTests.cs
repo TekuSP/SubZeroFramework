@@ -133,10 +133,24 @@ public class CustomCurveSnapshotTests
     }
 
     [Test]
-    public void InterpolateDuty_AboveLastPoint_HoldsFlat()
+    public void InterpolateDuty_AboveLastPointAtFullSpeed_StaysAtFullSpeed()
     {
-        // Last point (80,100); the (130,100) anchor holds it flat above 80.
+        // Last point (80,100) already meets the max-speed anchor, so there is nothing left to climb.
         Assert.That(SelfDriven().InterpolateDuty(95), Is.EqualTo(100d).Within(0.0001));
+    }
+
+    [Test]
+    public void InterpolateDuty_AboveLastPoint_KeepsClimbingToTheMaxSpeedAnchor()
+    {
+        // A curve that stops short of full speed must not hold that duty forever: it ramps from the last
+        // point (80,60) to the max-speed anchor at 130 °C, so 105 °C is halfway — 80%.
+        var snapshot = SelfDriven(points: [(40, 30d), (80, 60d)]);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(snapshot.InterpolateDuty(105), Is.EqualTo(80d).Within(0.0001));
+            Assert.That(snapshot.InterpolateDuty(FanCurveDomain.MaxTemperatureCelsius), Is.EqualTo(100d).Within(0.0001));
+        });
     }
 
     [Test]

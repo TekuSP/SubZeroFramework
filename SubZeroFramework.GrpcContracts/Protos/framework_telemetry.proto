@@ -16,6 +16,9 @@ service FrameworkServiceConfigurationService {
   rpc SaveServiceConfiguration (SaveServiceConfigurationRequest) returns (ServiceConfigurationOperationReply);
   rpc LoadServiceConfiguration (LoadServiceConfigurationRequest) returns (ServiceConfigurationOperationReply);
   rpc RelocateServiceConfiguration (RelocateServiceConfigurationRequest) returns (ServiceConfigurationOperationReply);
+  // The service's own log since it started, from a bounded in-memory buffer. A snapshot, not a stream: the
+  // app shows it on demand rather than tailing a several-times-a-second log into a list view.
+  rpc GetServiceLogs (GetServiceLogsRequest) returns (ServiceLogsReply);
 }
 
 service FrameworkTelemetryService {
@@ -60,6 +63,11 @@ service FrameworkFanControlService {
   // Battery charge floor/ceiling. Get is a plain read; Set is an EC write gated by the same authorization.
   rpc GetChargeLimits (GetChargeLimitsRequest) returns (ChargeLimitsReply);
   rpc SetChargeLimits (SetChargeLimitsRequest) returns (ChargeLimitsReply);
+  // Factory reset of all fan control state: every fan goes back to EC automatic control and every persisted
+  // fan setting is deleted (curve profile slots, active slot, "applies to" links, CPU usage modifiers, and
+  // manual/max overrides), including entries for fan indices that no longer enumerate. Never a preview — it
+  // always persists.
+  rpc ResetFanControlToFactoryDefaults (ResetFanControlToFactoryDefaultsRequest) returns (ResetFanControlToFactoryDefaultsReply);
 }
 
 message GetStatusRequest {
@@ -285,6 +293,26 @@ message HardwareInfoNetworkAdapterReply {
   repeated string default_gateways = 11;
 }
 
+// A neural processor or other compute accelerator, as inventory. Every field beyond the name is optional:
+// what a platform can say about an NPU varies from a full driver and firmware version down to a bus address.
+message HardwareInfoComputeAcceleratorReply {
+  string device_key = 1;
+  ComputeDeviceKindValue kind = 2;
+  string name = 3;
+  string vendor = 4;
+  string description = 5;
+  string driver_name = 6;
+  string driver_version = 7;
+  string firmware_version = 8;
+  string location = 9;
+}
+
+enum ComputeDeviceKindValue {
+  COMPUTE_DEVICE_KIND_VALUE_UNSPECIFIED = 0;
+  COMPUTE_DEVICE_KIND_VALUE_GPU = 1;
+  COMPUTE_DEVICE_KIND_VALUE_NPU = 2;
+}
+
 message HardwareInfoReply {
   int64 observed_at_unix_time_milliseconds = 1;
   bool is_available = 2;
@@ -300,6 +328,7 @@ message HardwareInfoReply {
   repeated HardwareInfoMonitorReply monitors = 12;
   repeated HardwareInfoDriveReply drives = 13;
   repeated HardwareInfoNetworkAdapterReply network_adapters = 14;
+  repeated HardwareInfoComputeAcceleratorReply compute_accelerators = 15;
 }
 
 message HardwareInfoHistoryChangeReply {
@@ -354,6 +383,8 @@ message SetFanCustomCurveRequest {
   TemperatureAggregationModeValue driving_temperature_aggregation = 4;
   // When true, actuate the EC live but do not persist (volatile preview). See SetFanDutyRequest.preview.
   bool preview = 5;
+  // See FanCurveProfileReply.treat_missing_sensors_as_zero.
+  bool treat_missing_sensors_as_zero = 6;
 }
 
 message SetFanCustomCurveReply {
@@ -394,6 +425,9 @@ message FanCurveProfileReply {
   // When set, this slot mirrors the active curve of follow_fan_index instead of using its own points.
   bool has_follow_target = 8;
   int32 follow_fan_index = 9;
+  // A driving sensor with no reading (powered down, erroring) counts as 0 C instead of being skipped. Suits
+  // sensors that go dark because what they measure is switched off — a sleeping GPU reports no heat.
+  bool treat_missing_sensors_as_zero = 10;
 }
 
 message SaveFanCurveProfileRequest {
@@ -407,6 +441,8 @@ message SaveFanCurveProfileRequest {
   int32 follow_fan_index = 8;
   // When true, also make this the active slot and switch the fan into curve mode.
   bool activate = 9;
+  // See FanCurveProfileReply.treat_missing_sensors_as_zero.
+  bool treat_missing_sensors_as_zero = 10;
 }
 
 message SetActiveFanCurveProfileRequest {
@@ -461,6 +497,44 @@ message ChargeLimitsReply {
   int32 maximum_percent = 5;
 }
 
+message GetServiceLogsRequest {
+  // Lowest level to return, matching Microsoft.Extensions.Logging.LogLevel (0=Trace .. 5=Critical). The
+  // default 0 returns everything the buffer holds.
+  int32 minimum_level = 1;
+}
+
+message ServiceLogEntryReply {
+  int64 observed_at_unix_time_milliseconds = 1;
+  int32 level = 2;
+  string category = 3;
+  string message = 4;
+  // Exception detail, empty when the entry carried none.
+  string exception = 5;
+}
+
+message ServiceLogsReply {
+  repeated ServiceLogEntryReply entries = 1;
+  // Entries evicted because the buffer is bounded. Non-zero means this is NOT everything since start, and
+  // the app says so rather than implying a complete history.
+  int64 dropped_count = 2;
+  int32 buffer_capacity = 3;
+}
+
+message ResetFanControlToFactoryDefaultsRequest {
+}
+
+message ResetFanControlToFactoryDefaultsReply {
+  bool succeeded = 1;
+  string message = 2;
+  // Fans the service returned to EC automatic control (live fans only).
+  int32 fans_restored = 3;
+  // Fans whose EC restore failed; their in-memory and persisted state was still cleared.
+  int32 fans_failed = 4;
+  // Persisted per-fan entries removed from the configuration file, including orphans for fan indices the
+  // hardware no longer reports.
+  int32 persisted_entries_cleared = 5;
+}
+
 enum TelemetryChangeKind {
   UNSPECIFIED = 0;
   UPSERT = 1;
@@ -471,6 +545,7 @@ enum TelemetryAreaValue {
   TELEMETRY_AREA_VALUE_UNSPECIFIED = 0;
   TELEMETRY_AREA_VALUE_THERMAL = 1;
   TELEMETRY_AREA_VALUE_POWER = 2;
+  TELEMETRY_AREA_VALUE_COMPUTE = 3;
 }
 
 enum TelemetryEntityKindValue {
@@ -478,6 +553,8 @@ enum TelemetryEntityKindValue {
   TELEMETRY_ENTITY_KIND_VALUE_TEMPERATURE_SENSOR = 1;
   TELEMETRY_ENTITY_KIND_VALUE_FAN = 2;
   TELEMETRY_ENTITY_KIND_VALUE_BATTERY = 3;
+  TELEMETRY_ENTITY_KIND_VALUE_GPU = 4;
+  TELEMETRY_ENTITY_KIND_VALUE_NPU = 5;
 }
 
 enum TelemetryMetricValue {
@@ -487,6 +564,8 @@ enum TelemetryMetricValue {
   TELEMETRY_METRIC_VALUE_BATTERY_CHARGE_PERCENT = 3;
   TELEMETRY_METRIC_VALUE_BATTERY_PRESENT_RATE_AMPERES = 4;
   TELEMETRY_METRIC_VALUE_BATTERY_PRESENT_VOLTAGE_VOLTS = 5;
+  // Share of wall-clock time the device was busy, 0-100. Busy TIME, not capacity.
+  TELEMETRY_METRIC_VALUE_UTILIZATION_PERCENT = 6;
 }
 
 enum FanStateValue {
@@ -710,6 +789,8 @@ message FanControlStateChangeReply {
   // Duty points added on top of the active custom curve at 100% smoothed CPU usage (exponential ramp).
   // Unset means the modifier is disabled.
   optional double cpu_usage_modifier_strength = 21;
+  // Active slot's setting; see FanCurveProfileReply.treat_missing_sensors_as_zero.
+  bool treat_missing_sensors_as_zero = 22;
 }
 
 message FanControlStateChangeBatchReply {

@@ -5,7 +5,13 @@ using System.Reactive.Linq;
 
 using Grpc.Core;
 
+using System.Runtime.CompilerServices;
+
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 using SubZeroFramework.GrpcContracts;
+using SubZeroFramework.GrpcContracts.Mapping;
 
 namespace SubZeroFramework.Services;
 
@@ -16,12 +22,15 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
     private readonly IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> _sharedChannels;
     private readonly IObservable<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>> _sharedCurrentValues;
     private readonly RefCountedObservableCache<TelemetrySeriesStreamKey, IChangeSet<TelemetryPoint, long>> _seriesStreams = new();
+    private readonly ILogger<GrpcFrameworkTelemetryClient> _logger;
     private bool _disposed;
 
-    public GrpcFrameworkTelemetryClient(FrameworkGrpcChannelFactory channelFactory)
+    // Optional so the client stays constructible without a logging stack; DI always supplies one.
+    public GrpcFrameworkTelemetryClient(FrameworkGrpcChannelFactory channelFactory, ILogger<GrpcFrameworkTelemetryClient>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(channelFactory);
 
+        _logger = logger ?? NullLogger<GrpcFrameworkTelemetryClient>.Instance;
         _channelFactory = channelFactory;
         _client = new FrameworkTelemetryService.FrameworkTelemetryServiceClient(_channelFactory.Channel);
         _sharedChannels = _channelFactory.ShareLatest(CreateChannelsStream());
@@ -113,11 +122,13 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
                     {
                         break;
                     }
-                    catch (RpcException) when (!cancellationSource.IsCancellationRequested)
+                    catch (RpcException exception) when (!cancellationSource.IsCancellationRequested)
                     {
+                        LogStreamFaulted(exception);
                     }
-                    catch (Exception) when (!cancellationSource.IsCancellationRequested)
+                    catch (Exception exception) when (!cancellationSource.IsCancellationRequested)
                     {
+                        LogStreamFaultedUnexpectedly(exception);
                     }
                     finally
                     {
@@ -186,11 +197,13 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
                     {
                         break;
                     }
-                    catch (RpcException) when (!cancellationSource.IsCancellationRequested)
+                    catch (RpcException exception) when (!cancellationSource.IsCancellationRequested)
                     {
+                        LogStreamFaulted(exception);
                     }
-                    catch (Exception) when (!cancellationSource.IsCancellationRequested)
+                    catch (Exception exception) when (!cancellationSource.IsCancellationRequested)
                     {
+                        LogStreamFaultedUnexpectedly(exception);
                     }
                     finally
                     {
@@ -257,11 +270,13 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
                     {
                         break;
                     }
-                    catch (RpcException) when (!cancellationSource.IsCancellationRequested)
+                    catch (RpcException exception) when (!cancellationSource.IsCancellationRequested)
                     {
+                        LogStreamFaulted(exception);
                     }
-                    catch (Exception) when (!cancellationSource.IsCancellationRequested)
+                    catch (Exception exception) when (!cancellationSource.IsCancellationRequested)
                     {
+                        LogStreamFaultedUnexpectedly(exception);
                     }
                     finally
                     {
@@ -292,9 +307,14 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
     private static void ApplyTelemetryChannelChange(ISourceUpdater<TelemetryChannel, TelemetryChannelId> channels, TelemetryChannelChangeReply reply)
     {
+        if (!TryMapChannelId(reply.ChannelId, out var channelId))
+        {
+            return;
+        }
+
         var channel = new TelemetryChannel
         {
-            Id = MapChannelId(reply.ChannelId),
+            Id = channelId,
             DisplayName = reply.DisplayName,
             UnitSymbol = string.IsNullOrEmpty(reply.UnitSymbol) ? null : reply.UnitSymbol,
             FirstObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.FirstObservedAtUnixTimeMilliseconds),
@@ -318,9 +338,14 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
 
     private static void ApplyCurrentTelemetryValueChange(ISourceUpdater<CurrentTelemetryValue, TelemetryChannelId> currentValues, CurrentTelemetryValueChangeReply reply)
     {
+        if (!TryMapChannelId(reply.ChannelId, out var channelId))
+        {
+            return;
+        }
+
         var value = new CurrentTelemetryValue
         {
-            ChannelId = MapChannelId(reply.ChannelId),
+            ChannelId = channelId,
             DisplayName = reply.DisplayName,
             UnitSymbol = string.IsNullOrEmpty(reply.UnitSymbol) ? null : reply.UnitSymbol,
             ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
@@ -364,98 +389,60 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             return;
         }
 
+        if (!TryMapChannelId(reply.ChannelId, out var channelId))
+        {
+            return;
+        }
+
         points.AddOrUpdate(new TelemetryPoint(
             SampleId: reply.SampleId,
-            ChannelId: MapChannelId(reply.ChannelId),
+            ChannelId: channelId,
             ObservedAt: DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
             NumericValue: reply.NumericValue));
     }
 
-    private static TelemetryChannelId MapChannelId(TelemetryChannelIdReply reply)
-    {
-        if (!TryParseTelemetryArea(reply.Area, out var area)
-            || !TryParseTelemetryEntityKind(reply.EntityKind, out var entityKind)
-            || !TryParseTelemetryMetric(reply.Metric, out var metric))
-        {
-            throw new InvalidOperationException("The service returned an invalid telemetry channel identifier.");
-        }
+    /// <summary>
+    /// False when the service sent an enum value this client does not know — a newer service. The caller
+    /// SKIPS that change: throwing here killed the whole telemetry stream over one unknown channel, and
+    /// defaulting produced a colliding channel identity. A skipped channel is just a reading this client
+    /// version cannot show.
+    /// </summary>
+    /// <summary>
+    /// Reports a telemetry stream dropping out, before the reconnect delay.
+    /// </summary>
+    /// <remarks>
+    /// These catch blocks used to be EMPTY. All three telemetry streams reconnect on a loop, so a service
+    /// that was refusing connections, or a contract mismatch that faulted every attempt, produced a client
+    /// that showed stale data and said nothing at all — in a log, in the UI, anywhere. The stream identifies
+    /// itself through the caller name, so each of the three loops is distinguishable without threading a
+    /// label through.
+    /// </remarks>
+    private void LogStreamFaulted(RpcException exception, [CallerMemberName] string stream = "")
+        => _logger.LogWarning(
+            exception,
+            "The {Stream} telemetry stream faulted with {StatusCode}; reconnecting in {ReconnectDelay}.",
+            stream,
+            exception.StatusCode,
+            GrpcTransportDefaults.StreamReconnectDelay);
 
-        return new TelemetryChannelId(area, entityKind, reply.Index, metric);
-    }
+    private void LogStreamFaultedUnexpectedly(Exception exception, [CallerMemberName] string stream = "")
+        => _logger.LogWarning(
+            exception,
+            "The {Stream} telemetry stream faulted unexpectedly; reconnecting in {ReconnectDelay}.",
+            stream,
+            GrpcTransportDefaults.StreamReconnectDelay);
 
-    private static TelemetryAreaValue MapTelemetryArea(TelemetryArea area)
-    {
-        return area switch
-        {
-            TelemetryArea.Thermal => TelemetryAreaValue.Thermal,
-            TelemetryArea.Power => TelemetryAreaValue.Power,
-            _ => TelemetryAreaValue.Unspecified,
-        };
-    }
+    private static bool TryMapChannelId(TelemetryChannelIdReply reply, out TelemetryChannelId channelId) =>
+        TelemetryWireMapper.TryParseChannelId(reply, out channelId);
 
-    private static TelemetryEntityKindValue MapTelemetryEntityKind(TelemetryEntityKind entityKind)
-    {
-        return entityKind switch
-        {
-            TelemetryEntityKind.TemperatureSensor => TelemetryEntityKindValue.TemperatureSensor,
-            TelemetryEntityKind.Fan => TelemetryEntityKindValue.Fan,
-            TelemetryEntityKind.Battery => TelemetryEntityKindValue.Battery,
-            _ => TelemetryEntityKindValue.Unspecified,
-        };
-    }
+    private static TelemetryAreaValue MapTelemetryArea(TelemetryArea area) =>
+        TelemetryWireMapper.MapTelemetryArea(area);
 
-    private static TelemetryMetricValue MapTelemetryMetric(TelemetryMetric metric)
-    {
-        return metric switch
-        {
-            TelemetryMetric.TemperatureCelsius => TelemetryMetricValue.TemperatureCelsius,
-            TelemetryMetric.FanSpeedRpm => TelemetryMetricValue.FanSpeedRpm,
-            TelemetryMetric.BatteryChargePercent => TelemetryMetricValue.BatteryChargePercent,
-            TelemetryMetric.BatteryPresentRateAmperes => TelemetryMetricValue.BatteryPresentRateAmperes,
-            TelemetryMetric.BatteryPresentVoltageVolts => TelemetryMetricValue.BatteryPresentVoltageVolts,
-            _ => TelemetryMetricValue.Unspecified,
-        };
-    }
+    private static TelemetryEntityKindValue MapTelemetryEntityKind(TelemetryEntityKind entityKind) =>
+        TelemetryWireMapper.MapTelemetryEntityKind(entityKind);
 
-    private static bool TryParseTelemetryArea(TelemetryAreaValue value, out TelemetryArea area)
-    {
-        area = value switch
-        {
-            TelemetryAreaValue.Thermal => TelemetryArea.Thermal,
-            TelemetryAreaValue.Power => TelemetryArea.Power,
-            _ => default,
-        };
-
-        return value is not TelemetryAreaValue.Unspecified;
-    }
-
-    private static bool TryParseTelemetryEntityKind(TelemetryEntityKindValue value, out TelemetryEntityKind entityKind)
-    {
-        entityKind = value switch
-        {
-            TelemetryEntityKindValue.TemperatureSensor => TelemetryEntityKind.TemperatureSensor,
-            TelemetryEntityKindValue.Fan => TelemetryEntityKind.Fan,
-            TelemetryEntityKindValue.Battery => TelemetryEntityKind.Battery,
-            _ => default,
-        };
-
-        return value is not TelemetryEntityKindValue.Unspecified;
-    }
-
-    private static bool TryParseTelemetryMetric(TelemetryMetricValue value, out TelemetryMetric metric)
-    {
-        metric = value switch
-        {
-            TelemetryMetricValue.TemperatureCelsius => TelemetryMetric.TemperatureCelsius,
-            TelemetryMetricValue.FanSpeedRpm => TelemetryMetric.FanSpeedRpm,
-            TelemetryMetricValue.BatteryChargePercent => TelemetryMetric.BatteryChargePercent,
-            TelemetryMetricValue.BatteryPresentRateAmperes => TelemetryMetric.BatteryPresentRateAmperes,
-            TelemetryMetricValue.BatteryPresentVoltageVolts => TelemetryMetric.BatteryPresentVoltageVolts,
-            _ => default,
-        };
-
-        return value is not TelemetryMetricValue.Unspecified;
-    }
+    private static TelemetryMetricValue MapTelemetryMetric(TelemetryMetric metric) =>
+        TelemetryWireMapper.MapTelemetryMetric(metric);
 
     private static FrameworkTemperatureState? ParseTemperatureState(TemperatureStateValue value)
     {

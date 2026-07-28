@@ -48,11 +48,21 @@ release; the remaining source documents stay as reference.
    - ✅ `HostOptions.ShutdownTimeout` — set explicitly to **90 s** (was default 30 s) matching the systemd
      unit's `TimeoutStopSec=90`; on .NET 8+ `WindowsServiceLifetime` requests the same additional stop time
      from the SCM. Fan restore itself is sub-second; the headroom covers a contended EC.
-   - Make the packaged helper discoverable from the installed app (decide + document the release folder
-     layout so `FrameworkServiceControlInfo.PackagedHelperAvailable` turns true outside CI artifacts).
-     *2026-07-18:* a **Debug-only** fallback now also discovers the sibling `SubZeroFramework.Service`
-     build output from a dev checkout, so install → autorun → update → uninstall is exercisable from an
-     F5 build; Release builds still require the packaged layout / config override.
+   - ✅ **Packaged-helper discovery — RESOLVED by the shipped layout (verified 2026-07-26).** The WiX MSI
+     installs the service to `INSTALLFOLDER\service-package\windows\SubZeroFramework.Service.exe`, which is
+     exactly the second candidate `ResolveWindowsServiceExecutablePath` probes, so
+     `PackagedHelperAvailable` is **true on every installed Windows build** — the old "only true in CI
+     artifacts" wording predates the installer. On Linux it is **false by design**: the UI payload prunes
+     `service-package`, and `IsLinuxPackageManagedInstall()` additionally withdraws Install/Update/Uninstall
+     in favour of apt/dnf/pacman, while Restart, Shut down and autorun keep working through the
+     `systemctl`+`pkexec` fallbacks. Layout is documented in `docs/INSTALL.md`. The **Debug-only**
+     dev-checkout fallback stays as-is (it is compiled out of Release so an installed app can never bind the
+     SCM entry to a stray repo path).
+     **There is no post-install config override, and none is offered.** `ServiceControl:*` binds only from an
+     embedded `appsettings.json` that is never copied to the publish output, so those keys are build-time
+     only — they exist to let a developer point a dev build at a custom path, nothing more. Do not describe
+     them as a support escape hatch: the supported layouts are the MSI on Windows and the distro package (or
+     the exact tarball layout in `docs/INSTALL.md`) on Linux.
    - Validate install → status turns healthy → update → uninstall → recovery page, on a clean machine, via
      both Settings → Service and the Warnings recovery page (UAC prompts included).
    - Validate service account requirements for EC access on Windows (LocalSystem expected OK; verify).
@@ -90,6 +100,13 @@ release; the remaining source documents stay as reference.
 6. **Manual deployment checklist** for Windows (Linux can trail): install, autorun, update, uninstall,
    recovery, fan-safety restore on stop/shutdown (checklist exists at
    `SubZeroFramework/Docs/FanSafetyShutdownChecklist.md` — fold service lifecycle into it) (carried ⏳).
+   *✅ Addressed 2026-07-26:* the in-app **Uninstall** no longer deletes the SCM entry the MSI owns. On an
+   installed Windows build it now runs the real uninstaller (`msiexec /x{ProductCode}`, product located via
+   the stable `UpgradeCode` because WiX regenerates the ProductCode every build) and closes the app so its
+   files can be removed — the package already stops and deregisters the service itself. On a development or
+   extracted build, where there is no installer, the button keeps its old service-only behaviour and says so.
+   Both paths now confirm first; the confirmation states that saved fan profiles survive, because the package
+   deliberately keeps `%ProgramData%\SubZeroFramework` on uninstall.
 7. **Final release QA sweep** with everything gated as decided: Modules tab disabled, cooling profiles
    grayed, dashboard read-only; 0 warnings/0 errors both targets; all tests green; fresh-machine smoke run.
 
@@ -243,8 +260,19 @@ the live validation of both pipelines.
    hardware). A real UI-automation suite (FlaUI is the right tool for WinUI 3; Uno.UITest targets
    WASM/mobile and WinAppDriver is unmaintained) stays post-MVP — runner flakiness + no Framework EC on
    runners limit its value versus on-device manual QA.
-6. **framework-dotnet metadata versions**: embed `AssemblyMetadata("FrameworkSystemFfiExtensionsVersion")`
-   and `("FrameworkSystemVersion")` so About shows real native component versions.
+6. **framework-dotnet metadata versions** — *validated 2026-07-26: **blocked on framework-dotnet; the SubZero
+   side is already complete**.* `SettingsAboutSectionModel.ResolveAssemblyMetadata` already reflects over
+   `AssemblyMetadataAttribute` and degrades to the honest "Bundled with framework-dotnet" placeholder, so the
+   two rows will light up with **no SubZero code change** the moment the library ships the keys. Confirmed by
+   dumping every assembly-level attribute of the resolved `FrameworkDotnet 0.8.213`: it carries exactly one
+   `AssemblyMetadataAttribute`, key `RepositoryUrl`. There is also no fallback route — the native
+   `framework_lib_ffi.dll` has no VERSIONINFO resource and no version export.
+   What remains is ~15 lines of MSBuild in `framework-dotnet/framework-dotnet.csproj`: a target
+   (`BeforeTargets="GetAssemblyAttributes"`, so the computed values exist before AssemblyInfo generation)
+   that reads the two `Cargo.toml` files the csproj already has paths to — the pack job checks out
+   `submodules: recursive`, so both are on disk — and emits the attributes. Then bump the pin here. The
+   values it would surface today are `framework_lib_ffi` **0.6.2** and `framework_lib` **0.6.4** (submodule
+   at `v0.6.4-3-g39f0f89`, i.e. three commits past the tag, so consider `git describe` for precision).
 7. **Diagnostics UX**: open-logs / copy-diagnostics actions; production logging guidance (Event Log /
    file) (carried ⏳).
 8. **Fan safety hardening** (carried ⏳/🟡): restore-to-auto from unhandled-termination paths, operator

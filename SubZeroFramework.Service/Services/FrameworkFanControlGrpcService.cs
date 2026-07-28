@@ -141,7 +141,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             var points = request.CurvePoints.ToDictionary(static pair => pair.Key, static pair => pair.Value);
             var sensors = request.DrivingSensorIndices.ToArray();
 
-            _fanControlStateStore.SetCustomCurve(request.FanIndex, points, aggregationMode, sensors);
+            _fanControlStateStore.SetCustomCurve(request.FanIndex, points, aggregationMode, sensors, request.TreatMissingSensorsAsZero);
 
             // A preview actuates the EC live (and streams to clients via the in-memory store) but is not
             // written to the configuration store, so it does not survive a service restart. The commit path
@@ -286,7 +286,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             var sensors = request.DrivingSensorIndices.ToArray();
             var name = string.IsNullOrWhiteSpace(request.Name) ? null : request.Name;
 
-            _fanControlStateStore.SaveCurveProfile(request.FanIndex, request.Slot, name, points, aggregationMode, sensors, followFanIndex, request.Activate);
+            _fanControlStateStore.SaveCurveProfile(request.FanIndex, request.Slot, name, points, aggregationMode, sensors, followFanIndex, request.Activate, request.TreatMissingSensorsAsZero);
             await PersistFanControlStateAsync(request.FanIndex, preview: false, context.CancellationToken).ConfigureAwait(false);
 
             _logger.LogInformation("Saved fan curve profile for fan {FanIndex} slot {Slot}.", request.FanIndex, request.Slot);
@@ -390,9 +390,11 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
 
         // Capture the fan's current (applied) state before any preview command mutates it. The client waits
         // for the ready reply below before sending its preview command, so this captures the pre-preview state.
+        // The token identifies THIS stream's hold; it is null when another stream already holds the fan.
+        Guid? holdToken = null;
         if (_fanControlStateStore.GetState(fanIndex) is { } prePreview)
         {
-            _previewWatchdog.Begin(fanIndex, prePreview);
+            holdToken = _previewWatchdog.Begin(fanIndex, prePreview);
         }
 
         try
@@ -408,10 +410,18 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         }
         finally
         {
+            if (holdToken is null)
+            {
+                // This stream never owned a hold — either the fan had no state to capture, or another stream
+                // got there first. Reverting OR releasing here would act on someone else's hold and pull the
+                // fan out from under a client that is still previewing it.
+                _logger.LogInformation("Closed preview hold stream for fan {FanIndex} that held no hold of its own.", fanIndex);
+            }
+
             // Revert only if the hold is still active (not committed/released by an Apply or client-side
             // restore) and the service is not shutting down (the shutdown coordinator restores fans to Auto).
-            if (!_applicationLifetime.ApplicationStopping.IsCancellationRequested
-                && _previewWatchdog.TryTakeForRevert(fanIndex, out var snapshot))
+            else if (!_applicationLifetime.ApplicationStopping.IsCancellationRequested
+                && _previewWatchdog.TryTakeForRevert(fanIndex, holdToken, out var snapshot))
             {
                 _logger.LogWarning("Preview hold for fan {FanIndex} closed without commit; reverting to the pre-preview state.", fanIndex);
                 await RevertPreviewAsync(fanIndex, snapshot, CancellationToken.None).ConfigureAwait(false);
@@ -518,6 +528,97 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             _logger.LogWarning(exception, "Rejected SetFanUsageModifier for fan {FanIndex} because the service was not in a writable state.", request.FanIndex);
             throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
         }
+    }
+
+    public override async Task<ResetFanControlToFactoryDefaultsReply> ResetFanControlToFactoryDefaults(ResetFanControlToFactoryDefaultsRequest request, ServerCallContext context)
+    {
+        try
+        {
+            _logger.LogInformation("Received ResetFanControlToFactoryDefaults.");
+            _authorizationService.EnsureCommandAccess();
+
+            // A hold closing after the reset would revert its fan to the captured pre-preview state,
+            // resurrecting exactly what is being wiped. Drop every hold first — the reset returns the fan to
+            // EC automatic control, which is a strictly safer end state than any revert target.
+            var releasedHolds = _previewWatchdog.ReleaseAll();
+            if (releasedHolds.Length > 0)
+            {
+                _logger.LogInformation("Released {HoldCount} open preview hold(s) before the factory reset.", releasedHolds.Length);
+            }
+
+            // In-memory state FIRST, unlike the per-fan RestoreAutoFanControl below: the curve worker
+            // re-asserts curve / manual / max duty from its mirror of this store on every evaluation tick, so
+            // restoring the EC before the store flips to Auto lets an in-flight tick immediately re-drive the
+            // fan. A single per-fan command races nothing meaningful; a whole-store wipe does.
+            var fanIndices = _fanControlStateStore.ResetAllToFactoryDefaults();
+
+            var restoredCount = 0;
+            var failedCount = 0;
+            foreach (var fanIndex in fanIndices)
+            {
+                try
+                {
+                    await _frameworkDataProvider.RestoreAutoFanControlAsync(fanIndex, context.CancellationToken).ConfigureAwait(false);
+                    restoredCount++;
+                }
+                catch (Exception exception)
+                {
+                    failedCount++;
+                    _logger.LogWarning(exception, "Failed to restore automatic fan control for fan {FanIndex} during the factory reset. Its stored settings were still cleared.", fanIndex);
+                }
+            }
+
+            // One write for the whole array — this also clears orphan entries for fan indices the hardware no
+            // longer reports, which the in-memory pass above cannot see.
+            var clearedEntries = 0;
+            string? persistenceFailure = null;
+            try
+            {
+                clearedEntries = await _configurationStore.ClearAllFanControlStatesAsync(context.CancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                persistenceFailure = exception.Message;
+                _logger.LogWarning(exception, "Reset fan control state in memory but failed to clear the persisted copy. The old settings would come back after a service restart.");
+            }
+
+            _logger.LogInformation(
+                "Completed ResetFanControlToFactoryDefaults. FansRestored={FansRestored}, FansFailed={FansFailed}, PersistedEntriesCleared={PersistedEntriesCleared}.",
+                restoredCount,
+                failedCount,
+                clearedEntries);
+
+            return new ResetFanControlToFactoryDefaultsReply
+            {
+                Succeeded = failedCount == 0 && persistenceFailure is null,
+                Message = BuildResetMessage(restoredCount, failedCount, clearedEntries, persistenceFailure),
+                FansRestored = restoredCount,
+                FansFailed = failedCount,
+                PersistedEntriesCleared = clearedEntries,
+            };
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Rejected ResetFanControlToFactoryDefaults because the service was not in a writable state.");
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
+    }
+
+    // A partial reset is real information the user needs, so EC and persistence failures are reported through
+    // the reply rather than thrown: the fans that did reset stay reset either way.
+    private static string BuildResetMessage(int restoredCount, int failedCount, int clearedEntries, string? persistenceFailure)
+    {
+        if (persistenceFailure is not null)
+        {
+            return $"Fans were returned to automatic control, but the saved fan settings could not be deleted: {persistenceFailure}";
+        }
+
+        if (failedCount > 0)
+        {
+            return $"Cleared {clearedEntries} saved fan setting(s) and returned {restoredCount} fan(s) to automatic control, but {failedCount} fan(s) could not be restored on the controller.";
+        }
+
+        return $"Returned {restoredCount} fan(s) to automatic control and cleared {clearedEntries} saved fan setting(s).";
     }
 
     private static FanCurveProfileOperationReply SucceededProfileReply(int fanIndex, int slot)

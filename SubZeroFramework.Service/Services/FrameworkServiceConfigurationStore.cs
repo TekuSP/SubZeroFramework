@@ -198,6 +198,43 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
         }, cancellationToken);
     }
 
+    /// <summary>
+    /// Removes every persisted per-fan control state in a single write — including orphan entries for fan
+    /// indices the hardware no longer reports, which a loop over live fans can never reach. Scalar service
+    /// settings (polling intervals, the fan-control permission) are left untouched. Returns how many entries
+    /// were removed; writes nothing when there were none, so a reset does not pointlessly retrigger the
+    /// configuration reload.
+    /// </summary>
+    public Task<int> ClearAllFanControlStatesAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        return _writeQueue.EnqueueAsync(async ct =>
+        {
+            var root = await LoadRootObjectAsync(ct).ConfigureAwait(false);
+            if (root["FrameworkService"] is not JsonObject section
+                || section["FanControlStates"] is not JsonArray array)
+            {
+                return 0;
+            }
+
+            var removedCount = array.Count;
+
+            // Drop the key entirely rather than leaving an empty array, so the file matches a fresh install.
+            section.Remove("FanControlStates");
+            root["FrameworkService"] = section;
+
+            await PersistRootAsync(root, ct).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Cleared {RemovedCount} persisted fan control state entry(ies) from {PersistentConfigurationPath} for a factory reset.",
+                removedCount,
+                PersistentConfigurationPath);
+
+            return removedCount;
+        }, cancellationToken);
+    }
+
     private static JsonObject SerializeFanControlState(FanControlStateOptions state)
     {
         var node = new JsonObject
@@ -257,6 +294,12 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
         if (profile.FollowFanIndex is int followFanIndex)
         {
             node["FollowFanIndex"] = followFanIndex;
+        }
+
+        // Only written when set, so an untouched profile keeps its existing on-disk shape.
+        if (profile.TreatMissingSensorsAsZero)
+        {
+            node["TreatMissingSensorsAsZero"] = true;
         }
 
         return node;

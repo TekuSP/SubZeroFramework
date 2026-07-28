@@ -24,8 +24,41 @@ internal sealed class HardwareInfoNoiseFilteringLogger : ILogger<HardwareInfo>, 
 
     public bool IsEnabled(LogLevel logLevel) => _inner.IsEnabled(logLevel);
 
+    private const string ProcessOutputFailurePrefix = "Failed to read process output: ";
+
+    // External tools Hardware.Info tried to spawn that are not installed. Each is reported ONCE with an
+    // actionable hint instead of a stack trace per poll: on Linux, Hardware.Info shells out (lshw for
+    // memory/storage, etc.) every refresh, and a missing binary produced two full warning+stacktrace
+    // journal entries per cycle, tens of thousands of lines a day (first field report: issue #51).
+    private readonly ConcurrentDictionary<string, bool> _reportedMissingTools = new(StringComparer.Ordinal);
+
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
+        // ENOENT / ERROR_FILE_NOT_FOUND from spawning an external prober = the tool is not installed.
+        // That is a fact about the machine, not a fault worth repeating: say it once, usefully.
+        if (exception is System.ComponentModel.Win32Exception { NativeErrorCode: 2 })
+        {
+            var message = formatter(state, exception);
+            if (message.StartsWith(ProcessOutputFailurePrefix, StringComparison.Ordinal))
+            {
+                var rest = message[ProcessOutputFailurePrefix.Length..];
+                var separator = rest.IndexOf(' ');
+                var command = separator > 0 ? rest[..separator] : rest;
+
+                if (_reportedMissingTools.TryAdd(command, true))
+                {
+                    _inner.Log(
+                        LogLevel.Warning,
+                        eventId,
+                        $"The '{command}' tool is not installed, so the hardware details it provides will be missing. Install it with your package manager to enable them. Further '{command}' failures are suppressed.",
+                        null,
+                        static (formatted, _) => formatted);
+                }
+
+                return;
+            }
+        }
+
         var capture = CurrentCapture.Value;
         if (capture is not null && IsSuppressible(exception))
         {

@@ -25,6 +25,12 @@ public sealed partial class FanDetailEditorView : UserControl, INotifyPropertyCh
     {
         this.InitializeComponent();
         Loaded += (_, _) => QueueModeSync();
+
+        // The mode body's navigator does not exist until its own host is loaded and the region has been
+        // attached to the navigation tree. Waiting for THAT event is the reliable trigger; polling for it
+        // instead asks an unattached region for its navigator over and over, which logs
+        // "Unable to find service provider for root navigator" on every attempt.
+        ModeRegionHost.Loaded += (_, _) => QueueModeSync();
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -111,7 +117,9 @@ public sealed partial class FanDetailEditorView : UserControl, INotifyPropertyCh
 
         if (ModeRegionHost.Navigator() is not { } navigator)
         {
-            // Region not ready yet; a later poll/Loaded re-queues.
+            // Not ready yet. Do NOT poll: ModeRegionHost.Loaded re-queues this once the region is attached,
+            // which is what fixes the "opened on Auto for a curve-driven fan" case without asking an
+            // unattached region for a navigator on every UI tick.
             return;
         }
 

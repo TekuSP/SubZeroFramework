@@ -1,4 +1,5 @@
 using System.Reactive.Disposables;
+using System.Reactive.Concurrency;
 using System.Reactive.Linq;
 
 namespace SubZeroFramework.Services;
@@ -48,9 +49,14 @@ public sealed class ServiceHealthNotifier : IDisposable
 
         _subscriptions.Add(_statusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .Select(status => status.IsGrpcActive)
             .DistinctUntilChanged()
             .Throttle(StateHoldTime)
+            // Deliberately NOT the UI thread: this only computes a transition and hands the result to the
+            // notification service, which marshals internally. Stated explicitly so the absence is a
+            // decision rather than an oversight.
+            .ObserveOn(Scheduler.Default)
             .Subscribe(EvaluateReachability));
     }
 

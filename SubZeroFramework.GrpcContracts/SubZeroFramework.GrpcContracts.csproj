@@ -20,4 +20,11 @@
     <Protobuf Include="Protos\framework_telemetry.proto" GrpcServices="Both" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--  The wire contract owns the model<->wire translation (Mapping/TelemetryWireMapper), so the service and
+          the app share ONE implementation instead of a copy each. The dependency points this way on purpose:
+          Core stays a pure domain with no protobuf reference.  -->
+    <ProjectReference Include="..\SubZeroFramework.Core\SubZeroFramework.Core.csproj" />
+  </ItemGroup>
+
 </Project>

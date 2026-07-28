@@ -76,28 +76,15 @@
             PointerReleased="CurveChart_PointerReleased"
             RightTapped="CurveChart_RightTapped"
             Sections="{x:Bind ViewModel.CurveChart.CurveDrivingSections, Mode=OneWay}"
-            TooltipPosition="Top">
-            <lvc:CartesianChart.Series>
-                <lvc:SeriesCollection>
-                    <!--  Read-only reference: the curve the service currently has applied (empty when none).  -->
-                    <lvc:XamlLineSeries
-                        Fill="{x:Null}"
-                        GeometrySize="0"
-                        LineSmoothness="0.2"
-                        Stroke="{x:Bind ViewModel.CurveChart.AppliedCurveStrokePaint, Mode=OneWay}"
-                        Values="{x:Bind ViewModel.CurveChart.AppliedCurveSeriesPoints, Mode=OneWay}" />
-                    <!--  Editable draft (area-filled).  -->
-                    <lvc:XamlLineSeries
-                        Fill="{x:Bind ViewModel.CurveChart.CurveAreaFillPaint, Mode=OneWay}"
-                        GeometryFill="{x:Bind ViewModel.CurveChart.CurveGeometryFillPaint, Mode=OneWay}"
-                        GeometrySize="12"
-                        LineSmoothness="0.2"
-                        Stroke="{x:Bind ViewModel.CurveChart.CurveStrokePaint, Mode=OneWay}"
-                        Values="{x:Bind ViewModel.CurveChart.CurveSeriesPoints, Mode=OneWay}" />
-                </lvc:SeriesCollection>
-            </lvc:CartesianChart.Series>
+            TooltipPosition="Top"
+            Series="{x:Bind ViewModel.CurveChart.CurveChartSeries, Mode=OneWay}">
             <lvc:CartesianChart.XAxes>
                 <lvc:AxesCollection>
+                    <!--  Deliberately narrower than the 0–130 °C curve domain: the implicit min/max-speed
+                          anchors the series adds at 0 °C and 130 °C stay outside this window and so are never
+                          drawn as draggable-looking dots. Editable points are clamped to a band INSIDE this
+                          window (FanCurveDraftModel) so they can never park where they cannot be grabbed —
+                          keep the two in sync.  -->
                     <lvc:XamlAxis
                         Labeler="{x:Bind ViewModel.CurveChart.CurveTemperatureLabelFormatter, Mode=OneWay}"
                         LabelsPaint="{x:Bind ViewModel.CurveChart.CurveAxisLabelsPaint, Mode=OneWay}"
@@ -114,8 +101,8 @@
                     <lvc:XamlAxis
                         Labeler="{x:Bind ViewModel.CurveChart.CurveDutyLabelFormatter, Mode=OneWay}"
                         LabelsPaint="{x:Bind ViewModel.CurveChart.CurveAxisLabelsPaint, Mode=OneWay}"
-                        MaxLimit="108"
-                        MinLimit="-4"
+                        MaxLimit="112"
+                        MinLimit="-10"
                         MinStep="20"
                         SeparatorsPaint="{x:Bind ViewModel.CurveChart.CurveAxisSeparatorsPaint, Mode=OneWay}"
                         ShowSeparatorLines="True"
@@ -240,7 +227,7 @@
                         Padding="11,6"
                         CornerRadius="8"
                         IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
-                        IsEnabled="{x:Bind IsUsable, Mode=OneWay}">
+                        Opacity="{x:Bind ChipOpacity, Mode=OneWay}">
                         <StackPanel Orientation="Horizontal" Spacing="7">
                             <material:MaterialIcon
                                 Width="15"
@@ -262,6 +249,39 @@
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
         </ItemsControl>
+        <CheckBox
+            IsChecked="{x:Bind ViewModel.TreatMissingSensorsAsZero, Mode=TwoWay}"
+            MinHeight="0">
+            <StackPanel Spacing="2">
+                <TextBlock
+                    FontSize="13"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Treat missing readings as 0°" />
+                <TextBlock
+                    FontSize="12"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="A selected sensor that loses power counts as cold instead of dropping out — for sensors that go quiet because what they measure is switched off, like a sleeping GPU."
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+        </CheckBox>
+
+        <StackPanel
+            Orientation="Horizontal"
+            Spacing="7"
+            Visibility="{x:Bind ViewModel.MissingSensorAggregationWarningVisibility, Mode=OneWay}">
+            <material:MaterialIcon
+                Width="14"
+                Height="14"
+                VerticalAlignment="Center"
+                Foreground="{StaticResource StatusWarningBrush}"
+                Kind="AlertOutline" />
+            <TextBlock
+                FontSize="12"
+                Foreground="{StaticResource StatusWarningBrush}"
+                Text="With this aggregation, a missing reading pulls the driving temperature down and can slow the fan while something else is hot. Maximum ignores it instead."
+                TextWrapping="WrapWholeWords" />
+        </StackPanel>
+
         <StackPanel Orientation="Horizontal" Spacing="7">
             <material:MaterialIcon
                 Width="14"
@@ -272,7 +292,8 @@
             <TextBlock
                 FontSize="12"
                 Foreground="{StaticResource TextSecondaryBrush}"
-                Text="If a driving sensor reports an error or loses power, the fan falls back to its firmware-safe curve." />
+                Text="If every driving sensor reports an error or loses power, the fan falls back to its firmware-safe curve."
+                TextWrapping="WrapWholeWords" />
         </StackPanel>
 
         <!--  divider  -->

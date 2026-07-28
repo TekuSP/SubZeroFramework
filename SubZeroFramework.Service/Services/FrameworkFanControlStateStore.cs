@@ -27,10 +27,16 @@ public sealed class FrameworkFanControlStateStore : IDisposable
     private readonly CompositeDisposable _subscriptions = [];
     private readonly FrameworkFanControlSafetyTracker _fanControlSafetyTracker;
     private readonly IOptionsMonitor<FrameworkServiceOptions> _optionsMonitor;
+    private readonly FanPreviewWatchdog? _previewWatchdog;
     private readonly ILogger<FrameworkFanControlStateStore> _logger;
     private bool _disposed;
 
-    public FrameworkFanControlStateStore(IFrameworkDataProvider frameworkDataProvider, FrameworkFanControlSafetyTracker fanControlSafetyTracker, IOptionsMonitor<FrameworkServiceOptions> optionsMonitor, ILogger<FrameworkFanControlStateStore> logger)
+    public FrameworkFanControlStateStore(
+        IFrameworkDataProvider frameworkDataProvider,
+        FrameworkFanControlSafetyTracker fanControlSafetyTracker,
+        IOptionsMonitor<FrameworkServiceOptions> optionsMonitor,
+        ILogger<FrameworkFanControlStateStore> logger,
+        FanPreviewWatchdog? previewWatchdog = null)
     {
         ArgumentNullException.ThrowIfNull(frameworkDataProvider);
         ArgumentNullException.ThrowIfNull(fanControlSafetyTracker);
@@ -38,6 +44,9 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
         _fanControlSafetyTracker = fanControlSafetyTracker;
         _optionsMonitor = optionsMonitor;
+        // Optional so existing tests can construct the store without one; a null watchdog simply means no
+        // fan is ever considered to be previewing.
+        _previewWatchdog = previewWatchdog;
         _logger = logger;
 
         frameworkDataProvider
@@ -121,6 +130,28 @@ public sealed class FrameworkFanControlStateStore : IDisposable
             "applied duty update");
     }
 
+    /// <summary>
+    /// Forgets the duty last written to a fan, without touching its mode, curve or driving sensors.
+    /// </summary>
+    /// <remarks>
+    /// Used when the service stops driving a curve fan but the profile stays exactly as the user saved it —
+    /// the firmware-safe fallback, where no driving sensor can be read. The last duty is then a fact about a
+    /// command nobody is issuing any more: leaving it in place reports a speed the fan is not being held at.
+    /// Deliberately NOT <see cref="MarkAuto"/>, which would wipe the profile itself.
+    /// </remarks>
+    public void ClearAppliedDuty(int fanIndex)
+    {
+        ThrowIfDisposed();
+        UpsertState(
+            fanIndex,
+            existing => existing with
+            {
+                ObservedAt = DateTimeOffset.UtcNow,
+                LastDutyPercent = null,
+            },
+            "applied duty cleared");
+    }
+
     public void MarkAuto(int fanIndex)
     {
         ThrowIfDisposed();
@@ -154,7 +185,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
     }
 
     /// <summary>Legacy single-curve entry point: saves into the active slot and activates curve mode.</summary>
-    public void SetCustomCurve(int fanIndex, IReadOnlyDictionary<int, double> customCurvePoints, TemperatureAggregationMode aggregationMode, IReadOnlyCollection<int> drivingSensorIndices)
+    public void SetCustomCurve(int fanIndex, IReadOnlyDictionary<int, double> customCurvePoints, TemperatureAggregationMode aggregationMode, IReadOnlyCollection<int> drivingSensorIndices, bool treatMissingSensorsAsZero = false)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(customCurvePoints);
@@ -164,7 +195,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         var activeSlot = lookup.HasValue ? Math.Clamp(lookup.Value.ActiveCurveSlot, 0, MaxCurveProfileSlots - 1) : 0;
         var name = lookup.HasValue ? lookup.Value.CurveProfiles.ElementAtOrDefault(activeSlot)?.Name : null;
 
-        SaveCurveProfile(fanIndex, activeSlot, name, customCurvePoints, aggregationMode, drivingSensorIndices, followFanIndex: null, activate: true);
+        SaveCurveProfile(fanIndex, activeSlot, name, customCurvePoints, aggregationMode, drivingSensorIndices, followFanIndex: null, activate: true, treatMissingSensorsAsZero);
     }
 
     /// <summary>Saves (or overwrites) one curve profile slot, optionally activating it.</summary>
@@ -176,7 +207,8 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         TemperatureAggregationMode aggregationMode,
         IReadOnlyCollection<int> drivingSensorIndices,
         int? followFanIndex,
-        bool activate)
+        bool activate,
+        bool treatMissingSensorsAsZero = false)
     {
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(curvePoints);
@@ -200,6 +232,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     DrivingTemperatureAggregation = aggregationMode,
                     DrivingSensorIndices = [.. drivingSensorIndices],
                     FollowFanIndex = followFanIndex,
+                    TreatMissingSensorsAsZero = treatMissingSensorsAsZero,
                 };
 
                 var next = normalized with
@@ -267,6 +300,55 @@ public sealed class FrameworkFanControlStateStore : IDisposable
             "clear curve profile");
     }
 
+    /// <summary>Every fan index the store tracks (live fans, plus any materialized by a command), ascending.</summary>
+    public ImmutableArray<int> GetKnownFanIndices()
+    {
+        lock (_stateLock)
+        {
+            return [.. _fanControlStates.Keys.Order()];
+        }
+    }
+
+    /// <summary>
+    /// Wipes every fan back to a fresh-install control state: Auto mode, no curve profiles, slot 0 active, no
+    /// "applies to" link, no CPU usage modifier, no remembered manual duty. Live telemetry fields (display
+    /// name, availability) and the safety overlay are preserved — the fan still exists, only its settings are
+    /// gone. In-memory only: the caller clears the persisted copy and restores the EC. Returns the fans reset.
+    /// </summary>
+    /// <remarks>
+    /// Publishes an UPSERT per fan rather than removing the entries: a Remove reaches clients as an
+    /// "unavailable" update that keeps the last known profiles, so the UI would keep showing slots that no
+    /// longer exist. An upsert carrying empty profiles reconciles correctly everywhere.
+    /// </remarks>
+    public ImmutableArray<int> ResetAllToFactoryDefaults()
+    {
+        ThrowIfDisposed();
+
+        var fanIndices = GetKnownFanIndices();
+        foreach (var fanIndex in fanIndices)
+        {
+            UpsertState(
+                fanIndex,
+                static existing => existing with
+                {
+                    Mode = FanControlMode.Auto,
+                    CustomCurvePoints = ImmutableSortedDictionary<int, double>.Empty,
+                    DrivingTemperatureAggregation = TemperatureAggregationMode.Maximum,
+                    DrivingSensorIndices = [],
+                    ActiveCurveSlot = 0,
+                    CurveProfiles = CreateEmptyProfiles(),
+                    LinkedLeaderIndex = null,
+                    CpuUsageModifierStrength = null,
+                    LastDutyPercent = null,
+                    ObservedAt = DateTimeOffset.UtcNow,
+                },
+                "factory reset");
+        }
+
+        _logger.LogInformation("Reset {FanCount} fan control state(s) to factory defaults in memory.", fanIndices.Length);
+        return fanIndices;
+    }
+
     /// <summary>Builds a persistable options snapshot of a fan's profiles, or null if the fan is unknown.</summary>
     public FanControlStateOptions? BuildFanControlOptions(int fanIndex)
     {
@@ -300,6 +382,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                         DrivingTemperatureAggregation = profile.DrivingTemperatureAggregation,
                         DrivingSensorIndices = [.. profile.DrivingSensorIndices],
                         FollowFanIndex = profile.FollowFanIndex,
+                        TreatMissingSensorsAsZero = profile.TreatMissingSensorsAsZero,
                     }),
             ],
             LinkedLeaderIndex = state.LinkedLeaderIndex,
@@ -390,6 +473,32 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         _disposed = true;
     }
 
+    /// <summary>
+    /// Re-seeds live fan state from the persisted configuration.
+    /// </summary>
+    /// <remarks>
+    /// Runs at startup AND on every configuration reload — and the service watches the very file it writes, so
+    /// any persisting command (or a Settings save) re-enters here for EVERY fan, not just the one that changed.
+    /// That made the persisted file behave as a live authority, which is exactly what the per-tick path
+    /// refuses to do for the same reason (see the comment on the telemetry overlay): it re-asserted stale
+    /// persisted state over whatever a fan was actually doing.
+    ///
+    /// Two guards make the re-entry harmless:
+    /// <list type="bullet">
+    /// <item>A fan with an OPEN PREVIEW HOLD is skipped. A preview is deliberately unpersisted volatile state;
+    /// overlaying the persisted mode on top of it reverted what the user was in the middle of testing, and
+    /// for a fan persisted as Auto it left the EC holding the preview duty — possibly a stopped fan — while
+    /// every client reported Auto.</item>
+    /// </list>
+    ///
+    /// A no-op check was tried here and removed: <see cref="FanControlStateSnapshot"/> is a record, but its
+    /// <c>CurveProfiles</c> is an <see cref="ImmutableArray{T}"/>, whose equality compares the underlying
+    /// array REFERENCE rather than its contents. The overlay rebuilds that array on every call, so an
+    /// unchanged fan never compares equal and the check silently never fired. Skipping the republish would
+    /// need a deep comparison the snapshot types do not offer; the redundant notifications are cheap and
+    /// idempotent, so they are left alone rather than papered over with a comparison that looks right and
+    /// does nothing.
+    /// </remarks>
     private void ApplyConfiguredStates()
     {
         var optionsByFanIndex = _optionsMonitor.CurrentValue.FanControlStates
@@ -403,6 +512,14 @@ public sealed class FrameworkFanControlStateStore : IDisposable
             {
                 if (!optionsByFanIndex.TryGetValue(existingState.FanIndex, out var configuredState))
                 {
+                    continue;
+                }
+
+                if (_previewWatchdog?.HasOpenHold(existingState.FanIndex) == true)
+                {
+                    _logger.LogDebug(
+                        "Skipping the configured overlay for fan {FanIndex} because a preview hold is open; its live preview state stands until the preview is applied or reverted.",
+                        existingState.FanIndex);
                     continue;
                 }
 
@@ -540,6 +657,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     DrivingTemperatureAggregation = profile.DrivingTemperatureAggregation,
                     DrivingSensorIndices = [.. profile.DrivingSensorIndices],
                     FollowFanIndex = profile.FollowFanIndex,
+                    TreatMissingSensorsAsZero = profile.TreatMissingSensorsAsZero,
                 };
             }
         }
@@ -607,6 +725,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
             CustomCurvePoints = active.CurvePoints,
             DrivingTemperatureAggregation = active.DrivingTemperatureAggregation,
             DrivingSensorIndices = active.DrivingSensorIndices,
+            TreatMissingSensorsAsZero = active.TreatMissingSensorsAsZero,
         };
     }
 

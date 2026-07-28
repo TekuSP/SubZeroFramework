@@ -205,23 +205,30 @@ public sealed class ThermalTelemetryPanelModel : IDisposable
 }
 ```
 
-When a history stream uses `ToCollection()`, sort it before converting to chart points:
+When a history stream uses `ToCollection()`, **sample it, then sort and materialize BEFORE `ObserveOn`** so the
+UI thread only receives the finished array:
 
 ```csharp
 _temperatureTelemetryClient
     .WatchTemperatureHistory(sensorIndex, historyWindow)
     .ToCollection()
+    .Sample(PresentationDefaults.HistoryProjectionInterval)
+    .Select(static points => points
+        .OrderBy(static point => point.ObservedAt)
+        .ThenBy(static point => point.SampleId)
+        .ToArray())
     .ObserveOn(uiContext)
-    .Subscribe(points =>
-    {
-        HistoryPoints =
-        [
-            .. points
-                .OrderBy(point => point.ObservedAt)
-                .ThenBy(point => point.SampleId)
-        ];
-    });
+    .Subscribe(ordered => HistoryPoints = ordered);
 ```
+
+Both steps matter, and the order is the point:
+
+- `ToCollection()` re-emits the **whole window** on every telemetry change (~3/s per series), not a delta. Each
+  emission means an O(n log n) sort plus a fresh array.
+- Putting `ObserveOn` *before* that work runs the sort **on the UI thread**. With several series live at once
+  (one per sensor, per fan, per battery metric) it starves rendering and the page paints half-drawn.
+- Sampling downstream — in the consuming ViewModel — throttles the *repaint* but not the *work*, so it does not
+  save you.
 
 ## Choosing between generic and specialized clients
 

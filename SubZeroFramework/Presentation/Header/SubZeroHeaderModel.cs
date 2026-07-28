@@ -95,6 +95,7 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
 
         _hardwareInfoSubscription.Disposable = _hardwareInfoClient
             .WatchHardwareInfo()
+            .Sample(TelemetryRateLimits.Inventory)
             .ObserveOn(_synchronizationContext)
             .Subscribe(UpdateHardwareInfoSnapshot);
 
@@ -102,6 +103,7 @@ public partial class SubZeroHeaderModel : ObservableObject, IDisposable
         {
             _runningSubscription.Disposable = _frameworkStatusClient
                 .WatchStatus()
+                .Sample(TelemetryRateLimits.LiveReadout)
                 .ObserveOn(_synchronizationContext)
                 .Subscribe(FrameworkSystemDataUpdated);
         }

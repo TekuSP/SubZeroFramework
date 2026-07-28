@@ -39,12 +39,20 @@ public partial class SensorChipModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsUsable))]
+    [NotifyPropertyChangedFor(nameof(ChipOpacity))]
     [NotifyPropertyChangedFor(nameof(SubLabel))]
     [NotifyPropertyChangedFor(nameof(StateIcon))]
     public partial FrameworkTemperatureState State { get; set; } = FrameworkTemperatureState.Ok;
 
-    /// <summary>Only an OK sensor can be selected to drive a curve.</summary>
+    /// <summary>
+    /// Whether the sensor is currently reporting a reading. NOT a gate on selecting it: a sensor may be
+    /// chosen while it is dark (a GPU sensor picked with the machine idle), and one that goes dark stays
+    /// chosen — the selection is the user's, availability is just its live status.
+    /// </summary>
     public bool IsUsable => State == FrameworkTemperatureState.Ok;
+
+    /// <summary>Dims a chip that has no reading, so it still reads as unavailable while staying selectable.</summary>
+    public double ChipOpacity => IsUsable ? 1d : 0.55d;
 
     /// <summary>Current reading shown under the chip name (e.g. "69°C", or "—" when unread), in the user's display unit.</summary>
     public string TemperatureDisplay => CurrentTemperatureCelsius is double t
@@ -67,6 +75,8 @@ public partial class SensorChipModel : ObservableObject
         FrameworkTemperatureState.NotPowered => MaterialIconKind.PowerPlugOffOutline,
         FrameworkTemperatureState.NotCalibrated => MaterialIconKind.Wrench,
         FrameworkTemperatureState.Error => MaterialIconKind.AlertCircleOutline,
+        // Reads the same as "not powered" to the user — the thing it measures is off, so it reports nothing.
+        FrameworkTemperatureState.NotPresent => MaterialIconKind.PowerPlugOffOutline,
         _ => MaterialIconKind.Thermometer,
     };
 }

@@ -1,5 +1,6 @@
 [Unit]
 Description=SubZero Framework fan control service
+Documentation=https://github.com/TekuSP/SubZeroFramework
 
 [Service]
 Type=notify
@@ -12,7 +13,57 @@ User=root
 WorkingDirectory=/usr/local/lib/subzeroframework
 Environment=DOTNET_ENVIRONMENT=Production
 Environment=DOTNET_NOLOGO=true
+
+# The stop path hands every overridden fan back to the EC before exiting. That is a safety action, not
+# cleanup, so the timeout is generous — a fan left at a manual duty because systemd killed us mid-restore
+# is exactly the failure this service exists to prevent.
 TimeoutStopSec=90
+
+# ---------------------------------------------------------------------------------------------------
+# Sandboxing.
+#
+# This service must run as root: it drives the embedded controller through ioperm() port I/O, reads
+# SMBIOS out of /dev/mem, and talks to /dev/cros_ec. "Just drop privileges" is therefore not available,
+# so the directives below narrow what that root process can reach instead.
+#
+# Deliberately NOT set — each one breaks the service. Do not add them without testing on real hardware:
+#   PrivateDevices=yes         Substitutes a minimal private /dev with no /dev/cros_ec, /dev/port or
+#                              /dev/mem, which removes every EC access path at once.
+#   ProcSubset=pid             Hides /proc/cpuinfo and /proc/meminfo, which the hardware inventory reads.
+#   MemoryDenyWriteExecute=yes Breaks the .NET JIT.
+#   ProtectSystem=strict       Would make /etc read-only, but the persistent store lives in
+#                              /etc/subzeroframework and is relocatable to an operator-chosen path, so
+#                              enumerating ReadWritePaths cannot be done statically. "full" is correct.
+#   ProtectKernelTunables=yes  Untested against the sysfs GPU/NPU readers; safe in principle since they
+#                              only read, but it has not been exercised on hardware yet.
+# ---------------------------------------------------------------------------------------------------
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=yes
+PrivateTmp=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+
+# The gRPC endpoint is a Unix domain socket at /run/subzeroframework.grpc.sock, so no network family is
+# required. AF_NETLINK stays because the hardware inventory enumerates network interfaces through it.
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+
+# CAP_SYS_RAWIO covers ioperm() and /dev/mem. The others are what socket setup needs to create the /run
+# entry and relax its mode so an unprivileged desktop session can connect.
+CapabilityBoundingSet=CAP_SYS_RAWIO CAP_DAC_OVERRIDE CAP_CHOWN CAP_FOWNER
+
+# @raw-io is required on top of @system-service: ioperm/iopl are not part of the general service set.
+SystemCallArchitectures=native
+SystemCallFilter=@system-service @raw-io
+SystemCallErrorNumber=EPERM
 
 [Install]
 WantedBy=multi-user.target

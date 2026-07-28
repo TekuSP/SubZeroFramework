@@ -37,6 +37,7 @@ public interface IFrameworkFanControlClient
         IReadOnlyCollection<int> drivingSensorIndices,
         TemperatureAggregationMode aggregationMode,
         bool preview = false,
+        bool treatMissingSensorsAsZero = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -59,6 +60,7 @@ public interface IFrameworkFanControlClient
         TemperatureAggregationMode aggregationMode,
         int? followFanIndex,
         bool activate,
+        bool treatMissingSensorsAsZero = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>Activates a stored curve profile slot for the specified fan.</summary>
@@ -81,6 +83,13 @@ public interface IFrameworkFanControlClient
     /// the fan. Persisted by the service and streamed back via the control state.
     /// </summary>
     Task<FrameworkFanUsageModifierCommandResult> SetUsageModifierAsync(int fanIndex, double? cpuUsageModifierStrength, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Resets all fan control to factory defaults: every fan returns to the controller's automatic mode and
+    /// every persisted fan setting is deleted (curve profile slots, active slot, "Applies to" links, CPU
+    /// usage modifiers, manual / max overrides), including entries for fans that no longer enumerate.
+    /// </summary>
+    Task<FrameworkFanControlResetCommandResult> ResetFanControlToFactoryDefaultsAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Opens a preview safety hold for a fan and returns once the service has captured its pre-preview state.

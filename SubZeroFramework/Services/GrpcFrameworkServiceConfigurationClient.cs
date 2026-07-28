@@ -31,6 +31,31 @@ public sealed class GrpcFrameworkServiceConfigurationClient : IFrameworkServiceC
     public IObservable<FrameworkServiceConfigurationSnapshot> WatchConfiguration()
         => _sharedConfigurationStream;
 
+    public async Task<FrameworkServiceLogSnapshot> GetServiceLogsAsync(LogLevel minimumLevel, CancellationToken cancellationToken = default)
+    {
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.GetServiceLogsAsync(
+            new GetServiceLogsRequest { MinimumLevel = (int)minimumLevel },
+            cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+
+        return new FrameworkServiceLogSnapshot
+        {
+            DroppedCount = reply.DroppedCount,
+            BufferCapacity = reply.BufferCapacity,
+            Entries =
+            [
+                .. reply.Entries.Select(static entry => new ServiceLogEntry
+                {
+                    ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(entry.ObservedAtUnixTimeMilliseconds),
+                    Level = (LogLevel)entry.Level,
+                    Category = entry.Category ?? string.Empty,
+                    Message = entry.Message ?? string.Empty,
+                    Exception = entry.Exception ?? string.Empty,
+                }),
+            ],
+        };
+    }
+
     public async Task<FrameworkServiceConfigurationOperationResult> ApplyConfigurationAsync(FrameworkServiceConfigurationApplyRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);

@@ -1,0 +1,112 @@
+name: Release
+
+# Creating a GitHub Release runs the full pipeline and, only if everything is green, attaches the built
+# artifacts to that release. Deliberately NOT a tag trigger: you create the release (draft or not) and
+# stay in control of when it goes public — this only fills it with assets. The version comes from the
+# release's tag, so a release tagged v0.1.0 stamps 0.1.0.
+#
+# If the pipeline fails the release simply stays empty rather than shipping a half-built product.
+on:
+  release:
+    types: [created]
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+permissions:
+  packages: write
+  contents: read
+  actions: write
+  # dorny/test-reporter publishes the trx as a check run.
+  checks: write
+
+jobs:
+  # The same reusable pipeline ci.yml runs. `needs: [build]` below therefore transitively requires the
+  # tests, both Windows heads, both Linux heads, both Arch packages and the smoke test — assets can only
+  # ever be attached from a fully green run.
+  build:
+    name: Build
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  upload_release_assets:
+    name: Attach build artifacts to the release
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      # The workflow-level default is contents: read, which cannot upload release assets.
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: ${{ github.workspace }}/downloaded
+
+      - name: Stage release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.build.outputs.version }}"
+          src="${{ github.workspace }}/downloaded"
+          out="${{ github.workspace }}/release-assets"
+          mkdir -p "${out}"
+
+          # Installers and Linux packages are already single files — copy them straight across.
+          # '*.msi' (not '*.exe'): the installer is an MSI since the WiX migration, and matching '*.exe'
+          # here would also scoop loose executables (SubZeroFramework.exe, createdump.exe, …) out of the
+          # raw WinUI3/SKIA publish-directory artifacts and attach them as release assets.
+          find "${src}" -type f \( -name '*.msi' -o -name '*.deb' -o -name '*.rpm' -o -name '*.tar.gz' -o -name '*.pkg.tar.zst' \) \
+            -exec cp -v {} "${out}/" \;
+
+          # The WinUI3 / SKIA artifacts are raw publish DIRECTORIES — download-artifact unzips them, so
+          # they must be re-zipped or the release would carry loose files.
+          for d in "${src}"/*WinUI3 "${src}"/*SKIA; do
+            [ -d "${d}" ] || continue
+            base="$(basename "${d}")"
+            slug="$(echo "${base}" | tr '[:upper:] ' '[:lower:]-' | sed 's/[^a-z0-9._-]//g')"
+            (cd "${d}" && zip -qr "${out}/subzeroframework-${version}-${slug}.zip" .)
+          done
+
+          # Checksums so a download can be verified — this matters more than usual because the
+          # installers are unsigned and SmartScreen will warn.
+          (cd "${out}" && sha256sum * > SHA256SUMS.txt)
+
+          echo "Staged assets:"
+          ls -la "${out}"
+
+      # Uploads onto the EXISTING release. Deliberately does not set draft/prerelease/body/name — those
+      # are yours, set when you created the release, and this job must not overwrite your wording.
+      # `--clobber` makes re-running the job after a fix idempotent instead of erroring on duplicates.
+      - name: Upload assets to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          assets=( "${{ github.workspace }}/release-assets"/* )
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "::error::No assets were staged - refusing to report success on an empty release."
+            exit 1
+          fi
+          echo "Uploading ${#assets[@]} asset(s) to ${RELEASE_TAG}:"
+          printf '  %s\n' "${assets[@]}"
+          gh release upload "${RELEASE_TAG}" "${assets[@]}" --clobber --repo "${GITHUB_REPOSITORY}"
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo "### Release assets attached to \`${{ github.event.release.tag_name }}\`"
+            echo
+            echo "Version stamped: \`${{ needs.build.outputs.version }}\`"
+            echo
+            echo "Reminder before publishing:"
+            echo "- Windows installers are **unsigned** - SmartScreen will warn. \`SHA256SUMS.txt\` is attached for verification."
+            echo "- Linux: install the service package alongside the UI package - the UI depends on it at an exact version."
+            echo "- Fan control is **disabled by default** and is enabled in Settings -> Service."
+          } >> "$GITHUB_STEP_SUMMARY"

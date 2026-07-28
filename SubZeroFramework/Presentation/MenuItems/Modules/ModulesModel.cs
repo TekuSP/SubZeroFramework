@@ -53,6 +53,7 @@ public partial class ModulesModel : ObservableObject, IDisposable
 
         frameworkStatusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(synchronizationContext)
             .Subscribe(status => LastStatus = status)
             .DisposeWith(_subscriptions);
@@ -80,6 +81,7 @@ public partial class ModulesModel : ObservableObject, IDisposable
         // The bay register only classifies the GPU vendor; the actual model name comes from HardwareInfo.
         hardwareInfoClient
             .WatchHardwareInfo()
+            .Sample(TelemetryRateLimits.Inventory)
             .ObserveOn(synchronizationContext)
             .Subscribe(snapshot => VideoControllerNames =
             [

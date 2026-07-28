@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 
 using SubZeroFramework.Controls.FanCurveProfiles.Models;
+using SubZeroFramework.Models;
 
 namespace SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 
@@ -15,9 +16,6 @@ namespace SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 /// </summary>
 public sealed class FanCurveDraftModel : IDisposable
 {
-    private const int MinTemperatureCelsius = 0;
-    private const int MaxTemperatureCelsius = 130;
-
     /// <summary>A curve needs two points; <see cref="Remove"/> refuses to go below this.</summary>
     public const int MinimumPoints = 2;
 
@@ -43,7 +41,11 @@ public sealed class FanCurveDraftModel : IDisposable
             .OrderBy(static p => p.TemperatureCelsius)
             .ToArray();
 
-    /// <summary>Replaces all points with the given pairs (ordered by temperature). One <see cref="Changed"/>.</summary>
+    /// <summary>
+    /// Replaces all points with the given pairs, snapped into the editable band of <see cref="FanCurveDomain"/>
+    /// and ordered by temperature (stored curves can predate the band, and a point outside it cannot be seen or
+    /// grabbed). One <see cref="Changed"/>.
+    /// </summary>
     public void Load(IEnumerable<(int Temperature, double Duty)> points)
     {
         _suppressChanged = true;
@@ -51,7 +53,7 @@ public sealed class FanCurveDraftModel : IDisposable
         {
             DetachAll();
             _points.Clear();
-            foreach (var (temperature, duty) in points.OrderBy(static p => p.Temperature))
+            foreach (var (temperature, duty) in FanCurveDomain.Normalize(points))
             {
                 _points.Add(new CurvePointModel(temperature, duty));
             }
@@ -64,15 +66,21 @@ public sealed class FanCurveDraftModel : IDisposable
         Changed?.Invoke();
     }
 
-    /// <summary>Adds a point, clamped to 0–130 °C / 0–100 % (temperature rounded to a whole degree).</summary>
-    public void Add(double temperatureCelsius, double dutyPercent) =>
-        _points.Add(new CurvePointModel(ClampTemperature(temperatureCelsius), ClampDuty(dutyPercent)));
+    /// <summary>Adds a point, snapped into the editable band / 0–100 % (temperature rounded to a whole degree).</summary>
+    public CurvePointModel Add(double temperatureCelsius, double dutyPercent)
+    {
+        CurvePointModel point = new(
+            FanCurveDomain.ClampTemperature(temperatureCelsius),
+            FanCurveDomain.ClampDuty(dutyPercent));
+        _points.Add(point);
+        return point;
+    }
 
-    /// <summary>Moves an existing point, clamped to 0–130 °C / 0–100 %.</summary>
+    /// <summary>Moves an existing point, snapped into the editable band / 0–100 %.</summary>
     public void Update(CurvePointModel point, double temperatureCelsius, double dutyPercent)
     {
-        point.TemperatureCelsius = ClampTemperature(temperatureCelsius);
-        point.DutyPercent = ClampDuty(dutyPercent);
+        point.TemperatureCelsius = FanCurveDomain.ClampTemperature(temperatureCelsius);
+        point.DutyPercent = FanCurveDomain.ClampDuty(dutyPercent);
     }
 
     /// <summary>Removes a point, keeping at least two (a curve needs two points).</summary>
@@ -111,11 +119,6 @@ public sealed class FanCurveDraftModel : IDisposable
         _points.CollectionChanged -= OnCollectionChanged;
         DetachAll();
     }
-
-    private static int ClampTemperature(double value) =>
-        (int)Math.Round(Math.Clamp(value, MinTemperatureCelsius, MaxTemperatureCelsius));
-
-    private static double ClampDuty(double value) => Math.Clamp(value, 0d, 100d);
 
     private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {

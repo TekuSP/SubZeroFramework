@@ -31,6 +31,7 @@ public partial class MainModel : ObservableObject, IDisposable
 
         frameworkStatusClient
             .WatchStatus()
+            .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(context)
             .Subscribe(SystemStatusChanged)
             .DisposeWith(_subscriptions);
