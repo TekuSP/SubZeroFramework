@@ -145,7 +145,7 @@ jobs:
       # and creating a check run is refused.
       - name: Publish test report
         if: ${{ always() }}
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v3
         with:
           name: Tests (${{ matrix.os }} ${{ matrix.type }})
           # Workspace-RELATIVE with forward slashes, deliberately. This action globs with picomatch
@@ -449,7 +449,7 @@ jobs:
       # See the note on the Windows job for why always() + fail-on-error: false.
       - name: Publish test report
         if: ${{ always() }}
-        uses: dorny/test-reporter@v2
+        uses: dorny/test-reporter@v3
         with:
           name: Tests (${{ matrix.os }} ${{ matrix.type }})
           # Workspace-RELATIVE with forward slashes, deliberately. This action globs with picomatch
