@@ -79,10 +79,24 @@ sed \
   -e 's|WorkingDirectory=/usr/local/lib/subzeroframework|WorkingDirectory=/usr/lib/subzeroframework/service|' \
   "${repo_root}/SubZeroFramework.Service/subzeroframework.service" > "${packaged_unit}"
 
+# CoreCLR's optional LTTng tracing provider, excluded from every Linux payload.
+#
+# It is the ONLY file in the .NET runtime pack linking liblttng-ust, and its DT_NEEDED names the soname
+# literally as liblttng-ust.so.0. rpm's automatic ELF scanner (AutoReqProv, deliberately on — see the
+# spec below) turns that into `Requires: liblttng-ust.so.0()(64bit)`, which Fedora 41+ CANNOT satisfy:
+# it ships lttng-ust 2.13, providing liblttng-ust.so.1. The requirement is unsatisfiable rather than
+# merely missing, so no amount of installing lttng-ust fixes it — reported as issue #63 on Fedora 44.
+#
+# Dropping the file rather than masking the dependency (%global __requires_exclude) is the honest fix:
+# masking would leave a library on disk that can never load on a modern distro. CoreCLR only opens this
+# provider when LTTng tracing is switched on, and degrades to "tracing unavailable" when it is absent,
+# which costs a fan-control app nothing. Nothing else in the payload links it.
+readonly TRACEPOINT_PROVIDER='libcoreclrtraceptprovider.so'
+
 stage_ui_payload() { # $1 = destination root
   mkdir -p "$1/usr/lib/subzeroframework/ui" "$1/usr/bin" "$1/usr/share/applications"
   # The UI publish dir doubles as the artifact root; keep the service bundle out of the UI payload.
-  (cd "${ui_publish_dir}" && find . -path ./service-package -prune -o -type f -print | while read -r f; do
+  (cd "${ui_publish_dir}" && find . -path ./service-package -prune -o -type f ! -name "${TRACEPOINT_PROVIDER}" -print | while read -r f; do
       mkdir -p "$1/usr/lib/subzeroframework/ui/$(dirname "${f}")"
       cp "${f}" "$1/usr/lib/subzeroframework/ui/${f}"
     done)
@@ -94,7 +108,7 @@ stage_ui_payload() { # $1 = destination root
 
 stage_service_payload() { # $1 = destination root
   mkdir -p "$1/usr/lib/subzeroframework/service" "$1/usr/lib/systemd/system"
-  (cd "${service_publish_dir}" && find . -type f ! -name 'subzeroframework.service' -print | while read -r f; do
+  (cd "${service_publish_dir}" && find . -type f ! -name 'subzeroframework.service' ! -name "${TRACEPOINT_PROVIDER}" -print | while read -r f; do
       mkdir -p "$1/usr/lib/subzeroframework/service/$(dirname "${f}")"
       cp "${f}" "$1/usr/lib/subzeroframework/service/${f}"
     done)
@@ -222,12 +236,14 @@ build_rpm() { # $1 = package name, $2 = summary, $3 = stage function, $4 = with_
     rpm_requires=$(cat <<'EOF'
 Requires: systemd-libs
 Requires: lshw
+Requires: libicu
 EOF
 )
   else
     # Same exact-version pin as the .deb: the UI cannot function without its service.
     rpm_requires=$(cat <<EOF
 Requires: ${name}-service = ${version}-1
+Requires: libicu
 Requires: fontconfig
 Requires: libX11
 Requires: libXext
@@ -237,6 +253,35 @@ Requires: libXrandr
 Requires: libglvnd-glx
 Recommends: vulkan-loader
 Recommends: dbus
+EOF
+)
+  fi
+
+  # %files must list ONLY what this package owns. It was "/usr/*", which globs to /usr/bin, /usr/lib and
+  # /usr/share and so claimed ownership of the top-level directories that Fedora's `filesystem` package
+  # owns. rpm refuses that at transaction time:
+  #   file /usr/lib from install of subzeroframework-service conflicts with file from package filesystem
+  # Dependency resolution succeeds first, so this only appears on a real install — issue #63's reporter
+  # never reached it because the liblttng requirement failed resolution one step earlier.
+  #
+  # /usr/lib/subzeroframework is declared %dir by BOTH packages on purpose: shared directory ownership
+  # is legal and expected in rpm, and it keeps the directory owned (rather than stray) whichever of the
+  # two is removed first.
+  local rpm_files
+  if [[ "${with_service}" == "yes" ]]; then
+    rpm_files=$(cat <<'EOF'
+%dir /usr/lib/subzeroframework
+/usr/lib/subzeroframework/service
+/usr/lib/systemd/system/subzeroframework.service
+EOF
+)
+  else
+    rpm_files=$(cat <<'EOF'
+%dir /usr/lib/subzeroframework
+/usr/lib/subzeroframework/ui
+/usr/bin/subzeroframework
+/usr/share/applications/subzeroframework.desktop
+/usr/share/icons/hicolor/*/apps/subzeroframework.png
 EOF
 )
   fi
@@ -276,10 +321,17 @@ Summary: ${summary}
 License: MIT
 URL: ${homepage}
 # AutoReqProv is deliberately LEFT ON. It was previously "no", which suppressed rpm's ELF scanner —
-# the scanner finds libudev (linked by FrameworkDotnet's EC FFI), fontconfig, libicu and the X11 stack
+# the scanner finds libudev (linked by FrameworkDotnet's EC FFI), fontconfig and the X11 stack
 # automatically and correctly, and keeps doing so as dependencies change. A hand-maintained list would
 # only drift. Requires below cover what the scanner CANNOT see: the cross-package relationship, and
 # libraries reached via dlopen rather than DT_NEEDED.
+#
+# libicu is exactly that second case, and this comment previously claimed the scanner found it — it
+# does NOT. .NET dlopens ICU by soname at runtime, so no DT_NEEDED entry exists for the scanner to
+# read, and nothing pulled it in. The packages installed cleanly on Fedora 44 and then died on first
+# run with "Couldn't find a valid ICU package installed on the system", because
+# InvariantGlobalization is deliberately off (quantities format through UnitsNet). The .deb
+# (libicu76 | libicu74 | ...) and the Arch PKGBUILD ('icu') both declared it; only rpm did not.
 ${rpm_requires}
 
 %description
@@ -289,7 +341,7 @@ ${summary}. Self-contained .NET build: no .NET runtime is required, only native 
 cp -a ${payload}/. %{buildroot}/
 
 %files
-/usr/*
+${rpm_files}
 
 ${scriptlets}
 EOF
@@ -307,11 +359,11 @@ build_rpm "subzeroframework-service" "${service_summary}" stage_service_payload 
 tar_name="subzeroframework-${version}-${rid}.tar.gz"
 tar_root="${work_dir}/tar/subzeroframework-${version}"
 mkdir -p "${tar_root}/ui" "${tar_root}/service"
-(cd "${ui_publish_dir}" && find . -path ./service-package -prune -o -type f -print | while read -r f; do
+(cd "${ui_publish_dir}" && find . -path ./service-package -prune -o -type f ! -name "${TRACEPOINT_PROVIDER}" -print | while read -r f; do
     mkdir -p "${tar_root}/ui/$(dirname "${f}")"
     cp "${f}" "${tar_root}/ui/${f}"
   done)
-(cd "${service_publish_dir}" && find . -type f ! -name 'subzeroframework.service' -print | while read -r f; do
+(cd "${service_publish_dir}" && find . -type f ! -name 'subzeroframework.service' ! -name "${TRACEPOINT_PROVIDER}" -print | while read -r f; do
     mkdir -p "${tar_root}/service/$(dirname "${f}")"
     cp "${f}" "${tar_root}/service/${f}"
   done)
