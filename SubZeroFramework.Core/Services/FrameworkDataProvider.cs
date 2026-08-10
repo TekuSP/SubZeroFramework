@@ -531,6 +531,23 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 ];
         }
 
+        // Each static-inventory probe is independent: they populate unrelated Device Capabilities
+        // sections, so one throwing must not skip the rest. It used to — a single unreadable mount
+        // (Hardware.Info's drive enumeration surfaces DriveNotFoundException for a mount path that
+        // .NET fails to unescape from /proc/mounts) aborted the whole tier, leaving storage, network
+        // AND graphics empty for a full StaticInventoryRefreshInterval with only one warning logged.
+        void TryProbe(string description, Action probe)
+        {
+            try
+            {
+                probe();
+            }
+            catch (Exception exception)
+            {
+                CaptureFailure(exception, description);
+            }
+        }
+
         try
         {
             // FAST tier — every hardware-info poll (default 1 s). Only what genuinely changes at that
@@ -554,16 +571,16 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 // until the interval elapses would reintroduce exactly the spike this exists to prevent.
                 _lastStaticInventoryRefreshAt = observedAt;
 
-                _hardwareInfo.RefreshMemoryList();
-                _hardwareInfo.RefreshDriveList();
-                _hardwareInfo.RefreshMotherboardList();
-                _hardwareInfo.RefreshBIOSList();
-                _hardwareInfo.RefreshComputerSystemList();
-                _hardwareInfo.RefreshOperatingSystem();
-                _hardwareInfo.RefreshNetworkAdapterList(
+                TryProbe("refresh the memory list", _hardwareInfo.RefreshMemoryList);
+                TryProbe("refresh the drive list", _hardwareInfo.RefreshDriveList);
+                TryProbe("refresh the motherboard list", _hardwareInfo.RefreshMotherboardList);
+                TryProbe("refresh the BIOS list", _hardwareInfo.RefreshBIOSList);
+                TryProbe("refresh the computer system list", _hardwareInfo.RefreshComputerSystemList);
+                TryProbe("refresh the operating system information", _hardwareInfo.RefreshOperatingSystem);
+                TryProbe("refresh the network adapter list", () => _hardwareInfo.RefreshNetworkAdapterList(
                     includeBytesPerSec: false,
                     includeNetworkAdapterConfiguration: true,
-                    millisecondsDelayBetweenTwoMeasurements: 0);
+                    millisecondsDelayBetweenTwoMeasurements: 0));
                 // Display/GPU enumeration is skipped entirely on Linux. Hardware.Info implements BOTH the
                 // video-controller list ("xrandr -q") and the monitor list ("xrandr --props") by shelling
                 // out to xrandr, and neither can work from here under ANY desktop stack:
@@ -582,14 +599,14 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 // rather than supplementing it, so Hardware.Info's shell-outs never happen there.
                 if (_graphicsInventoryReader.IsAvailable)
                 {
-                    _graphicsInventory = _graphicsInventoryReader.Read();
+                    TryProbe("read the graphics inventory", () => _graphicsInventory = _graphicsInventoryReader.Read());
                 }
                 else if (!OperatingSystem.IsLinux())
                 {
-                    _hardwareInfo.RefreshVideoControllerList(refreshMonitorList: true);
+                    TryProbe("refresh the video controller list", () => _hardwareInfo.RefreshVideoControllerList(refreshMonitorList: true));
                 }
 
-                RefreshComputeAccelerators();
+                TryProbe("refresh the compute accelerators", RefreshComputeAccelerators);
             }
         }
         catch (Exception exception)
