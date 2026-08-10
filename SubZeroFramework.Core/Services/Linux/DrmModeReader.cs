@@ -42,6 +42,7 @@ public static partial class DrmModeReader
     // ioctl request numbers, _IOWR('d', nr, struct). Encoding: (dir<<30)|(size<<16)|(type<<8)|nr, with
     // dir=3 for read/write and type='d'=0x64. The sizes below are the UAPI struct sizes asserted in the
     // static constructor, so a layout mistake fails loudly at startup instead of corrupting memory.
+    private const uint DrmIoctlVersion = 0xC0406400;
     private const uint DrmIoctlModeGetResources = 0xC04064A0;
     private const uint DrmIoctlModeGetCrtc = 0xC06864A1;
     private const uint DrmIoctlModeGetEncoder = 0xC01464A6;
@@ -59,6 +60,7 @@ public static partial class DrmModeReader
     {
         // The ioctl number encodes sizeof(struct); if these ever disagree the kernel would reject the call
         // (or worse, read the wrong length), so assert the agreement once rather than debug it in the field.
+        Verify<DrmVersion>(DrmIoctlVersion);
         Verify<DrmModeCardRes>(DrmIoctlModeGetResources);
         Verify<DrmModeCrtc>(DrmIoctlModeGetCrtc);
         Verify<DrmModeGetEncoder>(DrmIoctlModeGetEncoder);
@@ -295,6 +297,70 @@ public static partial class DrmModeReader
         return $"{typeName}-{connectorTypeId}";
     }
 
+    /// <summary>
+    /// The driver's own version triple for one card, e.g. "1.6.0" for i915 — or null if unavailable.
+    /// </summary>
+    /// <remarks>
+    /// This exists because <c>/sys/module/&lt;driver&gt;/version</c> only exists for out-of-tree modules (NVIDIA's
+    /// DKMS build has one; i915, amdgpu and nouveau built in-tree do not), so the sysfs path reports nothing on
+    /// most machines. The DRM VERSION ioctl answers for every driver.
+    ///
+    /// Only the version triple is read. The struct also carries name/date/desc strings, but they need a second
+    /// call with caller-allocated buffers, and the one field worth having — <c>date</c> — is dead: upstream
+    /// removed DRIVER_DATE, and current kernels return the literal string "0". The triple comes back on the
+    /// first call with null string pointers, so this needs no buffer management at all.
+    ///
+    /// Read-only and takes no DRM master, exactly like the mode queries above.
+    /// </remarks>
+    public static string? ReadDriverVersion(int cardIndex, ILogger? logger = null, string deviceRoot = "/dev/dri")
+    {
+        var devicePath = Path.Combine(deviceRoot, $"card{cardIndex}");
+        if (!File.Exists(devicePath))
+        {
+            return null;
+        }
+
+        var fd = -1;
+        try
+        {
+            fd = Open(devicePath, OpenReadOnly | OpenCloseOnExec);
+            if (fd < 0)
+            {
+                return null;
+            }
+
+            unsafe
+            {
+                var version = default(DrmVersion);
+                if (Ioctl(fd, DrmIoctlVersion, &version) != 0)
+                {
+                    return null;
+                }
+
+                // A driver that reports 0.0.0 is telling us nothing; surface null so the UI says Unknown
+                // rather than printing a meaningless triple.
+                if (version.VersionMajor == 0 && version.VersionMinor == 0 && version.VersionPatchLevel == 0)
+                {
+                    return null;
+                }
+
+                return $"{version.VersionMajor}.{version.VersionMinor}.{version.VersionPatchLevel}";
+            }
+        }
+        catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException or IOException or UnauthorizedAccessException)
+        {
+            logger?.LogDebug(exception, "Could not read the DRM driver version for card {CardIndex}.", cardIndex);
+            return null;
+        }
+        finally
+        {
+            if (fd >= 0)
+            {
+                _ = Close(fd);
+            }
+        }
+    }
+
     [LibraryImport("libc", EntryPoint = "open", StringMarshalling = StringMarshalling.Utf8, SetLastError = true)]
     private static partial int Open(string path, int flags);
 
@@ -369,6 +435,25 @@ public static partial class DrmModeReader
         public uint CrtcId;
         public uint PossibleCrtcs;
         public uint PossibleClones;
+    }
+
+    /// <summary>
+    /// UAPI <c>struct drm_version</c>. The three ints are followed by 4 bytes of padding before the first
+    /// pointer-sized field on a 64-bit ABI; the static constructor asserts the resulting 64-byte size against
+    /// the size encoded in the ioctl number, so a layout mistake fails at startup rather than in the kernel.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DrmVersion
+    {
+        public int VersionMajor;
+        public int VersionMinor;
+        public int VersionPatchLevel;
+        public nuint NameLen;
+        public ulong NamePtr;
+        public nuint DateLen;
+        public ulong DatePtr;
+        public nuint DescLen;
+        public ulong DescPtr;
     }
 
     [StructLayout(LayoutKind.Sequential)]
