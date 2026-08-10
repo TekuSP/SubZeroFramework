@@ -112,6 +112,7 @@ public static class Program
         builder.Services.AddSingleton<IComputeDeviceIdentityResolver, WindowsComputeDeviceIdentityResolver>();
         builder.Services.AddSingleton<IComputeUtilizationReader, WindowsPdhComputeUtilizationReader>();
         builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
+        builder.Services.AddSingleton<IDriveInventoryReader>(UnavailableDriveInventoryReader.Instance);
 #else
         // Linux has no single counter set covering every vendor the way Windows' GPU Engine does, so each
         // source is its own reader and a composite merges them: a Framework 16 with the graphics module
@@ -133,12 +134,16 @@ public static class Program
 
             // Replaces Hardware.Info's xrandr-based enumeration, which cannot work without a display server.
             builder.Services.AddSingleton<IGraphicsInventoryReader, LinuxDrmGraphicsInventoryReader>();
+            // Replaces Hardware.Info's drive list, whose Linux implementation describes mount points rather
+            // than devices and leaves every hardware field blank.
+            builder.Services.AddSingleton<IDriveInventoryReader, LinuxBlockDriveInventoryReader>();
             builder.Services.AddSingleton<IComputeDeviceIdentityResolver, LinuxComputeDeviceIdentityResolver>();
         }
         else
         {
             builder.Services.AddSingleton<IComputeUtilizationReader>(UnavailableComputeUtilizationReader.Instance);
             builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
+            builder.Services.AddSingleton<IDriveInventoryReader>(UnavailableDriveInventoryReader.Instance);
             builder.Services.AddSingleton<IComputeDeviceIdentityResolver>(UnavailableComputeDeviceIdentityResolver.Instance);
         }
 #endif

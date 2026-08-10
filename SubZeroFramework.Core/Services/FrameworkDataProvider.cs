@@ -66,6 +66,8 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     // sysfs and may parse the pci.ids database — far too much work for the one-second snapshot build.
     private readonly IGraphicsInventoryReader _graphicsInventoryReader;
     private GraphicsInventory _graphicsInventory = GraphicsInventory.Empty;
+    private readonly IDriveInventoryReader _driveInventoryReader;
+    private DriveInventory _driveInventory = DriveInventory.Empty;
 
     // Compute-accelerator identity (the NPU's model, driver and firmware). Static, so it is resolved on the
     // slow inventory tier and cached here — the Windows resolver alone costs hundreds of milliseconds.
@@ -133,7 +135,8 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         IHardwareInfoLogNoiseBuffer? hardwareInfoNoiseBuffer = null,
         IComputeUtilizationReader? computeUtilizationReader = null,
         IGraphicsInventoryReader? graphicsInventoryReader = null,
-        IComputeDeviceIdentityResolver? computeDeviceIdentityResolver = null)
+        IComputeDeviceIdentityResolver? computeDeviceIdentityResolver = null,
+        IDriveInventoryReader? driveInventoryReader = null)
     {
         _frameworkSystem = frameworkSystem;
         _hardwareInfo = hardwareInfo;
@@ -149,6 +152,9 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         // The same resolver the Windows utilization reader uses for LUID mapping also describes the devices,
         // so the NPU can be listed with a driver and firmware version rather than just a name and a percentage.
         _computeDeviceIdentityResolver = computeDeviceIdentityResolver ?? UnavailableComputeDeviceIdentityResolver.Instance;
+        // Same contract for drives: a platform whose drive enumeration comes from Hardware.Info supplies no
+        // reader here and nothing changes.
+        _driveInventoryReader = driveInventoryReader ?? UnavailableDriveInventoryReader.Instance;
         SystemStatus = _systemStatus;
         FlashSnapshots = _flashSnapshots;
         FanCapabilitiesSnapshots = _fanCapabilitiesSnapshots;
@@ -572,7 +578,17 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 _lastStaticInventoryRefreshAt = observedAt;
 
                 TryProbe("refresh the memory list", _hardwareInfo.RefreshMemoryList);
-                TryProbe("refresh the drive list", _hardwareInfo.RefreshDriveList);
+                // Same substitution the graphics reader makes below, and for the same reason: where a platform
+                // reader exists it REPLACES Hardware.Info's enumeration rather than supplementing it, so the
+                // broken shell-out never runs. On Linux that also avoids the lshw probe entirely.
+                if (_driveInventoryReader.IsAvailable)
+                {
+                    TryProbe("read the drive inventory", () => _driveInventory = _driveInventoryReader.Read());
+                }
+                else
+                {
+                    TryProbe("refresh the drive list", _hardwareInfo.RefreshDriveList);
+                }
                 TryProbe("refresh the motherboard list", _hardwareInfo.RefreshMotherboardList);
                 TryProbe("refresh the BIOS list", _hardwareInfo.RefreshBIOSList);
                 TryProbe("refresh the computer system list", _hardwareInfo.RefreshComputerSystemList);
@@ -889,7 +905,11 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
 
         try
         {
-            if (_hardwareInfo.DriveList.Count > 0)
+            if (_driveInventoryReader.IsAvailable)
+            {
+                drives = [.. _driveInventory.Drives];
+            }
+            else if (_hardwareInfo.DriveList.Count > 0)
             {
                 drives = _hardwareInfo.DriveList
                     .Select(drive => new HardwareInfoDrive(
