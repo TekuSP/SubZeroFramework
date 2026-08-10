@@ -68,6 +68,8 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     private GraphicsInventory _graphicsInventory = GraphicsInventory.Empty;
     private readonly IDriveInventoryReader _driveInventoryReader;
     private DriveInventory _driveInventory = DriveInventory.Empty;
+    private readonly IMemoryInventoryReader _memoryInventoryReader;
+    private MemoryInventory _memoryInventory = MemoryInventory.Empty;
 
     // Compute-accelerator identity (the NPU's model, driver and firmware). Static, so it is resolved on the
     // slow inventory tier and cached here — the Windows resolver alone costs hundreds of milliseconds.
@@ -136,7 +138,8 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         IComputeUtilizationReader? computeUtilizationReader = null,
         IGraphicsInventoryReader? graphicsInventoryReader = null,
         IComputeDeviceIdentityResolver? computeDeviceIdentityResolver = null,
-        IDriveInventoryReader? driveInventoryReader = null)
+        IDriveInventoryReader? driveInventoryReader = null,
+        IMemoryInventoryReader? memoryInventoryReader = null)
     {
         _frameworkSystem = frameworkSystem;
         _hardwareInfo = hardwareInfo;
@@ -152,9 +155,11 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         // The same resolver the Windows utilization reader uses for LUID mapping also describes the devices,
         // so the NPU can be listed with a driver and firmware version rather than just a name and a percentage.
         _computeDeviceIdentityResolver = computeDeviceIdentityResolver ?? UnavailableComputeDeviceIdentityResolver.Instance;
-        // Same contract for drives: a platform whose drive enumeration comes from Hardware.Info supplies no
-        // reader here and nothing changes.
+        // Same contract again for drives: a platform whose drive enumeration comes from Hardware.Info supplies
+        // no reader here and nothing changes.
         _driveInventoryReader = driveInventoryReader ?? UnavailableDriveInventoryReader.Instance;
+        // And for memory modules, whose Linux list is both wrong (it keeps lshw's container node) and sparse.
+        _memoryInventoryReader = memoryInventoryReader ?? UnavailableMemoryInventoryReader.Instance;
         SystemStatus = _systemStatus;
         FlashSnapshots = _flashSnapshots;
         FanCapabilitiesSnapshots = _fanCapabilitiesSnapshots;
@@ -577,7 +582,14 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 // until the interval elapses would reintroduce exactly the spike this exists to prevent.
                 _lastStaticInventoryRefreshAt = observedAt;
 
-                TryProbe("refresh the memory list", _hardwareInfo.RefreshMemoryList);
+                if (_memoryInventoryReader.IsAvailable)
+                {
+                    TryProbe("read the memory inventory", () => _memoryInventory = _memoryInventoryReader.Read());
+                }
+                else
+                {
+                    TryProbe("refresh the memory list", _hardwareInfo.RefreshMemoryList);
+                }
                 // Same substitution the graphics reader makes below, and for the same reason: where a platform
                 // reader exists it REPLACES Hardware.Info's enumeration rather than supplementing it, so the
                 // broken shell-out never runs. On Linux that also avoids the lshw probe entirely.
@@ -880,7 +892,11 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
 
         try
         {
-            if (_hardwareInfo.MemoryList.Count > 0)
+            if (_memoryInventoryReader.IsAvailable)
+            {
+                memoryModules = [.. _memoryInventory.Modules];
+            }
+            else if (_hardwareInfo.MemoryList.Count > 0)
             {
                 memoryModules = _hardwareInfo.MemoryList
                     .Select(memory => new HardwareInfoMemoryModule(
