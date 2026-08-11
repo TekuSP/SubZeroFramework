@@ -31,14 +31,30 @@ TimeoutStopSec=90
 #                              /dev/mem, which removes every EC access path at once.
 #   ProcSubset=pid             Hides /proc/cpuinfo and /proc/meminfo, which the hardware inventory reads.
 #   MemoryDenyWriteExecute=yes Breaks the .NET JIT.
-#   ProtectSystem=strict       Would make /etc read-only, but the persistent store lives in
-#                              /etc/subzeroframework and is relocatable to an operator-chosen path, so
-#                              enumerating ReadWritePaths cannot be done statically. "full" is correct.
+#   ProtectSystem=strict       Mounts the WHOLE hierarchy read-only, so every path the store can be
+#                              relocated to would need enumerating in ReadWritePaths, which is
+#                              impossible for an operator-chosen path. "full" plus the
+#                              ConfigurationDirectory= below covers the default store instead.
 #   ProtectKernelTunables=yes  Untested against the sysfs GPU/NPU readers; safe in principle since they
 #                              only read, but it has not been exercised on hardware yet.
+#
+# The persistent store is /etc/subzeroframework/service-settings.json, and ProtectSystem=full mounts
+# /etc READ-ONLY ("If set to full, the /etc/ directory is mounted read-only, too" — systemd.exec(5)).
+# An earlier revision of this comment claimed only "strict" did that; it was wrong, and left the service
+# unable to persist its own settings — SaveServiceConfiguration, fan-control state and the relocation
+# pointer would all have failed, and only to the log. ConfigurationDirectory= is the fix: systemd creates
+# /etc/subzeroframework and bind-mounts it, which exempts it from ProtectSystem=. It is preferred over
+# ReadWritePaths=/etc/subzeroframework because ReadWritePaths refuses to start the unit when the path
+# does not yet exist, which is exactly the state of a fresh install.
+#
+# KNOWN LIMIT: relocating the store (Settings > Service) to a path under /usr, /boot, another part of
+# /etc, or /home (blocked by ProtectHome= below) will fail while this sandbox is active. Relocating to
+# /var/lib, /opt or /srv works as-is. An operator who needs somewhere else should add a drop-in with
+# ReadWritePaths= for that path rather than weakening these directives.
 # ---------------------------------------------------------------------------------------------------
 NoNewPrivileges=yes
 ProtectSystem=full
+ConfigurationDirectory=subzeroframework
 ProtectHome=yes
 PrivateTmp=yes
 ProtectControlGroups=yes
