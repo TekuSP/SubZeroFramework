@@ -261,17 +261,31 @@ public sealed class LinuxDrmGraphicsInventoryReader(
         return 0;
     }
 
-    /// <summary>Kernel module version, e.g. /sys/module/amdgpu/version. Absent for in-tree modules built-in.</summary>
-    private static string? ReadDriverVersion(CardRecord card)
+    /// <summary>
+    /// Kernel module version, e.g. /sys/module/nvidia/version, falling back to the driver's own DRM version.
+    /// </summary>
+    /// <remarks>
+    /// The module attribute only exists for out-of-tree modules, so on a machine running any in-tree driver
+    /// (i915, amdgpu, nouveau — i.e. most machines) it is absent and this used to report nothing. The DRM
+    /// VERSION ioctl answers for every driver, so it backs the sysfs path rather than replacing it: where a
+    /// module version exists it is the more specific answer (NVIDIA's "580.82.09" beats its DRM triple).
+    /// </remarks>
+    private string? ReadDriverVersion(CardRecord card)
     {
-        if (string.IsNullOrWhiteSpace(card.Driver))
+        if (!string.IsNullOrWhiteSpace(card.Driver))
         {
-            return null;
+            // The module version path is outside the DRM tree, so it is derived from the sysfs root of the card.
+            var moduleVersion = DrmSysfs.ReadAttribute(Path.Combine("/sys", "module", card.Driver, "version"));
+            if (!string.IsNullOrWhiteSpace(moduleVersion))
+            {
+                return moduleVersion;
+            }
         }
 
-        // The module version path is outside the DRM tree, so it is derived from the sysfs root of the card.
-        var moduleVersion = DrmSysfs.ReadAttribute(Path.Combine("/sys", "module", card.Driver, "version"));
-        return string.IsNullOrWhiteSpace(moduleVersion) ? null : moduleVersion;
+        // "card0" -> 0; the DRM device node index matches the sysfs card index.
+        return int.TryParse(card.CardName.AsSpan(4), out var cardIndex)
+            ? DrmModeReader.ReadDriverVersion(cardIndex, logger)
+            : null;
     }
 
     /// <summary>
