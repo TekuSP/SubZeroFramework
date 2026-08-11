@@ -18,8 +18,14 @@ namespace SubZeroFramework.Tests;
 /// The empty-slot case is the one that motivated this reader: firmware publishes a structure for every socket
 /// whether or not it holds a module, and Hardware.Info compounded that by also reporting lshw's container node,
 /// so a two-stick machine listed three modules.
+///
+/// Gated to Linux at the maintainer's request. Nothing in the parse itself is platform-specific — the table
+/// is a byte array and the fixtures are hand-built — but the reader exists only for the Linux DI branch, and
+/// /sys/firmware/dmi/tables/DMI is the Linux path to SMBIOS, so the fixture is marked with the reader it
+/// covers rather than left running against a table layout that platform never reads this way.
 /// </remarks>
 [TestFixture]
+[Platform("Linux")]
 public class LinuxDmiMemoryInventoryReaderTests
 {
     private string _tablePath = string.Empty;
