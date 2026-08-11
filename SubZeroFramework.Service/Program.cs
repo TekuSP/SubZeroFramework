@@ -113,6 +113,7 @@ public static class Program
         builder.Services.AddSingleton<IComputeUtilizationReader, WindowsPdhComputeUtilizationReader>();
         builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
         builder.Services.AddSingleton<IDriveInventoryReader>(UnavailableDriveInventoryReader.Instance);
+        builder.Services.AddSingleton<IMemoryInventoryReader>(UnavailableMemoryInventoryReader.Instance);
 #else
         // Linux has no single counter set covering every vendor the way Windows' GPU Engine does, so each
         // source is its own reader and a composite merges them: a Framework 16 with the graphics module
@@ -137,6 +138,9 @@ public static class Program
             // Replaces Hardware.Info's drive list, whose Linux implementation describes mount points rather
             // than devices and leaves every hardware field blank.
             builder.Services.AddSingleton<IDriveInventoryReader, LinuxBlockDriveInventoryReader>();
+            // Replaces Hardware.Info's memory list, which keeps lshw's "System Memory" container node as a
+            // phantom module and leaves every identifying field blank.
+            builder.Services.AddSingleton<IMemoryInventoryReader, LinuxDmiMemoryInventoryReader>();
             builder.Services.AddSingleton<IComputeDeviceIdentityResolver, LinuxComputeDeviceIdentityResolver>();
         }
         else
@@ -144,6 +148,7 @@ public static class Program
             builder.Services.AddSingleton<IComputeUtilizationReader>(UnavailableComputeUtilizationReader.Instance);
             builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
             builder.Services.AddSingleton<IDriveInventoryReader>(UnavailableDriveInventoryReader.Instance);
+            builder.Services.AddSingleton<IMemoryInventoryReader>(UnavailableMemoryInventoryReader.Instance);
             builder.Services.AddSingleton<IComputeDeviceIdentityResolver>(UnavailableComputeDeviceIdentityResolver.Instance);
         }
 #endif
