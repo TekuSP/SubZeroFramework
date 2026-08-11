@@ -19,8 +19,15 @@ namespace SubZeroFramework.Tests;
 /// That last case is the one that started this: the kernel escapes a space as <c>\040</c> in
 /// <c>/proc/mounts</c>, .NET's own mount enumeration does not decode it, and the resulting DriveInfo throws
 /// when asked for anything that stats the path — which is what made Hardware.Info's entire drive list throw.
+///
+/// Gated to Linux despite the tree being synthetic. Free-space attribution goes through
+/// <see cref="DriveInfo"/>, whose constructor accepts a mount point on Unix but requires a drive ROOT on
+/// Windows, so the space assertions describe Unix semantics rather than the parse itself. The parsing tests
+/// alongside them would pass anywhere; they are gated with the rest rather than split, so the fixture has one
+/// platform story instead of two.
 /// </remarks>
 [TestFixture]
+[Platform("Linux")]
 public class LinuxBlockDriveInventoryReaderTests
 {
     private string _root = string.Empty;
