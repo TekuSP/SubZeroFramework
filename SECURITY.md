@@ -23,9 +23,20 @@ They speak gRPC over a **local-only** transport — a Unix domain socket on Linu
 location, with expected-path validation, symlink/reparse protection, and permission checks. **No network
 listener is opened**, and nothing is transmitted off the machine.
 
-Fan-control commands are **fail-closed**: the service refuses them unless `AllowFanControlCommands` has
-been explicitly enabled in its configuration. A default install cannot change fan behaviour until the user
-opts in.
+Fan-control commands are **off by default**: the service refuses them unless `AllowFanControlCommands` has
+been explicitly enabled. A default install does not change fan behaviour until someone opts in.
+
+**Be clear about what that is and is not.** The opt-in is a safety default, **not an authorization
+boundary**. It is settable over the same local socket it gates, so any local process that can reach the
+socket can turn it on and then issue fan-control commands — no elevation, no user interaction. Until
+caller-identity validation lands (see below), the flag protects you from *accident*, not from a *local
+adversary*. Earlier revisions of this document described the gating as "fail-closed" and said a default
+install "cannot" change fan behaviour; that overstated it, and the wording is corrected here rather than
+left to imply a guarantee the implementation does not make.
+
+Keeping the flag settable over the socket is a deliberate trade for 0.1.x: the in-app toggle is how users
+are expected to enable fan control, and moving it to a root-only file would remove that. The residual risk
+is accepted knowingly and stated here rather than assumed away.
 
 ## Known and accepted limitations in 0.1.0
 
@@ -34,9 +45,12 @@ release, with the reasoning recorded in
 [`SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md`](SubZeroFramework/Docs/IpcAuthorizationAndUiCadence.md).
 
 - **Caller-identity validation is not enforced** (`HasCallerIdentityValidation = false`). Any local process
-  able to reach the socket can issue RPCs subject to the fail-closed gating above. The mitigations relied
-  on are the local-only machine-scoped transport, path/permission validation, and the explicit
-  fan-control opt-in. The app surfaces this state in its Warnings page rather than hiding it.
+  able to reach the socket can issue any RPC, **including the one that enables fan control** — so the
+  opt-in does not compensate for this limitation, it shares it. The mitigations actually relied on are the
+  local-only machine-scoped transport and path/permission validation. On Linux the socket is world-
+  connectable by design (`connect(2)` needs write permission on the socket file and the client is
+  unprivileged), so on a multi-user machine this means *any* local account, not only your own.
+  The app surfaces this state in its Warnings page rather than hiding it.
   Post-MVP hardening options under consideration: `SO_PEERCRED` on Linux; on Windows either a named-pipe
   transport with client impersonation, or socket-ACL ownership checks.
 - **Release binaries are not code-signed.** Windows SmartScreen will warn on the installer. Verify what you

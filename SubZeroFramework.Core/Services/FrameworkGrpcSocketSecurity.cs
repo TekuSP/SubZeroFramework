@@ -178,6 +178,18 @@ public static class FrameworkGrpcSocketSecurity
 
         if (OperatingSystem.IsWindows())
         {
+            // The PARENT holds service-settings.json and user-preferences.json, and previously received no
+            // hardening at all — only the ipc leaf did. Under the inherited %ProgramData% ACL that left the
+            // desktop user owning the directory containing the LocalSystem service's own configuration, with
+            // full control over it, which reaches the fan-control opt-in by simply editing the file. It is
+            // hardened first and more tightly than the leaf: clients never need to write here, only to
+            // traverse it on the way to the socket.
+            var parentDirectoryPath = Path.GetDirectoryName(directoryPath);
+            if (!string.IsNullOrEmpty(parentDirectoryPath))
+            {
+                TryHardenWindowsDirectoryAccessControl(parentDirectoryPath, FileSystemRights.ReadAndExecute);
+            }
+
             TryHardenWindowsDirectory(directoryPath);
         }
 
@@ -295,6 +307,17 @@ public static class FrameworkGrpcSocketSecurity
 
         while (currentDirectory is not null)
         {
+            // A level that does not exist yet cannot be a link or a reparse point, and asking for its
+            // Attributes THROWS. Now that GetPath no longer creates the directory (creation is the service's
+            // job alone — see FrameworkGrpcSocketPath.GetPath), the client validates this path before the
+            // service has ever run, so a missing level is the normal state on a machine where the service is
+            // not installed, not an error.
+            if (!currentDirectory.Exists)
+            {
+                currentDirectory = currentDirectory.Parent;
+                continue;
+            }
+
             if (currentDirectory.LinkTarget is not null)
             {
                 return "The gRPC socket directory cannot be a symbolic link.";
@@ -335,7 +358,9 @@ public static class FrameworkGrpcSocketSecurity
     }
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    private static void TryHardenWindowsDirectoryAccessControl(string directoryPath)
+    private static void TryHardenWindowsDirectoryAccessControl(
+        string directoryPath,
+        FileSystemRights interactiveUserRights = FileSystemRights.Modify | FileSystemRights.Synchronize)
     {
         try
         {
@@ -343,9 +368,15 @@ public static class FrameworkGrpcSocketSecurity
             var directorySecurity = directoryInfo.GetAccessControl();
             var inheritanceFlags = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
             const PropagationFlags propagationFlags = PropagationFlags.None;
-            var currentUserSid = WindowsIdentity.GetCurrent().User;
 
-            directorySecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: true);
+            // preserveInheritance: FALSE. It used to be true, which does not mean "keep inheriting" — it
+            // COPIES the inherited ACEs down as explicit ones and then protects them. Under the default
+            // %ProgramData% ACL that includes CREATOR OWNER: whichever account created the directory keeps
+            // full control over it, and the app runs unprivileged and calls GetPath() too, so a standard user
+            // who gets there first ends up owning the LocalSystem service's directory permanently. Dropping
+            // the inherited set and stating the ACL explicitly is the only way to be sure what is on it.
+            directorySecurity.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
             directorySecurity.AddAccessRule(new FileSystemAccessRule(
                 new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
                 FileSystemRights.FullControl,
@@ -359,17 +390,37 @@ public static class FrameworkGrpcSocketSecurity
                 propagationFlags,
                 AccessControlType.Allow));
 
-            if (currentUserSid is not null)
-            {
-                directorySecurity.AddAccessRule(new FileSystemAccessRule(
-                    currentUserSid,
-                    FileSystemRights.FullControl,
-                    inheritanceFlags,
-                    propagationFlags,
-                    AccessControlType.Allow));
-            }
+            // Interactive users need this directory to reach the socket — the app is unprivileged and every
+            // desktop account must be able to connect, so the grant is to Users rather than to whichever
+            // account happened to run first. Modify, not FullControl: it is enough to open and use the
+            // socket, while withholding the ownership and ACL-editing rights that CREATOR OWNER conferred.
+            directorySecurity.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null),
+                interactiveUserRights,
+                inheritanceFlags,
+                propagationFlags,
+                AccessControlType.Allow));
 
+            // DACL first, and ALONE. SetOwner must not share this call: SetAccessControl writes every section
+            // the object has been given, so a caller that cannot change ownership fails the whole write and
+            // loses the DACL with it. That is not hypothetical — setting the owner here in one pass silently
+            // left both directories on their inherited ACEs, which is exactly the permissive state this
+            // method exists to replace.
             directoryInfo.SetAccessControl(directorySecurity);
+
+            // Ownership second, on its own object, so failure costs nothing already applied. It matters
+            // because an owner can rewrite the ACL regardless of what it says — leaving the creating account
+            // as owner would let it undo the hardening above. Only the elevated service can do this; the
+            // unprivileged app leaves it, and the service corrects it on its next start.
+            try
+            {
+                var ownerSecurity = directoryInfo.GetAccessControl();
+                ownerSecurity.SetOwner(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null));
+                directoryInfo.SetAccessControl(ownerSecurity);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or UnauthorizedAccessException or PrivilegeNotHeldException)
+            {
+            }
         }
         catch (InvalidOperationException)
         {

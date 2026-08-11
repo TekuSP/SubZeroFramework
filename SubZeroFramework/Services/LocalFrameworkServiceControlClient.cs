@@ -346,7 +346,8 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
 
         if (OperatingSystem.IsWindows())
         {
-            return [CreateWindowsElevatedCmdProcess($"net.exe stop {QuoteWindowsArgument(_options.WindowsServiceName)} & net.exe start {QuoteWindowsArgument(_options.WindowsServiceName)}")];
+            var net = QuoteWindowsArgument(ResolveSystemExecutable("net.exe"));
+            return [CreateWindowsElevatedCmdProcess($"{net} stop {QuoteWindowsArgument(_options.WindowsServiceName)} & {net} start {QuoteWindowsArgument(_options.WindowsServiceName)}")];
         }
 
         if (OperatingSystem.IsLinux())
@@ -419,7 +420,9 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
 
         if (OperatingSystem.IsWindows())
         {
-            return [CreateWindowsElevatedCmdProcess($"net.exe stop {QuoteWindowsArgument(_options.WindowsServiceName)} & sc.exe delete {QuoteWindowsArgument(_options.WindowsServiceName)}")];
+            return [CreateWindowsElevatedCmdProcess(
+                $"{QuoteWindowsArgument(ResolveSystemExecutable("net.exe"))} stop {QuoteWindowsArgument(_options.WindowsServiceName)}"
+                + $" & {QuoteWindowsArgument(ResolveSystemExecutable("sc.exe"))} delete {QuoteWindowsArgument(_options.WindowsServiceName)}")];
         }
 
         if (OperatingSystem.IsLinux())
@@ -658,16 +661,34 @@ public sealed class LocalFrameworkServiceControlClient : IFrameworkServiceContro
             .Select(candidate => Path.GetFullPath(candidate!))
             .FirstOrDefault(Directory.Exists);
 
+    /// <summary>
+    /// Resolves a Windows system executable to its absolute path under System32.
+    /// </summary>
+    /// <remarks>
+    /// ShellExecute resolves a BARE file name against the current working directory and PATH, not just
+    /// System32. Every one of these launches runs elevated ("runas"), so anything able to write to the app's
+    /// working directory — or to a PATH entry — could plant net.exe/sc.exe/cmd.exe and have it run as
+    /// Administrator the moment the user approves the UAC prompt for Restart, Stop or Uninstall. The prompt
+    /// would name the operation the user actually asked for, so it offers no warning.
+    ///
+    /// Same treatment already applied to msiexec in <c>WindowsApplicationUninstaller</c>; this brings the
+    /// service-control launches in line with it.
+    /// </remarks>
+    private static string ResolveSystemExecutable(string fileName)
+        => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), fileName);
+
     private static ProcessStartInfo CreateWindowsElevatedProcess(string fileName, string arguments)
         => new()
         {
-            FileName = fileName,
+            FileName = ResolveSystemExecutable(fileName),
             Arguments = arguments,
             UseShellExecute = true,
             Verb = "runas",
             WindowStyle = ProcessWindowStyle.Hidden,
         };
 
+    // The command string is passed to cmd.exe, which resolves the executables INSIDE it by its own rules, so
+    // the names embedded in those commands are made absolute at their call sites too.
     private static ProcessStartInfo CreateWindowsElevatedCmdProcess(string command)
         => CreateWindowsElevatedProcess("cmd.exe", $"/c {command}");
 

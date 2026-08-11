@@ -9,6 +9,12 @@ namespace SubZeroFramework.Service.Services;
 
 public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.FrameworkFanControlServiceBase
 {
+    /// <summary>
+    /// Upper bound on curve points accepted from a client. Comfortably above anything the editor can produce
+    /// (one point per editable degree would be ~110) while keeping per-evaluation work bounded.
+    /// </summary>
+    private const int MaxCurvePoints = 256;
+
     private readonly FrameworkFanControlAuthorizationService _authorizationService;
     private readonly IFrameworkDataProvider _frameworkDataProvider;
     private readonly FrameworkFanControlStateStore _fanControlStateStore;
@@ -131,6 +137,44 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             if (request.CurvePoints.Count < 2)
             {
                 throw new ArgumentOutOfRangeException(nameof(request.CurvePoints), "Custom fan curve requires at least two points.");
+            }
+
+            // Point count, temperature range and duty range were previously unchecked, so a client could send
+            // anything the wire format allowed. Three concrete consequences, all reachable:
+            //
+            //   * A point at or above FanCurveDomain.MaxTemperatureCelsius suppresses the implicit 100% anchor
+            //     (see BuildAnchoredSeries), so {0:0, 1000000:0} evaluated to 0% at EVERY temperature — a fan
+            //     pinned off with no thermal backstop but the firmware's own critical shutdown.
+            //   * A non-finite duty survives Math.Clamp unchanged (NaN compares false against both bounds), then
+            //     throws inside SetFanDutyAsync once per fan per evaluation, forever.
+            //   * An unbounded point count is unbounded work per evaluation on the EC write path.
+            //
+            // The UI already constrains all three; this is the boundary saying so rather than trusting it.
+            if (request.CurvePoints.Count > MaxCurvePoints)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(request.CurvePoints),
+                    $"Custom fan curve accepts at most {MaxCurvePoints} points.");
+            }
+
+            foreach (var (temperature, duty) in request.CurvePoints)
+            {
+                if (temperature < FanCurveDomain.EditableMinTemperatureCelsius
+                    || temperature > FanCurveDomain.EditableMaxTemperatureCelsius)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(request.CurvePoints),
+                        $"Curve temperatures must be between {FanCurveDomain.EditableMinTemperatureCelsius} and {FanCurveDomain.EditableMaxTemperatureCelsius} °C; got {temperature}.");
+                }
+
+                if (!double.IsFinite(duty)
+                    || duty < FanCurveDomain.MinSpeedDutyPercent
+                    || duty > FanCurveDomain.MaxSpeedDutyPercent)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(request.CurvePoints),
+                        $"Curve duties must be a finite value between {FanCurveDomain.MinSpeedDutyPercent} and {FanCurveDomain.MaxSpeedDutyPercent}; got {duty}.");
+                }
             }
 
             if (!TelemetryGrpcMapper.TryParseTemperatureAggregationMode(request.DrivingTemperatureAggregation, out var aggregationMode))
@@ -386,6 +430,16 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
     public override async Task HoldFanPreview(HoldFanPreviewRequest request, IServerStreamWriter<HoldFanPreviewReply> responseStream, ServerCallContext context)
     {
         var fanIndex = request.FanIndex;
+
+        // This was the ONE mutating path on this service with no authorization check, and it is genuinely
+        // mutating: the finally block below reverts the fan by calling SetFanDutyAsync / RestoreAutoFanControl
+        // directly, and FrameworkDataProvider.EnsureWritableConnection only checks that EC polling is live —
+        // it never consults this service. So opening a hold and disconnecting wrote the persisted Manual duty
+        // (or 100% for Max) to the EC with AllowFanControlCommands still false, which is precisely the
+        // fail-closed guarantee SECURITY.md makes. Checked up front so no hold is ever opened — and therefore
+        // no revert is ever owed — while commands are disabled.
+        _authorizationService.EnsureCommandAccess();
+
         _logger.LogInformation("Opening preview hold for fan {FanIndex}.", fanIndex);
 
         // Capture the fan's current (applied) state before any preview command mutates it. The client waits
@@ -440,6 +494,32 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
     {
         // Matches the client/service default manual duty when a Manual pre-state never recorded one.
         const double defaultManualDutyPercent = 50d;
+
+        // Re-checked here as well as at HoldFanPreview's entry, because AllowFanControlCommands is settable
+        // over the same socket WHILE a hold is open: a hold opened legitimately can outlive the permission it
+        // was opened under. If the service may no longer write duty, it may not write it on the way out
+        // either — the fan simply stays where it is, which is the safe reading of "commands are disabled".
+        // Restoring firmware control is deliberately still allowed below: handing the EC back is the one
+        // action that is always safe and is what disabling fan control should converge on.
+        if (!_authorizationService.IsFanControlEnabled && prePreview.Mode is FanControlMode.Manual or FanControlMode.Max)
+        {
+            _logger.LogWarning(
+                "Fan control was disabled while fan {FanIndex} had an open preview; returning it to firmware control instead of re-applying {Mode}.",
+                fanIndex,
+                prePreview.Mode);
+
+            try
+            {
+                await _frameworkDataProvider.RestoreAutoFanControlAsync(fanIndex, cancellationToken).ConfigureAwait(false);
+                _fanControlStateStore.MarkAuto(fanIndex);
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(exception, "Failed to return fan {FanIndex} to firmware control after fan control was disabled.", fanIndex);
+            }
+
+            return;
+        }
 
         try
         {

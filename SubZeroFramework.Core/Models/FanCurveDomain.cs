@@ -68,7 +68,17 @@ public static class FanCurveDomain
     {
         ArgumentNullException.ThrowIfNull(curvePoints);
 
+        // Points at or beyond the top of the domain are DISCARDED rather than kept, and the full-speed anchor
+        // is then appended unconditionally. The anchor used to be conditional on the last point sitting below
+        // MaxTemperatureCelsius, which meant a single point at or above it removed the backstop entirely: a
+        // curve of {0:0, 1000000:0} evaluated to 0% at every temperature, leaving nothing between the fan and
+        // the firmware's critical-temperature shutdown. The editor cannot produce such a point (it clamps to
+        // EditableMaxTemperatureCelsius) and the RPC boundary now rejects one, but this is the single
+        // evaluation path for both the client readout and the worker that writes the EC, so it enforces the
+        // guarantee its own summary makes — always full speed by the top of the domain — rather than assuming
+        // its callers already did. A persisted or hand-edited curve from an older build reaches here too.
         var ordered = curvePoints
+            .Where(static point => point.Temperature < MaxTemperatureCelsius)
             .OrderBy(static point => point.Temperature)
             .Select(static point => ((double)point.Temperature, point.Duty))
             .ToList();
@@ -85,11 +95,7 @@ public static class FanCurveDomain
         }
 
         series.AddRange(ordered);
-
-        if (ordered[^1].Item1 < MaxTemperatureCelsius)
-        {
-            series.Add((MaxTemperatureCelsius, MaxSpeedDutyPercent));
-        }
+        series.Add((MaxTemperatureCelsius, MaxSpeedDutyPercent));
 
         return series;
     }

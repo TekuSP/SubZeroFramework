@@ -103,4 +103,45 @@ public class FanCurveDomainTests
 
         Assert.That(FanCurveDomain.Normalize(once), Is.EqualTo(once));
     }
+
+    [Test]
+    public void InterpolateDuty_CannotBePinnedOffByAPointAtTheTopOfTheDomain()
+    {
+        // The reported bypass: a point at or above MaxTemperatureCelsius used to suppress the implicit
+        // full-speed anchor, so this curve evaluated to 0% at EVERY temperature with nothing between the fan
+        // and the firmware's critical-temperature shutdown.
+        (int, double)[] pinnedOff = [(0, 0d), (1_000_000, 0d)];
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(FanCurveDomain.InterpolateDuty(pinnedOff, FanCurveDomain.MaxTemperatureCelsius),
+                Is.EqualTo(FanCurveDomain.MaxSpeedDutyPercent),
+                "the top of the domain must always be full speed");
+            Assert.That(FanCurveDomain.InterpolateDuty(pinnedOff, 100d), Is.GreaterThan(0d),
+                "a curve cannot hold the fan at zero as the domain top is approached");
+        });
+    }
+
+    [Test]
+    public void BuildAnchoredSeries_AlwaysEndsAtFullSpeedAtTheTopOfTheDomain()
+    {
+        // Whatever the caller supplies — including a point exactly ON the boundary, which is what made the
+        // old conditional anchor drop out.
+        (int, double)[][] curves =
+        [
+            [(0, 0d), (FanCurveDomain.MaxTemperatureCelsius, 0d)],
+            [(0, 0d), (200, 5d)],
+            [(40, 30d), (80, 60d)],
+        ];
+
+        foreach (var curve in curves)
+        {
+            var series = FanCurveDomain.BuildAnchoredSeries(curve);
+
+            Assert.That(series[^1], Is.EqualTo((
+                (double)FanCurveDomain.MaxTemperatureCelsius,
+                FanCurveDomain.MaxSpeedDutyPercent)),
+                $"curve [{string.Join(", ", curve)}] must close on the full-speed anchor");
+        }
+    }
 }
