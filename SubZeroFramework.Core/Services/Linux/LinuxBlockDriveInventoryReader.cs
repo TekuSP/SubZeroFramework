@@ -289,18 +289,38 @@ public sealed class LinuxBlockDriveInventoryReader(
     /// Turns a <c>/dev</c> path into the kernel's own device name, following symlinks so
     /// <c>/dev/mapper/cr_root</c> resolves to <c>dm-0</c>.
     /// </summary>
+    /// <remarks>
+    /// Falls back to the path's last segment when the node cannot be resolved, and that fallback is the
+    /// point rather than a nicety. ResolveLinkTarget THROWS when the path does not exist, and returning null
+    /// there dropped the whole mount — so a single absent device node cost the backing disk its entire
+    /// free-space figure, silently. That is not a corner case: /dev is not fully populated in containers, a
+    /// device can disappear between reading the mount table and resolving it, and a machine with no
+    /// device-mapper at all has no /dev/dm-N to resolve.
+    ///
+    /// The fallback is also simply CORRECT for the common case: every non-symlink device path already ends
+    /// in the kernel's own name (/dev/nvme0n1p2, /dev/sda1, /dev/dm-0), so the last segment is the answer
+    /// resolution would have produced. Only /dev/mapper/&lt;name&gt; and /dev/disk/by-*/&lt;id&gt; need the
+    /// symlink walk, and those still get it whenever /dev is readable. A name that resolves to nothing in
+    /// sysfs is discarded by the caller anyway.
+    /// </remarks>
     private static string? ResolveKernelDeviceName(string devicePath)
     {
         try
         {
             var resolved = File.ResolveLinkTarget(devicePath, returnFinalTarget: true)?.FullName ?? devicePath;
             var name = Path.GetFileName(resolved);
-            return string.IsNullOrEmpty(name) ? null : name;
+            if (!string.IsNullOrEmpty(name))
+            {
+                return name;
+            }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            return null;
+            // The node is absent or unreadable; the literal name below is still worth trying.
         }
+
+        var literalName = Path.GetFileName(devicePath);
+        return string.IsNullOrEmpty(literalName) ? null : literalName;
     }
 
     /// <summary>
