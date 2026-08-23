@@ -115,7 +115,15 @@ jobs:
       - name: Install UNO Workloads
         run: uno-check -v --ci --non-interactive --fix --target windows --skip vswin --skip vsmac --skip xcode --skip vswinworkloads --skip androidemulator --skip dotnetnewunotemplates
 
+      # Skipped when the token is absent, which is every PR from a FORK: those runs get no secrets, so the
+      # expression below resolves to an empty string and `dotnet nuget add source --password ""` exits 1
+      # before a single project is compiled — the whole run then dies on a credential it never needed.
+      # Nothing here requires the GitHub registry: every package this solution pins, FrameworkDotnet 0.8.213
+      # included, resolves from nuget.org (verified with a clean package cache and nuget.org as the only
+      # source). The registry stays configured for maintainer runs so a future private prerelease works, but
+      # its absence must never be what fails a contributor's build.
       - name: Add GitHub Package Registry as a NuGet Source
+        if: ${{ env.GITHUB_TOKEN != '' }}
         run: dotnet nuget add source --store-password-in-clear-text --name "GitHub" https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --username "${{ github.actor }}" --password "${{ env.GITHUB_TOKEN }}"
 
       # -p:Configuration=Release is required, not cosmetic: Uno.Sdk conditions the Uno.WinUI.DevServer
@@ -216,6 +224,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "WiX build failed ($LASTEXITCODE)." }
 
       - name: Upload Windows installer artifact
+        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v7
         continue-on-error: false
         with:
@@ -308,6 +317,7 @@ jobs:
           cp /home/builder/aur/*.pkg.tar.zst packages/arch/
 
       - name: Upload Arch package artifact
+        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v7
         continue-on-error: false
         with:
@@ -420,7 +430,15 @@ jobs:
       - name: Install UNO Workloads
         run: uno-check -v --ci --non-interactive --fix --target desktop --skip vswin --skip vsmac --skip xcode --skip vswinworkloads --skip androidemulator --skip dotnetnewunotemplates
 
+      # Skipped when the token is absent, which is every PR from a FORK: those runs get no secrets, so the
+      # expression below resolves to an empty string and `dotnet nuget add source --password ""` exits 1
+      # before a single project is compiled — the whole run then dies on a credential it never needed.
+      # Nothing here requires the GitHub registry: every package this solution pins, FrameworkDotnet 0.8.213
+      # included, resolves from nuget.org (verified with a clean package cache and nuget.org as the only
+      # source). The registry stays configured for maintainer runs so a future private prerelease works, but
+      # its absence must never be what fails a contributor's build.
       - name: Add GitHub Package Registry as a NuGet Source
+        if: ${{ env.GITHUB_TOKEN != '' }}
         run: dotnet nuget add source --store-password-in-clear-text --name "GitHub" https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json --username "${{ github.actor }}" --password "${{ env.GITHUB_TOKEN }}"
 
       # NOTE: do NOT add -p:TargetFrameworks here. It is a GLOBAL property, so MSBuild and NuGet flow it into
@@ -502,6 +520,7 @@ jobs:
           retention-days: 1
 
       - name: Upload build artifact
+        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v7
         continue-on-error: false
         with:
