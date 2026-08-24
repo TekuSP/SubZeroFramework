@@ -75,9 +75,11 @@ public sealed record HardwareInfoMonitor(
         }
     }
 
-    public string DisplayCurrentRefreshRate => CurrentRefreshRate > 0
-        ? $"{CurrentRefreshRate:N0} Hz"
-        : "Unknown";
+    /// <summary>
+    /// Refresh rate in canonical hertz, or null when the monitor reports none. Formatted for display by the
+    /// units converter, which is why there is no pre-formatted "… Hz" counterpart.
+    /// </summary>
+    public double? CurrentRefreshRateHertz => CurrentRefreshRate > 0 ? CurrentRefreshRate : null;
 
     public string DisplayLinkedVideoControllerSummary => LinkedVideoControllerDisplayNames.Length == 0
         ? "No linked graphics adapter reported"

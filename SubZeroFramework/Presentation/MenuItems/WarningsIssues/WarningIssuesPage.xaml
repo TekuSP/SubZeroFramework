@@ -2,6 +2,7 @@
     x:Class="SubZeroFramework.Presentation.MenuItems.WarningsIssues.WarningIssuesPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -22,7 +23,7 @@
     </Page.Resources>
 
     <Grid utu:SafeArea.Insets="VisibleBounds">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer controls:ScrollHint.IsEnabled="True" VerticalScrollBarVisibility="Auto">
             <!--  Centered recovery hero: one layout, themed per state severity (recovery / limited /
                   read-only / all-clear), so every distinct warning and error message reuses it.  -->
             <StackPanel

@@ -42,22 +42,33 @@ public sealed partial class FanCurveEditorView : UserControl, INotifyPropertyCha
         }
     } = default!;
 
+    /// <summary>
+    /// Reads the pointer position as CANONICAL Celsius and percent.
+    /// </summary>
+    /// <remarks>
+    /// The chart plots in DISPLAY units, so <c>ScalePixelsToData</c> hands back the user's units — °F, or a
+    /// 0–1 duty fraction. Everything downstream (FanCurveDomain.ClampTemperature, the draft, the EC) speaks
+    /// canonical, so the inverse conversion happens HERE, once, at the single point where pointer input
+    /// enters the model. Skipping it would store a point dragged to the tick reading 150 °F as 150 °C.
+    /// </remarks>
     private bool TryGetChartData(PointerRoutedEventArgs e, out double temperature, out double duty)
+        => TryScaleToCanonical(e.GetCurrentPoint(CurveChart).Position, out temperature, out duty);
+
+    private bool TryScaleToCanonical(Windows.Foundation.Point position, out double temperature, out double duty)
     {
         temperature = 0d;
         duty = 0d;
 
         var chart = (ICartesianChartView)CurveChart;
-        var position = e.GetCurrentPoint(CurveChart).Position;
         var scaled = chart.ScalePixelsToData(new LvcPointD(position.X, position.Y));
 
-        if (double.IsNaN(scaled.X) || double.IsNaN(scaled.Y))
+        if (double.IsNaN(scaled.X) || double.IsNaN(scaled.Y) || ViewModel?.CurveChart is not { } curveChart)
         {
             return false;
         }
 
-        temperature = scaled.X;
-        duty = scaled.Y;
+        temperature = curveChart.ToCanonicalTemperature(scaled.X);
+        duty = curveChart.ToCanonicalDuty(scaled.Y);
         return true;
     }
 
@@ -109,12 +120,11 @@ public sealed partial class FanCurveEditorView : UserControl, INotifyPropertyCha
     {
         if (ViewModel is null) return;
 
-        var chart = (ICartesianChartView)CurveChart;
-        var position = e.GetPosition(CurveChart);
-        var scaled = chart.ScalePixelsToData(new LvcPointD(position.X, position.Y));
-        if (double.IsNaN(scaled.X) || double.IsNaN(scaled.Y)) return;
+        // Same canonical inverse as the drag path — a right-tap that skipped it would hit-test Fahrenheit
+        // coordinates against Celsius points and delete whatever happened to be near the wrong place.
+        if (!TryScaleToCanonical(e.GetPosition(CurveChart), out var temperature, out var duty)) return;
 
-        var existing = ViewModel.FindNearestCurvePoint(scaled.X, scaled.Y, DragHitTemperatureRadius, DragHitDutyRadius);
+        var existing = ViewModel.FindNearestCurvePoint(temperature, duty, DragHitTemperatureRadius, DragHitDutyRadius);
         if (existing is not null && ViewModel.RemoveCurvePointCommand.CanExecute(existing))
         {
             ViewModel.RemoveCurvePointCommand.Execute(existing);

@@ -142,7 +142,11 @@ public class FrameworkShutdownCoordinatorTests
 
         public bool SetPolling(TimeSpan pollingInterval) => true;
 
+        public bool SetSecondaryPolling(TimeSpan pollingInterval) => true;
+
         public bool SetHardwareInfoPolling(TimeSpan pollingInterval) => true;
+
+        public ObservedControlTelemetry GetLatestControlTelemetry() => ObservedControlTelemetry.None;
 
         public bool StartPolling() => true;
 

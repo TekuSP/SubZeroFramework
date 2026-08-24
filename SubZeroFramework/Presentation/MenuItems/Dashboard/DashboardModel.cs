@@ -197,7 +197,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
                         _fanCardsByIndex[change.Key] = fan;
 
-                        var quickFan = new FanQuickControlModel(fan);
+                        var quickFan = new FanQuickControlModel(fan, _unitFormattingService);
                         _quickFansByIndex[change.Key] = quickFan;
                         InsertSorted(_quickFans, quickFan, model => model.FanIndex);
                         continue;
@@ -332,6 +332,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
         UpdateAverageFanSpeed();
         UpdateThermalSummary();
         UpdatePowerSummary();
+        BatteryChargeUnitSuffix = _unitFormattingService.RatioUnitSuffix;
+
+        // The canonical readings on this page are formatted by UnitFormatConverter at render time, so they
+        // only need their bindings to run again — that is what the null property name asks for. See
+        // UnitFormatConverter.
+        OnPropertyChanged(propertyName: null);
     }
 
     // ----- Cooling profile presets (one preset applied to every fan; selection derived from live states) -----
@@ -352,8 +358,9 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private const double BalancedDutyPercent = 45d;
     private const double PerformanceDutyPercent = 65d;
 
+    /// <summary>Average speed across available fans, canonical RPM; null until a fan reports. Formatted by UnitFormatConverter.</summary>
     [ObservableProperty]
-    public partial string AverageFanSpeedDisplay { get; set; } = "--";
+    public partial double? AverageFanSpeedRpm { get; set; }
 
     [ObservableProperty]
     public partial string CoolingProfileSubtitle { get; set; } = "Coming soon";
@@ -418,13 +425,14 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .Select(fan => fan.Snapshot.SpeedRpm)
             .ToArray();
 
-        AverageFanSpeedDisplay = speeds.Length == 0 ? "--" : _unitFormattingService.FormatFanSpeed(speeds.Average());
+        AverageFanSpeedRpm = speeds.Length == 0 ? null : speeds.Average();
     }
 
     // ----- Thermal snapshot summary -----
 
+    /// <summary>Hottest available sensor, canonical Celsius; null until one reports. Formatted by UnitFormatConverter.</summary>
     [ObservableProperty]
-    public partial string DrivingTemperatureDisplay { get; set; } = "--";
+    public partial double? DrivingTemperatureCelsius { get; set; }
 
     private void UpdateThermalSummary()
     {
@@ -433,7 +441,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .Select(snapshot => snapshot.TemperatureCelsius)
             .Max();
 
-        DrivingTemperatureDisplay = _unitFormattingService.FormatTemperature(maxCelsius);
+        DrivingTemperatureCelsius = maxCelsius;
     }
 
     // ----- Power summary -----
@@ -441,8 +449,13 @@ public partial class DashboardModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial double BatteryChargeFraction { get; set; }
 
+    /// <summary>Charge in canonical percent for the ring centre, formatted (value-only) by UnitFormatConverter.</summary>
     [ObservableProperty]
-    public partial string BatteryChargeText { get; set; } = "--";
+    public partial double? BatteryChargePercent { get; set; }
+
+    /// <summary>The unit the ring draws beside the figure — "%" only under the percent preference.</summary>
+    [ObservableProperty]
+    public partial string BatteryChargeUnitSuffix { get; set; } = "%";
 
     [ObservableProperty]
     public partial bool IsBatteryCharging { get; set; }
@@ -450,8 +463,9 @@ public partial class DashboardModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ChargingStateText { get; set; } = "Waiting for battery";
 
+    /// <summary>Negotiated adapter input, canonical watts; null when no adapter is attached ("—" via UnitFormatDash).</summary>
     [ObservableProperty]
-    public partial string AdapterWattsDisplay { get; set; } = "—";
+    public partial double? AdapterInputWatts { get; set; }
 
     [ObservableProperty]
     public partial string FullInDisplay { get; set; } = "—";
@@ -463,7 +477,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
         if (battery is null)
         {
             BatteryChargeFraction = 0d;
-            BatteryChargeText = "--";
+            BatteryChargePercent = null;
             IsBatteryCharging = false;
             ChargingStateText = "No battery detected";
             FullInDisplay = "—";
@@ -471,8 +485,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
         }
 
         BatteryChargeFraction = Math.Clamp((battery.ChargePercent ?? 0d) / 100d, 0d, 1d);
-        // Bare value only: BatteryChargeRingView renders its own "%" suffix.
-        BatteryChargeText = _unitFormattingService.FormatRatioValue(battery.ChargePercent, decimals: 0);
+        BatteryChargePercent = battery.ChargePercent;
         IsBatteryCharging = battery.BatteryState == FrameworkBatteryState.Charging;
 
         ChargingStateText = battery.BatteryState switch
@@ -500,9 +513,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
         var activePort = ports.FirstOrDefault(port => port.IsActivePort && port.HasContract);
         var watts = activePort is null ? 0d : activePort.VoltageVolts * activePort.CurrentAmperes;
 
-        AdapterWattsDisplay = watts > 0d
-            ? _unitFormattingService.FormatPowerWatts(Math.Round(watts), decimals: 0)
-            : "—";
+        AdapterInputWatts = watts > 0d ? watts : null;
     }
 
     public void Dispose()

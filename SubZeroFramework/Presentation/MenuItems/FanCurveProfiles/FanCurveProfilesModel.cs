@@ -133,9 +133,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         SensorChart = new FanSensorChartModel(unitFormattingService);
         CurveChart = new FanCurveChartModel(unitFormattingService);
         LinkSection = new FanLinkSectionModel(this);
-        BoostSection = new FanBoostSectionModel(this, unitFormattingService);
         SensorSelection = new FanSensorSelectionModel(historyStore, unitFormattingService);
-        _session = new FanEditSession(this, actuator, logger);
+        _session = new FanEditSession(this, actuator, unitFormattingService, logger);
 
         _hub.FanAdded += OnFanAdded;
         _hub.FanRemoved += OnFanRemoved;
@@ -147,6 +146,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         _draft.Changed += RefreshCurveSeries;
         RefreshCurveSeries();
+
+        StalledFanNoticeDisplay = BuildStalledFanNoticeDisplay();
 
         _frameworkStatusClient
             .WatchStatus()
@@ -245,8 +246,6 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
     /// <summary>The "Applies to" link group (chips + per-leader link sets). Driven by this coordinator.</summary>
     public FanLinkSectionModel LinkSection { get; }
-
-    public FanBoostSectionModel BoostSection { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFollowing))]
@@ -362,7 +361,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [NotifyPropertyChangedFor(nameof(ActionBarCleanVisibility))]
     private partial bool HasPendingFanWork { get; set; }
 
-    // Staged but not yet previewing — the action bar shows Discard + Preview (covers custom + simple modes + links + boost).
+    // Staged but not yet previewing — the action bar shows Discard + Preview (covers custom + simple modes + links).
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActionBarEditingVisibility))]
     private partial bool HasStagedNotPreviewing { get; set; }
@@ -397,7 +396,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         SelectedFanMode = ShowCustomEditor ? FanControlMode.CustomCurve : _session.StagedMode ?? ServiceFanMode;
 
         var selectedStaged = CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode
-            || LinkSection.HasStagedLinks || BoostSection.HasStagedBoosts;
+            || LinkSection.HasStagedLinks;
         var otherStagedCount = OtherStagedFanCount();
         var anyStaged = selectedStaged || otherStagedCount > 0;
         HasPendingFanWork = anyStaged || IsTesting;
@@ -598,7 +597,6 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         }
 
         LinkSection.RebuildLinkChips();
-        BoostSection.RefreshFromSelection();
         RecomputeDirty();
         // Re-project the stored mode/pending/profile state for the new fan before the duty prediction reads it.
         RefreshDerivedState();
@@ -610,13 +608,13 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         if (fan is null)
         {
             // Detached scratch session while no fan is selected.
-            return new FanEditSession(this, _actuator, _logger);
+            return new FanEditSession(this, _actuator, _unitFormattingService, _logger);
         }
 
         var fanIndex = fan.Snapshot.FanIndex;
         if (!_sessions.TryGetValue(fanIndex, out var session))
         {
-            session = new FanEditSession(this, _actuator, _logger);
+            session = new FanEditSession(this, _actuator, _unitFormattingService, _logger);
             _sessions[fanIndex] = session;
         }
 
@@ -802,8 +800,6 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             await _session.ApplySimpleModeAsync(cancellationToken).ConfigureAwait(true);
             // Persist any staged "Applies to" link changes (the link is grouping-only when no mode is staged).
             await LinkSection.FlushStagedLinksAsync(cancellationToken).ConfigureAwait(true);
-            // Boost flushes after the commit above so no preview hold is open (the service rejects otherwise).
-            await BoostSection.FlushStagedBoostsAsync(cancellationToken).ConfigureAwait(true);
             // "Apply all" reaches every fan: commit the other fans' parked staged work too.
             await ApplyOtherStagedFansAsync(cancellationToken).ConfigureAwait(true);
             return;
@@ -817,8 +813,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         // Validation failures on the SELECTED fan's draft must not abandon the rest of the command.
         // These used to be early `return`s, which meant "Apply all" with an incomplete draft on the
-        // selected fan silently skipped every OTHER fan's parked staged work (and the link/boost
-        // flushes) — the button appeared to do nothing beyond the warning. A service REJECTION of the
+        // selected fan silently skipped every OTHER fan's parked staged work (and the link flush) —
+        // the button appeared to do nothing beyond the warning. A service REJECTION of the
         // save already fell through to the shared tail below; validation now behaves the same way.
         var selectedDraftValid = true;
 
@@ -848,7 +844,6 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             // Skip only the selected fan's save; the shared tail still runs (same three calls as the
             // simple-mode branch above) so "Apply all" honors the other fans' parked staged work.
             await LinkSection.FlushStagedLinksAsync(cancellationToken).ConfigureAwait(true);
-            await BoostSection.FlushStagedBoostsAsync(cancellationToken).ConfigureAwait(true);
             await ApplyOtherStagedFansAsync(cancellationToken).ConfigureAwait(true);
             return;
         }
@@ -906,8 +901,6 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         // Persist any staged "Applies to" link changes alongside the applied curve.
         await LinkSection.FlushStagedLinksAsync(cancellationToken).ConfigureAwait(true);
-        // Boost flushes after the profile commit so no preview hold is open (the service rejects otherwise).
-        await BoostSection.FlushStagedBoostsAsync(cancellationToken).ConfigureAwait(true);
         // "Apply all" reaches every fan: commit the other fans' parked staged work too.
         await ApplyOtherStagedFansAsync(cancellationToken).ConfigureAwait(true);
     }
@@ -1109,10 +1102,9 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [RelayCommand(CanExecute = nameof(CanRevertStaged))]
     private async Task RevertToAppliedAsync(CancellationToken cancellationToken)
     {
-        // Drop any pending "Applies to" link and CPU boost changes (they were never saved to the service),
-        // and every other fan's parked staged work — "Revert all" reaches the whole fleet.
+        // Drop any pending "Applies to" link changes (they were never saved to the service), and every
+        // other fan's parked staged work — "Revert all" reaches the whole fleet.
         LinkSection.DiscardStagedLinks();
-        BoostSection.DiscardStagedBoosts();
         DiscardOtherStagedFans();
 
         // While previewing, Revert stops the live test and restores the fan's prior state.
@@ -1381,7 +1373,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     /// </summary>
     /// <returns>
     /// True only when the link was persisted. The caller keeps its staged entry on false — same contract
-    /// as <see cref="PersistFanBoostAsync"/>, so a failed persist never silently drops a staged link.
+    /// so a failed persist never silently drops a staged link.
     /// </returns>
     internal async Task<bool> PersistFanLinkAsync(int fanIndex, int? leaderIndex, CancellationToken cancellationToken = default)
     {
@@ -1405,49 +1397,6 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
     /// <summary>The link section staged or discarded a pending link change — refresh the staged pill + command states.</summary>
     internal void OnStagedLinksChanged()
-    {
-        RefreshDerivedState();
-        NotifyCommandStates();
-    }
-
-    /// <summary>
-    /// Persists one fan's CPU boost (usage modifier) to the service; null clears it. Called from
-    /// <see cref="FanBoostSectionModel.FlushStagedBoostsAsync"/> on Apply — after the staged mode/curve has
-    /// committed, so no preview hold is open (the service rejects modifier writes during a live preview).
-    /// The change streams back as the fan's control-state CpuUsageModifierStrength.
-    /// </summary>
-    /// <returns>
-    /// True only when the service confirmed the change. The caller keeps its staged entry on false so a
-    /// failed persist never silently discards the user's choice — the boost toggle used to "reset to
-    /// disabled" after any failed apply because the staged overlay was dropped regardless of outcome.
-    /// </returns>
-    internal async Task<bool> PersistFanBoostAsync(int fanIndex, double? strength, CancellationToken cancellationToken = default)
-    {
-        if (!CanIssueFanCommands)
-        {
-            return false;
-        }
-
-        try
-        {
-            var result = await _fanControlClient.SetUsageModifierAsync(fanIndex, strength, cancellationToken).ConfigureAwait(true);
-            if (!result.Succeeded)
-            {
-                ReportStatus($"Service rejected the CPU boost change: {result.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
-            }
-
-            return result.Succeeded;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to persist CPU boost for fan {FanIndex}", fanIndex);
-            ReportStatus($"Failed to save the CPU boost: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
-            return false;
-        }
-    }
-
-    /// <summary>The boost section staged or discarded a pending boost change — refresh the staged pill + command states.</summary>
-    internal void OnStagedBoostsChanged()
     {
         RefreshDerivedState();
         NotifyCommandStates();
@@ -1722,8 +1671,10 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
     private void RefreshUnitFormatting()
     {
-        // Rebind the curve temperature axis labeler so it relabels with the new unit.
+        // Rebind the chart axis labelers so both charts relabel with the new unit.
         CurveChart.RefreshUnitFormatting();
+        SensorChart.RefreshUnitFormatting();
+        StalledFanNoticeDisplay = BuildStalledFanNoticeDisplay();
 
         foreach (var fan in _hub.Fans)
         {
@@ -1733,6 +1684,11 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         RefreshAllDrivingTemperatureHistory();
         RefreshSensorChart();
+
+        // The page's own readouts are either canonical values that UnitFormatConverter formats at render
+        // time, or computed slider bounds that move with the ratio unit. Neither has "changed" — only their
+        // presentation has — which is exactly what a null property name signals. See UnitFormatConverter.
+        OnPropertyChanged(propertyName: null);
     }
 
     // The five telemetry streams stay subscribed here, but the data lands in FanTelemetryHub; these handlers
@@ -1745,10 +1701,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         _hub.ApplyControlStateChanges(changes);
         RefreshAllDrivingTemperatureHistory();
         // LinkedLeaderIndex rides on the control state, so re-derive the link chips + row-disabling when it streams
-        // in (covers persisted groups loaded at startup and links written by another client). The CPU boost
-        // strength rides on the control state too.
+        // in (covers persisted groups loaded at startup and links written by another client).
         LinkSection.UpdateLinkChipStates();
-        BoostSection.RefreshFromSelection();
 
         if (SelectedFan is not null)
         {
@@ -1866,18 +1820,20 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         if (_historyStore.GetFanHistory(fanIndex) is not { Length: > 0 } points)
         {
-            fan.FanSpeedHistory = [];
+            fan.FanSpeedHistoryRpm = [];
             return;
         }
 
-        var converted = new DateTimePoint[points.Length];
+        // Handed over in canonical RPM. The card converts for its chart and re-derives on a unit change; the
+        // page converting here would have baked the unit into the numbers the card reasons about.
+        var canonical = new DateTimePoint[points.Length];
         for (var i = 0; i < points.Length; i++)
         {
             var point = points[i];
-            converted[i] = new DateTimePoint(point.ObservedAt.LocalDateTime, _unitFormattingService.ConvertFanSpeed(point.SpeedRpm));
+            canonical[i] = new DateTimePoint(point.ObservedAt.LocalDateTime, point.SpeedRpm);
         }
 
-        fan.FanSpeedHistory = converted;
+        fan.FanSpeedHistoryRpm = canonical;
     }
 
     // Coalesced (sampled ~3 Hz) recompute of all temperature-history visuals. Running the per-timestamp
@@ -1911,7 +1867,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         var state = fan.ControlState;
         if (state is null || state.DrivingSensorIndices.IsDefaultOrEmpty)
         {
-            fan.DrivingTemperatureHistory = [];
+            fan.DrivingTemperatureHistoryCelsius = [];
             return;
         }
 
@@ -1926,7 +1882,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         if (perSensor.Count == 0)
         {
-            fan.DrivingTemperatureHistory = [];
+            fan.DrivingTemperatureHistoryCelsius = [];
             return;
         }
 
@@ -1965,10 +1921,11 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
                 _ => readings.Average(),
             };
 
-            output.Add(new DateTimePoint(timestamp.LocalDateTime, _unitFormattingService.ConvertTemperature(aggregated)));
+            // Handed over in canonical Celsius; the card converts for its chart and re-derives on a unit change.
+            output.Add(new DateTimePoint(timestamp.LocalDateTime, aggregated));
         }
 
-        fan.DrivingTemperatureHistory = output.ToArray();
+        fan.DrivingTemperatureHistoryCelsius = output.ToArray();
     }
 
     internal void ReportStatus(string message, Microsoft.UI.Xaml.Controls.InfoBarSeverity severity)
@@ -2074,12 +2031,11 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             || ((CurrentFanHasStagedEdits || IsCustomActivationStaged) && HasValidDraft)
             || HasStagedSimpleMode
             || LinkSection.HasStagedLinks
-            || BoostSection.HasStagedBoosts
             || HasOtherStagedFans);
 
     // Revert stops a live preview (restoring the prior state) or clears staged-but-unapplied work anywhere.
     private bool CanRevertStaged => HasSelectedFan && CanIssueFanCommands
-        && (IsTesting || CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode || LinkSection.HasStagedLinks || BoostSection.HasStagedBoosts || HasOtherStagedFans);
+        && (IsTesting || CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode || LinkSection.HasStagedLinks || HasOtherStagedFans);
 
     /// <summary>Parked staged work on non-selected fans ("Apply all" / "Revert all" reach them too).</summary>
     private bool HasOtherStagedFans => OtherStagedFanCount() > 0;
@@ -2473,14 +2429,39 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ModeTargetText))]
-    [NotifyPropertyChangedFor(nameof(ManualDutyDisplay))]
     [NotifyPropertyChangedFor(nameof(IsPreset25))]
     [NotifyPropertyChangedFor(nameof(IsPreset50))]
     [NotifyPropertyChangedFor(nameof(IsPreset80))]
     [NotifyPropertyChangedFor(nameof(IsPreset100))]
     [NotifyPropertyChangedFor(nameof(ModeGaugeTargetValues))]
     [NotifyPropertyChangedFor(nameof(ModeGaugeTargetRemaining))]
+    [NotifyPropertyChangedFor(nameof(ManualDutyDisplayValue))]
     public partial double ManualDutyPercent { get; set; } = DefaultManualDutyPercent;
+
+    // ----- Manual duty slider, in the user's ratio unit (both directions; see the units project skill) -----
+
+    /// <summary>Zero is the same number in every ratio unit, so the slider floor needs no conversion.</summary>
+    public double ManualDutyDisplayMinimum => 0d;
+
+    /// <summary>Full duty in the display unit: 100 %, 1 fraction, 1 000 ‰, 1 000 000 PPM.</summary>
+    public double ManualDutyDisplayMaximum => _unitFormattingService.RatioAxisMaximum;
+
+    /// <summary>One canonical percent's worth of travel, so the slider keeps the same 100 stops in any unit.</summary>
+    public double ManualDutyDisplayStep => _unitFormattingService.RatioAxisMaximum / 100d;
+
+    /// <summary>A tick every ten canonical percent, matching the step above.</summary>
+    public double ManualDutyDisplayTickFrequency => _unitFormattingService.RatioAxisMaximum / 10d;
+
+    /// <summary>
+    /// The slider's thumb, in the display unit. The setter converts straight back to canonical percent — the
+    /// EC and every staging path speak percent — and that assignment re-raises this property, which is a
+    /// no-op when the value round-trips unchanged.
+    /// </summary>
+    public double ManualDutyDisplayValue
+    {
+        get => _unitFormattingService.ConvertRatio(ManualDutyPercent);
+        set => ManualDutyPercent = Math.Clamp(_unitFormattingService.ConvertRatioToPercent(value), 0d, 100d);
+    }
 
     // The active quick-preset (the one matching the current duty) is highlighted accent.
     public bool IsPreset25 => Math.Abs(ManualDutyPercent - 25d) < 0.5d;
@@ -2672,7 +2653,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     public string ModeTargetText => SelectedFanMode switch
     {
         FanControlMode.Max => "→ Max target",
-        FanControlMode.Manual => $"→ {ManualDutyPercent:0}% duty target",
+        FanControlMode.Manual => $"→ {_unitFormattingService.FormatRatio(ManualDutyPercent, decimals: 0)} duty target",
         _ => "→ Controller policy",
     };
 
@@ -2690,12 +2671,20 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         _ => "The embedded controller is driving this fan based on its built-in policy. No user override is active.",
     };
 
-    /// <summary>Big duty readout shown beside the Manual slider (e.g. "43%").</summary>
-    public string ManualDutyDisplay => _unitFormattingService.FormatRatio(ManualDutyPercent);
-
     public string SelectedFanHeading => SelectedFan is null
         ? "Select a fan"
         : $"Editor — {SelectedFan.Snapshot.DisplayName}";
+
+    /// <summary>
+    /// The stalled-fan empty-state line ("0 RPM · no rotation detected"). A COMPOSITE (a zero reading joined
+    /// to a diagnosis), so it stays formatted here — in the user's fan-speed unit, because "RPM" is that
+    /// unit's name, not a fixed part of the sentence.
+    /// </summary>
+    [ObservableProperty]
+    public partial string StalledFanNoticeDisplay { get; private set; } = string.Empty;
+
+    private string BuildStalledFanNoticeDisplay()
+        => $"{_unitFormattingService.FormatFanSpeed(0d)} · no rotation detected";
 
     public string SelectedFanModeDisplay => SelectedFanMode switch
     {

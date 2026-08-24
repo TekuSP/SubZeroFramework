@@ -509,7 +509,7 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
             return;
         }
 
-        sensor.UpdateTemperatureHistory(overviewHistory, overviewHistory);
+        sensor.UpdateTemperatureHistory(overviewHistory);
     }
 
     private Task RefreshUnitFormattingAsync()
@@ -523,6 +523,11 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
         RefreshThermalHistoryChart();
         RefreshTemperatureAxisBounds();
         ThermalLabelFormatter = CreateThermalLabelFormatter();
+
+        // The canonical readings on this page are formatted by UnitFormatConverter at render time, so they
+        // only need their bindings to run again — that is what the null property name asks for. See
+        // UnitFormatConverter.
+        OnPropertyChanged(propertyName: null);
         return Task.CompletedTask;
     }
 
@@ -540,7 +545,7 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
     private Func<double, string> CreateThermalLabelFormatter()
     {
         var unitFormattingService = _unitFormattingService;
-        return value => $"{value:0}{unitFormattingService.TemperatureUnitSuffix}";
+        return value => unitFormattingService.FormatTemperatureAxisTick(value);
     }
 
     private static bool ShouldAppendCurrentGap(TemperatureTelemetrySnapshot snapshot)

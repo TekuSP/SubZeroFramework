@@ -2,6 +2,7 @@
     x:Class="SubZeroFramework.Presentation.MenuItems.Settings.Sections.SettingsUnitsSectionView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:controlsSettings="using:SubZeroFramework.Controls.Settings"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:material="using:Material.Icons.UNO"
@@ -25,7 +26,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer controls:ScrollHint.IsEnabled="True" VerticalScrollBarVisibility="Auto">
             <StackPanel
                 Padding="24,4,24,24"
                 HorizontalAlignment="Stretch"

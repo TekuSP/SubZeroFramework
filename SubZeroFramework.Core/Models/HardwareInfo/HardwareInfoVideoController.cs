@@ -22,10 +22,6 @@ public sealed record HardwareInfoVideoController(
     string? VideoProcessor,
     ImmutableArray<string> LinkedMonitorDisplayNames)
 {
-    public string DisplayAdapterRam => AdapterRAM == 0
-        ? "Unknown"
-        : FormatBytes(AdapterRAM);
-
     public string DisplayDriverDate
     {
         get
@@ -68,19 +64,13 @@ public sealed record HardwareInfoVideoController(
         }
     }
 
-    public string DisplayRefreshRate => CurrentRefreshRate > 0
-        ? $"{CurrentRefreshRate:N0} Hz"
-        : "Unknown";
+    /// <summary>
+    /// Refresh rate in canonical hertz, or null when the adapter reports none. Formatted for display by the
+    /// units converter, which is why there is no pre-formatted "… Hz" counterpart.
+    /// </summary>
+    public double? CurrentRefreshRateHertz => CurrentRefreshRate > 0 ? CurrentRefreshRate : null;
 
     public string DisplayLinkedMonitorSummary => LinkedMonitorDisplayNames.Length == 0
         ? "No linked monitors reported"
         : string.Join(", ", LinkedMonitorDisplayNames);
-
-    private static string FormatBytes(ulong bytes)
-    {
-        const double OneGigabyte = 1024d * 1024d * 1024d;
-        return bytes >= OneGigabyte
-            ? $"{bytes / OneGigabyte:0.##} GB"
-            : $"{bytes / 1024d / 1024d:0.##} MB";
-    }
 }

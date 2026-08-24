@@ -21,14 +21,6 @@ public sealed record HardwareInfoNetworkAdapter(
 
     public bool HasKnownSpeed => Speed is > 0 and < UnknownSpeedSentinel;
 
-    public string DisplaySpeed => !HasKnownSpeed
-        ? "Unknown"
-        : Speed >= 1_000_000_000UL
-            ? $"{Speed / 1_000_000_000d:0.##} Gbps"
-            : Speed >= 1_000_000UL
-                ? $"{Speed / 1_000_000d:0.##} Mbps"
-                : $"{Speed / 1_000d:0.##} Kbps";
-
     public string DisplayIpAddresses => IpAddresses.IsDefaultOrEmpty
         ? "None"
         : string.Join(", ", IpAddresses);

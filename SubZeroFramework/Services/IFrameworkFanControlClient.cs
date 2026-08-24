@@ -77,17 +77,9 @@ public interface IFrameworkFanControlClient
     Task<FrameworkFanCurveProfileCommandResult> SetFanLinkAsync(int fanIndex, int? linkedLeaderIndex, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Sets (or clears, when <paramref name="cpuUsageModifierStrength"/> is null) the fan's CPU usage
-    /// modifier: the duty points added on top of the active custom curve at 100% smoothed CPU usage,
-    /// ramping exponentially so light load adds almost nothing. Applies only while a custom curve drives
-    /// the fan. Persisted by the service and streamed back via the control state.
-    /// </summary>
-    Task<FrameworkFanUsageModifierCommandResult> SetUsageModifierAsync(int fanIndex, double? cpuUsageModifierStrength, CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Resets all fan control to factory defaults: every fan returns to the controller's automatic mode and
-    /// every persisted fan setting is deleted (curve profile slots, active slot, "Applies to" links, CPU
-    /// usage modifiers, manual / max overrides), including entries for fans that no longer enumerate.
+    /// every persisted fan setting is deleted (curve profile slots, active slot, "Applies to" links,
+    /// manual / max overrides), including entries for fans that no longer enumerate.
     /// </summary>
     Task<FrameworkFanControlResetCommandResult> ResetFanControlToFactoryDefaultsAsync(CancellationToken cancellationToken = default);
 

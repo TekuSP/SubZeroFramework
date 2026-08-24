@@ -30,7 +30,7 @@
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Speedometer"
                 Label="Link speed"
-                Value="{x:Bind ViewModel.Adapter.SpeedDisplay, Mode=OneWay}"
+                Value="{x:Bind ViewModel.Adapter.SpeedBitsPerSecond, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=BitRate}"
                 ValueBrush="{x:Bind ViewModel.Adapter.SpeedBrush, Mode=OneWay}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Barcode"

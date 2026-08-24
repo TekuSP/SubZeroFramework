@@ -73,8 +73,27 @@ public interface IFrameworkDataProvider
 
     IObservable<IChangeSet<TelemetryPoint, long>> ConnectBatteryPresentVoltageSeries(int batteryIndex, TimeSpan historyWindow);
 
+    /// <summary>
+    /// The most recent primary-tier CPU reading, with the time it was taken.
+    /// </summary>
+    /// <remarks>
+    /// Fan control reads this rather than <see cref="GetLatestHardwareInfoSnapshot"/>, which is rebuilt on the
+    /// tertiary tier and would be up to that whole interval old. Callers MUST check
+    /// <see cref="ObservedControlTelemetry.ObservedAt"/>: the value is cached, so a stopped polling loop
+    /// leaves the last reading in place rather than reporting that it has gone away.
+    /// </remarks>
+    ObservedControlTelemetry GetLatestControlTelemetry();
+
+    /// <summary>Sets the PRIMARY tier interval — EC telemetry and the CPU signals fan control runs on.</summary>
     bool SetPolling(TimeSpan pollingInterval);
 
+    /// <summary>
+    /// Sets the SECONDARY tier interval — data the UI shows live but the controller does not act on, sampled
+    /// inside the primary loop on this calmer cadence.
+    /// </summary>
+    bool SetSecondaryPolling(TimeSpan pollingInterval);
+
+    /// <summary>Sets the TERTIARY tier interval — the Hardware.Info inventory poll.</summary>
     bool SetHardwareInfoPolling(TimeSpan pollingInterval);
 
     bool StartPolling();

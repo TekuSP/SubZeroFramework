@@ -23,7 +23,7 @@ namespace SubZeroFramework.Tests;
 public class FrameworkFanControlFactoryResetTests
 {
     [Test]
-    public void ResetAllToFactoryDefaults_ClearsModeProfilesLinkAndModifier()
+    public void ResetAllToFactoryDefaults_ClearsModeProfilesAndLink()
     {
         using var store = CreateStore();
 
@@ -37,7 +37,6 @@ public class FrameworkFanControlFactoryResetTests
             followFanIndex: null,
             activate: true);
         store.SetLinkedLeader(1, 0);
-        store.SetCpuUsageModifier(1, 20d);
         store.MarkMax(3);
 
         store.ResetAllToFactoryDefaults();
@@ -52,7 +51,6 @@ public class FrameworkFanControlFactoryResetTests
             Assert.That(resetFan.ActiveCurveSlot, Is.EqualTo(0));
             Assert.That(resetFan.CurveProfiles.Any(static profile => profile.IsConfigured), Is.False, "Every curve profile slot must be emptied.");
             Assert.That(resetFan.LinkedLeaderIndex, Is.Null);
-            Assert.That(resetFan.CpuUsageModifierStrength, Is.Null);
             Assert.That(resetFan.CustomCurvePoints, Is.Empty);
             Assert.That(resetFan.LastDutyPercent, Is.Null);
 
@@ -189,7 +187,6 @@ public class FrameworkFanControlFactoryResetTests
             Assert.That(options!.Mode, Is.EqualTo(FanControlMode.Auto));
             Assert.That(options.CurveProfiles, Is.Empty);
             Assert.That(options.LinkedLeaderIndex, Is.Null);
-            Assert.That(options.CpuUsageModifierStrength, Is.Null);
         });
     }
 

@@ -111,7 +111,7 @@ public partial class FanLinkSectionModel : ObservableObject
 
         // Unstage each link only after a successful persist — clearing up front silently discarded
         // staged links whenever the write failed (same defect as the boost overlay; see
-        // FanBoostSectionModel.FlushStagedBoostsAsync). Failures stay staged and retry on the next Apply.
+        // Failures stay staged and retry on the next Apply.
         foreach (var (fanIndex, leaderIndex) in _stagedLinks.ToArray())
         {
             if (await _parent.PersistFanLinkAsync(fanIndex, leaderIndex, cancellationToken).ConfigureAwait(true))

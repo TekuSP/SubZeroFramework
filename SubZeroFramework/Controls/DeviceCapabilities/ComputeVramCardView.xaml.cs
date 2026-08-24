@@ -1,12 +1,12 @@
 using System.ComponentModel;
 
-using SubZeroFramework.Controls.Power.Models;
+using SubZeroFramework.Controls.DeviceCapabilities.Models;
 
-namespace SubZeroFramework.Controls.Power;
+namespace SubZeroFramework.Controls.DeviceCapabilities;
 
-public sealed partial class PowerCardView : UserControl, INotifyPropertyChanged
+public sealed partial class ComputeVramCardView : UserControl, INotifyPropertyChanged
 {
-    public PowerCardView()
+    public ComputeVramCardView()
     {
         this.InitializeComponent();
     }
@@ -14,7 +14,7 @@ public sealed partial class PowerCardView : UserControl, INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     [System.Diagnostics.CodeAnalysis.SuppressMessage("SubZeroFramework.Mvvm", "SZF0009:Avoid direct PropertyChanged event invocation", Justification = "Lightweight UserControl ViewModel CLR property updates compiled x:Bind state without making ViewModel a dependency property.")]
-    public PowerCardModel ViewModel
+    public ComputeDeviceUsageCardModel? ViewModel
     {
         get => field;
         set
@@ -23,5 +23,5 @@ public sealed partial class PowerCardView : UserControl, INotifyPropertyChanged
             field = value;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ViewModel)));
         }
-    } = default!;
+    }
 }

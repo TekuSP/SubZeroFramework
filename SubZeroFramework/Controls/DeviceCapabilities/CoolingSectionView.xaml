@@ -44,7 +44,7 @@
                 <deviceCapabilitiesControls:StatTileView
                     IconKind="Gauge"
                     Label="Physical limit"
-                    Value="{x:Bind MaximumPhysicalLimitDisplay, Mode=OneWay}" />
+                    Value="{x:Bind MaximumPhysicalLimitRpm, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=FanSpeed}" />
             </deviceCapabilitiesControls:StatTilePanel>
         </DataTemplate>
 
@@ -69,7 +69,7 @@
                 <deviceCapabilitiesControls:StatTileView
                     IconKind="Speedometer"
                     Label="Firmware limit"
-                    Value="{x:Bind MaximumFirmwareLimitDisplay, Mode=OneWay}" />
+                    Value="{x:Bind MaximumFirmwareLimitRpm, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=FanSpeed}" />
                 <deviceCapabilitiesControls:StatTileView
                     IconKind="Gauge"
                     Label="Physical limit"
@@ -95,7 +95,7 @@
                     <deviceCapabilitiesControls:StatTileView
                         IconKind="Speedometer"
                         Label="Firmware limit"
-                        Value="{x:Bind StandardFirmwareMaximumDisplay, Mode=OneWay}" />
+                        Value="{x:Bind StandardFirmwareMaximumRpm, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=FanSpeed}" />
                     <deviceCapabilitiesControls:StatTileView
                         IconKind="Thermometer"
                         Label="Thermal stress max"
@@ -351,7 +351,7 @@
                                             TextWrapping="WrapWholeWords">
                                             <Run FontWeight="SemiBold" Text="{x:Bind ModelName, Mode=OneWay}" />
                                             <Run Text=": " />
-                                            <Run Text="{x:Bind MaximumAirflowDisplay, Mode=OneWay}" />
+                                            <Run Text="{x:Bind MaximumAirflowCfm, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Airflow:1}" />
                                         </TextBlock>
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>
@@ -429,7 +429,7 @@
                                         TextWrapping="WrapWholeWords">
                                         <Run FontWeight="SemiBold" Text="{x:Bind ModelName, Mode=OneWay}" />
                                         <Run Text=": " />
-                                        <Run Text="{x:Bind MaximumFanSpeedDisplay, Mode=OneWay}" />
+                                        <Run Text="{x:Bind MaximumFanSpeedRpm, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=FanSpeed}" />
                                     </TextBlock>
                                 </DataTemplate>
                             </ItemsRepeater.ItemTemplate>

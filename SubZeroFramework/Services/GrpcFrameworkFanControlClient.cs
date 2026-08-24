@@ -233,24 +233,6 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         return MapProfileReply(reply);
     }
 
-    public async Task<FrameworkFanUsageModifierCommandResult> SetUsageModifierAsync(int fanIndex, double? cpuUsageModifierStrength, CancellationToken cancellationToken = default)
-    {
-        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
-        var reply = await _client.SetFanUsageModifierAsync(new SetFanUsageModifierRequest
-        {
-            FanIndex = fanIndex,
-            // NaN is the wire encoding for "disabled".
-            CpuUsageModifierStrength = cpuUsageModifierStrength ?? double.NaN,
-        }, cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
-
-        return new FrameworkFanUsageModifierCommandResult
-        {
-            FanIndex = reply.FanIndex,
-            Succeeded = reply.Succeeded,
-            Message = reply.Message ?? string.Empty,
-        };
-    }
-
     public async Task<FrameworkFanControlResetCommandResult> ResetFanControlToFactoryDefaultsAsync(CancellationToken cancellationToken = default)
     {
         // The standard unary deadline covers this: the service restores a handful of fans on the EC and

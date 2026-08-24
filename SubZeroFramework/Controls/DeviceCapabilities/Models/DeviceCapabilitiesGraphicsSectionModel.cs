@@ -8,6 +8,11 @@ using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
+/// <summary>
+/// The Graphics section's slice over the Device Capabilities page model. Every figure it shows is MIRRORED
+/// as a stored property that <see cref="RefreshDerivedState"/> reassigns when the page's snapshot changes:
+/// assignment raises PropertyChanged only for values that actually changed.
+/// </summary>
 public sealed partial class DeviceCapabilitiesGraphicsSectionModel : ObservableObject, IDisposable
 {
     private readonly DeviceCapabilitiesModel _parent;
@@ -16,34 +21,32 @@ public sealed partial class DeviceCapabilitiesGraphicsSectionModel : ObservableO
     {
         _parent = parent;
         _parent.PropertyChanged += ParentPropertyChanged;
+        RefreshDerivedState();
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(GraphicsAdapterCount))]
     [NotifyPropertyChangedFor(nameof(GraphicsAdapterCountDisplay))]
+    public partial int GraphicsAdapterCount { get; private set; }
+
+    public string GraphicsAdapterCountDisplay => GraphicsAdapterCount.ToString();
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MonitorCountDisplay))]
+    public partial int MonitorCount { get; private set; }
+
+    public string MonitorCountDisplay => MonitorCount.ToString();
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActiveMonitorCountDisplay))]
-    [NotifyPropertyChangedFor(nameof(PrimaryDisplayName))]
-    [NotifyPropertyChangedFor(nameof(PrimaryDisplayBadge))]
-    [NotifyPropertyChangedFor(nameof(MonitorCount))]
-    [NotifyPropertyChangedFor(nameof(ActiveMonitorCount))]
-    private partial int SnapshotVersion { get; set; }
+    public partial int ActiveMonitorCount { get; private set; }
 
-    public int GraphicsAdapterCount => _parent.GraphicsAdapterCount;
+    public string ActiveMonitorCountDisplay => ActiveMonitorCount.ToString();
 
-    public string GraphicsAdapterCountDisplay => _parent.GraphicsAdapterCount.ToString();
+    [ObservableProperty]
+    public partial string PrimaryDisplayName { get; private set; } = string.Empty;
 
-    public string MonitorCountDisplay => _parent.MonitorCount.ToString();
-
-    public string ActiveMonitorCountDisplay => _parent.ActiveMonitorCount.ToString();
-
-    public string PrimaryDisplayName => _parent.PrimaryDisplayName;
-
-    public string PrimaryDisplayBadge => _parent.PrimaryDisplayBadge;
-
-    public int MonitorCount => _parent.MonitorCount;
-
-    public int ActiveMonitorCount => _parent.ActiveMonitorCount;
+    [ObservableProperty]
+    public partial string PrimaryDisplayBadge { get; private set; } = string.Empty;
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesGraphicsCardGroupModel> GraphicsCardGroups => _parent.GraphicsCardGroups;
 
@@ -56,11 +59,22 @@ public sealed partial class DeviceCapabilitiesGraphicsSectionModel : ObservableO
         _parent.PropertyChanged -= ParentPropertyChanged;
     }
 
+    private void RefreshDerivedState()
+    {
+        GraphicsAdapterCount = _parent.GraphicsAdapterCount;
+        MonitorCount = _parent.MonitorCount;
+        ActiveMonitorCount = _parent.ActiveMonitorCount;
+        PrimaryDisplayName = _parent.PrimaryDisplayName;
+        PrimaryDisplayBadge = _parent.PrimaryDisplayBadge;
+    }
+
     private void ParentPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(DeviceCapabilitiesModel.Snapshot))
+        // The empty name is the page's "everything changed" signal (display-unit change); the counts and
+        // names do not move with units, but re-mirroring them is a set of no-op assignments.
+        if (string.IsNullOrEmpty(e.PropertyName) || e.PropertyName == nameof(DeviceCapabilitiesModel.Snapshot))
         {
-            SnapshotVersion++;
+            RefreshDerivedState();
         }
     }
 }

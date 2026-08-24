@@ -57,9 +57,6 @@ public partial class FrameworkLaptop12FanAdvancedInfoCardModel : FanAdvancedInfo
     [ObservableProperty]
     public partial string FirmwareRangeDisplay { get; private set; } = string.Empty;
 
-    [ObservableProperty]
-    public partial string MaximumPhysicalLimitDisplay { get; private set; } = string.Empty;
-
     public void UpdateFrom(FrameworkLaptop12CoolingDetails details)
     {
         ProcessorSupport = details.ProcessorSupport;
@@ -77,6 +74,9 @@ public partial class FrameworkLaptop12FanAdvancedInfoCardModel : FanAdvancedInfo
     {
         FanDimensionsDisplay = $"{_unitFormattingService.FormatLengthMillimeters(FanDiameterMillimeters)} diameter × {_unitFormattingService.FormatLengthMillimeters(FanThicknessMillimeters)} thickness";
         FirmwareRangeDisplay = $"{_unitFormattingService.FormatFanSpeedValue(FirmwareMinimumRpm)}–{_unitFormattingService.FormatFanSpeedValue(FirmwareMaximumRpm)} {_unitFormattingService.FanSpeedUnitSuffix}";
-        MaximumPhysicalLimitDisplay = _unitFormattingService.FormatFanSpeed(MaximumPhysicalLimitRpm);
+
+        // MaximumPhysicalLimitRpm is a canonical single quantity — UnitFormatConverter formats it; the base
+        // raise re-runs its binding.
+        base.RefreshUnitFormatting();
     }
 }

@@ -69,6 +69,19 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
         ResetConfigurationCommand = new RelayCommand(ResetConfiguration, CanRunResetConfigurationAction);
         ResetFanSettingsCommand = new AsyncRelayCommand(ResetFanSettingsAsync, CanRunResetFanSettingsAction);
 
+        // Each writes its tier's factory interval into the DRAFT only — the user still has to Apply (push to
+        // the running service) or Save (persist), same as typing the number by hand. Deliberately not an
+        // immediate write: a stray click on a Default button should not change how the fans are driven.
+        ResetPrimaryPollingIntervalCommand = new RelayCommand(
+            () => TelemetryPollingIntervalMillisecondsText = FormatMilliseconds(PollingTiers.Primary.Default),
+            () => IsConfigurationLoaded);
+        ResetSecondaryPollingIntervalCommand = new RelayCommand(
+            () => SecondaryPollingIntervalMillisecondsText = FormatMilliseconds(PollingTiers.Secondary.Default),
+            () => IsConfigurationLoaded);
+        ResetTertiaryPollingIntervalCommand = new RelayCommand(
+            () => HardwareInfoPollingIntervalMillisecondsText = FormatMilliseconds(PollingTiers.Tertiary.Default),
+            () => IsConfigurationLoaded);
+
         ApplyServiceControlInfo(_serviceControlClient.GetInfo());
 
         frameworkStatusClient
@@ -294,6 +307,9 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
         ApplyConfigurationCommand.NotifyCanExecuteChanged();
         SaveConfigurationCommand.NotifyCanExecuteChanged();
         ResetConfigurationCommand.NotifyCanExecuteChanged();
+        ResetPrimaryPollingIntervalCommand.NotifyCanExecuteChanged();
+        ResetSecondaryPollingIntervalCommand.NotifyCanExecuteChanged();
+        ResetTertiaryPollingIntervalCommand.NotifyCanExecuteChanged();
         ResetFanSettingsCommand.NotifyCanExecuteChanged();
         CanResetFanSettings = CanRunResetFanSettingsAction();
         CanUninstall = CanRunUninstallAction();
@@ -457,7 +473,30 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
     [NotifyPropertyChangedFor(nameof(ConfigurationValidationMessage))]
     [NotifyPropertyChangedFor(nameof(HasConfigurationValidationError))]
     [NotifyPropertyChangedFor(nameof(ConfigurationValidationVisibility))]
+    public partial string SecondaryPollingIntervalMillisecondsText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConfigurationValidationMessage))]
+    [NotifyPropertyChangedFor(nameof(HasConfigurationValidationError))]
+    [NotifyPropertyChangedFor(nameof(ConfigurationValidationVisibility))]
     public partial string HardwareInfoPollingIntervalMillisecondsText { get; set; } = string.Empty;
+
+    // ----- Per-tier hints and Default buttons -----
+    //
+    // The hints read from PollingTiers, the same source the service validates against, so the text can never
+    // advertise a range the service would reject.
+
+    public string PrimaryPollingRangeHint => FormatRangeHint(PollingTiers.Primary);
+
+    public string SecondaryPollingRangeHint => FormatRangeHint(PollingTiers.Secondary);
+
+    public string TertiaryPollingRangeHint => FormatRangeHint(PollingTiers.Tertiary);
+
+    public IRelayCommand ResetPrimaryPollingIntervalCommand { get; }
+
+    public IRelayCommand ResetSecondaryPollingIntervalCommand { get; }
+
+    public IRelayCommand ResetTertiaryPollingIntervalCommand { get; }
 
     [ObservableProperty]
     public partial bool AllowFanControlCommandsDraft { get; set; }
@@ -509,9 +548,11 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
             }
 
             var currentTelemetryText = FormatMilliseconds(CurrentConfigurationSnapshot.PollingInterval);
+            var currentSecondaryText = FormatMilliseconds(CurrentConfigurationSnapshot.SecondaryPollingInterval);
             var currentHardwareInfoText = FormatMilliseconds(CurrentConfigurationSnapshot.HardwareInfoPollingInterval);
 
             return !string.Equals(TelemetryPollingIntervalMillisecondsText?.Trim(), currentTelemetryText, StringComparison.Ordinal)
+                || !string.Equals(SecondaryPollingIntervalMillisecondsText?.Trim(), currentSecondaryText, StringComparison.Ordinal)
                 || !string.Equals(HardwareInfoPollingIntervalMillisecondsText?.Trim(), currentHardwareInfoText, StringComparison.Ordinal)
                 || AllowFanControlCommandsDraft != CurrentConfigurationSnapshot.AllowFanControlCommands;
         }
@@ -524,6 +565,8 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
     public IRelayCommand ResetConfigurationCommand { get; }
 
     partial void OnTelemetryPollingIntervalMillisecondsTextChanged(string value) => RefreshCommandStates();
+
+    partial void OnSecondaryPollingIntervalMillisecondsTextChanged(string value) => RefreshCommandStates();
 
     partial void OnHardwareInfoPollingIntervalMillisecondsTextChanged(string value) => RefreshCommandStates();
 
@@ -653,6 +696,7 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
     private void ApplyConfigurationDraft(FrameworkServiceConfigurationSnapshot snapshot)
     {
         TelemetryPollingIntervalMillisecondsText = FormatMilliseconds(snapshot.PollingInterval);
+        SecondaryPollingIntervalMillisecondsText = FormatMilliseconds(snapshot.SecondaryPollingInterval);
         HardwareInfoPollingIntervalMillisecondsText = FormatMilliseconds(snapshot.HardwareInfoPollingInterval);
         AllowFanControlCommandsDraft = snapshot.AllowFanControlCommands;
     }
@@ -739,34 +783,61 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
     {
         request = null!;
 
-        if (!long.TryParse(TelemetryPollingIntervalMillisecondsText?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var pollingIntervalMilliseconds))
+        // Each field is checked against its OWN tier range rather than a shared "greater than zero". The
+        // provider clamps an out-of-range interval silently, so accepting one here would report success and
+        // then poll at a rate the box does not show.
+        if (!TryParseTier(PollingTiers.Primary, TelemetryPollingIntervalMillisecondsText, "Primary", out var primaryInterval, out validationError)
+            || !TryParseTier(PollingTiers.Secondary, SecondaryPollingIntervalMillisecondsText, "Secondary", out var secondaryInterval, out validationError)
+            || !TryParseTier(PollingTiers.Tertiary, HardwareInfoPollingIntervalMillisecondsText, "Tertiary", out var tertiaryInterval, out validationError))
         {
-            validationError = "Telemetry polling interval must be a whole number of milliseconds.";
-            return false;
-        }
-
-        if (!long.TryParse(HardwareInfoPollingIntervalMillisecondsText?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var hardwareInfoPollingIntervalMilliseconds))
-        {
-            validationError = "Hardware info polling interval must be a whole number of milliseconds.";
-            return false;
-        }
-
-        if (pollingIntervalMilliseconds <= 0 || hardwareInfoPollingIntervalMilliseconds <= 0)
-        {
-            validationError = "Polling intervals must be greater than zero milliseconds.";
             return false;
         }
 
         request = new FrameworkServiceConfigurationApplyRequest
         {
-            PollingInterval = TimeSpan.FromMilliseconds(pollingIntervalMilliseconds),
-            HardwareInfoPollingInterval = TimeSpan.FromMilliseconds(hardwareInfoPollingIntervalMilliseconds),
+            PollingInterval = primaryInterval,
+            SecondaryPollingInterval = secondaryInterval,
+            HardwareInfoPollingInterval = tertiaryInterval,
             AllowFanControlCommands = AllowFanControlCommandsDraft,
         };
 
         validationError = string.Empty;
         return true;
     }
+
+    private static bool TryParseTier(PollingTier tier, string? text, string label, out TimeSpan interval, out string validationError)
+    {
+        interval = TimeSpan.Zero;
+
+        if (!long.TryParse(text?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var milliseconds))
+        {
+            validationError = $"{label} polling interval must be a whole number of milliseconds.";
+            return false;
+        }
+
+        interval = TimeSpan.FromMilliseconds(milliseconds);
+
+        if (tier.IsOutOfRange(interval))
+        {
+            validationError = $"{label} polling interval must be between {FormatBound(tier.Minimum)} and {FormatBound(tier.Maximum)}.";
+            return false;
+        }
+
+        validationError = string.Empty;
+        return true;
+    }
+
+    private static string FormatRangeHint(PollingTier tier)
+        => $"Default {FormatBound(tier.Default)} · allowed {FormatBound(tier.Minimum)}–{FormatBound(tier.Maximum)}";
+
+    private static string FormatBound(TimeSpan interval)
+        => interval < TimeSpan.FromSeconds(1)
+            ? $"{interval.TotalMilliseconds:0} ms"
+            : interval < TimeSpan.FromMinutes(1)
+                ? $"{interval.TotalSeconds:0.##} s"
+                : interval < TimeSpan.FromHours(1)
+                    ? $"{interval.TotalMinutes:0.##} min"
+                    : $"{interval.TotalHours:0.##} h";
 
     private static string FormatMilliseconds(TimeSpan timeSpan)
         => checked((long)Math.Round(timeSpan.TotalMilliseconds, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture);

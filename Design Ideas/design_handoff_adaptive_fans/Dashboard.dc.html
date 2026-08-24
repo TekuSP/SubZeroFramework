@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/colors.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/typography.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/expressive.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<script src="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/_ds_bundle.js"></script>
+<style>
+  :root{
+    --app-accent:#0078D7; --app-accent-hover:#1f8ae6; --app-accent-press:#0063b1;
+    --app-on-accent:#ffffff;
+    --sz-bg:#1b2727; --sz-container-lowest:#161f1f; --sz-container-low:#1f1f1f;
+    --sz-container:#2e2e2e; --sz-container-high:#383b3b; --sz-container-highest:#474b4b; --sz-container-hover:#414646;
+    --sz-outline:rgba(255,255,255,0.07); --sz-outline-strong:rgba(255,255,255,0.13); --sz-violet:#8AB7E8;
+    --text-primary:#fffffa; --text-secondary:#D7D8FF; --text-tertiary:#8d8ea3;
+    --sz-ok:#6ccb5f; --sz-warn:#c5994e; --sz-danger:#d9706a;
+    --sz-ok-bg:rgba(108,203,95,0.14); --sz-warn-bg:rgba(197,153,78,0.16); --sz-danger-bg:rgba(217,112,106,0.16);
+    --accent-text:#8AB7E8;
+  }
+  html,body{ margin:0; height:100%; background:var(--sz-bg); font-family:var(--font-text); color:var(--text-primary); }
+  .ftrack{ scrollbar-width:thin; scrollbar-color:var(--sz-container-highest) transparent; }
+  .ftrack::-webkit-scrollbar{ width:11px }
+  .ftrack::-webkit-scrollbar-thumb{ background:var(--sz-container-highest); border-radius:6px; border:3px solid transparent; background-clip:padding-box }
+  @keyframes sz-flow{ to{ stroke-dashoffset:-24 } }
+</style>
+</helmet>
+
+<div style="height:100%; display:flex; flex-direction:column">
+  <!-- ===== title bar (chrome) ===== -->
+  <div style="height:40px; display:flex; align-items:center; padding:0 0 0 16px; flex-shrink:0">
+    <span class="mdi mdi-snowflake" style="font-size:15px; color:var(--sz-violet)"></span>
+    <span style="font-size:12.5px; color:var(--text-secondary); margin-left:9px">SubZero &mdash; Framework Edition</span>
+    <span style="flex:1"></span>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-minimize" style="font-size:15px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-restore" style="font-size:13px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-close" style="font-size:15px"></span></div>
+  </div>
+
+  <div style="display:flex; flex:1; min-height:0">
+    <!-- ===== icon rail (chrome) ===== -->
+    <div style="width:56px; flex-shrink:0; display:flex; flex-direction:column; padding-top:8px; background:#000000">
+      <div style="position:relative; width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:var(--sz-container-high)">
+        <span style="position:absolute; left:-4px; top:11px; bottom:11px; width:3px; border-radius:2px; background:var(--app-accent)"></span>
+        <span class="mdi mdi-view-dashboard-outline" style="font-size:19px; color:var(--app-accent)"></span>
+      </div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-thermometer" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-flash-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-fan" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-expansion-card-variant" style="font-size:19px"></span></div>
+      <div style="flex:1"></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-alert-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-github" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-cog-outline" style="font-size:19px"></span></div>
+    </div>
+
+    <!-- ===== scrollable content ===== -->
+    <div class="ftrack" data-screen-label="Dashboard" style="flex:1; min-width:0; min-height:0; overflow:auto; display:flex; flex-direction:column; padding:16px 26px 24px">
+
+      <!-- brand + system info (chrome) -->
+      <div style="display:flex; gap:16px; margin-bottom:20px">
+        <div style="flex:2; min-width:0; height:96px; border-radius:14px; background:var(--sz-container-high); border:1px solid var(--sz-outline); display:flex; align-items:center; justify-content:center; gap:16px">
+          <span class="mdi mdi-snowflake" style="font-size:36px; color:var(--sz-violet)"></span>
+          <div style="display:flex; flex-direction:column; align-items:center">
+            <span style="font-family:var(--font-display); font-weight:700; font-size:30px; letter-spacing:0.12em; background:linear-gradient(90deg,#6f6ad9,#8AB7E8); -webkit-background-clip:text; background-clip:text; color:transparent">SUBZERO</span>
+            <span style="font-size:13px; color:var(--text-secondary); letter-spacing:0.18em; margin-top:-2px">FRAMEWORK EDITION</span>
+          </div>
+        </div>
+        <div style="flex:1.5; min-width:0; padding:14px 18px; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px">
+          <div style="font-family:var(--font-display); font-weight:600; font-size:16px; margin-bottom:8px">System information</div>
+          <div style="display:flex; flex-direction:column; gap:5px; font-size:12.5px">
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-laptop" style="font-size:14px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">Model</span><span>Framework Laptop 16</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-cpu-64-bit" style="font-size:14px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">CPU</span><span>Ryzen AI 9 HX 370</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-fan" style="font-size:14px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">Fans</span><span>4 detected</span></div>
+            <div style="display:flex; gap:9px; align-items:center"><span class="mdi mdi-chip" style="font-size:14px; color:var(--sz-violet)"></span><span style="color:var(--text-secondary)">Driver</span><span>tulip-4.0.1</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== COOLING PROFILE HERO ===== -->
+      <div style="display:flex; align-items:center; gap:10px; margin:0 2px 12px; flex-wrap:wrap">
+        <span class="mdi mdi-account-cog-outline" style="font-size:18px; color:var(--sz-violet)"></span>
+        <span style="font-family:var(--font-display); font-weight:600; font-size:18px">Profiles</span>
+        <span style="font-size:12px; color:var(--text-tertiary)">saved fan setups &mdash; applying one switches every fan at once</span>
+        <sc-if value="{{ modified }}" hint-placeholder-val="{{ false }}">
+          <span style="display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 11px; border-radius:12px; font-size:11.5px; font-weight:600; background:var(--sz-warn-bg); color:var(--sz-warn)"><span class="mdi mdi-circle-edit-outline" style="font-size:12px"></span>Modified</span>
+        </sc-if>
+        <span style="flex:1"></span>
+        <sc-if value="{{ modified }}" hint-placeholder-val="{{ false }}">
+          <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--accent-text); cursor:pointer" onClick="{{ saveProfile }}"><span class="mdi mdi-content-save-outline" style="font-size:14px"></span>Save as profile</span>
+        </sc-if>
+        <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--accent-text); cursor:pointer"><span class="mdi mdi-pencil-outline" style="font-size:14px"></span>Manage profiles</span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:24px">
+        <sc-for list="{{ profiles }}" as="p" hint-placeholder-count="4">
+          <div style="position:relative; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:16px 16px 15px; cursor:pointer; overflow:hidden" onClick="{{ p.select }}">
+            <sc-if value="{{ p.active }}" hint-placeholder-val="{{ false }}">
+              <span style="position:absolute; inset:0; border:2px solid var(--app-accent); border-radius:14px; background:color-mix(in srgb, var(--app-accent) 15%, transparent); pointer-events:none"></span>
+            </sc-if>
+            <div style="position:relative; display:flex; align-items:center; justify-content:space-between; margin-bottom:12px">
+              <span class="mdi mdi-{{ p.icon }}" style="font-size:22px; color:var(--sz-violet)"></span>
+              <sc-if value="{{ p.active }}" hint-placeholder-val="{{ false }}">
+                <span class="mdi mdi-check-circle" style="font-size:17px; color:var(--app-accent)"></span>
+              </sc-if>
+            </div>
+            <div style="position:relative; display:flex; align-items:center; gap:7px; margin-bottom:4px">
+              <span style="font-family:var(--font-display); font-weight:600; font-size:15px">{{ p.name }}</span>
+              <sc-if value="{{ p.isDefault }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:9.5px; font-weight:600; letter-spacing:0.05em; color:var(--text-tertiary); border:1px solid var(--sz-outline-strong); border-radius:4px; padding:1px 5px">DEFAULT</span>
+              </sc-if>
+            </div>
+            <div style="position:relative; font-size:11.5px; color:var(--text-tertiary); line-height:1.35">{{ p.sub }}</div>
+          </div>
+        </sc-for>
+        <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; border:1px dashed var(--sz-outline-strong); border-radius:14px; padding:16px; cursor:pointer; color:var(--text-tertiary)">
+          <span class="mdi mdi-plus" style="font-size:22px"></span>
+          <span style="font-size:12.5px">New profile</span>
+        </div>
+      </div>
+
+      <!-- ===== FANS QUICK CONTROLS ===== -->
+      <div style="display:flex; align-items:center; gap:10px; margin:0 2px 12px">
+        <span class="mdi mdi-fan" style="font-size:18px; color:var(--sz-violet)"></span>
+        <span style="font-family:var(--font-display); font-weight:600; font-size:18px">Fans</span>
+        <span style="font-size:12px; color:var(--text-tertiary)">quick control &mdash; changes apply live</span>
+        <span style="flex:1"></span>
+        <span style="font-size:12px; color:var(--text-secondary)">Average fan speed</span>
+        <span style="font-family:var(--font-display); font-weight:600; font-size:16px">{{ avgRpm }}</span>
+        <span style="font-size:11px; color:var(--text-tertiary)">rev/s</span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:24px">
+        <sc-for list="{{ fans }}" as="f" hint-placeholder-count="4">
+          <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:16px; display:flex; flex-direction:column; gap:12px">
+            <div style="display:flex; align-items:flex-start; justify-content:space-between">
+              <div style="display:flex; flex-direction:column; gap:2px; min-width:0">
+                <span style="font-family:var(--font-display); font-weight:600; font-size:15px">{{ f.loc }}</span>
+                <span style="font-size:11px; color:var(--text-tertiary)">{{ f.slot }}</span>
+              </div>
+              <span style="display:inline-flex; align-items:center; gap:5px; font-size:11px; padding:2px 9px; border-radius:999px; background:var(--sz-container-high); border:1px solid var(--sz-outline-strong); color:var(--text-secondary); white-space:nowrap"><span class="mdi mdi-{{ f.funcIcon }}" style="font-size:12px"></span>{{ f.func }}</span>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:14px">
+              <div style="position:relative; width:86px; height:86px; flex-shrink:0">
+                <svg width="86" height="86" viewBox="0 0 86 86">
+                  <circle cx="43" cy="43" r="34" fill="none" stroke="var(--sz-container-highest)" stroke-width="7" stroke-linecap="round" stroke-dasharray="{{ f.gauge.trackDash }}" transform="rotate(135 43 43)"></circle>
+                  <circle cx="43" cy="43" r="34" fill="none" stroke="{{ f.gauge.color }}" stroke-width="7" stroke-linecap="round" stroke-dasharray="{{ f.gauge.fillDash }}" transform="rotate(135 43 43)"></circle>
+                </svg>
+                <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center">
+                  <span style="font-family:var(--font-display); font-weight:600; font-size:22px; line-height:1">{{ f.rps }}</span>
+                  <span style="font-size:9.5px; color:var(--text-tertiary); letter-spacing:0.03em">rev/s</span>
+                </div>
+              </div>
+              <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:7px">
+                <span style="font-size:11px; color:var(--text-tertiary)">Now driving</span>
+                <span style="font-family:var(--font-display); font-weight:600; font-size:15px; color:{{ f.gauge.color }}">{{ f.targetLabel }}</span>
+                <div style="height:6px; border-radius:3px; background:var(--sz-container-highest); overflow:hidden; margin-top:2px">
+                  <div style="height:100%; border-radius:3px; background:{{ f.gauge.color }}; width:{{ f.dutyPct }}"></div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:2px; background:var(--sz-container-lowest); border:1px solid var(--sz-outline); border-radius:9px; padding:3px">
+              <sc-for list="{{ f.modeBtns }}" as="m" hint-placeholder-count="5">
+                <div style="position:relative; flex:1; display:flex; align-items:center; justify-content:center; height:28px; border-radius:7px; cursor:pointer; color:{{ m.color }}" onClick="{{ m.select }}" title="{{ m.label }}">
+                  <sc-if value="{{ m.active }}" hint-placeholder-val="{{ false }}">
+                    <span style="position:absolute; inset:0; border-radius:7px; background:var(--app-accent); pointer-events:none"></span>
+                  </sc-if>
+                  <span class="mdi mdi-{{ m.icon }}" style="position:relative; font-size:15px"></span>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="{{ f.ctl.style }}">
+              <sc-if value="{{ f.ctl.isManual }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex; align-items:center; gap:8px">
+                  <div style="width:32px; height:32px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border-radius:8px; background:var(--sz-container-high); border:1px solid var(--sz-outline-strong); cursor:pointer; color:var(--text-primary)" onClick="{{ f.dutyDown }}"><span class="mdi mdi-minus" style="font-size:16px"></span></div>
+                  <div style="flex:1; text-align:center; font-size:12.5px; color:var(--text-secondary)">Duty <span style="font-family:var(--font-display); font-weight:600; color:var(--text-primary)">{{ f.dutyPct }}</span></div>
+                  <div style="width:32px; height:32px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border-radius:8px; background:var(--sz-container-high); border:1px solid var(--sz-outline-strong); cursor:pointer; color:var(--text-primary)" onClick="{{ f.dutyUp }}"><span class="mdi mdi-plus" style="font-size:16px"></span></div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ f.ctl.isInfo }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex; align-items:center; gap:9px; height:32px">
+                  <span class="mdi mdi-{{ f.ctl.icon }}" style="font-size:15px; color:{{ f.ctl.iconColor }}; flex-shrink:0"></span>
+                  <span style="flex:1; min-width:0; font-size:12px; color:var(--text-secondary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ f.ctl.text }}</span>
+                  <sc-if value="{{ f.ctl.hasLink }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:11.5px; color:var(--accent-text); cursor:pointer; white-space:nowrap">{{ f.ctl.link }}</span>
+                  </sc-if>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <!-- ===== THERMAL + POWER GLANCE ===== -->
+      <div style="display:flex; gap:18px; align-items:stretch">
+
+        <!-- Thermal snapshot -->
+        <div style="flex:1.35; min-width:0; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:18px">
+          <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px">
+            <span class="mdi mdi-thermometer" style="font-size:17px; color:var(--sz-violet)"></span>
+            <span style="font-family:var(--font-display); font-weight:600; font-size:16px">Thermal snapshot</span>
+            <span style="flex:1"></span>
+            <span style="font-size:11.5px; color:var(--text-tertiary)">driving temperature</span>
+            <span style="font-family:var(--font-display); font-weight:600; font-size:20px; color:{{ driving.color }}">{{ driving.temp }}</span>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:9px 20px; margin-top:14px">
+            <sc-for list="{{ sensors }}" as="s" hint-placeholder-count="8">
+              <div style="display:flex; align-items:center; gap:11px">
+                <span style="font-size:12px; color:var(--text-secondary); width:78px; flex-shrink:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ s.name }}</span>
+                <div style="flex:1; height:6px; border-radius:3px; background:var(--sz-container-highest); overflow:hidden">
+                  <div style="height:100%; border-radius:3px; background:{{ s.color }}; width:{{ s.barPct }}"></div>
+                </div>
+                <span style="font-family:var(--font-display); font-weight:600; font-size:13px; width:40px; text-align:right; color:{{ s.color }}">{{ s.tempStr }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- Power + quick toggles -->
+        <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:18px">
+          <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:18px">
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px">
+              <span class="mdi mdi-battery-charging" style="font-size:17px; color:var(--sz-violet)"></span>
+              <span style="font-family:var(--font-display); font-weight:600; font-size:16px">Power</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:18px">
+              <div style="position:relative; width:92px; height:92px; flex-shrink:0">
+                <svg width="92" height="92" viewBox="0 0 92 92">
+                  <circle cx="46" cy="46" r="37" fill="none" stroke="var(--sz-container-highest)" stroke-width="7"></circle>
+                  <circle cx="46" cy="46" r="37" fill="none" stroke="{{ battery.color }}" stroke-width="7" stroke-linecap="round" stroke-dasharray="{{ battery.fillDash }}" transform="rotate(-90 46 46)"></circle>
+                  <circle cx="46" cy="46" r="37" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="6 18" transform="rotate(-90 46 46)" style="animation:sz-flow 1.1s linear infinite"></circle>
+                </svg>
+                <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center">
+                  <span style="font-family:var(--font-display); font-weight:600; font-size:23px; line-height:1">{{ battery.pct }}</span>
+                </div>
+              </div>
+              <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:9px">
+                <div style="display:inline-flex; align-items:center; gap:7px"><span style="width:8px; height:8px; border-radius:50%; background:var(--sz-ok)"></span><span style="font-size:13px; color:var(--text-primary)">{{ battery.state }}</span></div>
+                <div style="display:flex; justify-content:space-between; font-size:12px"><span style="color:var(--text-tertiary)">Adapter</span><span style="font-family:var(--font-display); font-weight:600">{{ battery.adapter }}</span></div>
+                <div style="display:flex; justify-content:space-between; font-size:12px"><span style="color:var(--text-tertiary)">Full in</span><span style="font-family:var(--font-display); font-weight:600">{{ battery.eta }}</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex:1; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:8px 18px">
+            <sc-for list="{{ toggles }}" as="t" hint-placeholder-count="4">
+              <div style="display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:1px solid var(--sz-outline)">
+                <span class="mdi mdi-{{ t.icon }}" style="font-size:17px; color:var(--sz-violet); width:20px; text-align:center"></span>
+                <div style="flex:1; min-width:0">
+                  <div style="font-size:13px; color:var(--text-primary)">{{ t.label }}</div>
+                  <div style="font-size:11px; color:var(--text-tertiary)">{{ t.sub }}</div>
+                </div>
+                <div style="position:relative; width:40px; height:22px; border-radius:999px; cursor:pointer; flex-shrink:0; background:{{ t.trackColor }}; transition:background 0.15s" onClick="{{ t.toggle }}">
+                  <span style="position:absolute; top:3px; width:16px; height:16px; border-radius:50%; background:#fff; left:{{ t.knobLeft }}; transition:left 0.15s"></span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    profile:'balanced',
+    fans:[
+      { id:'left',  loc:'Left fan',  slot:'Slot 0', func:'CPU', funcIcon:'cpu-64-bit', mode:'curve', duty:45, autoDuty:42, boost:false },
+      { id:'right', loc:'Right fan', slot:'Slot 1', func:'GPU', funcIcon:'expansion-card', mode:'adaptive', duty:45, autoDuty:44, boost:false },
+      { id:'apu',   loc:'APU fan',   slot:'Slot 2', func:'CPU', funcIcon:'cpu-64-bit', mode:'manual', duty:45, autoDuty:40, boost:false },
+      { id:'front', loc:'Front fan', slot:'Slot 3', func:'Sys', funcIcon:'fan', mode:'auto', duty:45, autoDuty:38, boost:false },
+    ],
+    sensors:[
+      {name:'CPU Tctl',t:61},{name:'SoC / APU',t:55},{name:'GPU edge',t:52},{name:'VRM',t:58},
+      {name:'SSD 0',t:44},{name:'Battery',t:33},{name:'Chassis',t:39},{name:'Ambient',t:28},
+    ],
+    zeroIdle:true, syncFans:false, chargeLimit:true, startup:true,
+  };
+
+  PROFILES=[
+    {key:'silent', name:'Silent', icon:'volume-low', sub:'All fans on a quiet curve \u00b7 zero-RPM idle',
+      setup:{ left:{mode:'curve'}, right:{mode:'curve'}, apu:{mode:'curve'}, front:{mode:'auto'} }},
+    {key:'balanced', name:'Balanced', icon:'scale-balance', isDefault:true, sub:'Curves on CPU fans \u00b7 Adaptive 78\u00B0C on GPU',
+      setup:{ left:{mode:'curve'}, right:{mode:'adaptive'}, apu:{mode:'manual',duty:45}, front:{mode:'auto'} }},
+    {key:'gaming', name:'Gaming', icon:'controller-classic-outline', sub:'Adaptive 72\u00B0C on both \u00b7 chassis fan 70%',
+      setup:{ left:{mode:'adaptive'}, right:{mode:'adaptive'}, apu:{mode:'manual',duty:70}, front:{mode:'manual',duty:70} }},
+    {key:'render', name:'Render', icon:'cube-outline', sub:'Everything at max while a job runs',
+      setup:{ left:{mode:'max'}, right:{mode:'max'}, apu:{mode:'max'}, front:{mode:'max'} }},
+  ];
+  MODES=[
+    {key:'auto', label:'Auto', icon:'auto-fix'},
+    {key:'manual', label:'Manual', icon:'tune-variant'},
+    {key:'curve', label:'Custom curve', icon:'chart-bell-curve'},
+    {key:'max', label:'Max', icon:'speedometer'},
+    {key:'adaptive', label:'Adaptive', icon:'tune-vertical-variant'},
+  ];
+
+  gauge(frac,color){ const r=34,C=2*Math.PI*r,drawn=C*0.75; const f=Math.max(0,Math.min(1,frac));
+    return { trackDash:`${drawn} ${C}`, fillDash:`${drawn*f} ${C}`, color }; }
+
+  effDuty(f){ if(f.boost) return 100; if(f.mode==='max') return 100; if(f.mode==='auto') return f.autoDuty; if(f.mode==='curve') return 62; if(f.mode==='adaptive') return 58; return f.duty; }
+
+  speedColor(duty,boost){ if(boost) return 'var(--sz-violet)'; if(duty>=90) return 'var(--sz-warn)'; return 'var(--app-accent)'; }
+
+  modeCtl(f, duty){
+    const box={ display:'flex', flexDirection:'column', justifyContent:'center', minHeight:'32px' };
+    if(f.mode==='manual') return { style:box, isManual:true, isInfo:false };
+    const info=(icon,iconColor,text,link)=>({ style:box, isManual:false, isInfo:true, icon, iconColor, text, hasLink:!!link, link:link||'' });
+    if(f.mode==='curve')    return info('chart-bell-curve','var(--accent-text)','Curve \u00b7 2 sensors \u00b7 '+duty+'% now','Edit');
+    if(f.mode==='adaptive') return info('tune-vertical-variant','var(--accent-text)','Holding 78\u00B0C \u00b7 '+duty+'% now','Tune');
+    if(f.mode==='max')      return info('speedometer','var(--sz-warn)','Full speed \u00b7 100% commanded');
+    return info('auto-fix','var(--text-tertiary)','Firmware policy \u00b7 '+duty+'% now');
+  }
+
+  selectProfile(k){
+    this.setState(s=>{
+      const p=this.PROFILES.find(x=>x.key===k);
+      const fans=s.fans.map(f=>({ ...f, ...(p.setup[f.id]||{}), boost:false }));
+      return { profile:k, fans };
+    });
+  }
+  setMode(id,mode){ this.setState(s=>({ profile:'custom', fans:s.fans.map(f=> f.id===id?{...f,mode,boost:false}:f) })); }
+  bumpDuty(id,d){ this.setState(s=>({ profile:'custom', fans:s.fans.map(f=> f.id===id?{...f,mode:'manual', boost:false, duty:Math.max(0,Math.min(100,f.duty+d))}:f) })); }
+  tempColor(t){ if(t>=82) return 'var(--sz-danger)'; if(t>=70) return 'var(--sz-warn)'; if(t>=50) return 'var(--sz-ok)'; return 'var(--app-accent)'; }
+
+  toggleFlag(k){ this.setState(s=>({ [k]:!s[k] })); }
+
+  renderVals(){
+    const modeName={auto:'Auto',manual:'Manual',curve:'Custom curve',max:'Max',adaptive:'Adaptive'};
+    const fans=this.state.fans.map(f=>{
+      const duty=this.effDuty(f);
+      const rpm=Math.round(duty*52+480);
+      const rps=Math.round(rpm/60);
+      const color=this.speedColor(duty,f.boost);
+      let target;
+      if(this.state.profile!=='custom') target=`${this.PROFILES.find(p=>p.key===this.state.profile).name} \u00b7 ${duty}%`;
+      else target=`${modeName[f.mode]} \u00b7 ${duty}%`;
+      return {
+        ...f,
+        rps, rpm,
+        gauge:this.gauge(rpm/5200,color),
+        targetLabel:target,
+        dutyPct:duty+'%',
+        ctl:this.modeCtl(f,duty),
+        modeBtns:this.MODES.map(m=>({ label:m.label, icon:m.icon, active:f.mode===m.key,
+          color: f.mode===m.key ? 'var(--app-on-accent)' : 'var(--text-secondary)',
+          select:()=>this.setMode(f.id,m.key) })),
+        dutyUp:()=>this.bumpDuty(f.id,5),
+        dutyDown:()=>this.bumpDuty(f.id,-5),
+      };
+    });
+    const avgRpm=Math.round(fans.reduce((a,f)=>a+f.rpm,0)/fans.length/60);
+
+    const profiles=this.PROFILES.map(p=>({ name:p.name, icon:p.icon, sub:p.sub, isDefault:!!p.isDefault, active:this.state.profile===p.key, select:()=>this.selectProfile(p.key) }));
+    const modified=this.state.profile==='custom';
+    const saveProfile=()=>{};
+
+    const sensors=this.state.sensors.map(s=>({ name:s.name, tempStr:s.t+'\u00b0', barPct:Math.min(100,s.t)+'%', color:this.tempColor(s.t) }));
+    const hot=this.state.sensors.reduce((a,b)=>b.t>a.t?b:a);
+    const driving={ temp:hot.t+'\u00b0C', color:this.tempColor(hot.t) };
+
+    const bpct=76;
+    const bcolor = bpct<20?'var(--sz-danger)':bpct<40?'var(--sz-warn)':'var(--sz-ok)';
+    const bc=2*Math.PI*37;
+    const battery={ pct:bpct+'%', state:'Charging', adapter:'100 W', eta:'~29 min', color:bcolor, fillDash:`${bc*bpct/100} ${bc}` };
+
+    const mk=(k,icon,label,sub)=>({ icon,label,sub, on:this.state[k], trackColor:this.state[k]?'var(--app-accent)':'var(--sz-container-highest)', knobLeft:this.state[k]?'21px':'3px', toggle:()=>this.toggleFlag(k) });
+    const toggles=[
+      mk('zeroIdle','fan-off','Zero-RPM idle','Stop fans below the idle temperature'),
+      mk('syncFans','sync','Sync all fans','One curve drives every fan together'),
+      mk('chargeLimit','battery-80','Keep 80% charge limit','Extends battery lifespan'),
+      mk('startup','rocket-launch-outline','Start with Windows','Launch SubZero at sign-in'),
+    ];
+
+    return { fans, avgRpm, profiles, modified, saveProfile, sensors, driving, battery, toggles };
+  }
+}
+</script>
+</body>
+</html>

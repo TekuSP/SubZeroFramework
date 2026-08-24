@@ -65,9 +65,9 @@ public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
 
     public string DisplayCurrentResolution => Snapshot.DisplayCurrentResolution;
 
-    /// <summary>Formatted current refresh rate. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    /// <summary>Current refresh rate in canonical hertz; null when the monitor reports none.</summary>
     [ObservableProperty]
-    public partial string DisplayCurrentRefreshRate { get; private set; } = string.Empty;
+    public partial double? CurrentRefreshRateHertz { get; private set; }
 
     public string LinkedVideoControllersDisplay => Snapshot.DisplayLinkedVideoControllerSummary;
 
@@ -98,10 +98,12 @@ public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
     /// </summary>
     public void RefreshUnitFormatting()
     {
-        DisplayCurrentRefreshRate = Snapshot.CurrentRefreshRate > 0
-            ? _unitFormattingService.FormatRefreshRateHertz(Snapshot.CurrentRefreshRate)
-            : "Unknown";
+        CurrentRefreshRateHertz = Snapshot.CurrentRefreshRateHertz;
 
+        // PickerSubtitle stays formatted HERE, unlike the standalone refresh-rate readout. It joins a
+        // resolution and a refresh rate into one string, and a converter formats a single value — it cannot
+        // compose two. That is the documented split: one quantity goes through the converter, a composite
+        // stays in the view model. It does mean this method still needs the formatting service.
         var resolution = DisplayCurrentResolution;
         if (resolution == "Unknown")
         {
@@ -109,9 +111,13 @@ public partial class DeviceCapabilitiesMonitorCardModel : ObservableObject
         }
         else
         {
-            var refreshRate = DisplayCurrentRefreshRate;
+            var refreshRate = CurrentRefreshRateHertz is { } hertz
+                ? _unitFormattingService.FormatRefreshRateHertz(hertz)
+                : "Unknown";
             PickerSubtitle = refreshRate == "Unknown" ? resolution : $"{resolution} · {refreshRate}";
         }
+
+        OnPropertyChanged(propertyName: null);
     }
 
     private string? FirstNonEmpty(params string?[] values)

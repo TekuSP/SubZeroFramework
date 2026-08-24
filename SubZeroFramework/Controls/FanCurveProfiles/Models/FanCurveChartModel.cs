@@ -24,11 +24,6 @@ namespace SubZeroFramework.Controls.FanCurveProfiles.Models;
 /// </summary>
 public partial class FanCurveChartModel : ObservableObject
 {
-    // The curve chart's visible temperature window (FanCurveEditorView.xaml axis limits). The operating point
-    // is clamped into it so a reading outside the window parks the marker at the edge instead of vanishing.
-    private const double CurveChartMinTemperature = 10d;
-    private const double CurveChartMaxTemperature = 125d;
-
     private readonly IUnitFormattingService _unitFormattingService;
     private readonly ObservableCollection<ObservablePoint> _curveSeriesPoints = [];
     private readonly ObservableCollection<ObservablePoint> _appliedCurveSeriesPoints = [];
@@ -36,12 +31,21 @@ public partial class FanCurveChartModel : ObservableObject
     // Holds at most one point — where fan control actually is right now.
     private readonly ObservableCollection<ObservablePoint> _operatingPointValues = [];
 
+    // The canonical points behind each series, retained so a display-unit change can replot without the
+    // coordinator resupplying them. The series themselves live in display space.
+    private (int Temperature, double Duty)[] _lastCurvePoints = [];
+    private (int Temperature, double Duty)[] _lastAppliedPoints = [];
+
     public FanCurveChartModel(IUnitFormattingService unitFormattingService)
     {
         _unitFormattingService = unitFormattingService;
         CurveSeriesPoints = new ReadOnlyObservableCollection<ObservablePoint>(_curveSeriesPoints);
         AppliedCurveSeriesPoints = new ReadOnlyObservableCollection<ObservablePoint>(_appliedCurveSeriesPoints);
         CurveTemperatureLabelFormatter = CreateCurveTemperatureLabelFormatter();
+        CurveDutyLabelFormatter = CreateCurveDutyLabelFormatter();
+
+        // Without this the axes bind to 0/0 until the first unit change and the chart opens blank.
+        RefreshAxisWindows();
 
         // Built ONCE and never reassigned: the series observe the point collections above, so rebuilding the
         // curve or the overlay flows through without touching this array.
@@ -131,7 +135,105 @@ public partial class FanCurveChartModel : ObservableObject
     [ObservableProperty]
     public partial Func<double, string> CurveTemperatureLabelFormatter { get; private set; }
 
-    public Func<double, string> CurveDutyLabelFormatter { get; } = static value => $"{value:0}%";
+    // The duty axis plots canonical percent; only its LABELS follow the user's ratio unit, so the axis
+    // domain stays 0–100 while a fraction preference relabels 50 as "0.5". Stored (fresh closure per call) so
+    // PropertyChanged fires on a unit change and LiveCharts rebinds the labeler.
+    [ObservableProperty]
+    public partial Func<double, string> CurveDutyLabelFormatter { get; private set; }
+
+    // ----- Axis window, in DISPLAY units -----
+    //
+    // This chart plots in display space: the series, both axis windows and the pointer coordinates all live
+    // in the user's chosen units, and the labelers format an already-converted value. Bounds come from
+    // FanCurveDomain so the visible window cannot drift from the band the editor clamps points into.
+    //
+    // Because the chart is EDITED, the pointer path must convert back — see ToCanonicalTemperature /
+    // ToCanonicalDuty, which FanCurveEditorView calls on every press and drag. Those two are the whole
+    // reason this is delicate: without them a point dragged to the tick reading 150 °F would be stored as
+    // 150 °C.
+
+    /// <summary>Left edge of the temperature axis, in the user's unit.</summary>
+    [ObservableProperty]
+    public partial double CurveTemperatureAxisMinLimit { get; private set; }
+
+    /// <summary>Right edge of the temperature axis, in the user's unit.</summary>
+    [ObservableProperty]
+    public partial double CurveTemperatureAxisMaxLimit { get; private set; }
+
+    /// <summary>
+    /// Temperature tick spacing, in the user's unit.
+    /// </summary>
+    /// <remarks>
+    /// Chosen as a round number IN THE DISPLAY UNIT rather than converted from a canonical step, which is
+    /// the point of plotting in display space: 25 °F ticks read 50, 75, 100 instead of the 50, 68, 86 a
+    /// converted 10 °C step produces.
+    /// </remarks>
+    [ObservableProperty]
+    public partial double CurveTemperatureAxisMinStep { get; private set; }
+
+    /// <summary>Bottom of the duty axis, in the user's unit.</summary>
+    [ObservableProperty]
+    public partial double CurveDutyAxisMinLimit { get; private set; }
+
+    /// <summary>Top of the duty axis, in the user's unit.</summary>
+    [ObservableProperty]
+    public partial double CurveDutyAxisMaxLimit { get; private set; }
+
+    /// <summary>Duty tick spacing, in the user's unit.</summary>
+    [ObservableProperty]
+    public partial double CurveDutyAxisMinStep { get; private set; }
+
+    /// <summary>
+    /// A round tick spacing for the temperature axis, per unit.
+    /// </summary>
+    /// <remarks>
+    /// Hand-picked per unit rather than derived, because "round" is a property of how people read a scale,
+    /// not something arithmetic produces: 10 °C, 25 °F and 10 K are each the natural stride for their own
+    /// scale across the ~0–130 °C span this chart covers.
+    /// </remarks>
+    private double ResolveTemperatureStep() => _unitFormattingService.TemperatureUnitSuffix switch
+    {
+        "°F" => 25d,
+        "°R" => 25d,
+        _ => 10d,
+    };
+
+    /// <summary>A round tick spacing for the duty axis, per ratio unit.</summary>
+    private double ResolveDutyStep() => _unitFormattingService.ConvertRatio(20d);
+
+    /// <summary>Recomputes both axis windows from the canonical domain into the current display units.</summary>
+    private void RefreshAxisWindows()
+    {
+        CurveTemperatureAxisMinLimit = _unitFormattingService.ConvertTemperature(FanCurveDomain.ChartMinTemperatureCelsius);
+        CurveTemperatureAxisMaxLimit = _unitFormattingService.ConvertTemperature(FanCurveDomain.ChartMaxTemperatureCelsius);
+        CurveTemperatureAxisMinStep = ResolveTemperatureStep();
+
+        CurveDutyAxisMinLimit = _unitFormattingService.ConvertRatio(FanCurveDomain.ChartMinDutyPercent);
+        CurveDutyAxisMaxLimit = _unitFormattingService.ConvertRatio(FanCurveDomain.ChartMaxDutyPercent);
+        CurveDutyAxisMinStep = ResolveDutyStep();
+    }
+
+    // ----- Pointer coordinates: display space in, canonical out -----
+
+    /// <summary>
+    /// Converts a temperature read off the chart back to canonical Celsius, for storing an edited point.
+    /// </summary>
+    /// <remarks>
+    /// The inverse of the axis conversion, and the reason a display-space editable chart is safe. Every
+    /// pointer coordinate must pass through here before reaching FanCurveDomain.ClampTemperature.
+    /// </remarks>
+    public double ToCanonicalTemperature(double displayTemperature)
+        => _unitFormattingService.ConvertTemperatureToCelsius(displayTemperature);
+
+    /// <summary>Converts a duty read off the chart back to canonical percent.</summary>
+    public double ToCanonicalDuty(double displayDuty)
+        => _unitFormattingService.ConvertRatioToPercent(displayDuty);
+
+    // No display-space hit-test radius helper here, deliberately: because the pointer is converted to
+    // canonical the moment it is read, the grab radii stay canonical too and are compared against canonical
+    // points. Converting them as well would double-apply the scale. If the hit test ever moves into display
+    // space, the temperature radius needs ConvertTemperatureDelta, NOT ConvertTemperature — an absolute
+    // conversion would turn a 4.5 °C grab radius into 40 °F and make points grabbable from half the chart.
 
     // Violet dashed vertical marker drawn on the curve at the live driving temperature.
     [ObservableProperty]
@@ -201,8 +303,11 @@ public partial class FanCurveChartModel : ObservableObject
         }
         else
         {
-            var markerX = Math.Clamp(celsius, CurveChartMinTemperature, CurveChartMaxTemperature);
-            var clampedDuty = FanCurveDomain.ClampDuty(appliedDuty);
+            // Clamped in CANONICAL space against the canonical window, then converted — the marker has to
+            // land in the same display space as the series it sits on.
+            var markerX = _unitFormattingService.ConvertTemperature(
+                Math.Clamp(celsius, FanCurveDomain.ChartMinTemperatureCelsius, FanCurveDomain.ChartMaxTemperatureCelsius));
+            var clampedDuty = _unitFormattingService.ConvertRatio(FanCurveDomain.ClampDuty(appliedDuty));
             if (_operatingPointValues.Count == 1)
             {
                 // Mutate in place: ObservablePoint raises its own property change, so the ~3 Hz refresh costs
@@ -219,7 +324,7 @@ public partial class FanCurveChartModel : ObservableObject
 
         // Curve points are canonical Celsius, but the readout follows the user's temperature unit so it matches
         // the (unit-aware) curve chart axis.
-        PredictedDutyText = $"At {_unitFormattingService.FormatTemperature(celsius, decimals: 0)} this curve targets {duty:0}% duty.";
+        PredictedDutyText = $"At {_unitFormattingService.FormatTemperature(celsius, decimals: 0)} this curve targets {_unitFormattingService.FormatRatio(duty, decimals: 0)} duty.";
 
         // Crosshair through the operating point: the vertical rule reads the driving temperature off the X
         // axis, the horizontal one reads the duty off the Y axis. Zero-width / zero-height sections are how
@@ -228,8 +333,9 @@ public partial class FanCurveChartModel : ObservableObject
         [
             new RectangularSection
             {
-                Xi = celsius,
-                Xj = celsius,
+                // Display space, like every other coordinate on this chart.
+                Xi = _unitFormattingService.ConvertTemperature(celsius),
+                Xj = _unitFormattingService.ConvertTemperature(celsius),
                 Stroke = DrivingMarkerPaint,
             },
             .. _operatingPointValues.Count == 1
@@ -255,10 +361,20 @@ public partial class FanCurveChartModel : ObservableObject
     /// </summary>
     public void RebuildCurve(IEnumerable<CurvePointModel> curvePoints)
     {
+        // Kept so a display-unit change can replot the same curve without the coordinator resupplying it.
+        _lastCurvePoints = [.. curvePoints.Select(static p => (p.TemperatureCelsius, p.DutyPercent))];
+        RebuildCurveSeries();
+    }
+
+    /// <summary>Replots the draft curve from the retained canonical points into the current display units.</summary>
+    private void RebuildCurveSeries()
+    {
         _curveSeriesPoints.Clear();
-        foreach (var (temperature, duty) in FanCurveDomain.BuildAnchoredSeries(curvePoints.Select(static p => (p.TemperatureCelsius, p.DutyPercent))))
+        foreach (var (temperature, duty) in FanCurveDomain.BuildAnchoredSeries(_lastCurvePoints))
         {
-            _curveSeriesPoints.Add(new ObservablePoint(temperature, duty));
+            _curveSeriesPoints.Add(new ObservablePoint(
+                _unitFormattingService.ConvertTemperature(temperature),
+                _unitFormattingService.ConvertRatio(duty)));
         }
     }
 
@@ -268,30 +384,64 @@ public partial class FanCurveChartModel : ObservableObject
     /// </summary>
     public bool SetAppliedOverlay(CustomCurveSnapshot? applied)
     {
+        _lastAppliedPoints = applied is { } baseline && baseline.CurvePoints.Length > 0
+            ? [.. baseline.CurvePoints]
+            : [];
+
+        RebuildAppliedSeries();
+        return _lastAppliedPoints.Length > 0;
+    }
+
+    /// <summary>Replots the applied overlay from its retained canonical points into the current display units.</summary>
+    private void RebuildAppliedSeries()
+    {
         _appliedCurveSeriesPoints.Clear();
-        if (applied is not { } baseline || baseline.CurvePoints.Length == 0)
+        if (_lastAppliedPoints.Length == 0)
         {
-            return false;
+            return;
         }
 
         // Anchored identically to the draft series, so the overlay and the edited curve are comparable.
-        foreach (var (temperature, duty) in FanCurveDomain.BuildAnchoredSeries(baseline.CurvePoints))
+        foreach (var (temperature, duty) in FanCurveDomain.BuildAnchoredSeries(_lastAppliedPoints))
         {
-            _appliedCurveSeriesPoints.Add(new ObservablePoint(temperature, duty));
+            _appliedCurveSeriesPoints.Add(new ObservablePoint(
+                _unitFormattingService.ConvertTemperature(temperature),
+                _unitFormattingService.ConvertRatio(duty)));
         }
-
-        return true;
     }
 
-    /// <summary>Relabels the temperature axis after a machine-wide display-unit change.</summary>
-    public void RefreshUnitFormatting() => CurveTemperatureLabelFormatter = CreateCurveTemperatureLabelFormatter();
+    /// <summary>
+    /// Re-renders the whole chart in the newly chosen display units.
+    /// </summary>
+    /// <remarks>
+    /// Everything here plots in display space, so a unit change has to move the DATA, not just the labels:
+    /// both series are replotted from their retained canonical points and both axis windows recomputed. The
+    /// operating-point marker and its crosshair are left to the next RefreshPrediction — they are driven by
+    /// a live reading that arrives every tick anyway.
+    /// </remarks>
+    public void RefreshUnitFormatting()
+    {
+        CurveTemperatureLabelFormatter = CreateCurveTemperatureLabelFormatter();
+        CurveDutyLabelFormatter = CreateCurveDutyLabelFormatter();
+        RefreshAxisWindows();
+        RebuildCurveSeries();
+        RebuildAppliedSeries();
+    }
 
     // Builds a fresh closure per call so the assignment never no-ops: delegates wrapping the same method on
     // the same target compare equal, and the MVVM Toolkit setter skips equal values — capturing a local gives
     // each delegate a new closure target, so PropertyChanged fires and the axis rebinds its labeler.
+    // Both format an ALREADY-CONVERTED axis value. Not FormatTemperatureAxisLabel / FormatRatioAxisLabel,
+    // which convert from canonical and would scale a display-space tick a second time.
     private Func<double, string> CreateCurveTemperatureLabelFormatter()
     {
         var unitFormattingService = _unitFormattingService;
-        return value => unitFormattingService.FormatTemperatureAxisLabel(value);
+        return value => unitFormattingService.FormatTemperatureAxisTick(value);
+    }
+
+    private Func<double, string> CreateCurveDutyLabelFormatter()
+    {
+        var unitFormattingService = _unitFormattingService;
+        return value => unitFormattingService.FormatRatioAxisTick(value);
     }
 }

@@ -11,6 +11,7 @@ using SubZeroFramework.Models;
 using SubZeroFramework.Service.Models;
 using SubZeroFramework.Service.Services;
 using SubZeroFramework.Services.Compute;
+using SubZeroFramework.Services.Control;
 using SubZeroFramework.Services.Linux;
 using SubZeroFramework.Service.Services.Hosting;
 using SubZeroFramework.Services;
@@ -110,7 +111,32 @@ public static class Program
         // the Windows publish profiles build the windows TFM, the Linux ones build net10.0.
 #if WINDOWS10_0_26100_0_OR_GREATER
         builder.Services.AddSingleton<IComputeDeviceIdentityResolver, WindowsComputeDeviceIdentityResolver>();
-        builder.Services.AddSingleton<IComputeUtilizationReader, WindowsPdhComputeUtilizationReader>();
+        // PDH knows every adapter's utilisation but has no power, temperature or clock in its counter set.
+        // NVML supplies those for an NVIDIA GPU and ADLX for an AMD one. Registered as a composite so a
+        // device gets everything any source can tell us, with PDH FIRST so it owns utilisation and the device
+        // key, and the vendor readers filling in only the fields PDH left null.
+        builder.Services.AddSingleton<IComputeUtilizationReader>(x => new CompositeComputeUtilizationReader(
+            [
+                new WindowsPdhComputeUtilizationReader(
+                    x.GetRequiredService<ILogger<WindowsPdhComputeUtilizationReader>>(),
+                    x.GetRequiredService<IComputeDeviceIdentityResolver>()),
+                new WindowsNvmlGpuUtilizationReader(
+                    x.GetRequiredService<ILogger<WindowsNvmlGpuUtilizationReader>>(),
+                    x.GetRequiredService<IComputeDeviceIdentityResolver>()),
+                // The AMD half of the same gap, through ADLX. Keyed on the device instance path like the
+                // other two, so an AMD GPU is enriched in place rather than published a second time.
+                new WindowsAdlxGpuUtilizationReader(
+                    x.GetRequiredService<ILogger<WindowsAdlxGpuUtilizationReader>>()),
+                // And the Intel third, through IGCL — power, temperature, clock, throttle state and VRAM for
+                // an Intel adapter, enriched onto PDH's utilisation under the same device instance path.
+                new WindowsIgclGpuUtilizationReader(
+                    x.GetRequiredService<ILogger<WindowsIgclGpuUtilizationReader>>(),
+                    x.GetRequiredService<IComputeDeviceIdentityResolver>()),
+            ],
+            x.GetRequiredService<ILogger<CompositeComputeUtilizationReader>>()));
+        // CPU signals for fan control, from the same PDH machinery. Replaces Hardware.Info's CPU usage read,
+        // which cost a blocking 500 ms sleep per poll; this measures ~1.5-2.9 ms per tick on the same machine.
+        builder.Services.AddSingleton<IControlTelemetryReader, WindowsPdhControlTelemetryReader>();
         builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
         builder.Services.AddSingleton<IDriveInventoryReader>(UnavailableDriveInventoryReader.Instance);
         builder.Services.AddSingleton<IMemoryInventoryReader>(UnavailableMemoryInventoryReader.Instance);
@@ -142,10 +168,14 @@ public static class Program
             // phantom module and leaves every identifying field blank.
             builder.Services.AddSingleton<IMemoryInventoryReader, LinuxDmiMemoryInventoryReader>();
             builder.Services.AddSingleton<IComputeDeviceIdentityResolver, LinuxComputeDeviceIdentityResolver>();
+            // CPU signals for fan control: /proc/stat, cpufreq and RAPL. All cumulative counters differenced
+            // in place, so unlike Hardware.Info's usage read there is no second measurement and no sleep.
+            builder.Services.AddSingleton<IControlTelemetryReader, LinuxProcControlTelemetryReader>();
         }
         else
         {
             builder.Services.AddSingleton<IComputeUtilizationReader>(UnavailableComputeUtilizationReader.Instance);
+            builder.Services.AddSingleton<IControlTelemetryReader>(UnavailableControlTelemetryReader.Instance);
             builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
             builder.Services.AddSingleton<IDriveInventoryReader>(UnavailableDriveInventoryReader.Instance);
             builder.Services.AddSingleton<IMemoryInventoryReader>(UnavailableMemoryInventoryReader.Instance);

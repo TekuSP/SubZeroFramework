@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/colors.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/typography.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/expressive.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<script src="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/_ds_bundle.js"></script>
+<style>
+  :root{
+    --app-accent:#0078D7; --app-accent-hover:#1f8ae6; --app-accent-press:#0063b1; --app-on-accent:#ffffff;
+    --sz-bg:#1b2727; --sz-container-lowest:#161f1f; --sz-container-low:#1f1f1f;
+    --sz-container:#2e2e2e; --sz-container-high:#383b3b; --sz-container-highest:#474b4b; --sz-container-hover:#414646;
+    --sz-outline:rgba(255,255,255,0.07); --sz-outline-strong:rgba(255,255,255,0.13); --sz-violet:#8AB7E8;
+    --text-primary:#fffffa; --text-secondary:#D7D8FF; --text-tertiary:#8d8ea3;
+    --sz-ok:#6ccb5f; --sz-warn:#c5994e; --sz-danger:#d9706a;
+    --sz-ok-bg:rgba(108,203,95,0.14); --sz-warn-bg:rgba(197,153,78,0.16); --sz-danger-bg:rgba(217,112,106,0.16);
+    --accent-text:#8AB7E8;
+  }
+  html,body{ margin:0; height:100%; background:var(--sz-bg); font-family:var(--font-text); color:var(--text-primary); }
+  .ftrack{ scrollbar-width:thin; scrollbar-color:var(--sz-container-highest) transparent; }
+  .ftrack::-webkit-scrollbar{ width:11px }
+  .ftrack::-webkit-scrollbar-thumb{ background:var(--sz-container-highest); border-radius:6px; border:3px solid transparent; background-clip:padding-box }
+  @keyframes sz-pulse{ 0%,100%{ opacity:1 } 50%{ opacity:0.35 } }
+</style>
+</helmet>
+
+<div style="height:100vh; min-height:100vh; display:flex; flex-direction:column">
+  <div style="height:40px; display:flex; align-items:center; padding:0 0 0 16px; flex-shrink:0">
+    <span class="mdi mdi-snowflake" style="font-size:15px; color:var(--sz-violet)"></span>
+    <span style="font-size:12.5px; color:var(--text-secondary); margin-left:9px">SubZero &mdash; Framework Edition</span>
+    <span style="flex:1"></span>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-minimize" style="font-size:15px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-restore" style="font-size:13px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-close" style="font-size:15px"></span></div>
+  </div>
+
+  <div style="display:flex; flex:1; min-height:0">
+    <div style="width:56px; flex-shrink:0; display:flex; flex-direction:column; padding-top:8px; background:#000000">
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-view-dashboard-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-thermometer" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-flash-outline" style="font-size:19px"></span></div>
+      <div style="position:relative; width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:var(--sz-container-high)">
+        <span style="position:absolute; left:-4px; top:11px; bottom:11px; width:3px; border-radius:2px; background:var(--app-accent)"></span>
+        <span class="mdi mdi-fan" style="font-size:19px; color:var(--app-accent)"></span>
+      </div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-expansion-card-variant" style="font-size:19px"></span></div>
+      <div style="flex:1"></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-alert-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-github" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-cog-outline" style="font-size:19px"></span></div>
+    </div>
+
+    <!-- page area: dimmed app behind, dialog in front -->
+    <div data-screen-label="Fan calibration" style="position:relative; flex:1; min-width:0; min-height:0; display:flex; flex-direction:column">
+
+      <!-- design-review state switcher (not part of the shipping UI) -->
+      <div style="display:flex; align-items:center; gap:12px; padding:12px 26px 0; flex-wrap:wrap">
+        <span style="font-size:11px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em">Design review &mdash; state</span>
+        <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.SegmentedControl" activeTone="app" value="{{ step }}" onChange="{{ setStep }}" options="{{ stepOptions }}" hint-size="470px,32px"></x-import>
+        <sc-if value="{{ isFail }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; gap:7px; flex-wrap:wrap">
+            <sc-for list="{{ failChips }}" as="c" hint-placeholder-count="5">
+              <span style="{{ c.style }}" onClick="{{ c.select }}">{{ c.label }}</span>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+
+      <!-- dimmed app backdrop -->
+      <div style="position:relative; flex:1; min-height:0; margin:12px 26px 24px; border-radius:14px; overflow:hidden; background:var(--sz-container-lowest); border:1px solid var(--sz-outline)">
+        <div style="position:absolute; inset:0; display:flex; gap:16px; padding:16px; opacity:0.28; filter:blur(1.5px)">
+          <div style="width:230px; flex-shrink:0; display:flex; flex-direction:column; gap:9px">
+            <div style="height:22px; width:120px; border-radius:6px; background:var(--sz-container-high)"></div>
+            <div style="height:62px; border-radius:12px; background:var(--sz-container)"></div>
+            <div style="height:62px; border-radius:12px; background:var(--sz-container); border:1px solid var(--app-accent)"></div>
+            <div style="height:62px; border-radius:12px; background:var(--sz-container)"></div>
+            <div style="height:62px; border-radius:12px; background:var(--sz-container)"></div>
+          </div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:12px">
+            <div style="height:74px; border-radius:12px; background:var(--sz-container)"></div>
+            <div style="height:34px; width:60%; border-radius:10px; background:var(--sz-container-high)"></div>
+            <div style="flex:1; border-radius:12px; background:var(--sz-container)"></div>
+          </div>
+        </div>
+        <div style="position:absolute; inset:0; background:rgba(6,10,10,0.62)"></div>
+
+        <!-- ================= DIALOG ================= -->
+        <div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; padding:20px">
+          <div style="width:100%; max-width:880px; min-height:min(680px, 100%); max-height:100%; display:flex; flex-direction:column; border-radius:14px; background:var(--sz-container); border:1px solid var(--sz-outline-strong); box-shadow:0 32px 64px rgba(0,0,0,0.55); overflow:hidden">
+
+            <!-- header -->
+            <div style="display:flex; align-items:center; gap:12px; padding:20px 24px 0">
+              <span class="mdi mdi-{{ head.icon }}" style="font-size:22px; color:{{ head.iconColor }}"></span>
+              <div style="flex:1; min-width:0">
+                <div style="font-family:var(--font-display); font-weight:600; font-size:19px">{{ head.title }}</div>
+                <div style="font-size:12.5px; color:var(--text-secondary); margin-top:2px">{{ head.sub }}</div>
+              </div>
+            </div>
+
+            <div class="ftrack" style="flex:1; min-height:0; overflow:auto; padding:18px 24px 4px">
+
+              <!-- ===== CONSENT ===== -->
+              <sc-if value="{{ isConsent }}" hint-placeholder-val="{{ true }}">
+                <div>
+                  <div style="font-size:13.5px; color:var(--text-secondary); line-height:1.55; margin-bottom:16px">Before SubZero can drive this fan adaptively, it has to learn it. It learns two things: how much the temperature drops per unit of airflow, and how long that takes. It learns them by deliberately heating the machine, then cooling it, and watching how this fan responds &mdash; and it keeps what it learns for this fan on this machine.</div>
+                  <div style="font-size:12px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px">What will happen</div>
+                  <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:18px">
+                    <sc-for list="{{ consentRows }}" as="r" hint-placeholder-count="4">
+                      <div style="display:flex; align-items:flex-start; gap:13px; padding:11px 0; border-bottom:1px solid var(--sz-outline)">
+                        <span class="mdi mdi-{{ r.icon }}" style="font-size:18px; color:{{ r.color }}; width:22px; text-align:center; flex-shrink:0; margin-top:1px"></span>
+                        <div style="flex:1; min-width:0">
+                          <div style="font-size:13px; color:var(--text-primary)">{{ r.label }}</div>
+                          <div style="font-size:11.5px; color:var(--text-tertiary); margin-top:2px">{{ r.sub }}</div>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:11px; padding:13px 16px; border-radius:11px; background:var(--sz-ok-bg); border:1px solid rgba(108,203,95,0.28)">
+                    <span class="mdi mdi-power-plug" style="font-size:18px; color:var(--sz-ok)"></span>
+                    <span style="font-size:12.5px; color:var(--text-secondary)">Running on AC power &mdash; 100 W adapter connected. Ready to start.</span>
+                  </div>
+                </div>
+              </sc-if>
+
+              <!-- ===== BLOCKED: ON BATTERY ===== -->
+              <sc-if value="{{ isBattery }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div style="display:flex; align-items:flex-start; gap:13px; padding:15px 17px; border-radius:12px; background:var(--sz-danger-bg); border:1px solid rgba(217,112,106,0.35); margin-bottom:18px">
+                    <span class="mdi mdi-battery-alert-variant-outline" style="font-size:20px; color:var(--sz-danger); flex-shrink:0; margin-top:1px"></span>
+                    <div>
+                      <div style="font-family:var(--font-display); font-weight:600; font-size:14px; color:var(--sz-danger)">Calibration needs AC power</div>
+                      <div style="font-size:12.5px; color:var(--text-secondary); margin-top:4px; line-height:1.5">This machine is running on battery. Calibration loads the CPU and runs the fans at maximum for several minutes, which would drain the battery and skew the measurement &mdash; power limits behave differently when unplugged.</div>
+                    </div>
+                  </div>
+                  <div style="font-size:12px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px">Current power state</div>
+                  <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:10px">
+                    <div style="padding:13px 15px; border-radius:11px; background:var(--sz-container-high); border:1px solid var(--sz-outline)">
+                      <div style="font-size:11.5px; color:var(--text-tertiary)">Power source</div>
+                      <div style="font-size:14px; font-family:var(--font-display); font-weight:600; margin-top:3px">Battery</div>
+                    </div>
+                    <div style="padding:13px 15px; border-radius:11px; background:var(--sz-container-high); border:1px solid var(--sz-outline)">
+                      <div style="font-size:11.5px; color:var(--text-tertiary)">Charge</div>
+                      <div style="font-size:14px; font-family:var(--font-display); font-weight:600; margin-top:3px">76%</div>
+                    </div>
+                  </div>
+                  <div style="font-size:12.5px; color:var(--text-secondary); margin-top:16px; display:flex; align-items:center; gap:9px">
+                    <span class="mdi mdi-power-plug-outline" style="font-size:16px; color:var(--accent-text)"></span>
+                    Connect the charger and this dialog will unblock on its own.
+                  </div>
+                </div>
+              </sc-if>
+
+              <!-- ===== RUNNING ===== -->
+              <sc-if value="{{ isRunning }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div style="display:flex; align-items:flex-start; gap:13px; padding:13px 16px; border-radius:12px; background:var(--sz-warn-bg); border:1px solid rgba(197,153,78,0.35); margin-bottom:16px">
+                    <span class="mdi mdi-hand-back-left-outline" style="font-size:19px; color:var(--sz-warn); flex-shrink:0; margin-top:1px"></span>
+                    <div>
+                      <div style="font-family:var(--font-display); font-weight:600; font-size:13.5px; color:var(--sz-warn)">Don&rsquo;t use the machine while this runs</div>
+                      <div style="font-size:12.5px; color:var(--text-secondary); margin-top:3px; line-height:1.5">SubZero controls the CPU load itself. Anything you start &mdash; a game, a build, a video call &mdash; adds heat it isn&rsquo;t expecting and the measurement will be wrong. Leave it alone until it finishes.</div>
+                    </div>
+                  </div>
+
+                  <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px">
+                    <span style="font-family:var(--font-display); font-weight:600; font-size:14px">{{ run.stepLabel }}</span>
+                    <span style="flex:1"></span>
+                    <span style="font-size:12px; color:var(--text-secondary)">Step {{ run.stepNo }} of 7</span>
+                    <span style="font-size:12px; color:var(--text-tertiary)">&middot; {{ run.remaining }} left</span>
+                  </div>
+                  <div style="height:6px; border-radius:3px; background:var(--sz-container-highest); overflow:hidden; margin-bottom:18px">
+                    <div style="height:100%; border-radius:3px; background:var(--app-accent); width:{{ run.pct }}"></div>
+                  </div>
+
+                  <div style="padding:16px 16px 8px; border-radius:12px; background:var(--sz-container-high); border:1px solid var(--sz-outline); margin-bottom:16px">
+                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px">
+                      <span class="mdi mdi-chart-line" style="font-size:15px; color:var(--sz-violet)"></span>
+                      <span style="font-size:12.5px; color:var(--text-secondary)">Temperature response</span>
+                      <span style="flex:1"></span>
+                      <span style="display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-secondary)"><span style="width:14px; height:3px; border-radius:2px; background:var(--sz-danger)"></span>Driving temp</span>
+                      <span style="display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-secondary)"><span style="width:14px; height:3px; border-radius:2px; background:var(--app-accent)"></span>Fan duty</span>
+                    </div>
+                    <svg width="100%" viewBox="0 0 600 190" style="display:block">
+                      <sc-for list="{{ run.grid }}" as="g" hint-placeholder-count="4">
+                        <line x1="42" y1="{{ g.y }}" x2="588" y2="{{ g.y }}" stroke="var(--sz-outline)" stroke-width="1"></line>
+                        <text x="36" y="{{ g.ty }}" text-anchor="end" font-size="10" fill="var(--text-tertiary)">{{ g.label }}</text>
+                      </sc-for>
+                      <sc-for list="{{ run.xticks }}" as="t" hint-placeholder-count="4">
+                        <text x="{{ t.x }}" y="184" text-anchor="middle" font-size="10" fill="var(--text-tertiary)">{{ t.label }}</text>
+                      </sc-for>
+                      <line x1="{{ run.stepX }}" y1="10" x2="{{ run.stepX }}" y2="164" stroke="var(--sz-warn)" stroke-width="1" stroke-dasharray="4 4"></line>
+                      <text x="{{ run.stepLabelX }}" y="22" font-size="10.5" fill="var(--sz-warn)">{{ run.stepMark }}</text>
+                      <polyline points="{{ run.dutyPts }}" fill="none" stroke="var(--app-accent)" stroke-width="1.8" opacity="0.75" stroke-linejoin="round"></polyline>
+                      <polyline points="{{ run.tempPts }}" fill="none" stroke="var(--sz-danger)" stroke-width="2.4" stroke-linejoin="round"></polyline>
+                      <circle cx="{{ run.headX }}" cy="{{ run.headY }}" r="4" fill="var(--sz-danger)"></circle>
+                    </svg>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px 20px; padding:6px 2px 10px; font-size:12px">
+                      <sc-for list="{{ run.live }}" as="l" hint-placeholder-count="3">
+                        <span style="display:flex; align-items:center; gap:7px"><span style="color:var(--text-tertiary)">{{ l.label }}</span><span style="font-family:var(--font-display); font-weight:600; color:{{ l.color }}">{{ l.value }}</span></span>
+                      </sc-for>
+                    </div>
+                  </div>
+
+                  <div style="display:flex; flex-direction:column; gap:1px">
+                    <sc-for list="{{ run.steps }}" as="s" hint-placeholder-count="7">
+                      <div style="display:flex; align-items:center; gap:12px; padding:8px 2px">
+                        <span class="mdi mdi-{{ s.icon }}" style="{{ s.iconStyle }}"></span>
+                        <span style="{{ s.labelStyle }}">{{ s.label }}</span>
+                        <span style="flex:1"></span>
+                        <span style="font-size:11.5px; color:var(--text-tertiary)">{{ s.note }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+
+              <!-- ===== RESULT ===== -->
+              <sc-if value="{{ isResult }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div style="display:flex; align-items:center; gap:11px; padding:13px 16px; border-radius:11px; background:var(--sz-ok-bg); border:1px solid rgba(108,203,95,0.28); margin-bottom:18px">
+                    <span class="mdi mdi-check-decagram" style="font-size:20px; color:var(--sz-ok)"></span>
+                    <span style="font-size:13px; color:var(--text-secondary)">Right fan is calibrated. Adaptive mode is now available for it.</span>
+                  </div>
+
+                  <div style="font-size:12px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px">What SubZero learned</div>
+                  <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:18px">
+                    <sc-for list="{{ result.findings }}" as="f" hint-placeholder-count="4">
+                      <div style="display:flex; align-items:flex-start; gap:13px; padding:12px 0; border-bottom:1px solid var(--sz-outline)">
+                        <span class="mdi mdi-{{ f.icon }}" style="font-size:18px; color:var(--accent-text); width:22px; text-align:center; flex-shrink:0; margin-top:1px"></span>
+                        <div style="flex:1; min-width:0">
+                          <div style="font-size:13px; color:var(--text-primary)">{{ f.label }}</div>
+                          <div style="font-size:11.5px; color:var(--text-tertiary); margin-top:2px">{{ f.sub }}</div>
+                        </div>
+                        <span style="font-family:var(--font-display); font-weight:600; font-size:14px; white-space:nowrap">{{ f.value }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+
+                  <div style="display:flex; align-items:flex-start; gap:13px; padding:14px 16px; border-radius:12px; background:var(--sz-container-high); border:1px solid var(--sz-outline); margin-bottom:14px">
+                    <span class="mdi mdi-check-network-outline" style="font-size:19px; color:var(--sz-ok); flex-shrink:0; margin-top:1px"></span>
+                    <div>
+                      <div style="font-family:var(--font-display); font-weight:600; font-size:13.5px">This fan takes speed commands directly</div>
+                      <div style="font-size:12.5px; color:var(--text-secondary); margin-top:3px; line-height:1.5">The controller asked for specific speeds and the fan reached them, so SubZero will command RPM and let the firmware handle the motor. That gives the steadiest, quietest result.</div>
+                    </div>
+                  </div>
+
+                  <div style="font-size:11.5px; color:var(--text-tertiary); display:flex; align-items:center; gap:8px; padding-bottom:4px">
+                    <span class="mdi mdi-function-variant" style="font-size:14px"></span>
+                    Derived gains &mdash; Kp 41.8 &middot; Ki 1.62 &middot; identified K 0.42 &middot; &tau; 26 s &middot; L 4 s
+                  </div>
+                </div>
+              </sc-if>
+
+              <!-- ===== FAILURES ===== -->
+              <sc-if value="{{ isFail }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div style="display:flex; align-items:flex-start; gap:13px; padding:15px 17px; border-radius:12px; background:{{ fail.bg }}; border:1px solid {{ fail.border }}; margin-bottom:18px">
+                    <span class="mdi mdi-{{ fail.icon }}" style="font-size:20px; color:{{ fail.color }}; flex-shrink:0; margin-top:1px"></span>
+                    <div>
+                      <div style="font-family:var(--font-display); font-weight:600; font-size:14px; color:{{ fail.color }}">{{ fail.title }}</div>
+                      <div style="font-size:12.5px; color:var(--text-secondary); margin-top:4px; line-height:1.55">{{ fail.body }}</div>
+                    </div>
+                  </div>
+                  <div style="font-size:12px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px">{{ fail.detailTitle }}</div>
+                  <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:16px">
+                    <sc-for list="{{ fail.rows }}" as="r" hint-placeholder-count="3">
+                      <div style="display:flex; align-items:center; gap:13px; padding:11px 0; border-bottom:1px solid var(--sz-outline)">
+                        <span class="mdi mdi-{{ r.icon }}" style="font-size:16px; color:var(--text-tertiary); width:20px; text-align:center; flex-shrink:0"></span>
+                        <span style="flex:1; min-width:0; font-size:12.5px; color:var(--text-secondary)">{{ r.label }}</span>
+                        <span style="font-family:var(--font-display); font-weight:600; font-size:13px; color:{{ r.valueColor }}">{{ r.value }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="display:flex; align-items:flex-start; gap:10px; font-size:12.5px; color:var(--text-secondary)">
+                    <span class="mdi mdi-lightbulb-on-outline" style="font-size:15px; color:var(--sz-violet); flex-shrink:0; margin-top:1px"></span>
+                    <span>{{ fail.advice }}</span>
+                  </div>
+                </div>
+              </sc-if>
+
+            </div>
+
+            <!-- footer -->
+            <div style="display:flex; align-items:center; gap:10px; padding:16px 24px; border-top:1px solid var(--sz-outline); background:var(--sz-container-low)">
+              <sc-if value="{{ foot.hasNote }}" hint-placeholder-val="{{ false }}">
+                <span style="display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--text-tertiary); min-width:0"><span class="mdi mdi-{{ foot.noteIcon }}" style="font-size:14px; flex-shrink:0"></span>{{ foot.note }}</span>
+              </sc-if>
+              <span style="flex:1"></span>
+              <sc-if value="{{ foot.hasSecondary }}" hint-placeholder-val="{{ true }}">
+                <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="subtle" onClick="{{ foot.secondaryAction }}" hint-size="auto,34px">{{ foot.secondary }}</x-import>
+              </sc-if>
+              <sc-if value="{{ foot.hasPrimary }}" hint-placeholder-val="{{ true }}">
+                <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="{{ foot.primaryVariant }}" onClick="{{ foot.primaryAction }}" hint-size="auto,34px"><span class="mdi mdi-{{ foot.primaryIcon }}" style="font-size:14px; margin-right:7px"></span>{{ foot.primary }}</x-import>
+              </sc-if>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<template id="__bundler_thumbnail">
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#1b2727"/><g transform="translate(50,52)"><path d="M-28 14 L-12 14 L-4 -14 L6 8 L14 -2 L28 -2" fill="none" stroke="#d9706a" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/><circle cx="28" cy="-2" r="4" fill="#0078D7"/></g></svg>
+</template>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:820}}">
+class Component extends DCLogic {
+  state = { step:'consent', fail:'load' };
+
+  STEPS=[
+    { key:'baseline',  label:'Settling at idle',                note:'baseline temperature' },
+    { key:'minspin',   label:'Finding minimum spin',            note:'lowest duty that keeps turning' },
+    { key:'stepup',    label:'Stepping fan to maximum',         note:'step change applied' },
+    { key:'load',      label:'Loading the CPU',                 note:'raising heat on purpose' },
+    { key:'measure',   label:'Measuring temperature response',  note:'watching the curve settle' },
+    { key:'fit',       label:'Fitting the thermal model',       note:'identifying K, \u03c4 and L' },
+    { key:'verify',    label:'Verifying speed tracking',        note:'cascade or duty fallback' },
+  ];
+
+  FAILS={
+    load:{
+      chip:'Insufficient load', icon:'speedometer-slow', color:'var(--sz-warn)', bg:'var(--sz-warn-bg)', border:'rgba(197,153,78,0.35)',
+      title:'The machine never got busy enough',
+      body:'Calibration needs the CPU to draw real power so there is heat to measure. Something kept the processor idle for the whole run \u2014 usually a power-saving profile, or another app holding the CPU back.',
+      detailTitle:'What was measured',
+      rows:[ {icon:'flash', label:'Average package power', value:'6.4 W', valueColor:'var(--sz-warn)'},
+             {icon:'target', label:'Needed at least', value:'25 W', valueColor:'var(--text-primary)'},
+             {icon:'clock-outline', label:'Ran for', value:'2 min 41 s', valueColor:'var(--text-primary)'} ],
+      advice:'Set Windows to the Balanced or Best performance power mode, close anything limiting the CPU, and run it again.',
+      primary:'Try again', primaryIcon:'refresh',
+    },
+    delta:{
+      chip:'Not enough \u0394T', icon:'thermometer-minus', color:'var(--sz-warn)', bg:'var(--sz-warn-bg)', border:'rgba(197,153,78,0.35)',
+      title:'The temperature barely moved',
+      body:'SubZero learns from how far the temperature falls when the fan speeds up. Here it changed too little to tell the fan\u2019s effect apart from normal drift, so any model fitted to it would be guesswork.',
+      detailTitle:'What was measured',
+      rows:[ {icon:'thermometer', label:'Temperature swing', value:'2.1 \u00b0C', valueColor:'var(--sz-warn)'},
+             {icon:'target', label:'Needed at least', value:'8 \u00b0C', valueColor:'var(--text-primary)'},
+             {icon:'snowflake', label:'Ambient', value:'19 \u00b0C', valueColor:'var(--text-primary)'} ],
+      advice:'A very cool room or a docked, well-ventilated machine can cause this. Try again with the laptop on a flat surface at normal room temperature.',
+      primary:'Try again', primaryIcon:'refresh',
+    },
+    ceiling:{
+      chip:'Temperature ceiling', icon:'thermometer-alert', color:'var(--sz-danger)', bg:'var(--sz-danger-bg)', border:'rgba(217,112,106,0.35)',
+      title:'Stopped early to protect the machine',
+      body:'The driving sensor reached the safety ceiling while the CPU was loaded, so SubZero aborted and handed the fans straight back to the firmware. No settings were changed and nothing was left running hot.',
+      detailTitle:'At the moment it stopped',
+      rows:[ {icon:'thermometer-high', label:'Peak temperature', value:'97 \u00b0C', valueColor:'var(--sz-danger)'},
+             {icon:'shield-alert-outline', label:'Safety ceiling', value:'95 \u00b0C', valueColor:'var(--text-primary)'},
+             {icon:'progress-clock', label:'Stopped at step', value:'4 of 7', valueColor:'var(--text-primary)'} ],
+      advice:'This usually means blocked vents or dust in the heatsink. Check airflow, then try again \u2014 if it keeps happening, this fan may not be a good fit for adaptive control.',
+      primary:'Try again', primaryIcon:'refresh',
+    },
+    cancelled:{
+      chip:'Cancelled', icon:'close-circle-outline', color:'var(--text-secondary)', bg:'var(--sz-container-high)', border:'var(--sz-outline)',
+      title:'Calibration cancelled',
+      body:'You stopped the run, so nothing was saved. The fans went back to the mode they were in before it started, and the CPU load was released immediately.',
+      detailTitle:'Where it got to',
+      rows:[ {icon:'progress-clock', label:'Stopped at step', value:'3 of 7', valueColor:'var(--text-primary)'},
+             {icon:'content-save-off-outline', label:'Saved', value:'Nothing', valueColor:'var(--text-primary)'},
+             {icon:'fan', label:'Fans restored', value:'Yes', valueColor:'var(--sz-ok)'} ],
+      advice:'You can start again whenever the machine is free \u2014 it will pick up from a fresh baseline.',
+      primary:'Start again', primaryIcon:'play',
+    },
+    disconnect:{
+      chip:'Lost connection', icon:'lan-disconnect', color:'var(--sz-danger)', bg:'var(--sz-danger-bg)', border:'rgba(217,112,106,0.35)',
+      title:'Lost contact with the SubZero service',
+      body:'The app stopped receiving updates part-way through, so the run was abandoned. The service watches for this and returns the fans to firmware control on its own, so the machine is not left in a calibration state.',
+      detailTitle:'What happened',
+      rows:[ {icon:'progress-clock', label:'Stopped at step', value:'5 of 7', valueColor:'var(--text-primary)'},
+             {icon:'fan-alert', label:'Fans restored by service', value:'Yes', valueColor:'var(--sz-ok)'},
+             {icon:'lan-connect', label:'Service now', value:'Reachable', valueColor:'var(--sz-ok)'} ],
+      advice:'The service is responding again. Run calibration once more \u2014 if it drops out repeatedly, restart the service from Settings.',
+      primary:'Try again', primaryIcon:'refresh',
+    },
+  };
+
+  set(k){ this.setState({ step:k }); }
+
+  runModel(){
+    const active=4; // 0-based: "Measuring temperature response"
+    const steps=this.STEPS.map((s,i)=>{
+      const done=i<active, now=i===active;
+      return { label:s.label, note: done ? 'done' : (now ? 'in progress' : s.note),
+        icon: done ? 'check-circle' : (now ? 'progress-clock' : 'circle-outline'),
+        iconStyle:{ fontSize:'16px', width:'20px', textAlign:'center', flexShrink:0,
+          color: done ? 'var(--sz-ok)' : (now ? 'var(--app-accent)' : 'var(--text-tertiary)'),
+          animation: now ? 'sz-pulse 1.6s ease-in-out infinite' : 'none' },
+        labelStyle:{ fontSize:'13px', color: now ? 'var(--text-primary)' : (done ? 'var(--text-secondary)' : 'var(--text-tertiary)'), fontWeight: now ? 600 : 400 } };
+    });
+
+    // chart: temp + duty across 300 s
+    const N=46, x0=46, x1=584, ymap=v=>164-(Math.max(0,Math.min(100,v))/100)*150;
+    const xAt=i=>x0+(x1-x0)*i/(N-1);
+    const stepIdx=16;
+    const temps=[], duties=[];
+    for(let i=0;i<N;i++){
+      let t;
+      if(i<stepIdx) t=46+Math.sin(i/3)*0.8;
+      else { const k=i-stepIdx; t=46+34*(1-Math.exp(-k/6))+Math.sin(k/2)*0.7; }
+      temps.push(t);
+      duties.push(i<stepIdx?22:100);
+    }
+    const head=Math.round(N*0.78);
+    const tempPts=temps.slice(0,head+1).map((v,i)=>`${xAt(i).toFixed(1)},${ymap(v).toFixed(1)}`).join(' ');
+    const dutyPts=duties.slice(0,head+1).map((v,i)=>`${xAt(i).toFixed(1)},${ymap(v).toFixed(1)}`).join(' ');
+    const grid=[0,25,50,75,100].map(v=>({ y:ymap(v), ty:ymap(v)+3.5, label:v+'\u00b0' }));
+    const xticks=[['0s',0],['100s',15],['200s',30],['300s',45]].map(([label,i])=>({ label, x:xAt(i) }));
+
+    return { steps, stepNo:active+1, stepLabel:this.STEPS[active].label, pct:Math.round((active+0.5)/7*100)+'%', remaining:'about 2 min',
+      grid, xticks, tempPts, dutyPts, stepX:xAt(stepIdx), stepLabelX:xAt(stepIdx)+6, stepMark:'Fan \u2192 100%',
+      headX:xAt(head), headY:ymap(temps[head]),
+      live:[ {label:'Driving temp', value:Math.round(temps[head])+'\u00b0C', color:'var(--sz-danger)'},
+             {label:'Fan', value:'6,240 RPM \u00b7 100%', color:'var(--accent-text)'},
+             {label:'Package power', value:'54 W', color:'var(--text-primary)'} ] };
+  }
+
+  renderVals(){
+    const self=this; const s=this.state.step;
+    const isConsent=s==='consent', isBattery=s==='battery', isRunning=s==='running', isResult=s==='result', isFail=s==='fail';
+    const f=this.FAILS[this.state.fail];
+
+    const head = isConsent ? { icon:'tune-vertical-variant', iconColor:'var(--accent-text)', title:'Calibrate Right fan', sub:'One-time learning run \u00b7 Slot 1 \u00b7 Framework Laptop 16' }
+      : isBattery ? { icon:'battery-alert-variant-outline', iconColor:'var(--sz-danger)', title:'Calibrate Right fan', sub:'Cannot start while on battery power' }
+      : isRunning ? { icon:'progress-clock', iconColor:'var(--app-accent)', title:'Learning Right fan', sub:'Don\u2019t run anything on the machine until this finishes' }
+      : isResult ? { icon:'check-decagram', iconColor:'var(--sz-ok)', title:'SubZero has learned this fan', sub:'Right fan \u00b7 measured just now' }
+      : { icon:f.icon, iconColor:f.color, title:'Calibration did not finish', sub:'Right fan \u00b7 nothing was saved' };
+
+    const foot = isConsent ? { hasNote:true, noteIcon:'alert-circle-outline', note:'Without this, SubZero will not learn your fans.', hasSecondary:true, secondary:'Cancel', hasPrimary:true, primary:'Start calibration', primaryIcon:'play', primaryVariant:'accent' }
+      : isBattery ? { hasNote:true, noteIcon:'power-plug-outline', note:'Waiting for AC power.', hasSecondary:true, secondary:'Close', hasPrimary:false, primary:'', primaryIcon:'', primaryVariant:'accent' }
+      : isRunning ? { hasNote:true, noteIcon:'information-outline', note:'Cancelling is safe at any point \u2014 nothing is written until it completes.', hasSecondary:false, secondary:'', hasPrimary:true, primary:'Cancel calibration', primaryIcon:'stop', primaryVariant:'danger' }
+      : isResult ? { hasNote:false, noteIcon:'', note:'', hasSecondary:true, secondary:'Close', hasPrimary:true, primary:'Use Adaptive mode', primaryIcon:'tune-vertical-variant', primaryVariant:'accent' }
+      : { hasNote:false, noteIcon:'', note:'', hasSecondary:true, secondary:'Close', hasPrimary:true, primary:f.primary, primaryIcon:f.primaryIcon, primaryVariant:'accent' };
+    foot.primaryAction=()=>{}; foot.secondaryAction=()=>{};
+
+    const chipBase={ display:'inline-flex', alignItems:'center', height:'26px', padding:'0 12px', borderRadius:'13px', fontSize:'11.5px', fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' };
+    const failChips=Object.keys(this.FAILS).map(k=>{
+      const on=this.state.fail===k;
+      return { label:this.FAILS[k].chip, select:()=>self.setState({ fail:k }),
+        style: on ? { ...chipBase, background:'var(--app-accent)', color:'var(--app-on-accent)', border:'1px solid transparent' }
+                  : { ...chipBase, background:'var(--sz-container-high)', color:'var(--text-secondary)', border:'1px solid var(--sz-outline)' } };
+    });
+
+    return {
+      step:s, setStep:(k)=>self.set(k),
+      stepOptions:[ {key:'consent',label:'Consent'}, {key:'battery',label:'On battery'}, {key:'running',label:'Running'}, {key:'result',label:'Result'}, {key:'fail',label:'Failures'} ],
+      isConsent, isBattery, isRunning, isResult, isFail,
+      head, foot, failChips,
+      consentRows:[
+        { icon:'fan-speed-3', color:'var(--sz-warn)', label:'Fans will run to maximum', sub:'This is loud. Both fans spin up and hold there for part of the run.' },
+        { icon:'cpu-64-bit', color:'var(--sz-warn)', label:'The CPU will be loaded on purpose', sub:'SubZero generates heat so it has something to measure. The machine may feel sluggish.' },
+        { icon:'hand-back-left-outline', color:'var(--sz-warn)', label:'Leave the machine alone once it starts', sub:'SubZero applies the load itself — anything you run on top adds heat it isn\u2019t expecting and skews the result.' },
+        { icon:'clock-outline', color:'var(--accent-text)', label:'It takes about 5 minutes', sub:'Seven short steps. You can stop at any point without leaving anything half-applied.' },
+        { icon:'power-plug', color:'var(--sz-ok)', label:'AC power is required', sub:'Power limits behave differently on battery, which would skew the measurement.' },
+      ],
+      run:this.runModel(),
+      result:{ findings:[
+        { icon:'snowflake-thermometer', label:'How much this fan cools', value:'0.42 \u00b0C per 1%', sub:'Temperature drop for each extra percent of fan duty' },
+        { icon:'timer-sand', label:'How fast it responds', value:'26 s', sub:'Time to reach most of the change after a speed adjustment' },
+        { icon:'timer-play-outline', label:'Delay before it takes effect', value:'4 s', sub:'Dead time between commanding a speed and seeing temperature move' },
+        { icon:'fan-minus', label:'Slowest it can safely turn', value:'1,180 RPM', sub:'Below this the fan stalls \u2014 used as the safety floor default (17%)' },
+      ]},
+      fail:f,
+    };
+  }
+}
+</script>
+</body>
+</html>

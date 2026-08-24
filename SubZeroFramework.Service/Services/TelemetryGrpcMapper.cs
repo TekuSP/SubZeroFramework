@@ -206,11 +206,6 @@ internal static class TelemetryGrpcMapper
             reply.LinkedLeaderIndex = linkedLeaderIndex;
         }
 
-        if (change.Current.CpuUsageModifierStrength is double cpuUsageModifierStrength)
-        {
-            reply.CpuUsageModifierStrength = cpuUsageModifierStrength;
-        }
-
         return reply;
     }
 
@@ -285,6 +280,24 @@ internal static class TelemetryGrpcMapper
             BatteryDesignVoltageVolts = change.Current.BatteryDesignVoltageVolts ?? 0d,
             HasBatteryCycleCount = change.Current.BatteryCycleCount is not null,
             BatteryCycleCount = change.Current.BatteryCycleCount ?? 0u,
+
+            HasComputePowerWatts = change.Current.ComputePowerWatts is not null,
+            ComputePowerWatts = change.Current.ComputePowerWatts ?? 0d,
+            HasComputeTemperatureCelsius = change.Current.ComputeTemperatureCelsius is not null,
+            ComputeTemperatureCelsius = change.Current.ComputeTemperatureCelsius ?? 0d,
+            HasComputeCoreClockMegahertz = change.Current.ComputeCoreClockMegahertz is not null,
+            ComputeCoreClockMegahertz = change.Current.ComputeCoreClockMegahertz ?? 0d,
+            HasComputeMaxCoreClockMegahertz = change.Current.ComputeMaxCoreClockMegahertz is not null,
+            ComputeMaxCoreClockMegahertz = change.Current.ComputeMaxCoreClockMegahertz ?? 0d,
+            // Sent as the raw flags value. "Nothing is throttling" is a zero WITH the has_ bit set, which is a
+            // different statement from the source being unable to answer.
+            HasComputeThrottleReasons = change.Current.ComputeThrottleReasons is not null,
+            ComputeThrottleReasons = (uint)(change.Current.ComputeThrottleReasons ?? 0),
+            HasComputeVramUsedBytes = change.Current.ComputeVramUsedBytes is not null,
+            ComputeVramUsedBytes = change.Current.ComputeVramUsedBytes ?? 0d,
+            HasComputeVramTotalBytes = change.Current.ComputeVramTotalBytes is not null,
+            ComputeVramTotalBytes = change.Current.ComputeVramTotalBytes ?? 0d,
+
             IsAvailable = change.Current.IsAvailable,
         };
     }

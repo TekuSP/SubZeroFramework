@@ -52,6 +52,26 @@ public partial class FanSensorChartModel : ObservableObject
     {
         _unitFormattingService = unitFormattingService;
         SensorChartLegend = new ReadOnlyObservableCollection<SensorLegendItem>(_legend);
+        SensorChartTemperatureFormatter = CreateSensorChartTemperatureFormatter();
+    }
+
+    /// <summary>Relabels the temperature axis and the legend readouts after a display-unit change.</summary>
+    public void RefreshUnitFormatting()
+    {
+        SensorChartTemperatureFormatter = CreateSensorChartTemperatureFormatter();
+
+        if (_legend.Count > 0 && _drivingSeries is not null)
+        {
+            _legend[^1].ValueDisplay = DrivingValueDisplay();
+        }
+    }
+
+    // Fresh closure per call so the assignment never no-ops: delegates over the same method/target compare
+    // equal, and the MVVM Toolkit setter skips equal values — capturing a local gives each a new target.
+    private Func<double, string> CreateSensorChartTemperatureFormatter()
+    {
+        var unitFormattingService = _unitFormattingService;
+        return value => $"{value:0.#}{unitFormattingService.TemperatureUnitSuffix}";
     }
 
     /// <summary>Custom left-aligned legend rows under the chart (swatch + name + current value).</summary>
@@ -75,7 +95,11 @@ public partial class FanSensorChartModel : ObservableObject
 
     public Func<DateTime, string> SensorChartDateFormatter { get; } = static dt => dt.ToString("HH:mm:ss");
 
-    public Func<double, string> SensorChartTemperatureFormatter { get; } = static value => $"{value:0.#}°";
+    // The series is pre-converted to the display unit, so this labeler formats the ALREADY-display value and
+    // appends the real suffix rather than a bare degree sign — "K" carries no degree, and "°" alone cannot
+    // tell Celsius from Fahrenheit. Stored (fresh closure per call) so a unit change rebinds the labeler.
+    [ObservableProperty]
+    public partial Func<double, string> SensorChartTemperatureFormatter { get; private set; }
 
     /// <summary>Full rebuild: refreshes per-sensor and driving points, rebinds the series array, axis and legend.</summary>
     public void Rebuild(IReadOnlyList<SensorChipModel> selected, IReadOnlyDictionary<int, TelemetryPoint[]> historyBySensor, TemperatureAggregationMode aggregation)
@@ -187,7 +211,9 @@ public partial class FanSensorChartModel : ObservableObject
     }
 
     private string DrivingValueDisplay() =>
-        _drivingPoints.Count > 0 ? $"{_drivingPoints[^1].Value ?? 0d:0}°" : "—";
+        _drivingPoints.Count > 0
+            ? $"{_drivingPoints[^1].Value ?? 0d:0}{_unitFormattingService.TemperatureUnitSuffix}"
+            : "—";
 
     private void UpdateDrivingPoints(IReadOnlyList<SensorChipModel> selectedChips, IReadOnlyDictionary<int, TelemetryPoint[]> historyBySensor, TemperatureAggregationMode aggregation)
     {

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/colors.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/typography.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/expressive.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<script src="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/_ds_bundle.js"></script>
+<style>
+  :root{
+    --app-accent:#0078D7; --app-accent-hover:#1f8ae6; --app-accent-press:#0063b1; --app-on-accent:#ffffff;
+    --sz-bg:#1b2727; --sz-container-lowest:#161f1f; --sz-container-low:#1f1f1f;
+    --sz-container:#2e2e2e; --sz-container-high:#383b3b; --sz-container-highest:#474b4b; --sz-container-hover:#414646;
+    --sz-outline:rgba(255,255,255,0.07); --sz-outline-strong:rgba(255,255,255,0.13); --sz-violet:#8AB7E8;
+    --text-primary:#fffffa; --text-secondary:#D7D8FF; --text-tertiary:#8d8ea3;
+    --sz-ok:#6ccb5f; --sz-warn:#c5994e; --sz-danger:#d9706a;
+    --sz-ok-bg:rgba(108,203,95,0.14); --accent-text:#8AB7E8;
+  }
+  html,body{ margin:0; height:100%; background:var(--sz-bg); font-family:var(--font-text); color:var(--text-primary); }
+  .ftrack{ scrollbar-width:thin; scrollbar-color:var(--sz-container-highest) transparent; }
+  .ftrack::-webkit-scrollbar{ width:11px }
+  .ftrack::-webkit-scrollbar-thumb{ background:var(--sz-container-highest); border-radius:6px; border:3px solid transparent; background-clip:padding-box }
+</style>
+</helmet>
+
+<div style="height:100%; display:flex; flex-direction:column">
+  <div style="height:40px; display:flex; align-items:center; padding:0 0 0 16px; flex-shrink:0">
+    <span class="mdi mdi-snowflake" style="font-size:15px; color:var(--sz-violet)"></span>
+    <span style="font-size:12.5px; color:var(--text-secondary); margin-left:9px">SubZero &mdash; Framework Edition</span>
+    <span style="flex:1"></span>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-minimize" style="font-size:15px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-restore" style="font-size:13px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-close" style="font-size:15px"></span></div>
+  </div>
+
+  <div style="display:flex; flex:1; min-height:0">
+    <div style="width:56px; flex-shrink:0; display:flex; flex-direction:column; padding-top:8px; background:#000000">
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-view-dashboard-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-thermometer" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-flash-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-fan" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-expansion-card-variant" style="font-size:19px"></span></div>
+      <div style="flex:1"></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-alert-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-github" style="font-size:19px"></span></div>
+      <div style="position:relative; width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:var(--sz-container-high)">
+        <span style="position:absolute; left:-4px; top:11px; bottom:11px; width:3px; border-radius:2px; background:var(--app-accent)"></span>
+        <span class="mdi mdi-cog" style="font-size:19px; color:var(--app-accent)"></span>
+      </div>
+    </div>
+
+    <div style="flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; padding:16px 26px 20px">
+      <div style="margin:2px 2px 16px">
+        <div style="font-family:var(--font-display); font-weight:600; font-size:28px">Settings</div>
+      </div>
+
+      <div style="flex:1; min-height:0; display:flex; gap:18px">
+
+        <!-- category rail -->
+        <div style="width:250px; flex-shrink:0; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:8px; display:flex; flex-direction:column; gap:2px">
+          <sc-for list="{{ cats }}" as="c" hint-placeholder-count="6">
+            <div style="position:relative; display:flex; align-items:center; gap:13px; padding:12px 14px; border-radius:10px; cursor:pointer; overflow:hidden" onClick="{{ c.select }}">
+              <sc-if value="{{ c.active }}" hint-placeholder-val="{{ false }}">
+                <span style="position:absolute; inset:0; background:var(--sz-container-high); pointer-events:none"></span>
+                <span style="position:absolute; left:0; top:12px; bottom:12px; width:3px; border-radius:2px; background:var(--app-accent); pointer-events:none"></span>
+              </sc-if>
+              <span class="mdi mdi-{{ c.icon }}" style="position:relative; font-size:19px; width:22px; text-align:center; color:{{ c.iconColor }}"></span>
+              <div style="position:relative; flex:1; min-width:0">
+                <div style="font-size:13.5px; color:var(--text-primary)">{{ c.label }}</div>
+                <div style="font-size:11px; color:var(--text-tertiary)">{{ c.sub }}</div>
+              </div>
+            </div>
+          </sc-for>
+          <div style="flex:1"></div>
+          <div style="display:flex; align-items:center; gap:9px; padding:12px 14px; margin-top:6px; border-top:1px solid var(--sz-outline)">
+            <span class="mdi mdi-check-decagram" style="font-size:16px; color:var(--sz-ok)"></span>
+            <span style="font-size:12px; color:var(--sz-ok)">Service reachable</span>
+          </div>
+        </div>
+
+        <!-- detail pane -->
+        <div class="ftrack" style="flex:1; min-width:0; min-height:0; overflow-y:auto; overflow-x:hidden; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:24px 28px">
+          <div style="font-family:var(--font-display); font-weight:600; font-size:20px">{{ detail.title }}</div>
+          <div style="font-size:12.5px; color:var(--text-secondary); margin-top:4px; margin-bottom:22px">{{ detail.desc }}</div>
+
+          <!-- UNITS -->
+          <sc-if value="{{ isUnits }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <sc-for list="{{ unitGroups }}" as="g" hint-placeholder-count="7">
+                <div style="display:flex; align-items:center; gap:14px; padding:15px 0; border-bottom:1px solid var(--sz-outline)">
+                  <span class="mdi mdi-{{ g.icon }}" style="font-size:19px; color:var(--sz-violet); width:24px; text-align:center; flex-shrink:0"></span>
+                  <div style="flex:1; min-width:0">
+                    <div style="font-size:13.5px; color:var(--text-primary)">{{ g.label }}</div>
+                    <div style="font-size:11px"><span style="color:var(--text-tertiary)">{{ g.desc }}</span><span style="color:var(--text-tertiary)"> &middot; sample </span><span style="font-family:var(--font-display); font-weight:600; color:var(--accent-text)">{{ g.sample }}</span></div>
+                  </div>
+                  <div style="display:flex; gap:2px; background:var(--sz-container-lowest); border:1px solid var(--sz-outline); border-radius:9px; padding:3px; flex-shrink:0">
+                    <sc-for list="{{ g.options }}" as="o" hint-placeholder-count="3">
+                      <div style="position:relative; min-width:44px; text-align:center; font-size:12px; padding:6px 10px; border-radius:7px; cursor:pointer; color:var(--text-secondary)" onClick="{{ o.select }}">
+                        <sc-if value="{{ o.active }}" hint-placeholder-val="{{ false }}">
+                          <span style="position:absolute; inset:0; border-radius:7px; background:var(--app-accent); pointer-events:none"></span>
+                        </sc-if>
+                        <span style="position:relative">{{ o.label }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- SERVICE -->
+          <sc-if value="{{ isService }}" hint-placeholder-val="{{ true }}">
+            <div>
+              <div style="display:flex; align-items:center; gap:16px; padding:16px 20px; border-radius:12px; background:var(--sz-ok-bg); border:1px solid rgba(108,203,95,0.3); margin-bottom:20px">
+                <span class="mdi mdi-check-decagram" style="font-size:30px; color:var(--sz-ok)"></span>
+                <div style="flex:1"><div style="font-family:var(--font-display); font-weight:600; font-size:15px; color:var(--sz-ok)">Reachable over local gRPC</div><div style="font-size:12px; color:var(--text-secondary); margin-top:2px">SubZeroFrameworkService &mdash; last check 12:16:46</div></div>
+                <div style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary); padding:6px 12px; border-radius:8px; background:rgba(0,0,0,0.2); cursor:pointer"><span class="mdi mdi-refresh" style="font-size:14px"></span>Recheck</div>
+              </div>
+              <div style="font-size:13px; color:var(--text-secondary); margin-bottom:14px">Install, update, restart, and recover the packaged service without elevating the app. Lifecycle actions prompt for administrator via UAC.</div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; max-width:520px">
+                <div style="display:flex; align-items:center; justify-content:center; gap:8px; height:42px; border-radius:8px; background:var(--app-accent); color:var(--app-on-accent); font-size:13px; cursor:pointer"><span class="mdi mdi-restart" style="font-size:16px"></span>Restart service</div>
+                <div style="display:flex; align-items:center; justify-content:center; gap:8px; height:42px; border-radius:8px; background:var(--sz-container-high); border:1px solid var(--sz-outline-strong); color:var(--text-primary); font-size:13px; cursor:pointer"><span class="mdi mdi-power" style="font-size:16px"></span>Shut down</div>
+                <div style="display:flex; align-items:center; justify-content:center; gap:8px; height:42px; border-radius:8px; background:var(--sz-container-high); border:1px solid var(--sz-outline-strong); color:var(--text-primary); font-size:13px; cursor:pointer"><span class="mdi mdi-update" style="font-size:16px"></span>Update service</div>
+                <div style="display:flex; align-items:center; justify-content:center; gap:8px; height:42px; border-radius:8px; background:transparent; border:1px solid var(--sz-outline-strong); color:var(--sz-danger); font-size:13px; cursor:pointer"><span class="mdi mdi-delete-outline" style="font-size:16px"></span>Uninstall</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- STARTUP -->
+          <sc-if value="{{ isStartup }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <sc-for list="{{ behaviorToggles }}" as="t" hint-placeholder-count="4">
+                <div style="display:flex; align-items:center; gap:14px; padding:15px 0; border-bottom:1px solid var(--sz-outline)">
+                  <span class="mdi mdi-{{ t.icon }}" style="font-size:19px; color:var(--sz-violet); width:24px; text-align:center; flex-shrink:0"></span>
+                  <div style="flex:1; min-width:0"><div style="font-size:13.5px; color:var(--text-primary)">{{ t.label }}</div><div style="font-size:11.5px; color:var(--text-tertiary)">{{ t.sub }}</div></div>
+                  <div style="position:relative; width:42px; height:23px; border-radius:999px; cursor:pointer; flex-shrink:0; background:{{ t.trackColor }}" onClick="{{ t.toggle }}">
+                    <span style="position:absolute; top:3px; width:17px; height:17px; border-radius:50%; background:#fff; left:{{ t.knobLeft }}; transition:left 0.15s"></span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- LICENSES -->
+          <sc-if value="{{ isLicenses }}" hint-placeholder-val="{{ false }}">
+            <div>
+              <sc-for list="{{ licenses }}" as="l" hint-placeholder-count="4">
+                <div style="display:flex; gap:22px; padding:18px 0; border-bottom:1px solid var(--sz-outline)">
+                  <div style="width:190px; flex-shrink:0">
+                    <div style="font-family:var(--font-display); font-weight:600; font-size:14px; word-break:break-word">{{ l.name }}</div>
+                    <div style="font-size:11.5px; color:var(--text-tertiary); margin-top:3px">{{ l.version }}</div>
+                    <span style="display:inline-block; margin-top:9px; font-size:11px; padding:2px 10px; border-radius:999px; background:var(--sz-container-high); border:1px solid var(--sz-outline-strong); color:var(--text-secondary)">{{ l.license }}</span>
+                  </div>
+                  <div style="flex:1; min-width:0; white-space:pre-wrap; font-family:'Cascadia Code','Consolas','Courier New',monospace; font-size:11.5px; line-height:1.7; color:var(--text-tertiary)">{{ l.text }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- ABOUT -->
+          <sc-if value="{{ isAbout }}" hint-placeholder-val="{{ false }}">
+            <div style="max-width:460px">
+              <div style="display:flex; flex-direction:column; gap:12px; font-size:13px">
+                <div style="display:flex; align-items:center; justify-content:space-between; padding-bottom:12px; border-bottom:1px solid var(--sz-outline)"><span style="color:var(--text-tertiary)">SubZero</span><span style="display:inline-flex; align-items:center; gap:8px"><span style="font-family:var(--font-display); font-weight:600">4.0.1</span><span style="display:inline-flex; align-items:center; gap:4px; font-size:11.5px; color:var(--accent-text); cursor:pointer"><span class="mdi mdi-github" style="font-size:14px"></span>GitHub</span></span></div>
+                <div style="display:flex; justify-content:space-between; padding-bottom:12px; border-bottom:1px solid var(--sz-outline)"><span style="color:var(--text-tertiary)">EC Build</span><span style="font-family:var(--font-display)">tulip-9b2a0b1</span></div>
+                <div style="display:flex; align-items:center; justify-content:space-between; padding-bottom:12px; border-bottom:1px solid var(--sz-outline)"><span style="color:var(--text-tertiary)">framework-dotnet</span><span style="display:inline-flex; align-items:center; gap:8px"><span style="font-family:var(--font-display)">0.3.177</span><span style="display:inline-flex; align-items:center; gap:4px; font-size:11.5px; color:var(--accent-text); cursor:pointer"><span class="mdi mdi-github" style="font-size:14px"></span>GitHub</span></span></div>
+                <div style="display:flex; align-items:center; justify-content:space-between; padding-bottom:12px; border-bottom:1px solid var(--sz-outline)"><span style="color:var(--text-tertiary)">framework-system-ffi-extensions</span><span style="display:inline-flex; align-items:center; gap:8px"><span style="font-family:var(--font-display)">0.2.14</span><span style="display:inline-flex; align-items:center; gap:4px; font-size:11.5px; color:var(--accent-text); cursor:pointer"><span class="mdi mdi-github" style="font-size:14px"></span>GitHub</span></span></div>
+                <div style="display:flex; align-items:center; justify-content:space-between; padding-bottom:12px; border-bottom:1px solid var(--sz-outline)"><span style="color:var(--text-tertiary)">framework-system</span><span style="display:inline-flex; align-items:center; gap:8px"><span style="font-family:var(--font-display)">1.1.0</span><span style="display:inline-flex; align-items:center; gap:4px; font-size:11.5px; color:var(--accent-text); cursor:pointer"><span class="mdi mdi-github" style="font-size:14px"></span>GitHub</span></span></div>
+              </div>
+            </div>
+          </sc-if>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = {
+    cat:'service',
+    units:{ temp:'C', speed:'rpm', power:'W', voltage:'V', current:'A', capacity:'Wh', data:'Mbps' },
+    startup:true, tray:true, notify:false, autorun:true,
+    reduceMotion:false, compact:false,
+    accent:'#0078D7',
+  };
+
+  CATS=[
+    {key:'service', icon:'wrench', label:'Service', sub:'Lifecycle & recovery', title:'Background service', desc:'Manage the packaged service that drives fan control and telemetry.'},
+    {key:'units', icon:'ruler', label:'Display units', sub:'Temperature, power, speed', title:'Display units', desc:'Powered by UnitsNet. Changes apply live across every page.'},
+    {key:'startup', icon:'rocket-launch-outline', label:'Startup & alerts', sub:'Launch behavior', title:'Startup & alerts', desc:'How SubZero launches and when it notifies you.'},
+    {key:'licenses', icon:'scale-balance', label:'Licenses', sub:'Open-source notices', title:'Used libraries & licenses', desc:'Third-party open-source software included in SubZero, with full license texts.'},
+    {key:'about', icon:'information-outline', label:'About', sub:'Version & links', title:'About SubZero', desc:'Version information and project links.'},
+  ];
+
+  GROUPS=[
+    { key:'temp', icon:'thermometer', label:'Temperature', desc:'Sensors and curves', base:61, opts:[['C','\u00b0C'],['F','\u00b0F'],['K','K']],
+      fmt:(v,u)=> u==='C'?`${v} \u00b0C` : u==='F'?`${(v*9/5+32).toFixed(1)} \u00b0F` : `${(v+273.15).toFixed(1)} K` },
+    { key:'speed', icon:'fan', label:'Fan speed', desc:'Gauges and readouts', base:2882, opts:[['rpm','RPM'],['rps','rev/s'],['pct','%']],
+      fmt:(v,u)=> u==='rpm'?`${v.toLocaleString()} RPM` : u==='rps'?`${Math.round(v/60)} rev/s` : `${Math.round(v/5500*100)} %` },
+    { key:'power', icon:'flash', label:'Power', desc:'Adapter and battery', base:100, opts:[['W','W'],['mW','mW']],
+      fmt:(v,u)=> u==='W'?`${v} W` : `${(v*1000).toLocaleString()} mW` },
+    { key:'voltage', icon:'sine-wave', label:'Voltage', desc:'Battery and PD', base:15.4, opts:[['V','V'],['mV','mV']],
+      fmt:(v,u)=> u==='V'?`${v} V` : `${Math.round(v*1000).toLocaleString()} mV` },
+    { key:'current', icon:'current-dc', label:'Current', desc:'Charge and discharge', base:2.3, opts:[['A','A'],['mA','mA']],
+      fmt:(v,u)=> u==='A'?`${v} A` : `${Math.round(v*1000).toLocaleString()} mA` },
+    { key:'capacity', icon:'battery-70', label:'Battery capacity', desc:'Design and remaining', base:85, opts:[['Wh','Wh'],['Ah','Ah'],['pct','%']],
+      fmt:(v,u)=> u==='Wh'?`${v} Wh` : u==='Ah'?`${(v/15.4).toFixed(2)} Ah` : `${Math.round(v/90*100)} %` },
+    { key:'data', icon:'speedometer-slow', label:'Network rate', desc:'Link speeds', base:2500, opts:[['Mbps','Mbps'],['MBs','MB/s'],['Gbps','Gbps']],
+      fmt:(v,u)=> u==='Mbps'?`${v.toLocaleString()} Mbps` : u==='MBs'?`${Math.round(v/8)} MB/s` : `${(v/1000).toFixed(2)} Gbps` },
+  ];
+
+  MIT(holder,year){ return `MIT License\n\nCopyright (c) ${year} ${holder}\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.`; }
+  APACHE(holder,year){ return `Copyright ${year} ${holder}\n\nLicensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at\n\n    http://www.apache.org/licenses/LICENSE-2.0\n\nUnless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the specific language governing permissions and limitations under the License.`; }
+  BSD3(holder,year){ return `Copyright (c) ${year}, ${holder}\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n\n1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.\n3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.`; }
+  licensesData(){ return [
+    {name:'UnitsNet', version:'5.62.0', license:'MIT', text:this.MIT('Andreas Gullberg Larsen','2013-2025')},
+    {name:'CommunityToolkit.Mvvm', version:'8.3.2', license:'MIT', text:this.MIT('.NET Foundation and Contributors','2020-2025')},
+    {name:'Microsoft.WindowsAppSDK', version:'1.6.240923', license:'MIT', text:this.MIT('Microsoft Corporation','2019-2025')},
+    {name:'Grpc.Net.Client', version:'2.66.0', license:'Apache-2.0', text:this.APACHE('The gRPC Authors','2019')},
+    {name:'Google.Protobuf', version:'3.28.2', license:'BSD-3-Clause', text:this.BSD3('Google Inc.','2008')},
+    {name:'Serilog', version:'4.0.2', license:'Apache-2.0', text:this.APACHE('Serilog Contributors','2013-2025')},
+    {name:'WinUIEx', version:'2.5.0', license:'MIT', text:this.MIT('Morten Nielsen','2021-2025')},
+  ]; }
+
+  setCat(k){ this.setState({ cat:k }); }
+  setUnit(g,v){ this.setState(s=>({ units:{ ...s.units, [g]:v } })); }
+  toggle(k){ this.setState(s=>({ [k]:!s[k] })); }
+  setAccent(hex){ try{ document.documentElement.style.setProperty('--app-accent', hex); }catch(e){} this.setState({ accent:hex }); }
+
+  renderVals(){
+    const cats=this.CATS.map(c=>({ label:c.label, sub:c.sub, icon:c.icon, active:this.state.cat===c.key,
+      iconColor: this.state.cat===c.key?'var(--app-accent)':'var(--sz-violet)', select:()=>this.setCat(c.key) }));
+    const cur=this.CATS.find(c=>c.key===this.state.cat);
+    const detail={ title:cur.title, desc:cur.desc };
+
+    const unitGroups=this.GROUPS.map(g=>{ const u=this.state.units[g.key];
+      return { label:g.label, desc:g.desc, icon:g.icon, sample:g.fmt(g.base,u),
+        options:g.opts.map(([val,label])=>({ label, active:u===val, select:()=>this.setUnit(g.key,val) })) }; });
+
+    const mk=(k,icon,label,sub)=>({ icon,label,sub, trackColor:this.state[k]?'var(--app-accent)':'var(--sz-container-highest)', knobLeft:this.state[k]?'22px':'3px', toggle:()=>this.toggle(k) });
+    const behaviorToggles=[
+      mk('startup','rocket-launch-outline','Start with Windows','Launch SubZero at sign-in'),
+      mk('tray','tray-arrow-down','Start minimized to tray','Run in the background on launch'),
+      mk('autorun','power-sleep','Autorun service','Keep the service running at startup'),
+      mk('notify','bell-outline','Thermal alerts','Notify when a sensor crosses critical'),
+    ];
+    const licenses=this.licensesData();
+
+    return { cats, detail, unitGroups, behaviorToggles, licenses,
+      isService:this.state.cat==='service', isUnits:this.state.cat==='units', isStartup:this.state.cat==='startup',
+      isLicenses:this.state.cat==='licenses', isAbout:this.state.cat==='about' };
+  }
+}
+</script>
+</body>
+</html>

@@ -190,8 +190,8 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             // A preview actuates the EC live (and streams to clients via the in-memory store) but is not
             // written to the configuration store, so it does not survive a service restart. The commit path
             // persists the full BuildFanControlOptions snapshot — hand-building a legacy options object here
-            // used to REPLACE the fan's persisted entry, silently wiping its curve profile slots, fan link,
-            // and CPU usage modifier from disk.
+            // used to REPLACE the fan's persisted entry, silently wiping its curve profile slots and fan link
+            // from disk.
             await PersistFanControlStateAsync(request.FanIndex, request.Preview, context.CancellationToken).ConfigureAwait(false);
 
             _logger.LogInformation("Applied SetFanCustomCurve command for fan {FanIndex} (preview={Preview}).", request.FanIndex, request.Preview);
@@ -557,56 +557,6 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         if (slot is < 0 or >= FrameworkFanControlStateStore.MaxCurveProfileSlots)
         {
             throw new ArgumentOutOfRangeException(nameof(slot), $"Curve profile slot must be between 0 and {FrameworkFanControlStateStore.MaxCurveProfileSlots - 1}.");
-        }
-    }
-
-    public override async Task<SetFanUsageModifierReply> SetFanUsageModifier(SetFanUsageModifierRequest request, ServerCallContext context)
-    {
-        try
-        {
-            _logger.LogInformation("Received SetFanUsageModifier for fan {FanIndex}. CpuStrength={CpuStrength}.", request.FanIndex, request.CpuUsageModifierStrength);
-            _authorizationService.EnsureCommandAccess();
-
-            // Persisting this command snapshots the fan's live in-memory state — during an open preview hold
-            // that state contains the uncommitted preview, so persisting would commit the preview and release
-            // the watchdog that exists to revert it. Reject instead; the client applies the modifier after
-            // committing or discarding the preview (matching the page's Stage -> Preview -> Apply model).
-            if (_previewWatchdog.HasOpenHold(request.FanIndex))
-            {
-                throw new InvalidOperationException($"Fan {request.FanIndex} has a live preview open. Apply or discard the preview before changing its usage modifier.");
-            }
-
-            // NaN is the wire encoding for "disabled"; anything else must be a sane duty-point strength.
-            double? strength = double.IsNaN(request.CpuUsageModifierStrength) ? null : request.CpuUsageModifierStrength;
-            if (strength is double value && (!double.IsFinite(value) || value is < 0d or > 100d))
-            {
-                throw new ArgumentOutOfRangeException(nameof(request.CpuUsageModifierStrength), "The CPU usage modifier strength must be between 0 and 100 duty points, or NaN to disable it.");
-            }
-
-            if (!_fanControlStateStore.SetCpuUsageModifier(request.FanIndex, strength))
-            {
-                throw new ArgumentOutOfRangeException(nameof(request.FanIndex), $"Fan {request.FanIndex} is not known to the fan control state store.");
-            }
-
-            await PersistFanControlStateAsync(request.FanIndex, preview: false, context.CancellationToken).ConfigureAwait(false);
-
-            _logger.LogInformation("Applied SetFanUsageModifier for fan {FanIndex}. CpuStrength={CpuStrength}.", request.FanIndex, strength);
-            return new SetFanUsageModifierReply
-            {
-                FanIndex = request.FanIndex,
-                Succeeded = true,
-                Message = string.Empty,
-            };
-        }
-        catch (ArgumentOutOfRangeException exception)
-        {
-            _logger.LogWarning(exception, "Rejected SetFanUsageModifier for fan {FanIndex} because the request was invalid.", request.FanIndex);
-            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
-        }
-        catch (InvalidOperationException exception)
-        {
-            _logger.LogWarning(exception, "Rejected SetFanUsageModifier for fan {FanIndex} because the service was not in a writable state.", request.FanIndex);
-            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
         }
     }
 

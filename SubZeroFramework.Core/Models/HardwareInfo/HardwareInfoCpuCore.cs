@@ -11,6 +11,4 @@ public sealed record HardwareInfoCpuCore(
         : Name.Contains("core", StringComparison.OrdinalIgnoreCase)
             ? Name
             : $"Core {Name}";
-
-    public string DisplayLoad => $"{PercentProcessorTime:0.##} %";
 }

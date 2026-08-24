@@ -99,8 +99,9 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
     public override async Task<ServiceConfigurationOperationReply> ApplyServiceConfiguration(ApplyServiceConfigurationRequest request, ServerCallContext context)
     {
         _logger.LogInformation(
-            "Received ApplyServiceConfiguration request. PollingIntervalMilliseconds={PollingIntervalMilliseconds}, HardwareInfoPollingIntervalMilliseconds={HardwareInfoPollingIntervalMilliseconds}, AllowFanControlCommands={AllowFanControlCommands}.",
+            "Received ApplyServiceConfiguration request. PollingIntervalMilliseconds={PollingIntervalMilliseconds}, SecondaryPollingIntervalMilliseconds={SecondaryPollingIntervalMilliseconds}, HardwareInfoPollingIntervalMilliseconds={HardwareInfoPollingIntervalMilliseconds}, AllowFanControlCommands={AllowFanControlCommands}.",
             request.PollingIntervalMilliseconds,
+            request.SecondaryPollingIntervalMilliseconds,
             request.HardwareInfoPollingIntervalMilliseconds,
             request.AllowFanControlCommands);
 
@@ -108,6 +109,7 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
             new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(request.PollingIntervalMilliseconds),
+                SecondaryPollingInterval = TimeSpan.FromMilliseconds(request.SecondaryPollingIntervalMilliseconds),
                 HardwareInfoPollingInterval = TimeSpan.FromMilliseconds(request.HardwareInfoPollingIntervalMilliseconds),
                 AllowFanControlCommands = request.AllowFanControlCommands,
             },
@@ -152,6 +154,7 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
         return new FrameworkServiceConfigurationReply
         {
             PollingIntervalMilliseconds = checked((long)Math.Round(snapshot.PollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
+            SecondaryPollingIntervalMilliseconds = checked((long)Math.Round(snapshot.SecondaryPollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
             HardwareInfoPollingIntervalMilliseconds = checked((long)Math.Round(snapshot.HardwareInfoPollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
             AllowFanControlCommands = snapshot.AllowFanControlCommands,
             PersistentConfigurationPath = snapshot.PersistentConfigurationPath,

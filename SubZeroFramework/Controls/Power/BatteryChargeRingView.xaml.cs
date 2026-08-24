@@ -63,11 +63,30 @@ public sealed partial class BatteryChargeRingView : UserControl
         typeof(BatteryChargeRingView),
         new PropertyMetadata("--"));
 
-    /// <summary>Text shown in the centre of the ring (e.g. "76%").</summary>
+    /// <summary>
+    /// The bare charge figure shown large in the centre of the ring (e.g. "76"), WITHOUT its unit — the unit
+    /// is drawn smaller beside it, from <see cref="ChargeUnitText"/>.
+    /// </summary>
     public string ChargeText
     {
         get => (string)GetValue(ChargeTextProperty);
         set => SetValue(ChargeTextProperty, value);
+    }
+
+    public static readonly DependencyProperty ChargeUnitTextProperty = DependencyProperty.Register(
+        nameof(ChargeUnitText),
+        typeof(string),
+        typeof(BatteryChargeRingView),
+        new PropertyMetadata("%"));
+
+    /// <summary>
+    /// The unit drawn small beside the figure. Supplied by the caller rather than hardcoded, because the
+    /// ratio unit is a user preference — "%" is only the default, not the only possibility.
+    /// </summary>
+    public string ChargeUnitText
+    {
+        get => (string)GetValue(ChargeUnitTextProperty);
+        set => SetValue(ChargeUnitTextProperty, value);
     }
 
     public static readonly DependencyProperty IsAnimatingProperty = DependencyProperty.Register(

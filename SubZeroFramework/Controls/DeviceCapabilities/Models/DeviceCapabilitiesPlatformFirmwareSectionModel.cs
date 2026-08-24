@@ -8,6 +8,10 @@ using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
+/// <summary>
+/// The Platform &amp; Firmware section's slice over the Device Capabilities page model: it only needs the
+/// snapshot itself, MIRRORED as a stored property so its own assignment raises PropertyChanged.
+/// </summary>
 public sealed partial class DeviceCapabilitiesPlatformFirmwareSectionModel : ObservableObject, IDisposable
 {
     private readonly DeviceCapabilitiesModel _parent;
@@ -16,13 +20,11 @@ public sealed partial class DeviceCapabilitiesPlatformFirmwareSectionModel : Obs
     {
         _parent = parent;
         _parent.PropertyChanged += ParentPropertyChanged;
+        Snapshot = parent.Snapshot;
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Snapshot))]
-    private partial int SnapshotVersion { get; set; }
-
-    public HardwareInfoSnapshot? Snapshot => _parent.Snapshot;
+    public partial HardwareInfoSnapshot? Snapshot { get; private set; }
 
     public void Dispose()
     {
@@ -31,9 +33,9 @@ public sealed partial class DeviceCapabilitiesPlatformFirmwareSectionModel : Obs
 
     private void ParentPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(DeviceCapabilitiesModel.Snapshot))
+        if (string.IsNullOrEmpty(e.PropertyName) || e.PropertyName == nameof(DeviceCapabilitiesModel.Snapshot))
         {
-            SnapshotVersion++;
+            Snapshot = _parent.Snapshot;
         }
     }
 }

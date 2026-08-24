@@ -50,6 +50,16 @@ public sealed class LinuxIntelGpuUtilizationReader : IComputeUtilizationReader
     private bool _enumerated;
     private bool _loggedSampleFailure;
 
+    // RAPL PP1 ("uncore") — the integrated GPU's own power plane. Resolved once, then sampled as an energy
+    // delta like the CPU package figure. See ReadIntegratedGpuPowerWatts.
+    private readonly string _powercapRoot;
+    private string? _gpuEnergyZone;
+    private bool _gpuEnergyZoneResolved;
+    private bool _gpuEnergyRangeResolved;
+    private double? _gpuEnergyRangeMicrojoules;
+    private long? _previousGpuEnergyMicrojoules;
+    private long _previousGpuEnergyAt;
+
     public LinuxIntelGpuUtilizationReader(
         ILogger<LinuxIntelGpuUtilizationReader> logger,
         string sysfsRoot = DrmSysfs.DefaultSysfsRoot,
@@ -58,6 +68,7 @@ public sealed class LinuxIntelGpuUtilizationReader : IComputeUtilizationReader
         _logger = logger;
         _sysfs = new DrmSysfs(sysfsRoot);
         _eventSourceRoot = eventSourceRoot ?? LinuxPerfEvent.EventSourceRoot;
+        _powercapRoot = Path.Combine(sysfsRoot, "class", "powercap");
     }
 
     public bool IsAvailable
@@ -91,6 +102,45 @@ public sealed class LinuxIntelGpuUtilizationReader : IComputeUtilizationReader
                         Kind = ComputeDeviceKind.Gpu,
                         DisplayName = device.DisplayName,
                         UtilizationPercent = utilization.Value,
+                        CoreClockMegahertz = ReadMegahertz(device.FrequencyPath),
+                        MaxCoreClockMegahertz = ReadMegahertz(device.MaximumFrequencyPath),
+
+                        // No power or temperature, and this is a PLATFORM limitation rather than a choice.
+                        // Both of Intel's own routes to it are discrete-only, verified 2026-08-24:
+                        //
+                        //  1. hwmon — i915_hwmon.c:916 and xe_hwmon.c:1549 both open their register function
+                        //     with "/* hwmon is available only for dGfx */ if (!IS_DGFX(...)) return;", so an
+                        //     integrated part exposes no power1/energy1/temp1 attribute at all.
+                        //  2. Level Zero Sysman — its Linux power module falls back to Intel PMT when hwmon
+                        //     is absent, but PMT needs a per-product GUID→offset map, and compute-runtime
+                        //     ships one only for the DISCRETE parts (dg2, bmg). The integrated helpers
+                        //     (tgllp, adlp, lnl, ptl) inherit the default getGuidToKeyOffsetMap(), which
+                        //     returns nullptr — so zesPowerGetEnergyCounter reports the module unsupported.
+                        //
+                        // So binding Level Zero here would add interop and return "not supported" on every
+                        // Intel Framework. IGCL is Windows-only (it loads .dll via LoadLibraryExW and ships
+                        // in the Windows driver), so WindowsIgclGpuUtilizationReader has no Linux twin.
+                        //
+                        // POWER does have a route, and it is not either of the two above: RAPL's PP1 domain
+                        // IS the graphics plane on client parts (intel_rapl_common.c documents the matching
+                        // perf event as "energy_gpu"), exposed through powercap as the "uncore" zone. That is
+                        // read here for the INTEGRATED GPU only — PP1 is a per-package domain, so attaching
+                        // it to a discrete card would report the iGPU's draw against the wrong device.
+                        //
+                        // CAVEAT for any consumer that aggregates: this is a SUBSET of the CPU package figure
+                        // the control-telemetry reader publishes, not an addition to it. Summing the two
+                        // double counts the iGPU.
+                        PowerWatts = device.IsIntegrated ? ReadIntegratedGpuPowerWatts() : null,
+
+                        // Temperature genuinely has no route. An Intel iGPU sits on the CPU die and has no
+                        // sensor of its own outside the dGFX-gated hwmon; its die temperature is the CPU
+                        // package sensor, which already has its own thermal channel.
+                        TemperatureCelsius = null,
+
+                        // Throttle state IS reported on integrated Intel — the one extended signal that is,
+                        // and the most useful one for fan control. Null only when the attributes are absent
+                        // (pre-Gen11), which says "could not ask" rather than "not throttling".
+                        ThrottleReasons = ReadThrottleReasons(device),
                     });
                 }
             }
@@ -147,6 +197,7 @@ public sealed class LinuxIntelGpuUtilizationReader : IComputeUtilizationReader
             var device = I915Gpu.TryCreate(pmuDirectory, ResolveName(pmuDirectory, "i915"), _logger);
             if (device is not null)
             {
+                ResolveFrequencyPaths(device, pmuDirectory, "i915");
                 devices.Add(device);
             }
         }
@@ -156,6 +207,7 @@ public sealed class LinuxIntelGpuUtilizationReader : IComputeUtilizationReader
             var device = XeGpu.TryCreate(pmuDirectory, ResolveName(pmuDirectory, "xe"), _logger);
             if (device is not null)
             {
+                ResolveFrequencyPaths(device, pmuDirectory, "xe");
                 devices.Add(device);
             }
         }
@@ -175,6 +227,227 @@ public sealed class LinuxIntelGpuUtilizationReader : IComputeUtilizationReader
         }
 
         return devices;
+    }
+
+
+    /// <summary>
+    /// Finds the current-clock attribute for a PMU device, matching the DRM card by PCI address.
+    /// </summary>
+    /// <remarks>
+    /// The two drivers put it in different places: i915 exposes <c>gt_cur_freq_mhz</c> directly on the card,
+    /// while xe moved to a per-tile, per-GT tree under the device. Both are read here rather than picking one,
+    /// because a Framework 13 can be running either depending on kernel and generation.
+    /// </remarks>
+    private void ResolveFrequencyPaths(IntelGpu device, string pmuDirectory, string driverName)
+    {
+        var busAddress = IntelGpuSysfsPaths.ExtractBusAddress(Path.GetFileName(pmuDirectory));
+
+        foreach (var cardName in _sysfs.EnumerateCardNames())
+        {
+            var devicePath = _sysfs.GetCardDevicePath(cardName);
+            var uevent = DrmUevent.Parse(DrmSysfs.ReadAttribute(Path.Combine(devicePath, "uevent")));
+            if (uevent.VendorId != IntelVendorId)
+            {
+                continue;
+            }
+
+            // Match the discrete GPU by address; for the integrated one take the first Intel card.
+            if (busAddress is not null && !string.Equals(uevent.PciSlotName, busAddress, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var cardPath = _sysfs.GetCardPath(cardName);
+
+            device.FrequencyPath = ExistingOrNull(IntelGpuSysfsPaths.GetFrequencyAttributePath(cardPath, devicePath, driverName));
+            device.MaximumFrequencyPath = ExistingOrNull(IntelGpuSysfsPaths.GetMaximumFrequencyAttributePath(cardPath, devicePath, driverName));
+
+            // An integrated Intel GPU always sits on PCI bus 0 (00:02.0 conventionally); a discrete card
+            // never does. i915 additionally omits the address from the PMU name for the integrated part,
+            // which is the same fact arriving by a second route.
+            device.IsIntegrated = busAddress is null
+                || uevent.PciSlotName?.StartsWith("0000:00:", StringComparison.OrdinalIgnoreCase) == true;
+
+            var (throttleDirectory, throttlePrefix) = IntelGpuSysfsPaths.GetThrottleReasonLocation(cardPath, devicePath, driverName);
+            device.ThrottleReasonDirectory = Directory.Exists(throttleDirectory) ? throttleDirectory : null;
+            device.ThrottleReasonPrefix = throttlePrefix;
+            return;
+        }
+    }
+
+    private static string? ExistingOrNull(string path) => File.Exists(path) ? path : null;
+
+    /// <summary>
+    /// The integrated GPU's power draw, from RAPL's PP1 ("uncore") plane, or null when it is unavailable.
+    /// </summary>
+    /// <remarks>
+    /// An energy counter, so power is the delta over the elapsed window — the same arithmetic (and the same
+    /// wrap handling) the CPU package figure uses, reused from <see cref="RaplEnergyMath"/>. Returns null on
+    /// the first sample, when there is no window yet.
+    /// </remarks>
+    private double? ReadIntegratedGpuPowerWatts()
+    {
+        var zone = ResolveGpuEnergyZone();
+        if (zone is null)
+        {
+            return null;
+        }
+
+        if (!TryReadLong(Path.Combine(zone, "energy_uj"), out var microjoules))
+        {
+            return null;
+        }
+
+        var now = Stopwatch.GetTimestamp();
+        var previous = _previousGpuEnergyMicrojoules;
+        var previousAt = _previousGpuEnergyAt;
+
+        _previousGpuEnergyMicrojoules = microjoules;
+        _previousGpuEnergyAt = now;
+
+        if (previous is not { } previousMicrojoules)
+        {
+            return null;
+        }
+
+        return RaplEnergyMath.ComputeWatts(
+            previousMicrojoules,
+            microjoules,
+            Stopwatch.GetElapsedTime(previousAt, now).TotalSeconds,
+            ResolveGpuEnergyRangeMicrojoules(zone));
+    }
+
+    /// <summary>
+    /// Finds the RAPL subzone whose <c>name</c> reads "uncore" — the GPU power plane.
+    /// </summary>
+    /// <remarks>
+    /// Matched on the name file, not the directory index: which index the GPU plane lands on depends on
+    /// which domains the part exposes, so keying on <c>intel-rapl:0:1</c> would read the core or dram plane
+    /// on some machines. Resolved once; a machine without the domain caches the null and stops looking.
+    /// </remarks>
+    private string? ResolveGpuEnergyZone()
+    {
+        if (_gpuEnergyZoneResolved)
+        {
+            return _gpuEnergyZone;
+        }
+
+        _gpuEnergyZoneResolved = true;
+
+        try
+        {
+            if (!Directory.Exists(_powercapRoot))
+            {
+                return null;
+            }
+
+            foreach (var packageZone in Directory.EnumerateDirectories(_powercapRoot, "intel-rapl:*"))
+            {
+                foreach (var subzone in Directory.EnumerateDirectories(packageZone, "intel-rapl:*"))
+                {
+                    if (!RaplEnergyMath.IsSubzoneName(Path.GetFileName(subzone)))
+                    {
+                        continue;
+                    }
+
+                    var name = DrmSysfs.ReadAttribute(Path.Combine(subzone, "name"));
+                    if (!string.Equals(name, RaplEnergyMath.GpuDomainName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    if (File.Exists(Path.Combine(subzone, "energy_uj")))
+                    {
+                        _gpuEnergyZone = subzone;
+                        _logger.LogInformation(
+                            "Intel GPU power: reading the integrated GPU's RAPL PP1 plane at {Zone}.",
+                            subzone);
+                        return _gpuEnergyZone;
+                    }
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogDebug(exception, "Scanning powercap for the GPU energy plane failed; Intel GPU power will be unavailable.");
+        }
+
+        return _gpuEnergyZone;
+    }
+
+    /// <summary>The counter's wrap point, needed to interpret a negative delta. Fixed, so resolved once.</summary>
+    private double? ResolveGpuEnergyRangeMicrojoules(string zone)
+    {
+        if (_gpuEnergyRangeResolved)
+        {
+            return _gpuEnergyRangeMicrojoules;
+        }
+
+        _gpuEnergyRangeResolved = true;
+
+        if (TryReadLong(Path.Combine(zone, "max_energy_range_uj"), out var range) && range > 0)
+        {
+            _gpuEnergyRangeMicrojoules = range;
+        }
+
+        return _gpuEnergyRangeMicrojoules;
+    }
+
+    private static bool TryReadLong(string path, out long value)
+    {
+        var raw = DrmSysfs.ReadInt64Attribute(path);
+        value = raw ?? 0L;
+        return raw is not null;
+    }
+
+    /// <summary>
+    /// Reads the per-reason throttle attributes, or null when this device exposes none.
+    /// </summary>
+    /// <remarks>
+    /// Each attribute is a boolean; the set of files present varies by platform, so a stem with no file is
+    /// simply not asserted. Null is returned only when the whole directory is missing, which is the honest
+    /// "could not ask" — distinct from None, on which the fan controller is allowed to relax.
+    /// </remarks>
+    private static ComputeThrottleReasons? ReadThrottleReasons(IntelGpu device)
+    {
+        if (device.ThrottleReasonDirectory is not { } directory)
+        {
+            return null;
+        }
+
+        List<string> asserted = [];
+        var sawAnyAttribute = false;
+
+        foreach (var stem in IntelGpuThrottleReasons.ReasonStems)
+        {
+            var path = Path.Combine(directory, device.ThrottleReasonPrefix + stem);
+            var value = DrmSysfs.ReadInt64Attribute(path);
+            if (value is null)
+            {
+                continue;
+            }
+
+            sawAnyAttribute = true;
+            if (value.Value != 0)
+            {
+                asserted.Add(stem);
+            }
+        }
+
+        // A directory that exists but yields no readable attribute is not an answer of "not throttling".
+        return sawAnyAttribute ? IntelGpuThrottleReasons.Combine(asserted) : null;
+    }
+
+    /// <summary>Reads a clock attribute, which both drivers report in megahertz already.</summary>
+    private static double? ReadMegahertz(string? path)
+    {
+        if (path is null)
+        {
+            return null;
+        }
+
+        var megahertz = DrmSysfs.ReadInt64Attribute(path);
+        return megahertz is null or <= 0 ? null : megahertz.Value;
     }
 
     /// <summary>True when the machine has Intel graphics at all, used only to explain an empty result.</summary>
@@ -250,6 +523,28 @@ public sealed class LinuxIntelGpuUtilizationReader : IComputeUtilizationReader
         public string DeviceKey { get; } = deviceKey;
 
         public string DisplayName { get; } = displayName;
+
+        /// <summary>
+        /// Path to the current-clock attribute, or null when this device does not expose one. Assigned after
+        /// construction because devices are discovered from the PMU tree while the clock lives in the DRM
+        /// tree, and the two are matched by PCI address rather than being adjacent.
+        /// </summary>
+        public string? FrequencyPath { get; set; }
+
+        /// <summary>Path to the permitted-maximum clock, which FrequencyPath is measured against.</summary>
+        public string? MaximumFrequencyPath { get; set; }
+
+        /// <summary>
+        /// True for the integrated GPU. RAPL's PP1 plane is per-package and describes the iGPU, so only the
+        /// integrated device may claim it.
+        /// </summary>
+        public bool IsIntegrated { get; set; }
+
+        /// <summary>Directory holding the per-reason throttle attributes, or null when the part exposes none.</summary>
+        public string? ThrottleReasonDirectory { get; set; }
+
+        /// <summary>Filename prefix those attributes carry — driver-specific, so it travels with the directory.</summary>
+        public string ThrottleReasonPrefix { get; set; } = IntelGpuThrottleReasons.I915AttributePrefix;
 
         public abstract string DriverName { get; }
 

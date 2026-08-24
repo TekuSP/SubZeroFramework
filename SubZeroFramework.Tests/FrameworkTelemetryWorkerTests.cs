@@ -130,6 +130,10 @@ public class FrameworkTelemetryWorkerTests
 
         public TimeSpan? LastPollingInterval { get; private set; }
 
+        public int SetSecondaryPollingCalls { get; private set; }
+
+        public TimeSpan? LastSecondaryPollingInterval { get; private set; }
+
         public int SetHardwareInfoPollingCalls { get; private set; }
 
         public TimeSpan? LastHardwareInfoPollingInterval { get; private set; }
@@ -203,12 +207,21 @@ public class FrameworkTelemetryWorkerTests
             return true;
         }
 
+        public bool SetSecondaryPolling(TimeSpan pollingInterval)
+        {
+            SetSecondaryPollingCalls++;
+            LastSecondaryPollingInterval = pollingInterval;
+            return true;
+        }
+
         public bool SetHardwareInfoPolling(TimeSpan pollingInterval)
         {
             SetHardwareInfoPollingCalls++;
             LastHardwareInfoPollingInterval = pollingInterval;
             return true;
         }
+
+        public ObservedControlTelemetry GetLatestControlTelemetry() => ObservedControlTelemetry.None;
 
         public bool StartPolling()
         {

@@ -21,7 +21,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
     // Serializes every lookup -> mutate -> publish sequence. SourceCache.AddOrUpdate is individually
     // thread-safe, but two concurrent read-modify-writes (e.g. the curve worker's RecordAppliedDuty vs a
-    // gRPC command like SetCpuUsageModifier) can interleave so the later publish resurrects the earlier
+    // gRPC command like SetFanLink) can interleave so the later publish resurrects the earlier
     // lookup's stale fields, silently reverting a just-applied change (and persisting the reverted value).
     private readonly Lock _stateLock = new();
     private readonly CompositeDisposable _subscriptions = [];
@@ -311,7 +311,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
     /// <summary>
     /// Wipes every fan back to a fresh-install control state: Auto mode, no curve profiles, slot 0 active, no
-    /// "applies to" link, no CPU usage modifier, no remembered manual duty. Live telemetry fields (display
+    /// "applies to" link, no remembered manual duty. Live telemetry fields (display
     /// name, availability) and the safety overlay are preserved — the fan still exists, only its settings are
     /// gone. In-memory only: the caller clears the persisted copy and restores the EC. Returns the fans reset.
     /// </summary>
@@ -338,7 +338,6 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     ActiveCurveSlot = 0,
                     CurveProfiles = CreateEmptyProfiles(),
                     LinkedLeaderIndex = null,
-                    CpuUsageModifierStrength = null,
                     LastDutyPercent = null,
                     ObservedAt = DateTimeOffset.UtcNow,
                 },
@@ -386,7 +385,6 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     }),
             ],
             LinkedLeaderIndex = state.LinkedLeaderIndex,
-            CpuUsageModifierStrength = state.CpuUsageModifierStrength,
         };
     }
 
@@ -424,41 +422,6 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
         return true;
     }
-
-    /// <summary>
-    /// Sets (or clears, when <paramref name="strength"/> is null or NaN) the fan's CPU usage modifier: the
-    /// duty points added on top of the active custom curve at 100% smoothed CPU usage. The modifier is
-    /// per-fan — it survives mode switches and applies whenever a custom curve drives the fan. Updates the
-    /// in-memory snapshot and streams the change; the caller persists it. Returns false when the fan is unknown.
-    /// </summary>
-    public bool SetCpuUsageModifier(int fanIndex, double? strength)
-    {
-        ThrowIfDisposed();
-
-        var normalized = SanitizeModifierStrength(strength);
-
-        lock (_stateLock)
-        {
-            var lookup = _fanControlStates.Lookup(fanIndex);
-            if (!lookup.HasValue)
-            {
-                return false;
-            }
-
-            if (lookup.Value.CpuUsageModifierStrength == normalized)
-            {
-                return true;
-            }
-
-            PublishState(lookup.Value with { CpuUsageModifierStrength = normalized, ObservedAt = DateTimeOffset.UtcNow }, "cpu usage modifier change");
-        }
-
-        return true;
-    }
-
-    // Null/NaN/infinite means disabled; a stored strength is always a finite 0-100 duty-point value.
-    private static double? SanitizeModifierStrength(double? strength)
-        => strength is double value && double.IsFinite(value) ? Math.Clamp(value, 0d, 100d) : null;
 
     public void Dispose()
     {
@@ -623,7 +586,6 @@ public sealed class FrameworkFanControlStateStore : IDisposable
             ActiveCurveSlot = Math.Clamp(configuredState.ActiveCurveSlot, 0, MaxCurveProfileSlots - 1),
             CurveProfiles = BuildProfilesFromOptions(configuredState),
             LinkedLeaderIndex = configuredState.LinkedLeaderIndex,
-            CpuUsageModifierStrength = SanitizeModifierStrength(configuredState.CpuUsageModifierStrength),
         };
 
         return SyncActiveCurveFields(NormalizeProfiles(next));

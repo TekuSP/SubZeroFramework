@@ -20,8 +20,6 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
     {
         _unitFormattingService = unitFormattingService;
         CpuCoreItems = new ReadOnlyObservableCollection<DeviceCapabilitiesCpuCoreItemModel>(_cpuCoreItems);
-        CpuUsageLabelFormatter = CreateCpuUsageLabelFormatter();
-        CpuClockLabelFormatter = CreateCpuClockLabelFormatter();
         CpuUsageAxisMaxLimit = unitFormattingService.RatioAxisMaximum;
         Index = index;
         Snapshot = snapshot;
@@ -49,26 +47,19 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesCpuCoreItemModel> CpuCoreItems { get; }
 
-    [ObservableProperty]
-    public partial Func<double, string> CpuUsageLabelFormatter { get; private set; }
-
-    [ObservableProperty]
-    public partial Func<double, string> CpuClockLabelFormatter { get; private set; }
-
     public string Title => FirstNonEmpty(Snapshot.Name, Snapshot.Caption) ?? $"CPU {Index}";
 
     public string PackageLabel => $"CPU {Index}";
 
     public string ManufacturerDisplay => FirstNonEmpty(Snapshot.Manufacturer) ?? "Unknown";
 
+    // Canonical megahertz, formatted by UnitFormatConverter. Null rather than zero for "the platform did not
+    // report it", so the converter renders the empty state instead of a plausible-looking 0 MHz.
     [ObservableProperty]
-    public partial string CurrentClockDisplay { get; private set; } = "Unknown";
+    public partial double? CurrentClockMegahertz { get; private set; }
 
     [ObservableProperty]
-    public partial string MaxClockDisplay { get; private set; } = "Unknown";
-
-    [ObservableProperty]
-    public partial string AverageCpuUsageDisplay { get; private set; } = "Unknown";
+    public partial double? MaxClockMegahertz { get; private set; }
 
     [ObservableProperty]
     public partial double CpuUsageAxisMaxLimit { get; private set; }
@@ -81,14 +72,16 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
         ? Snapshot.LogicalProcessors.ToString("N0")
         : "Unknown";
 
+    // Canonical BYTES, not the kilobytes the snapshot carries, so cache sizes go through the same
+    // InformationSize converter as every other size in the app and follow the binary/decimal preference.
     [ObservableProperty]
-    public partial string L1CacheDisplay { get; private set; } = "Unknown";
+    public partial double? L1CacheBytes { get; private set; }
 
     [ObservableProperty]
-    public partial string L2CacheDisplay { get; private set; } = "Unknown";
+    public partial double? L2CacheBytes { get; private set; }
 
     [ObservableProperty]
-    public partial string L3CacheDisplay { get; private set; } = "Unknown";
+    public partial double? L3CacheBytes { get; private set; }
 
     public string SocketDisplay => FirstNonEmpty(Snapshot.SocketDesignation) ?? "Unavailable";
 
@@ -145,9 +138,7 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
 
     public void RefreshUnitFormatting()
     {
-        // The axis formatters + max follow the unit preference; the snapshot displays reformat under it too.
-        CpuUsageLabelFormatter = CreateCpuUsageLabelFormatter();
-        CpuClockLabelFormatter = CreateCpuClockLabelFormatter();
+        // The usage axis max follows the unit preference; the snapshot displays reformat under it too.
         CpuUsageAxisMaxLimit = _unitFormattingService.RatioAxisMaximum;
         RefreshSnapshotDisplays();
 
@@ -157,37 +148,18 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
         }
     }
 
-    // Reassigns the unit-formatted snapshot displays (changes when the snapshot or the unit preference does);
-    // stored-property setters raise PropertyChanged only for values that actually changed.
+    // Projects the snapshot into CANONICAL values; formatting happens in the converter at render time. A
+    // zero from the platform means "not reported" for all of these, so it becomes null rather than a figure.
     private void RefreshSnapshotDisplays()
     {
-        CurrentClockDisplay = Snapshot.CurrentClockSpeedMHz > 0
-            ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.CurrentClockSpeedMHz)
-            : "Unknown";
-        MaxClockDisplay = Snapshot.MaxClockSpeedMHz > 0
-            ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.MaxClockSpeedMHz)
-            : "Unknown";
-        AverageCpuUsageDisplay = Snapshot.EffectivePercentProcessorTime is double value
-            ? _unitFormattingService.FormatRatio(Math.Clamp(value, 0d, 100d), decimals: 1)
-            : "Unknown";
-        L1CacheDisplay = FormatCpuCacheSize(Snapshot.L1CacheSizeKb);
-        L2CacheDisplay = FormatCpuCacheSize(Snapshot.L2CacheSizeKb);
-        L3CacheDisplay = FormatCpuCacheSize(Snapshot.L3CacheSizeKb);
+        CurrentClockMegahertz = Snapshot.CurrentClockSpeedMHz > 0 ? Snapshot.CurrentClockSpeedMHz : null;
+        MaxClockMegahertz = Snapshot.MaxClockSpeedMHz > 0 ? Snapshot.MaxClockSpeedMHz : null;
+        L1CacheBytes = ToCacheBytes(Snapshot.L1CacheSizeKb);
+        L2CacheBytes = ToCacheBytes(Snapshot.L2CacheSizeKb);
+        L3CacheBytes = ToCacheBytes(Snapshot.L3CacheSizeKb);
     }
 
-    // Fresh closures per call so the assignments never no-op (delegates over the same method/target compare
-    // equal); capturing a local gives each a new target, so PropertyChanged fires and the axes rebind.
-    private Func<double, string> CreateCpuUsageLabelFormatter()
-    {
-        var unitFormattingService = _unitFormattingService;
-        return value => unitFormattingService.FormatRatioAxisLabel(value);
-    }
-
-    private Func<double, string> CreateCpuClockLabelFormatter()
-    {
-        var unitFormattingService = _unitFormattingService;
-        return value => unitFormattingService.FormatClockFrequencyAxisLabel(value);
-    }
+    private static double? ToCacheBytes(int kilobytes) => kilobytes > 0 ? kilobytes * 1024d : null;
 
     private string BuildVirtualizationDisplay()
     {
@@ -213,10 +185,8 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
             : "Not reported";
     }
 
-    private string FormatCpuCacheSize(int kilobytes)
-    {
-        return _unitFormattingService.FormatInformationKilobytes(kilobytes);
-    }
+    // Cache sizes are projected to canonical bytes by ToCacheBytes and formatted by the InformationSize
+    // converter, so there is no kilobyte-specific formatting left here.
 
     private string? FirstNonEmpty(params string?[] values)
     {

@@ -201,7 +201,7 @@ public class FanPreviewWatchdogTests
     [Test]
     public void HasOpenHold_TracksTheHoldLifecycle()
     {
-        // Commands that persist a fan's live state (e.g. SetFanUsageModifier) check this to avoid
+        // Commands that persist a fan's live state (e.g. SetFanLink) check this to avoid
         // committing an uncommitted preview and disarming the revert watchdog.
         FanPreviewWatchdog watchdog = new();
 

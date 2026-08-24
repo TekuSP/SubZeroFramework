@@ -13,8 +13,9 @@ namespace SubZeroFramework.Controls.FanCurveProfiles.Models.Modes;
 /// Shared base for the per-mode body ViewModels (Auto / Manual / Max) resolved by the mode navigation
 /// sub-region. Each is a thin slice over the shared <see cref="FanCurveProfilesModel"/> coordinator
 /// (the same parent-projection pattern as <c>DeviceCapabilitiesCpuSectionModel</c>): it exposes only the
-/// gauge + description the body needs and bumps <see cref="RefreshVersion"/> when the coordinator raises a
-/// relevant change so the computed pass-throughs re-evaluate.
+/// gauge + description the body needs, mirrored as STORED properties that
+/// <see cref="RefreshDerivedState"/> reassigns when the coordinator reports a relevant change. Assignment
+/// raises PropertyChanged only for values that actually changed, so nothing re-renders needlessly.
 /// </summary>
 public abstract partial class FanModeModelBase : ObservableObject, IDisposable
 {
@@ -44,7 +45,7 @@ public abstract partial class FanModeModelBase : ObservableObject, IDisposable
 
         _attached = true;
         Page.PropertyChanged += OnPagePropertyChanged;
-        RefreshVersion++;
+        RefreshDerivedState();
     }
 
     /// <summary>Unsubscribe from the coordinator. Called from the view's Unloaded handler.</summary>
@@ -63,58 +64,75 @@ public abstract partial class FanModeModelBase : ObservableObject, IDisposable
     public FanCurveProfilesModel Page { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(SelectedFan))]
-    [NotifyPropertyChangedFor(nameof(ModeDescriptionTitle))]
-    [NotifyPropertyChangedFor(nameof(ModeDescriptionText))]
-    [NotifyPropertyChangedFor(nameof(ModeTargetText))]
-    [NotifyPropertyChangedFor(nameof(ModeGaugeTargetValues))]
-    [NotifyPropertyChangedFor(nameof(ModeGaugeTargetRemaining))]
-    [NotifyPropertyChangedFor(nameof(ModeGaugeTargetVisibility))]
-    [NotifyPropertyChangedFor(nameof(CanSelectMode))]
-    private partial int RefreshVersion { get; set; }
+    public partial FanCardModel? SelectedFan { get; private set; }
 
-    public FanCardModel? SelectedFan => Page.SelectedFan;
+    [ObservableProperty]
+    public partial string ModeDescriptionTitle { get; private set; } = string.Empty;
 
-    public string ModeDescriptionTitle => Page.ModeDescriptionTitle;
+    [ObservableProperty]
+    public partial string ModeDescriptionText { get; private set; } = string.Empty;
 
-    public string ModeDescriptionText => Page.ModeDescriptionText;
+    [ObservableProperty]
+    public partial string ModeTargetText { get; private set; } = string.Empty;
 
-    public string ModeTargetText => Page.ModeTargetText;
+    [ObservableProperty]
+    public partial double[] ModeGaugeTargetValues { get; private set; } = [];
 
-    public double[] ModeGaugeTargetValues => Page.ModeGaugeTargetValues;
+    [ObservableProperty]
+    public partial double[] ModeGaugeTargetRemaining { get; private set; } = [];
 
-    public double[] ModeGaugeTargetRemaining => Page.ModeGaugeTargetRemaining;
+    [ObservableProperty]
+    public partial Microsoft.UI.Xaml.Visibility ModeGaugeTargetVisibility { get; private set; }
 
-    public Microsoft.UI.Xaml.Visibility ModeGaugeTargetVisibility => Page.ModeGaugeTargetVisibility;
+    [ObservableProperty]
+    public partial bool CanSelectMode { get; private set; }
 
+    // Paints are built once by the coordinator and never swapped, so these stay plain pass-throughs.
     public SolidColorPaint ModeGaugeTargetPaint => Page.ModeGaugeTargetPaint;
 
     public SolidColorPaint ModeGaugeTargetTrackPaint => Page.ModeGaugeTargetTrackPaint;
 
-    public bool CanSelectMode => Page.CanSelectMode;
-
-    /// <summary>Override to also re-raise mode-specific pass-throughs; call <c>base</c>.</summary>
-    protected virtual void OnPageChanged(string? propertyName)
+    /// <summary>
+    /// Reassigns the shared gauge/description projections from the coordinator. Override to mirror the
+    /// mode-specific ones too, and call <c>base</c>.
+    /// </summary>
+    protected virtual void RefreshDerivedState()
     {
+        SelectedFan = Page.SelectedFan;
+        ModeDescriptionTitle = Page.ModeDescriptionTitle;
+        ModeDescriptionText = Page.ModeDescriptionText;
+        ModeTargetText = Page.ModeTargetText;
+        ModeGaugeTargetValues = Page.ModeGaugeTargetValues;
+        ModeGaugeTargetRemaining = Page.ModeGaugeTargetRemaining;
+        ModeGaugeTargetVisibility = Page.ModeGaugeTargetVisibility;
+        CanSelectMode = Page.CanSelectMode;
     }
+
+    /// <summary>
+    /// Whether a coordinator change touches anything this body mirrors. Override to add the mode-specific
+    /// property names, falling back to <c>base</c>.
+    /// </summary>
+    protected virtual bool AffectsDerivedState(string propertyName) => propertyName switch
+    {
+        nameof(FanCurveProfilesModel.SelectedFan) => true,
+        nameof(FanCurveProfilesModel.ModeDescriptionTitle) => true,
+        nameof(FanCurveProfilesModel.ModeDescriptionText) => true,
+        nameof(FanCurveProfilesModel.ModeTargetText) => true,
+        nameof(FanCurveProfilesModel.ModeGaugeTargetValues) => true,
+        nameof(FanCurveProfilesModel.ModeGaugeTargetRemaining) => true,
+        nameof(FanCurveProfilesModel.ModeGaugeTargetVisibility) => true,
+        nameof(FanCurveProfilesModel.CanSelectMode) => true,
+        _ => false,
+    };
 
     private void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        switch (e.PropertyName)
+        // An empty name is the coordinator's "everything changed" signal, raised when the display units
+        // change — the mirrored text and the gauge bounds both move with it.
+        if (string.IsNullOrEmpty(e.PropertyName) || AffectsDerivedState(e.PropertyName))
         {
-            case nameof(FanCurveProfilesModel.SelectedFan):
-            case nameof(FanCurveProfilesModel.ModeDescriptionTitle):
-            case nameof(FanCurveProfilesModel.ModeDescriptionText):
-            case nameof(FanCurveProfilesModel.ModeTargetText):
-            case nameof(FanCurveProfilesModel.ModeGaugeTargetValues):
-            case nameof(FanCurveProfilesModel.ModeGaugeTargetRemaining):
-            case nameof(FanCurveProfilesModel.ModeGaugeTargetVisibility):
-            case nameof(FanCurveProfilesModel.CanSelectMode):
-                RefreshVersion++;
-                break;
+            RefreshDerivedState();
         }
-
-        OnPageChanged(e.PropertyName);
     }
 
     public virtual void Dispose() => Detach();

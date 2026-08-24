@@ -22,15 +22,15 @@
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Database"
                 Label="Total capacity"
-                Value="{x:Bind ViewModel.TotalStorageCapacity, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.TotalStorageCapacityBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Database"
                 Label="Used"
-                Value="{x:Bind ViewModel.TotalStorageUsedSpace, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.TotalStorageUsedSpaceBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="DatabaseCheck"
                 Label="Free"
-                Value="{x:Bind ViewModel.TotalStorageFreeSpace, Mode=OneWay}"
+                Value="{x:Bind ViewModel.TotalStorageFreeSpaceBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}"
                 ValueBrush="{x:Bind ViewModel.TotalStorageFreeBrush, Mode=OneWay}" />
         </deviceCapabilitiesControls:StatTilePanel>
 

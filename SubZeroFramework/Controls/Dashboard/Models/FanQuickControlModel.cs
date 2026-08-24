@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Media;
 
 using SubZeroFramework.Controls.Fans.Models;
 using SubZeroFramework.Models;
+using SubZeroFramework.Services.Units;
 using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.Dashboard.Models;
@@ -20,10 +21,14 @@ namespace SubZeroFramework.Controls.Dashboard.Models;
 /// </summary>
 public partial class FanQuickControlModel : ObservableObject
 {
-    public FanQuickControlModel(FanCardModel fan)
+    private readonly IUnitFormattingService _unitFormattingService;
+
+    public FanQuickControlModel(FanCardModel fan, IUnitFormattingService unitFormattingService)
     {
         ArgumentNullException.ThrowIfNull(fan);
+        ArgumentNullException.ThrowIfNull(unitFormattingService);
 
+        _unitFormattingService = unitFormattingService;
         Fan = fan;
         fan.PropertyChanged += OnFanChanged;
         RefreshDerivedState();
@@ -92,7 +97,10 @@ public partial class FanQuickControlModel : ObservableObject
 
     private void OnFanChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(FanCardModel.ControlState) or nameof(FanCardModel.Snapshot))
+        // An empty name is the "everything on the source changed" signal the fan card raises when the display
+        // units change — NowDrivingText embeds a formatted duty, so it has to be rebuilt then too.
+        if (string.IsNullOrEmpty(e.PropertyName)
+            || e.PropertyName is nameof(FanCardModel.ControlState) or nameof(FanCardModel.Snapshot))
         {
             RefreshDerivedState();
         }
@@ -140,7 +148,7 @@ public partial class FanQuickControlModel : ObservableObject
         };
 
         return state.Mode != FanControlMode.Auto && state.LastDutyPercent is double duty
-            ? $"{modeLabel} · {duty:0}%"
+            ? $"{modeLabel} · {_unitFormattingService.FormatRatio(duty, decimals: 0)}"
             : modeLabel;
     }
 }

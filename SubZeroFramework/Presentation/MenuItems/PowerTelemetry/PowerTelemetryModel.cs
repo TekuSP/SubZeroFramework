@@ -55,6 +55,7 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
         IFrameworkFanControlClient fanControlClient,
         IFrameworkStatusClient frameworkStatusClient,
         IUnitFormattingService unitFormattingService,
+        IUserUnitPreferencesClient userUnitPreferencesClient,
         SynchronizationContext synchronizationContext)
     {
         ArgumentNullException.ThrowIfNull(powerDeliveryClient);
@@ -79,6 +80,29 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
             .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(OnStatusChanged));
+
+        ArgumentNullException.ThrowIfNull(userUnitPreferencesClient);
+        _subscriptions.Add(userUnitPreferencesClient.WatchPreferences()
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(_ => RefreshUnitFormatting()));
+    }
+
+    /// <summary>
+    /// Re-renders every reading on the page in the newly chosen units. The composites (power flow with its
+    /// +/− sign, the wear caption, the adapter detail line) are recomputed by <see cref="RefreshPowerFlow"/>;
+    /// the canonical readings are formatted by UnitFormatConverter, which only needs its bindings to run
+    /// again — that is what the null property name asks for. See UnitFormatConverter's remarks.
+    /// </summary>
+    private void RefreshUnitFormatting()
+    {
+        RefreshPowerFlow();
+
+        foreach (var port in Ports)
+        {
+            port.RefreshUnitFormatting();
+        }
+
+        OnPropertyChanged(propertyName: null);
     }
 
     private void OnStatusChanged(FrameworkSystemStatus status)
@@ -117,7 +141,8 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
     // ----- Trends (last 5 min sparklines) -----
 
     // Sparkline values, mutated in place. The XAML declares the XamlLineSeries and binds Values to these stable
-    // collections — mirroring PowerCardView's battery history charts, the proven LiveCharts pattern in this app.
+    // collections, which is the LiveCharts pattern used by every chart in this app: replacing the collection
+    // rebuilds the series, mutating it animates.
     public ObservableCollection<DateTimePoint> ChargeTrendValues { get; } = [];
 
     public ObservableCollection<DateTimePoint> CurrentTrendValues { get; } = [];
@@ -146,13 +171,16 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
 
     // ----- Charge limits (EC write, gated by service authorization) -----
 
+    // Canonical percent — what the EC takes and what the rest of the model reasons about. The slider edits
+    // the …DisplayValue pair below instead, so a non-percent ratio preference gets a scale in its own unit
+    // rather than a percent scale with the wrong label on it.
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ChargeMinimumDisplay))]
+    [NotifyPropertyChangedFor(nameof(ChargeLimitMinimumDisplayValue))]
     [NotifyCanExecuteChangedFor(nameof(SetChargeLimitsCommand))]
     public partial double ChargeLimitMinimum { get; set; } = 20d;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ChargeMaximumDisplay))]
+    [NotifyPropertyChangedFor(nameof(ChargeLimitMaximumDisplayValue))]
     [NotifyCanExecuteChangedFor(nameof(SetChargeLimitsCommand))]
     public partial double ChargeLimitMaximum { get; set; } = 100d;
 
@@ -167,9 +195,32 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
     /// <summary>Collapses the status line until there is something to say, keeping the card compact.</summary>
     public Visibility ChargeLimitsStatusVisibility => string.IsNullOrWhiteSpace(ChargeLimitsStatus) ? Visibility.Collapsed : Visibility.Visible;
 
-    public string ChargeMinimumDisplay => $"{(int)Math.Round(ChargeLimitMinimum)}%";
+    // ----- Charge-limit slider, in the user's ratio unit (both directions; see the units project skill) -----
 
-    public string ChargeMaximumDisplay => $"{(int)Math.Round(ChargeLimitMaximum)}%";
+    /// <summary>Zero is the same number in every ratio unit, so the slider floor needs no conversion.</summary>
+    public double ChargeLimitDisplayMinimumBound => 0d;
+
+    /// <summary>Full charge in the display unit: 100 %, 1 fraction, 1 000 ‰, 1 000 000 PPM.</summary>
+    public double ChargeLimitDisplayMaximumBound => _unitFormattingService.RatioAxisMaximum;
+
+    /// <summary>One canonical percent's worth of travel, so the slider keeps the same 100 stops in any unit.</summary>
+    public double ChargeLimitDisplayStep => _unitFormattingService.RatioAxisMaximum / 100d;
+
+    /// <summary>
+    /// The slider's lower thumb, in the display unit. The setter converts straight back to canonical percent,
+    /// which re-raises this property — harmless, because assigning an equal value is a no-op.
+    /// </summary>
+    public double ChargeLimitMinimumDisplayValue
+    {
+        get => _unitFormattingService.ConvertRatio(ChargeLimitMinimum);
+        set => ChargeLimitMinimum = Math.Clamp(_unitFormattingService.ConvertRatioToPercent(value), 0d, 100d);
+    }
+
+    public double ChargeLimitMaximumDisplayValue
+    {
+        get => _unitFormattingService.ConvertRatio(ChargeLimitMaximum);
+        set => ChargeLimitMaximum = Math.Clamp(_unitFormattingService.ConvertRatioToPercent(value), 0d, 100d);
+    }
 
     [RelayCommand(CanExecute = nameof(CanSetChargeLimits))]
     private async Task SetChargeLimitsAsync()
@@ -180,7 +231,7 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
                 (int)Math.Round(ChargeLimitMinimum),
                 (int)Math.Round(ChargeLimitMaximum));
             ChargeLimitsStatus = result.Succeeded
-                ? $"Applied {result.MinimumPercent}–{result.MaximumPercent}%."
+                ? $"Applied {_unitFormattingService.FormatRatio(result.MinimumPercent, decimals: 0)}–{_unitFormattingService.FormatRatio(result.MaximumPercent, decimals: 0)}."
                 : result.Message;
         }
         catch (Exception exception)
@@ -255,7 +306,7 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
     }
 
     [ObservableProperty]
-    public partial string AdapterInputDisplay { get; private set; } = "—";
+    public partial double? AdapterInputWattsValue { get; private set; }
 
     [ObservableProperty]
     public partial string AdapterDetailDisplay { get; private set; } = "No adapter attached";
@@ -282,12 +333,13 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
         _ => AppThemeBrushes.Get("TextPrimaryBrush", AppThemeBrushes.TextPrimaryColor),
     };
 
+    /// <summary>Charge in canonical percent, formatted by UnitFormatConverter. Null when no battery reported.</summary>
     [ObservableProperty]
-    public partial string ChargePercentDisplay { get; private set; } = "--";
+    public partial double? ChargePercent { get; private set; }
 
-    /// <summary>Charge percent as a bare number (no unit) for the ring centre, where "%" is rendered smaller.</summary>
+    /// <summary>The unit the ring draws beside the charge figure — "%" only under the percent preference.</summary>
     [ObservableProperty]
-    public partial string ChargePercentNumberDisplay { get; private set; } = "--";
+    public partial string ChargeUnitSuffix { get; private set; } = "%";
 
     [ObservableProperty]
     public partial double ChargeFraction { get; private set; }
@@ -339,8 +391,9 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string SourceDisplay { get; private set; } = "Unknown";
 
+    /// <summary>Battery terminal voltage in canonical volts, formatted by UnitFormatConverter.</summary>
     [ObservableProperty]
-    public partial string VoltageDisplay { get; private set; } = string.Empty;
+    public partial double? VoltageVolts { get; private set; }
 
     [ObservableProperty]
     public partial string CurrentDisplay { get; private set; } = string.Empty;
@@ -366,20 +419,24 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
             ? Math.Clamp(lastFull / design, 0d, 1d)
             : null;
 
+    // Capacities in canonical watt-hours, formatted by UnitFormatConverter (Energy). Stored rather than
+    // computed off _battery, which is a plain field and raises nothing on its own.
     [ObservableProperty]
-    public partial string DesignCapacityDisplay { get; private set; } = "--";
+    public partial double? DesignEnergyWattHours { get; private set; }
 
     [ObservableProperty]
-    public partial string LastFullCapacityDisplay { get; private set; } = "--";
+    public partial double? LastFullEnergyWattHours { get; private set; }
 
     [ObservableProperty]
-    public partial string RemainingCapacityDisplay { get; private set; } = "--";
+    public partial double? RemainingEnergyWattHours { get; private set; }
 
+    /// <summary>Composite ("87.4% healthy"), so it stays formatted here — through the service, not with a "%".</summary>
     [ObservableProperty]
     public partial string HealthyDisplay { get; private set; } = "—";
 
+    /// <summary>Capacity lost to wear, as a canonical percent — the complement of battery health.</summary>
     [ObservableProperty]
-    public partial string WearDisplay { get; private set; } = "--";
+    public partial double? WearPercent { get; private set; }
 
     [ObservableProperty]
     public partial double WearFraction { get; private set; }
@@ -401,7 +458,6 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
 
     private string FormatWatts(double watts) => _unitFormattingService.FormatPowerWatts(Math.Round(watts), decimals: 0);
 
-    private static string FormatWattHours(double? wattHours) => wattHours is double wh ? $"{wh:0.0} Wh" : "--";
 
     /// <summary>
     /// Recomputes and ASSIGNS the stored power-flow, battery-overview, and health projections derived from
@@ -417,7 +473,8 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
         AdapterArrowsActive = HasAdapter;
         BatteryArrowsReversed = _battery?.BatteryState == FrameworkBatteryState.Discharging;
 
-        AdapterInputDisplay = HasAdapter ? FormatWatts(AdapterInputWatts) : "—";
+        // Canonical watts; null when no adapter is attached ("—" via UnitFormatDash).
+        AdapterInputWattsValue = HasAdapter ? AdapterInputWatts : null;
         AdapterDetailDisplay = HasAdapter
             ? $"{_unitFormattingService.FormatVoltage(_activePort!.VoltageVolts)} · {_unitFormattingService.FormatCurrent(_activePort.CurrentAmperes)} · USB-C {_activePort.SlotIndex + 1}"
             : "No adapter attached";
@@ -430,12 +487,8 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
             : rounded < 0d ? $"−{FormatWatts(Math.Abs(rounded))}" : FormatWatts(0d);
         BatteryPowerSign = watts > 0d ? 1 : watts < 0d ? -1 : 0;
 
-        ChargePercentDisplay = _battery is null
-            ? "--"
-            : _unitFormattingService.FormatRatio(_battery.ChargePercent, decimals: 0);
-        ChargePercentNumberDisplay = _battery?.ChargePercent is double percent
-            ? ((int)Math.Round(percent)).ToString(System.Globalization.CultureInfo.InvariantCulture)
-            : "--";
+        ChargePercent = _battery?.ChargePercent;
+        ChargeUnitSuffix = _unitFormattingService.RatioUnitSuffix;
         ChargeFraction = Math.Clamp((_battery?.ChargePercent ?? 0d) / 100d, 0d, 1d);
 
         BatteryStateDisplay = _battery?.BatteryState switch
@@ -464,20 +517,22 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
             _ => "Unknown",
         };
 
-        VoltageDisplay = _unitFormattingService.FormatVoltage(_battery?.Voltage);
+        VoltageVolts = _battery?.Voltage;
         CurrentDisplay = FormatBatteryCurrent();
         BatterySummaryDisplay = HasBattery
-            ? $"{ChargePercentDisplay} · {BatteryStateDisplay.ToLowerInvariant()}"
+            ? $"{_unitFormattingService.FormatRatio(_battery?.ChargePercent, decimals: 0)} · {BatteryStateDisplay.ToLowerInvariant()}"
             : "No battery";
 
-        DesignCapacityDisplay = FormatWattHours(DesignWattHours);
-        LastFullCapacityDisplay = FormatWattHours(LastFullWattHours);
-        RemainingCapacityDisplay = FormatWattHours(RemainingWattHours);
-        HealthyDisplay = HealthFraction is double fraction ? $"{fraction * 100d:0.0}% healthy" : "—";
-        WearDisplay = HealthFraction is double wear ? $"{(1d - wear) * 100d:0.0}%" : "--";
+        DesignEnergyWattHours = DesignWattHours;
+        LastFullEnergyWattHours = LastFullWattHours;
+        RemainingEnergyWattHours = RemainingWattHours;
+        HealthyDisplay = HealthFraction is double fraction
+            ? $"{_unitFormattingService.FormatRatio(fraction * 100d, decimals: 1)} healthy"
+            : "—";
+        WearPercent = HealthFraction is double wear ? (1d - wear) * 100d : null;
         WearFraction = HealthFraction ?? 0d;
         WearBarCaption = DesignWattHours is double design && LastFullWattHours is double lastFull
-            ? $"last-full {lastFull:0.0} Wh of {design:0.0} Wh design"
+            ? $"last-full {_unitFormattingService.FormatEnergyWattHours(lastFull)} of {_unitFormattingService.FormatEnergyWattHours(design)} design"
             : "Wear data unavailable";
         CycleCountDisplay = _battery?.CycleCount is uint cycles ? cycles.ToString() : "--";
         ChemistryDisplay = string.IsNullOrWhiteSpace(_battery?.BatteryType) ? "--" : _battery!.BatteryType!;

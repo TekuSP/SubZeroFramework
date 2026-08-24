@@ -197,7 +197,7 @@ the live validation of both pipelines.
   documents where to start if this is ever revisited.
 - Prerequisite either way: P1 Linux systemd E2E validation (root EC access) must pass first.
 
-## Service-side fan curve drive + CPU usage modifier (landed 2026-07-18)
+## Service-side fan curve drive (landed 2026-07-18)
 
 - The curve worker (`FrameworkFanCurveControlWorker`) drives stored curves server-side against live
   driving-sensor temperatures (interpolation identical to the client preview). **Fixed 2026-07-18:** the
@@ -205,24 +205,22 @@ the live validation of both pipelines.
   values, so every worker write of an interpolated (fractional) duty silently failed at Warning level —
   curves were reported active but never actuated. `FrameworkDataProvider.SetFanDutyAsync` now rounds at
   the single choke point before the EC write.
-- **Per-fan CPU usage modifier** (user spec: strength float, NaN = disabled): duty points added on top of
-  the curve duty, `strength × (e^(4·usage) − 1)/(e^4 − 1)` (`FanUsageModifierMath` in Core), so fans ramp
-  before heat reaches the sensors. Usage comes from the service's existing 1 s Hardware.Info poll, smoothed
-  fast-attack / slow-decay (5 s half-life, `FanUsageSmoothingFilter`). Set via `SetFanUsageModifier` RPC
-  (NaN on the wire = disable), persisted in `service-settings.json`, survives mode switches, streamed back
-  as `cpu_usage_modifier_strength` (proto `optional`, absent = disabled). Followers inherit the leader's
-  already-boosted duty. Client surface: `IFrameworkFanControlClient.SetUsageModifierAsync`. Live-verified
-  2026-07-18: idle 69% → 100% within ~3 s of pinning all cores → exponential decay back over ~15 s.
-- **GPU usage modifier: deliberately not implemented** (user decision 2026-07-18). Hardware.Info has no GPU
-  utilization; adding it later needs a source (Windows WDDM "GPU Engine" perf counters / Linux amdgpu
-  `gpu_busy_percent`) plus a deliberate proto/API extension. No dormant GPU fields were added.
-- **CPU boost UI (2026-07-18)**: card on the Fan Curve Profiles detail pane between "Applies to" and Mode,
-  visible **only for Custom curve** (applied or editing — `IsCustomBodyVisible`) since the modifier has no
-  effect in other modes. Toggle + 5–100 slider; strength text goes through `IUnitFormattingService.FormatRatio`
-  so the Display-units ratio preference applies. Staged like fan links (`FanBoostSectionModel` mirrors
-  `FanLinkSectionModel`): staged per fan, flushed on Apply AFTER the mode/curve commit (so no preview hold is
-  open when `SetFanUsageModifier` runs), discarded on Revert. `ManualDutyDisplay` also routed through
-  FormatRatio in passing.
+- **Per-fan CPU usage modifier / "CPU boost": REMOVED 2026-08-24** (user decision — a different approach
+  is planned). Taken out end to end: the `SetFanUsageModifier` RPC, `cpu_usage_modifier_strength` on both the
+  request and the control state (proto field 21 is now `reserved`), `FanUsageModifierMath`,
+  `FanUsageSmoothingFilter`, the strength field on `FanControlStateSnapshot` / `FanControlStateOptions` and its
+  JSON persistence, the store's `SetCpuUsageModifier`, the curve worker's smoothing + boost + stale-reading
+  guards, `IFrameworkFanControlClient.SetUsageModifierAsync`, and the `FanBoostSectionModel` card on the fan
+  detail pane. A persisted `CpuUsageModifierStrength` key in an existing `service-settings.json` is simply
+  ignored on load — the options record no longer binds it — so no migration is needed.
+  What the removed design was, for whoever writes the replacement: duty points added on top of the curve duty,
+  `strength × (e^(4·usage) − 1)/(e^4 − 1)`, fed by the primary tier's CPU reading with fast-attack /
+  slow-decay smoothing (5 s half-life), rejecting hardware-info snapshots older than 10 s so a stalled poll
+  decayed the boost instead of pinning it. Followers inherited the leader's already-boosted duty. It was
+  applied where the curve interpolated, and it was flushed AFTER the mode/curve commit on Apply because the
+  service rejected modifier writes while a preview hold was open.
+- **GPU usage modifier: never implemented** (user decision 2026-07-18). Hardware.Info has no GPU
+  utilization; the GPU telemetry readers added since would now supply one if a replacement wants it.
 - **Custom-curve activation staging (2026-07-18, user-reported)**: switching a non-curve-driven fan into
   Custom curve now stages immediately (`IsCustomActivationStaged`) — pending pill + Preview/Revert light up
   with the loaded curve, no need to move a point first. Revert of a staged activation exits the editor back
@@ -233,8 +231,9 @@ the live validation of both pipelines.
   options and **replaced the fan's whole config entry, wiping stored curve profiles, fan link, and modifier
   from disk** (reachable today via Discard test) — it now persists via `BuildFanControlOptions` like every
   other command; (3) `SetFanUsageModifier` during an open preview hold would have committed the volatile
-  preview and disarmed the revert watchdog — it now rejects with FailedPrecondition
-  (`FanPreviewWatchdog.HasOpenHold`), matching the Stage → Preview → Apply model; (4) read-modify-write
+  preview and disarmed the revert watchdog — it rejected with FailedPrecondition
+  (`FanPreviewWatchdog.HasOpenHold`); that RPC is gone as of 2026-08-24, but `HasOpenHold` remains and any
+  new command that persists a fan's live state must make the same check; (4) read-modify-write
   races in `FrameworkFanControlStateStore` (e.g. worker `RecordAppliedDuty` vs a command) — all
   lookup→mutate→publish sequences now serialize under one lock; (5) the worker rounds target duty to the
   whole percent the EC takes *before* the 1% change threshold, so idle CPU jitter cannot cause write churn;

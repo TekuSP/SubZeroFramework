@@ -16,7 +16,7 @@
     mc:Ignorable="d">
 
     <Grid utu:SafeArea.Insets="VisibleBounds">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer controls:ScrollHint.IsEnabled="True" VerticalScrollBarVisibility="Auto">
             <StackPanel Padding="0,0,0,24" Spacing="18">
 
                 <StackPanel Margin="15,0">
@@ -47,7 +47,7 @@
                                     <material:MaterialIcon Width="16" Height="16" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" Kind="PowerPlug" />
                                     <TextBlock FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Text="Adapter input" />
                                 </StackPanel>
-                                <TextBlock HorizontalAlignment="Center" FontSize="32" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.AdapterInputDisplay, Mode=OneWay}" />
+                                <TextBlock HorizontalAlignment="Center" FontSize="32" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.AdapterInputWattsValue, Mode=OneWay, Converter={StaticResource UnitFormatDash}, ConverterParameter=Power:0}" />
                                 <TextBlock HorizontalAlignment="Center" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.AdapterDetailDisplay, Mode=OneWay}" />
                             </StackPanel>
 
@@ -105,7 +105,8 @@
                                 Grid.Column="0"
                                 VerticalAlignment="Center"
                                 ChargeFraction="{x:Bind ViewModel.ChargeFraction, Mode=OneWay}"
-                                ChargeText="{x:Bind ViewModel.ChargePercentNumberDisplay, Mode=OneWay}"
+                                ChargeText="{x:Bind ViewModel.ChargePercent, Mode=OneWay, Converter={StaticResource UnitFormatValue}, ConverterParameter=Ratio, FallbackValue=--}"
+                                ChargeUnitText="{x:Bind ViewModel.ChargeUnitSuffix, Mode=OneWay}"
                                 FlowReversed="{x:Bind ViewModel.IsBatteryDischarging, Mode=OneWay}"
                                 IsAnimating="{x:Bind ViewModel.IsBatteryAnimating, Mode=OneWay}" />
 
@@ -142,7 +143,7 @@
                                 <StackPanel Orientation="Horizontal" Spacing="28">
                                     <StackPanel Spacing="2">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Voltage" />
-                                        <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.VoltageDisplay, Mode=OneWay}" />
+                                        <TextBlock FontSize="17" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.VoltageVolts, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Voltage}" />
                                     </StackPanel>
                                     <StackPanel Spacing="2">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Current" />
@@ -182,25 +183,25 @@
                                 <Border Grid.Row="0" Grid.Column="0" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Design" />
-                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.DesignCapacityDisplay, Mode=OneWay}" />
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.DesignEnergyWattHours, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Energy}" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Row="0" Grid.Column="1" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Last full" />
-                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.LastFullCapacityDisplay, Mode=OneWay}" />
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.LastFullEnergyWattHours, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Energy}" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Row="0" Grid.Column="2" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Remaining" />
-                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.RemainingCapacityDisplay, Mode=OneWay}" />
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.RemainingEnergyWattHours, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Energy}" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Row="0" Grid.Column="3" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Wear" />
-                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource StatusWarningBrush}" Text="{x:Bind ViewModel.WearDisplay, Mode=OneWay}" />
+                                        <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource StatusWarningBrush}" Text="{x:Bind ViewModel.WearPercent, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Ratio:1}" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Row="1" Grid.Column="0" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
@@ -262,11 +263,11 @@
                             <ctk:RangeSelector
                                 Margin="0,-4,0,-6"
                                 Foreground="{StaticResource BrandPrimaryBrush}"
-                                Maximum="100"
-                                Minimum="0"
-                                RangeEnd="{x:Bind ViewModel.ChargeLimitMaximum, Mode=TwoWay}"
-                                RangeStart="{x:Bind ViewModel.ChargeLimitMinimum, Mode=TwoWay}"
-                                StepFrequency="1">
+                                Maximum="{x:Bind ViewModel.ChargeLimitDisplayMaximumBound, Mode=OneWay}"
+                                Minimum="{x:Bind ViewModel.ChargeLimitDisplayMinimumBound, Mode=OneWay}"
+                                RangeEnd="{x:Bind ViewModel.ChargeLimitMaximumDisplayValue, Mode=TwoWay}"
+                                RangeStart="{x:Bind ViewModel.ChargeLimitMinimumDisplayValue, Mode=TwoWay}"
+                                StepFrequency="{x:Bind ViewModel.ChargeLimitDisplayStep, Mode=OneWay}">
                                 <!--  The RangeSelector defaults to the Windows system accent (red on this machine); force our brand blue.  -->
                                 <ctk:RangeSelector.Resources>
                                     <Color x:Key="SystemAccentColor">#FF0078D7</Color>
@@ -295,13 +296,13 @@
                                 <Border Grid.Column="0" Padding="10" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="1">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Minimum" />
-                                        <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChargeMinimumDisplay, Mode=OneWay}" />
+                                        <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChargeLimitMinimum, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Ratio}" />
                                     </StackPanel>
                                 </Border>
                                 <Border Grid.Column="1" Padding="10" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="1">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Maximum" />
-                                        <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChargeMaximumDisplay, Mode=OneWay}" />
+                                        <TextBlock FontSize="19" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.ChargeLimitMaximum, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Ratio}" />
                                     </StackPanel>
                                 </Border>
                                 <Button
@@ -334,7 +335,7 @@
                                 <Border Grid.Column="0" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Charge %" />
-                                        <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource StatusSuccessBrush}" Text="{x:Bind ViewModel.ChargePercentDisplay, Mode=OneWay}" />
+                                        <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource StatusSuccessBrush}" Text="{x:Bind ViewModel.ChargePercent, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Ratio}" />
                                         <lvc:CartesianChart Height="44" AutoUpdateEnabled="True" Background="Transparent" LegendPosition="Hidden" TooltipPosition="Hidden">
                                             <lvc:CartesianChart.Series>
                                                 <lvc:SeriesCollection>
@@ -386,7 +387,7 @@
                                 <Border Grid.Column="2" Padding="12" Background="{StaticResource CardSecondaryBackgroundBrush}" CornerRadius="10">
                                     <StackPanel Spacing="4">
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="Voltage" />
-                                        <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.VoltageDisplay, Mode=OneWay}" />
+                                        <TextBlock FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind ViewModel.VoltageVolts, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Voltage}" />
                                         <lvc:CartesianChart Height="44" AutoUpdateEnabled="True" Background="Transparent" LegendPosition="Hidden" TooltipPosition="Hidden">
                                             <lvc:CartesianChart.Series>
                                                 <lvc:SeriesCollection>

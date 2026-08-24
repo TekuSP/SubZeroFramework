@@ -14,11 +14,24 @@
     <PackageReference Include="NUnit" />
     <PackageReference Include="NUnit3TestAdapter" />
     <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="UnitsNet" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\SubZeroFramework.Core\SubZeroFramework.Core.csproj" />
     <ProjectReference Include="..\SubZeroFramework.Service\SubZeroFramework.Service.csproj" />
+  </ItemGroup>
+
+  <!--
+    The unit-formatting service lives in the WinUI app project, which this net10.0 test project cannot
+    reference. These three files carry no WinUI dependency, so they are compiled in directly rather than
+    left untested — they hold the display/canonical conversion pair that the fan-curve editor's drag path
+    depends on, where a broken inverse silently writes wrong fan curves to the EC.
+  -->
+  <ItemGroup>
+    <Compile Include="..\SubZeroFramework\Services\IUserUnitPreferencesClient.cs" Link="AppSources\IUserUnitPreferencesClient.cs" />
+    <Compile Include="..\SubZeroFramework\Services\Units\IUnitFormattingService.cs" Link="AppSources\IUnitFormattingService.cs" />
+    <Compile Include="..\SubZeroFramework\Services\Units\UnitsNetUnitFormattingService.cs" Link="AppSources\UnitsNetUnitFormattingService.cs" />
   </ItemGroup>
 
 </Project>

@@ -51,10 +51,6 @@ service FrameworkFanControlService {
   // "Applies to" group membership: set (or clear, when linked_leader_index is unset) which fan this one is
   // grouped under. Persisted so the grouping survives restarts and streams back via linked_leader_index.
   rpc SetFanLink (SetFanLinkRequest) returns (FanCurveProfileOperationReply);
-  // Per-fan CPU usage modifier: extra duty points added on top of the active custom curve when the CPU is
-  // busy, ramping exponentially so fans spin up before heat reaches the sensors. Persisted; streams back
-  // via cpu_usage_modifier_strength on the control state.
-  rpc SetFanUsageModifier (SetFanUsageModifierRequest) returns (SetFanUsageModifierReply);
   // Preview safety lease: the client keeps this server stream open while a volatile preview is live. The
   // service captures the fan's pre-preview state when the stream opens, and if the stream breaks before the
   // preview is committed (Apply) or explicitly released, it reverts the fan to that captured state. This
@@ -64,9 +60,8 @@ service FrameworkFanControlService {
   rpc GetChargeLimits (GetChargeLimitsRequest) returns (ChargeLimitsReply);
   rpc SetChargeLimits (SetChargeLimitsRequest) returns (ChargeLimitsReply);
   // Factory reset of all fan control state: every fan goes back to EC automatic control and every persisted
-  // fan setting is deleted (curve profile slots, active slot, "applies to" links, CPU usage modifiers, and
-  // manual/max overrides), including entries for fan indices that no longer enumerate. Never a preview — it
-  // always persists.
+  // fan setting is deleted (curve profile slots, active slot, "applies to" links, and manual/max overrides),
+  // including entries for fan indices that no longer enumerate. Never a preview — it always persists.
   rpc ResetFanControlToFactoryDefaults (ResetFanControlToFactoryDefaultsRequest) returns (ResetFanControlToFactoryDefaultsReply);
 }
 
@@ -83,9 +78,12 @@ message WatchServiceConfigurationRequest {
 }
 
 message ApplyServiceConfigurationRequest {
-  int64 polling_interval_milliseconds = 1;
-  int64 hardware_info_polling_interval_milliseconds = 2;
+  // The three sensor-polling tiers. Field 4 was added after 1 and 2, so it is out of tier order on the wire
+  // deliberately — renumbering would break older clients.
+  int64 polling_interval_milliseconds = 1;            // PRIMARY
+  int64 hardware_info_polling_interval_milliseconds = 2; // TERTIARY
   bool allow_fan_control_commands = 3;
+  int64 secondary_polling_interval_milliseconds = 4;  // SECONDARY
 }
 
 message SaveServiceConfigurationRequest {
@@ -99,10 +97,11 @@ message RelocateServiceConfigurationRequest {
 }
 
 message FrameworkServiceConfigurationReply {
-  int64 polling_interval_milliseconds = 1;
-  int64 hardware_info_polling_interval_milliseconds = 2;
+  int64 polling_interval_milliseconds = 1;            // PRIMARY
+  int64 hardware_info_polling_interval_milliseconds = 2; // TERTIARY
   bool allow_fan_control_commands = 3;
   string persistent_configuration_path = 4;
+  int64 secondary_polling_interval_milliseconds = 5;  // SECONDARY
 }
 
 message ServiceConfigurationOperationReply {
@@ -468,19 +467,6 @@ message FanCurveProfileOperationReply {
   string message = 4;
 }
 
-message SetFanUsageModifierRequest {
-  int32 fan_index = 1;
-  // Duty points (0-100) added on top of the curve at 100% smoothed CPU usage; the ramp between idle and
-  // full usage is exponential (see FanUsageModifierMath). NaN disables the modifier.
-  double cpu_usage_modifier_strength = 2;
-}
-
-message SetFanUsageModifierReply {
-  int32 fan_index = 1;
-  bool succeeded = 2;
-  string message = 3;
-}
-
 message GetChargeLimitsRequest {
 }
 
@@ -566,6 +552,8 @@ enum TelemetryMetricValue {
   TELEMETRY_METRIC_VALUE_BATTERY_PRESENT_VOLTAGE_VOLTS = 5;
   // Share of wall-clock time the device was busy, 0-100. Busy TIME, not capacity.
   TELEMETRY_METRIC_VALUE_UTILIZATION_PERCENT = 6;
+  // Video memory in use as a share of the total, 0-100. Its own channel so the service retains its history.
+  TELEMETRY_METRIC_VALUE_VRAM_UTILIZATION_PERCENT = 7;
 }
 
 enum FanStateValue {
@@ -786,11 +774,12 @@ message FanControlStateChangeReply {
   // The fan this one is grouped under ("Applies to" link). Persisted by the service so the grouping survives
   // restarts and is authoritative across clients. Unset means the fan is independent (or a leader itself).
   optional int32 linked_leader_index = 20;
-  // Duty points added on top of the active custom curve at 100% smoothed CPU usage (exponential ramp).
-  // Unset means the modifier is disabled.
-  optional double cpu_usage_modifier_strength = 21;
   // Active slot's setting; see FanCurveProfileReply.treat_missing_sensors_as_zero.
   bool treat_missing_sensors_as_zero = 22;
+
+  // 21 held cpu_usage_modifier_strength (the per-fan CPU boost), removed 2026-08-24 in favour of a different
+  // approach. Reserved so a future field cannot silently inherit an old client's boost value.
+  reserved 21;
 }
 
 message FanControlStateChangeBatchReply {
@@ -840,6 +829,38 @@ message CurrentTelemetryValueChangeReply {
   TemperatureSensorNameValue sensor_name = 26;
   // Platform role of a fan (fan channels only); UNSPECIFIED for non-fan or unidentified.
   FanNameValue fan_name = 27;
+
+  // GPU / NPU extended telemetry, carried on the device's utilization channel so one reading stays atomic.
+  // Present only where the source can report it: the Windows PDH counter set has no power, temperature or
+  // clock at all, so on Windows these are populated for an NVIDIA GPU (via NVML) and absent otherwise.
+  bool has_compute_power_watts = 28;
+  double compute_power_watts = 29;
+  bool has_compute_temperature_celsius = 30;
+  double compute_temperature_celsius = 31;
+  bool has_compute_core_clock_megahertz = 32;
+  double compute_core_clock_megahertz = 33;
+  bool has_compute_max_core_clock_megahertz = 34;
+  double compute_max_core_clock_megahertz = 35;
+  // Bitmask of ComputeThrottleReasonsValue. has_* distinguishes "nothing is throttling" (present, zero) from
+  // "the source could not say" (absent) — the two mean very different things to a fan controller.
+  bool has_compute_throttle_reasons = 36;
+  uint32 compute_throttle_reasons = 37;
+  // Video memory in use and total, in bytes. Usage rather than memory-bandwidth utilisation, because that is
+  // the one meaning both vendors can report.
+  bool has_compute_vram_used_bytes = 38;
+  double compute_vram_used_bytes = 39;
+  bool has_compute_vram_total_bytes = 40;
+  double compute_vram_total_bytes = 41;
+}
+
+// Why a compute device is clocked below its rating. A BITMASK: several can hold at once.
+enum ComputeThrottleReasonsValue {
+  COMPUTE_THROTTLE_REASONS_VALUE_NONE = 0;
+  COMPUTE_THROTTLE_REASONS_VALUE_POWER_LIMIT = 1;
+  COMPUTE_THROTTLE_REASONS_VALUE_THERMAL_LIMIT = 2;
+  COMPUTE_THROTTLE_REASONS_VALUE_APPLICATION_LIMIT = 4;
+  COMPUTE_THROTTLE_REASONS_VALUE_IDLE = 8;
+  COMPUTE_THROTTLE_REASONS_VALUE_OTHER = 16;
 }
 
 message CurrentTelemetryValueChangeBatchReply {

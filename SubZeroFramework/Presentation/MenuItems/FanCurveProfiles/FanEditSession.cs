@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml.Controls;
 
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Units;
 
 namespace SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 
@@ -22,12 +23,14 @@ public sealed class FanEditSession
 
     private readonly FanCurveProfilesModel _parent;
     private readonly IFanControlActuator _actuator;
+    private readonly IUnitFormattingService _unitFormattingService;
     private readonly ILogger _logger;
 
-    public FanEditSession(FanCurveProfilesModel parent, IFanControlActuator actuator, ILogger logger)
+    public FanEditSession(FanCurveProfilesModel parent, IFanControlActuator actuator, IUnitFormattingService unitFormattingService, ILogger logger)
     {
         _parent = parent;
         _actuator = actuator;
+        _unitFormattingService = unitFormattingService;
         _logger = logger;
     }
 
@@ -153,7 +156,7 @@ public sealed class FanEditSession
                 await _actuator.ActuateSimpleAsync(fanIndex, mode, StagedManualDuty, preview: true, cancellationToken).ConfigureAwait(true);
             }
 
-            var detail = mode == FanControlMode.Manual ? $" at {StagedManualDuty:0}% duty" : string.Empty;
+            var detail = mode == FanControlMode.Manual ? $" at {_unitFormattingService.FormatRatio(StagedManualDuty, decimals: 0)} duty" : string.Empty;
             var scope = group.Count > 1 ? $"{fan.Snapshot.DisplayName} + {group.Count - 1} linked fan(s)" : fan.Snapshot.DisplayName;
             _parent.ReportStatus(
                 $"Previewing {DescribeSimpleMode(mode)}{detail} on {scope}. Apply to keep it, or Revert to restore.",
@@ -193,8 +196,8 @@ public sealed class FanEditSession
             _parent.ReportStatus(
                 mode switch
                 {
-                    FanControlMode.Manual => $"{scope} set to {StagedManualDuty:0}% manual duty.",
-                    FanControlMode.Max => $"{scope} set to Max (100%). Acoustics will be loud.",
+                    FanControlMode.Manual => $"{scope} set to {_unitFormattingService.FormatRatio(StagedManualDuty, decimals: 0)} manual duty.",
+                    FanControlMode.Max => $"{scope} set to Max ({_unitFormattingService.FormatRatio(100d, decimals: 0)}). Acoustics will be loud.",
                     _ => $"{scope} restored to Auto.",
                 },
                 mode == FanControlMode.Max ? InfoBarSeverity.Warning : InfoBarSeverity.Success);

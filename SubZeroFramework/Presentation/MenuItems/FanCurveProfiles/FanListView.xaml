@@ -33,7 +33,7 @@
                     Foreground="{StaticResource TextSecondaryBrush}"
                     Text="by location" />
             </Grid>
-            <ListView
+            <ListView controls:ScrollHint.IsEnabled="True"
                 Grid.Row="1"
                 Padding="0"
                 ItemsSource="{x:Bind ViewModel.Fans, Mode=OneWay}"

@@ -329,9 +329,6 @@
       <Page Update="Controls\DeviceCapabilities\StatTileView.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>
-      <Page Update="Controls\Power\PowerCardView.xaml">
-        <Generator>MSBuild:Compile</Generator>
-      </Page>
       <Page Update="Controls\Power\BatteryChargeRingView.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>
@@ -339,9 +336,6 @@
         <Generator>MSBuild:Compile</Generator>
       </Page>
       <Page Update="Controls\Thermal\ThermalSensorTileView.xaml">
-        <Generator>MSBuild:Compile</Generator>
-      </Page>
-      <Page Update="Controls\Thermal\ThermalSnapshotCardView.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>
       <Page Update="Presentation\MenuItems\Modules\ModulesPage.xaml">

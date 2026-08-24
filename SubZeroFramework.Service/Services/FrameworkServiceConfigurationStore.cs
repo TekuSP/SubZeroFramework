@@ -77,6 +77,7 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
             return (FrameworkServiceOptions?)new FrameworkServiceOptions
             {
                 PollingInterval = ReadTimeSpan(section, "PollingInterval", defaults.PollingInterval),
+                SecondaryPollingInterval = ReadTimeSpan(section, "SecondaryPollingInterval", defaults.SecondaryPollingInterval),
                 HardwareInfoPollingInterval = ReadTimeSpan(section, "HardwareInfoPollingInterval", defaults.HardwareInfoPollingInterval),
                 AllowFanControlCommands = ReadBoolean(section, "AllowFanControlCommands", defaults.AllowFanControlCommands),
             };
@@ -256,11 +257,6 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
             node["LinkedLeaderIndex"] = linkedLeaderIndex;
         }
 
-        if (state.CpuUsageModifierStrength is double cpuUsageModifierStrength && double.IsFinite(cpuUsageModifierStrength))
-        {
-            node["CpuUsageModifierStrength"] = cpuUsageModifierStrength;
-        }
-
         return node;
     }
 
@@ -329,6 +325,7 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
             var frameworkServiceSection = root["FrameworkService"] as JsonObject ?? new JsonObject();
 
             frameworkServiceSection["PollingInterval"] = options.PollingInterval.ToString("c", CultureInfo.InvariantCulture);
+            frameworkServiceSection["SecondaryPollingInterval"] = options.SecondaryPollingInterval.ToString("c", CultureInfo.InvariantCulture);
             frameworkServiceSection["HardwareInfoPollingInterval"] = options.HardwareInfoPollingInterval.ToString("c", CultureInfo.InvariantCulture);
             frameworkServiceSection["AllowFanControlCommands"] = options.AllowFanControlCommands;
             root["FrameworkService"] = frameworkServiceSection;

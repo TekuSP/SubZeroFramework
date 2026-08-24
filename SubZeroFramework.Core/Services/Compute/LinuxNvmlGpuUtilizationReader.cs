@@ -30,6 +30,12 @@ public sealed unsafe class LinuxNvmlGpuUtilizationReader : IComputeUtilizationRe
     private const ushort NvidiaVendorId = 0x10DE;
     private const int NvmlSuccess = 0;
 
+    /// <summary>NVML_TEMPERATURE_GPU — the die sensor, the only one nvmlDeviceGetTemperature defines.</summary>
+    private const uint NvmlTemperatureGpu = 0;
+
+    /// <summary>NVML_CLOCK_GRAPHICS — the shader clock, which is what "GPU clock" means to a user.</summary>
+    private const uint NvmlClockGraphics = 0;
+
     /// <summary>Big enough for NVML_DEVICE_NAME_V2_BUFFER_SIZE (96); older drivers just write fewer bytes.</summary>
     private const int NameBufferSize = 96;
 
@@ -68,6 +74,10 @@ public sealed unsafe class LinuxNvmlGpuUtilizationReader : IComputeUtilizationRe
     private bool _libraryProbed;
     private bool _initialized;
     private bool _loggedSampleFailure;
+    private bool _enforcedPowerLimitResolved;
+    private double? _enforcedPowerLimitWatts;
+    private bool _maxClockResolved;
+    private double? _maxClockMegahertz;
 
     private IReadOnlyList<NvidiaDevice> _devices = [];
     private bool _enumerated;
@@ -84,6 +94,17 @@ public sealed unsafe class LinuxNvmlGpuUtilizationReader : IComputeUtilizationRe
     private delegate* unmanaged[Cdecl]<IntPtr, NvmlUtilization*, int> _nvmlDeviceGetUtilizationRates;
     private delegate* unmanaged[Cdecl]<IntPtr, byte*, uint, int> _nvmlDeviceGetName;
     private delegate* unmanaged[Cdecl]<IntPtr, byte*, int> _nvmlDeviceGetPciInfo;
+
+    // Extended telemetry for adaptive fan control. Bound OPTIONALLY: these are resolved separately from the
+    // required set above so a driver too old to export one of them still reports utilization, rather than the
+    // whole reader going dark over a field that is a refinement.
+    private delegate* unmanaged[Cdecl]<IntPtr, uint*, int> _nvmlDeviceGetPowerUsage;
+    private delegate* unmanaged[Cdecl]<IntPtr, uint*, int> _nvmlDeviceGetEnforcedPowerLimit;
+    private delegate* unmanaged[Cdecl]<IntPtr, uint, uint*, int> _nvmlDeviceGetTemperature;
+    private delegate* unmanaged[Cdecl]<IntPtr, ulong*, int> _nvmlDeviceGetCurrentClocksThrottleReasons;
+    private delegate* unmanaged[Cdecl]<IntPtr, uint, uint*, int> _nvmlDeviceGetClockInfo;
+    private delegate* unmanaged[Cdecl]<IntPtr, uint, uint*, int> _nvmlDeviceGetMaxClockInfo;
+    private delegate* unmanaged[Cdecl]<IntPtr, NvmlMemory*, int> _nvmlDeviceGetMemoryInfo;
 
     public LinuxNvmlGpuUtilizationReader(
         ILogger<LinuxNvmlGpuUtilizationReader> logger,
@@ -131,7 +152,7 @@ public sealed unsafe class LinuxNvmlGpuUtilizationReader : IComputeUtilizationRe
                 var utilization = ReadUtilizationPercent(device);
                 if (utilization is not null)
                 {
-                    samples.Add(Build(device, utilization.Value));
+                    samples.Add(Build(device, utilization.Value, ReadExtendedTelemetry(device)));
                 }
             }
 
@@ -149,13 +170,191 @@ public sealed unsafe class LinuxNvmlGpuUtilizationReader : IComputeUtilizationRe
         }
     }
 
-    private static ComputeDeviceUtilization Build(NvidiaDevice device, double utilizationPercent) => new()
+    private static ComputeDeviceUtilization Build(
+        NvidiaDevice device,
+        double utilizationPercent,
+        NvmlExtendedTelemetry? extended = null) => new()
     {
         DeviceKey = device.PciAddress,
         Kind = ComputeDeviceKind.Gpu,
         DisplayName = device.DisplayName,
         UtilizationPercent = utilizationPercent,
+        PowerWatts = extended?.PowerWatts,
+        TemperatureCelsius = extended?.TemperatureCelsius,
+        CoreClockMegahertz = extended?.CoreClockMegahertz,
+        MaxCoreClockMegahertz = extended?.MaxCoreClockMegahertz,
+        VramUsedBytes = extended?.VramUsedBytes,
+        VramTotalBytes = extended?.VramTotalBytes,
+        ThrottleReasons = extended?.ThrottleReasons,
     };
+
+    /// <summary>
+    /// Reads power, temperature, clock and throttle reasons for a device already known to be awake.
+    /// </summary>
+    /// <remarks>
+    /// Only ever called on the non-suspended path. Each call takes a runtime-PM reference, which is exactly
+    /// what must not happen to a sleeping discrete GPU — see the class remarks. Every field is independently
+    /// optional: a driver that does not export one symbol still reports the rest.
+    /// </remarks>
+    private NvmlExtendedTelemetry? ReadExtendedTelemetry(NvidiaDevice device)
+    {
+        var handle = ResolveHandle(device.PciAddress);
+        if (handle == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        var (vramUsed, vramTotal) = ReadMemory(handle);
+
+        return new NvmlExtendedTelemetry(
+            PowerWatts: ReadPowerWatts(handle),
+            TemperatureCelsius: ReadTemperatureCelsius(handle),
+            CoreClockMegahertz: ReadPlausibleClockMegahertz(handle),
+            MaxCoreClockMegahertz: ReadMaxClockMegahertz(handle),
+            ThrottleReasons: ReadThrottleReasons(handle),
+            VramUsedBytes: vramUsed,
+            VramTotalBytes: vramTotal);
+    }
+
+
+    /// <summary>Current core clock, rejected when it exceeds the device's stated maximum.</summary>
+    private double? ReadPlausibleClockMegahertz(IntPtr handle)
+    {
+        var megahertz = ReadClockMegahertz(_nvmlDeviceGetClockInfo, handle);
+        return megahertz is { } value && NvmlReadingPlausibility.IsClockPlausible(value, ReadMaxClockMegahertz(handle))
+            ? value
+            : null;
+    }
+
+    /// <summary>The device's maximum core clock, cached — it is the divisor for every clock reading.</summary>
+    private double? ReadMaxClockMegahertz(IntPtr handle)
+    {
+        if (_maxClockResolved)
+        {
+            return _maxClockMegahertz;
+        }
+
+        _maxClockResolved = true;
+        _maxClockMegahertz = ReadClockMegahertz(_nvmlDeviceGetMaxClockInfo, handle);
+        return _maxClockMegahertz;
+    }
+
+    /// <summary>
+    /// Board power in watts, or null when it could not be read OR the reading cannot be believed.
+    /// </summary>
+    /// <remarks>
+    /// NVML returns garbage with <c>NVML_SUCCESS</c> on a laptop dGPU changing power state, so the status code
+    /// cannot filter it. Measured on a Framework 16 RTX 5070 under Windows — same silicon, same driver family,
+    /// so the guard belongs here too. See <see cref="NvmlReadingPlausibility"/>.
+    /// </remarks>
+    private double? ReadPowerWatts(IntPtr handle)
+    {
+        if (_nvmlDeviceGetPowerUsage is null)
+        {
+            return null;
+        }
+
+        uint milliwatts;
+        if (_nvmlDeviceGetPowerUsage(handle, &milliwatts) != NvmlSuccess)
+        {
+            return null;
+        }
+
+        var watts = milliwatts / 1000d;
+        return NvmlReadingPlausibility.IsPlausible(watts, ReadEnforcedPowerLimitWatts(handle)) ? watts : null;
+    }
+
+    /// <summary>The device's enforced power limit, cached because it does not change while the machine runs.</summary>
+    private double? ReadEnforcedPowerLimitWatts(IntPtr handle)
+    {
+        if (_enforcedPowerLimitResolved)
+        {
+            return _enforcedPowerLimitWatts;
+        }
+
+        _enforcedPowerLimitResolved = true;
+
+        if (_nvmlDeviceGetEnforcedPowerLimit is not null)
+        {
+            uint milliwatts;
+            if (_nvmlDeviceGetEnforcedPowerLimit(handle, &milliwatts) == NvmlSuccess && milliwatts > 0)
+            {
+                _enforcedPowerLimitWatts = milliwatts / 1000d;
+            }
+        }
+
+        return _enforcedPowerLimitWatts;
+    }
+
+    private double? ReadTemperatureCelsius(IntPtr handle)
+    {
+        if (_nvmlDeviceGetTemperature is null)
+        {
+            return null;
+        }
+
+        uint celsius;
+        return _nvmlDeviceGetTemperature(handle, NvmlTemperatureGpu, &celsius) == NvmlSuccess ? celsius : null;
+    }
+
+    /// <summary>Reads a graphics clock through whichever NVML clock entry point is passed.</summary>
+    private static double? ReadClockMegahertz(delegate* unmanaged[Cdecl]<IntPtr, uint, uint*, int> entryPoint, IntPtr handle)
+    {
+        if (entryPoint is null)
+        {
+            return null;
+        }
+
+        uint megahertz;
+        return entryPoint(handle, NvmlClockGraphics, &megahertz) == NvmlSuccess ? megahertz : null;
+    }
+
+    /// <summary>
+    /// The throttle bitmask, or null when it could not be read.
+    /// </summary>
+    /// <remarks>
+    /// Null and <see cref="ComputeThrottleReasons.None"/> are NOT the same answer here: None means NVML
+    /// replied and nothing is holding the clocks back, while null means the question could not be asked. The
+    /// controller escalates on the first and must not on the second.
+    /// </remarks>
+    private ComputeThrottleReasons? ReadThrottleReasons(IntPtr handle)
+    {
+        if (_nvmlDeviceGetCurrentClocksThrottleReasons is null)
+        {
+            return null;
+        }
+
+        ulong bitmask;
+        return _nvmlDeviceGetCurrentClocksThrottleReasons(handle, &bitmask) == NvmlSuccess
+            ? NvmlThrottleReasons.Map(bitmask)
+            : null;
+    }
+
+    private readonly record struct NvmlExtendedTelemetry(
+        double? PowerWatts,
+        double? TemperatureCelsius,
+        double? CoreClockMegahertz,
+        double? MaxCoreClockMegahertz,
+        ComputeThrottleReasons? ThrottleReasons,
+        double? VramUsedBytes,
+        double? VramTotalBytes);
+
+    /// <summary>Video memory used and total, in bytes.</summary>
+    private (double? UsedBytes, double? TotalBytes) ReadMemory(IntPtr handle)
+    {
+        if (_nvmlDeviceGetMemoryInfo is null)
+        {
+            return (null, null);
+        }
+
+        NvmlMemory memory;
+        if (_nvmlDeviceGetMemoryInfo(handle, &memory) != NvmlSuccess || memory.Total == 0)
+        {
+            return (null, null);
+        }
+
+        return (memory.Used, memory.Total);
+    }
 
     private double? ReadUtilizationPercent(NvidiaDevice device)
     {
@@ -360,6 +559,45 @@ public sealed unsafe class LinuxNvmlGpuUtilizationReader : IComputeUtilizationRe
         _nvmlDeviceGetName = (delegate* unmanaged[Cdecl]<IntPtr, byte*, uint, int>)getName;
         _nvmlDeviceGetPciInfo = (delegate* unmanaged[Cdecl]<IntPtr, byte*, int>)getPciInfo;
 
+        // Optional: a missing symbol leaves the pointer null and the corresponding field unreported.
+        if (TryGet("nvmlDeviceGetPowerUsage", out var getPower))
+        {
+            _nvmlDeviceGetPowerUsage = (delegate* unmanaged[Cdecl]<IntPtr, uint*, int>)getPower;
+        }
+
+        if (TryGet("nvmlDeviceGetEnforcedPowerLimit", out var getEnforcedLimit))
+        {
+            _nvmlDeviceGetEnforcedPowerLimit = (delegate* unmanaged[Cdecl]<IntPtr, uint*, int>)getEnforcedLimit;
+        }
+
+        if (TryGet("nvmlDeviceGetTemperature", out var getTemperature))
+        {
+            _nvmlDeviceGetTemperature = (delegate* unmanaged[Cdecl]<IntPtr, uint, uint*, int>)getTemperature;
+        }
+
+        if (TryGet("nvmlDeviceGetCurrentClocksThrottleReasons", out var getThrottle))
+        {
+            _nvmlDeviceGetCurrentClocksThrottleReasons = (delegate* unmanaged[Cdecl]<IntPtr, ulong*, int>)getThrottle;
+        }
+
+        if (TryGet("nvmlDeviceGetClockInfo", out var getClock))
+        {
+            _nvmlDeviceGetClockInfo = (delegate* unmanaged[Cdecl]<IntPtr, uint, uint*, int>)getClock;
+        }
+
+        if (TryGet("nvmlDeviceGetMaxClockInfo", out var getMaxClock))
+        {
+            _nvmlDeviceGetMaxClockInfo = (delegate* unmanaged[Cdecl]<IntPtr, uint, uint*, int>)getMaxClock;
+        }
+
+        // The unsuffixed name is the v1 layout (total/free/used), which is what NvmlMemory declares. The _v2
+        // entry point adds reserved/version fields in a LARGER struct — binding it against this layout would
+        // have NVML write past the end, so the plain symbol is the correct one here.
+        if (TryGet("nvmlDeviceGetMemoryInfo", out var getMemory))
+        {
+            _nvmlDeviceGetMemoryInfo = (delegate* unmanaged[Cdecl]<IntPtr, NvmlMemory*, int>)getMemory;
+        }
+
         return true;
     }
 
@@ -474,6 +712,15 @@ public sealed unsafe class LinuxNvmlGpuUtilizationReader : IComputeUtilizationRe
     {
         public uint Gpu;
         public uint Memory;
+    }
+
+    /// <summary>nvmlMemory_t (v1): total, free and used video memory in bytes.</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NvmlMemory
+    {
+        public ulong Total;
+        public ulong Free;
+        public ulong Used;
     }
 
     private sealed record NvidiaDevice

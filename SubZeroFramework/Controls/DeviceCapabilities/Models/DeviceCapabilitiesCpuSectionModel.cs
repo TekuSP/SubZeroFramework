@@ -11,6 +11,11 @@ using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
+/// <summary>
+/// The CPU section's slice over the Device Capabilities page model. Every figure it shows is MIRRORED as a
+/// stored property that <see cref="RefreshDerivedState"/> reassigns when the page reports a relevant change:
+/// assignment raises PropertyChanged only for values that actually changed, so nothing re-renders needlessly.
+/// </summary>
 public sealed partial class DeviceCapabilitiesCpuSectionModel : ObservableObject, IDisposable
 {
     private readonly DeviceCapabilitiesModel _parent;
@@ -19,57 +24,55 @@ public sealed partial class DeviceCapabilitiesCpuSectionModel : ObservableObject
     {
         _parent = parent;
         _parent.PropertyChanged += ParentPropertyChanged;
+        RefreshDerivedState();
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CpuCount))]
     [NotifyPropertyChangedFor(nameof(CpuCountDisplay))]
     [NotifyPropertyChangedFor(nameof(SocketsDisplay))]
-    [NotifyPropertyChangedFor(nameof(AverageClockSpeed))]
-    [NotifyPropertyChangedFor(nameof(AverageMaxClockSpeed))]
-    [NotifyPropertyChangedFor(nameof(AverageCpuUsageDisplay))]
-    [NotifyPropertyChangedFor(nameof(CpuUsageHistory))]
-    [NotifyPropertyChangedFor(nameof(CpuUsageHistorySeparators))]
-    [NotifyPropertyChangedFor(nameof(CpuUsageHistoryMinLimit))]
-    [NotifyPropertyChangedFor(nameof(CpuUsageHistoryMaxLimit))]
-    [NotifyPropertyChangedFor(nameof(CpuClockHistory))]
-    [NotifyPropertyChangedFor(nameof(CpuClockHistorySeparators))]
-    [NotifyPropertyChangedFor(nameof(CpuClockHistoryMinLimit))]
-    [NotifyPropertyChangedFor(nameof(CpuClockHistoryMaxLimit))]
-    private partial int RefreshVersion { get; set; }
+    public partial int CpuCount { get; private set; }
 
-    public int CpuCount => _parent.CpuCount;
-
-    public string CpuCountDisplay => _parent.CpuCount.ToString();
+    public string CpuCountDisplay => CpuCount.ToString();
 
     /// <summary>HardwareInfo reports one package per socket, so populated == present (mockup "1 of 1 populated").</summary>
-    public string SocketsDisplay => $"{_parent.CpuCount} of {_parent.CpuCount} populated";
+    public string SocketsDisplay => $"{CpuCount} of {CpuCount} populated";
 
-    public string AverageClockSpeed => _parent.AverageClockSpeed;
+    // Canonical megahertz, formatted by UnitFormatConverter at render time; null renders "Unknown".
+    [ObservableProperty]
+    public partial double? AverageClockSpeedMegahertz { get; private set; }
 
-    public string AverageMaxClockSpeed => _parent.AverageMaxClockSpeed;
-
-    public string AverageCpuUsageDisplay => _parent.AverageCpuUsageDisplay;
+    [ObservableProperty]
+    public partial double? AverageMaxClockSpeedMegahertz { get; private set; }
 
     public string RecentTelemetryHistoryWindowDisplay => PresentationDefaults.RecentTelemetryHistoryWindowLabel;
 
-    public DateTimePoint[] CpuUsageHistory => _parent.CpuUsageHistory;
+    [ObservableProperty]
+    public partial DateTimePoint[] CpuUsageHistory { get; private set; } = [];
 
-    public double[] CpuUsageHistorySeparators => _parent.CpuUsageHistorySeparators;
+    [ObservableProperty]
+    public partial double[] CpuUsageHistorySeparators { get; private set; } = [];
 
-    public double? CpuUsageHistoryMinLimit => _parent.CpuUsageHistoryMinLimit;
+    [ObservableProperty]
+    public partial double? CpuUsageHistoryMinLimit { get; private set; }
 
-    public double? CpuUsageHistoryMaxLimit => _parent.CpuUsageHistoryMaxLimit;
+    [ObservableProperty]
+    public partial double? CpuUsageHistoryMaxLimit { get; private set; }
 
+    [ObservableProperty]
+    public partial DateTimePoint[] CpuClockHistory { get; private set; } = [];
+
+    [ObservableProperty]
+    public partial double[] CpuClockHistorySeparators { get; private set; } = [];
+
+    [ObservableProperty]
+    public partial double? CpuClockHistoryMinLimit { get; private set; }
+
+    [ObservableProperty]
+    public partial double? CpuClockHistoryMaxLimit { get; private set; }
+
+    // The axis labelers and the card collection are built once by the page and never swapped, so these stay
+    // plain pass-throughs.
     public Func<DateTime, string> CpuUsageLabelsFormatter => _parent.CpuUsageLabelsFormatter;
-
-    public DateTimePoint[] CpuClockHistory => _parent.CpuClockHistory;
-
-    public double[] CpuClockHistorySeparators => _parent.CpuClockHistorySeparators;
-
-    public double? CpuClockHistoryMinLimit => _parent.CpuClockHistoryMinLimit;
-
-    public double? CpuClockHistoryMaxLimit => _parent.CpuClockHistoryMaxLimit;
 
     public Func<DateTime, string> CpuClockLabelsFormatter => _parent.CpuClockLabelsFormatter;
 
@@ -80,14 +83,36 @@ public sealed partial class DeviceCapabilitiesCpuSectionModel : ObservableObject
         _parent.PropertyChanged -= ParentPropertyChanged;
     }
 
+    private void RefreshDerivedState()
+    {
+        CpuCount = _parent.CpuCount;
+        AverageClockSpeedMegahertz = _parent.AverageClockSpeedMegahertz;
+        AverageMaxClockSpeedMegahertz = _parent.AverageMaxClockSpeedMegahertz;
+        CpuUsageHistory = _parent.CpuUsageHistory;
+        CpuUsageHistorySeparators = _parent.CpuUsageHistorySeparators;
+        CpuUsageHistoryMinLimit = _parent.CpuUsageHistoryMinLimit;
+        CpuUsageHistoryMaxLimit = _parent.CpuUsageHistoryMaxLimit;
+        CpuClockHistory = _parent.CpuClockHistory;
+        CpuClockHistorySeparators = _parent.CpuClockHistorySeparators;
+        CpuClockHistoryMinLimit = _parent.CpuClockHistoryMinLimit;
+        CpuClockHistoryMaxLimit = _parent.CpuClockHistoryMaxLimit;
+    }
+
     private void ParentPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // An empty name is the page's "everything changed" signal, raised when the display units change —
+        // the averages are unit-formatted text and the chart limits live in display space.
+        if (string.IsNullOrEmpty(e.PropertyName))
+        {
+            RefreshDerivedState();
+            return;
+        }
+
         switch (e.PropertyName)
         {
             case nameof(DeviceCapabilitiesModel.Snapshot):
-            case nameof(DeviceCapabilitiesModel.AverageClockSpeed):
-            case nameof(DeviceCapabilitiesModel.AverageMaxClockSpeed):
-            case nameof(DeviceCapabilitiesModel.AverageCpuUsageDisplay):
+            case nameof(DeviceCapabilitiesModel.AverageClockSpeedMegahertz):
+            case nameof(DeviceCapabilitiesModel.AverageMaxClockSpeedMegahertz):
             case nameof(DeviceCapabilitiesModel.CpuUsageHistory):
             case nameof(DeviceCapabilitiesModel.CpuUsageHistorySeparators):
             case nameof(DeviceCapabilitiesModel.CpuUsageHistoryMinLimit):
@@ -96,7 +121,7 @@ public sealed partial class DeviceCapabilitiesCpuSectionModel : ObservableObject
             case nameof(DeviceCapabilitiesModel.CpuClockHistorySeparators):
             case nameof(DeviceCapabilitiesModel.CpuClockHistoryMinLimit):
             case nameof(DeviceCapabilitiesModel.CpuClockHistoryMaxLimit):
-                RefreshVersion++;
+                RefreshDerivedState();
                 break;
         }
     }

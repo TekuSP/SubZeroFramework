@@ -31,7 +31,8 @@ public class FrameworkServiceConfigurationManagerTests
             var result = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(250),
-                HardwareInfoPollingInterval = TimeSpan.FromSeconds(2),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
                 AllowFanControlCommands = true,
             });
 
@@ -39,14 +40,14 @@ public class FrameworkServiceConfigurationManagerTests
             {
                 Assert.That(result.Succeeded, Is.True);
                 Assert.That(result.Configuration.PollingInterval, Is.EqualTo(TimeSpan.FromMilliseconds(250)));
-                Assert.That(result.Configuration.HardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(2)));
+                Assert.That(result.Configuration.HardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(30)));
                 Assert.That(result.Configuration.AllowFanControlCommands, Is.True);
                 Assert.That(provider.StopPollingCalls, Is.EqualTo(1));
                 Assert.That(provider.StopHardwareInfoPollingCalls, Is.EqualTo(1));
                 Assert.That(provider.SetPollingCalls, Is.EqualTo(1));
                 Assert.That(provider.LastPollingInterval, Is.EqualTo(TimeSpan.FromMilliseconds(250)));
                 Assert.That(provider.SetHardwareInfoPollingCalls, Is.EqualTo(1));
-                Assert.That(provider.LastHardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(2)));
+                Assert.That(provider.LastHardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(30)));
                 Assert.That(provider.StartPollingCalls, Is.EqualTo(1));
                 Assert.That(provider.StartHardwareInfoPollingCalls, Is.EqualTo(1));
                 Assert.That(provider.RefreshCalls, Is.EqualTo(1));
@@ -73,7 +74,8 @@ public class FrameworkServiceConfigurationManagerTests
             var result = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.Zero,
-                HardwareInfoPollingInterval = TimeSpan.FromSeconds(1),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
                 AllowFanControlCommands = false,
             });
 
@@ -109,7 +111,8 @@ public class FrameworkServiceConfigurationManagerTests
             var result = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(250),
-                HardwareInfoPollingInterval = TimeSpan.FromSeconds(2),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
                 AllowFanControlCommands = true,
             });
 
@@ -143,7 +146,8 @@ public class FrameworkServiceConfigurationManagerTests
             var apply = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(250),
-                HardwareInfoPollingInterval = TimeSpan.FromSeconds(2),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
                 AllowFanControlCommands = true,
             });
             Assert.That(apply.Succeeded, Is.True);
@@ -200,7 +204,8 @@ public class FrameworkServiceConfigurationManagerTests
             var apply = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(250),
-                HardwareInfoPollingInterval = TimeSpan.FromSeconds(2),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
                 AllowFanControlCommands = true,
             });
             Assert.That(apply.Succeeded, Is.True);
@@ -213,7 +218,7 @@ public class FrameworkServiceConfigurationManagerTests
             {
                 Assert.That(loadResult.Succeeded, Is.True);
                 Assert.That(loadResult.Configuration.PollingInterval, Is.EqualTo(TimeSpan.FromMilliseconds(250)));
-                Assert.That(loadResult.Configuration.HardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(2)));
+                Assert.That(loadResult.Configuration.HardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(30)));
                 Assert.That(loadResult.Configuration.AllowFanControlCommands, Is.True);
                 Assert.That(provider.SetPollingCalls, Is.GreaterThanOrEqualTo(2));
             });
@@ -232,7 +237,8 @@ public class FrameworkServiceConfigurationManagerTests
         var options = new FrameworkServiceOptions
         {
             PollingInterval = TimeSpan.FromMilliseconds(150),
-            HardwareInfoPollingInterval = TimeSpan.FromSeconds(1),
+            SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+            HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
             AllowFanControlCommands = false,
         };
         var optionsMonitor = new TestOptionsMonitor<FrameworkServiceOptions>(options);
@@ -267,6 +273,8 @@ public class FrameworkServiceConfigurationManagerTests
 
         public int SetPollingCalls { get; private set; }
 
+        public int SetSecondaryPollingCalls { get; private set; }
+
         public int SetHardwareInfoPollingCalls { get; private set; }
 
         public int StartPollingCalls { get; private set; }
@@ -282,6 +290,8 @@ public class FrameworkServiceConfigurationManagerTests
         public int? FailSetPollingOnCallNumber { get; init; }
 
         public TimeSpan? LastPollingInterval { get; private set; }
+
+        public TimeSpan? LastSecondaryPollingInterval { get; private set; }
 
         public TimeSpan? LastHardwareInfoPollingInterval { get; private set; }
 
@@ -356,12 +366,21 @@ public class FrameworkServiceConfigurationManagerTests
             return true;
         }
 
+        public bool SetSecondaryPolling(TimeSpan pollingInterval)
+        {
+            SetSecondaryPollingCalls++;
+            LastSecondaryPollingInterval = pollingInterval;
+            return true;
+        }
+
         public bool SetHardwareInfoPolling(TimeSpan pollingInterval)
         {
             SetHardwareInfoPollingCalls++;
             LastHardwareInfoPollingInterval = pollingInterval;
             return true;
         }
+
+        public ObservedControlTelemetry GetLatestControlTelemetry() => ObservedControlTelemetry.None;
 
         public bool StartPolling()
         {

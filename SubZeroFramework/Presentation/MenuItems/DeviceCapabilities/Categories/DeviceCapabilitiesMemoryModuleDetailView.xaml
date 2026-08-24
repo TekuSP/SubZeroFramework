@@ -18,7 +18,7 @@
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Database"
                 Label="Capacity"
-                Value="{x:Bind ViewModel.Module.DisplayCapacity, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.Module.CapacityBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Chip"
                 Label="Memory type"
@@ -26,7 +26,7 @@
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Speedometer"
                 Label="Speed"
-                Value="{x:Bind ViewModel.Module.DisplaySpeed, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.Module.SpeedMegahertz, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=ClockFrequency}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Ruler"
                 Label="Data width"

@@ -22,7 +22,7 @@
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Database"
                 Label="Capacity"
-                Value="{x:Bind ViewModel.Drive.CapacityDisplay, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.Drive.CapacityBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Chip"
                 Label="Firmware"
@@ -30,11 +30,11 @@
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Database"
                 Label="Used"
-                Value="{x:Bind ViewModel.Drive.UsedSpaceDisplay, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.Drive.UsedSpaceBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="DatabaseCheck"
                 Label="Free"
-                Value="{x:Bind ViewModel.Drive.FreeSpaceDisplay, Mode=OneWay}"
+                Value="{x:Bind ViewModel.Drive.FreeSpaceBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}"
                 ValueBrush="{x:Bind ViewModel.Drive.FreeSpaceBrush, Mode=OneWay}" />
         </deviceCapabilitiesControls:StatTilePanel>
 

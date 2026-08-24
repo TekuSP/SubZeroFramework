@@ -65,6 +65,7 @@ public sealed class GrpcFrameworkServiceConfigurationClient : IFrameworkServiceC
             new ApplyServiceConfigurationRequest
             {
                 PollingIntervalMilliseconds = checked((long)Math.Round(request.PollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
+                SecondaryPollingIntervalMilliseconds = checked((long)Math.Round(request.SecondaryPollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
                 HardwareInfoPollingIntervalMilliseconds = checked((long)Math.Round(request.HardwareInfoPollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
                 AllowFanControlCommands = request.AllowFanControlCommands,
             },
@@ -175,6 +176,7 @@ public sealed class GrpcFrameworkServiceConfigurationClient : IFrameworkServiceC
         return new FrameworkServiceConfigurationSnapshot
         {
             PollingInterval = TimeSpan.FromMilliseconds(reply.PollingIntervalMilliseconds),
+            SecondaryPollingInterval = TimeSpan.FromMilliseconds(reply.SecondaryPollingIntervalMilliseconds),
             HardwareInfoPollingInterval = TimeSpan.FromMilliseconds(reply.HardwareInfoPollingIntervalMilliseconds),
             AllowFanControlCommands = reply.AllowFanControlCommands,
             PersistentConfigurationPath = reply.PersistentConfigurationPath,

@@ -46,7 +46,7 @@ public sealed partial class SettingsServiceSectionView : UserControl, INotifyPro
         var dialog = new ContentDialog
         {
             Title = "Reset fan settings to factory defaults?",
-            Content = "Every fan goes back to the controller's automatic mode, and all saved fan settings are deleted: curve profiles in every slot, the active profile per fan, \"Applies to\" links, CPU boost, and manual or max overrides. This can't be undone.",
+            Content = "Every fan goes back to the controller's automatic mode, and all saved fan settings are deleted: curve profiles in every slot, the active profile per fan, \"Applies to\" links, and manual or max overrides. This can't be undone.",
             PrimaryButtonText = "Reset fan settings",
             CloseButtonText = "Cancel",
             // Enter must not confirm an unrecoverable wipe — default to cancelling.

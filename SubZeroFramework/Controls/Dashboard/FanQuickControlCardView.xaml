@@ -78,7 +78,7 @@
                             FontSize="17"
                             FontWeight="SemiBold"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="{x:Bind Model.Fan.FanSpeedValueDisplay, Mode=OneWay}" />
+                            Text="{x:Bind Model.Fan.Snapshot.SpeedRpm, Mode=OneWay, Converter={StaticResource UnitFormatValue}, ConverterParameter=FanSpeed, FallbackValue=--}" />
                         <TextBlock
                             HorizontalAlignment="Center"
                             FontSize="10"

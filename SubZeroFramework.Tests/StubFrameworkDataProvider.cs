@@ -91,7 +91,18 @@ public class StubFrameworkDataProvider : IFrameworkDataProvider
 
     public bool SetPolling(TimeSpan pollingInterval) => true;
 
+    public bool SetSecondaryPolling(TimeSpan pollingInterval) => true;
+
     public bool SetHardwareInfoPolling(TimeSpan pollingInterval) => true;
+
+    /// <summary>
+    /// Settable so a test can hand the fan worker a CPU reading. Defaults to <see cref="ObservedControlTelemetry.None"/>,
+    /// whose <see cref="DateTimeOffset.MinValue"/> timestamp reads as stale — so a test that does not set it
+    /// gets "no reading" rather than a silent zero a consumer would act on.
+    /// </summary>
+    public ObservedControlTelemetry LatestControlTelemetry { get; set; } = ObservedControlTelemetry.None;
+
+    public ObservedControlTelemetry GetLatestControlTelemetry() => LatestControlTelemetry;
 
     public bool StartPolling() => true;
 

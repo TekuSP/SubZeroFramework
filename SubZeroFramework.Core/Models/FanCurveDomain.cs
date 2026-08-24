@@ -35,11 +35,42 @@ public static class FanCurveDomain
     /// <summary>Duty of the maximum-speed anchor: fans reach full speed by the top of the domain.</summary>
     public const double MaxSpeedDutyPercent = 100d;
 
-    /// <summary>Coldest editable point. Must stay above the curve chart's axis MinLimit.</summary>
+    /// <summary>Coldest editable point. Must stay above <see cref="ChartMinTemperatureCelsius"/>.</summary>
     public const int EditableMinTemperatureCelsius = 15;
 
-    /// <summary>Hottest editable point. Must stay below the curve chart's axis MaxLimit.</summary>
+    /// <summary>Hottest editable point. Must stay below <see cref="ChartMaxTemperatureCelsius"/>.</summary>
     public const int EditableMaxTemperatureCelsius = 120;
+
+    // ----- The curve chart's visible window -----
+    //
+    // Derived from the editable band rather than written out again, because the two must not drift: the
+    // window has to be WIDER than the editable band (so a point clamped to the band is always grabbable)
+    // and NARROWER than the domain (so the 0 °C / 130 °C anchors stay off-screen and are never mistaken
+    // for draggable points). Both invariants used to rest on a "keep the two in sync" comment.
+    //
+    // CANONICAL Celsius and percent. The curve chart plots in canonical space and CONVERTS in its labeler,
+    // so these bounds must not be converted — doing so would move the axis out from under the series.
+
+    /// <summary>Headroom between the editable band and the visible window, in degrees.</summary>
+    private const int ChartTemperatureHeadroomCelsius = 5;
+
+    /// <summary>Left edge of the curve chart's temperature axis.</summary>
+    public const int ChartMinTemperatureCelsius = EditableMinTemperatureCelsius - ChartTemperatureHeadroomCelsius;
+
+    /// <summary>Right edge of the curve chart's temperature axis.</summary>
+    public const int ChartMaxTemperatureCelsius = EditableMaxTemperatureCelsius + ChartTemperatureHeadroomCelsius;
+
+    /// <summary>Temperature axis tick spacing, in degrees.</summary>
+    public const int ChartTemperatureStepCelsius = 10;
+
+    /// <summary>Bottom of the duty axis — below 0% so the idle anchor is not clipped to the frame.</summary>
+    public const double ChartMinDutyPercent = MinSpeedDutyPercent - 10d;
+
+    /// <summary>Top of the duty axis — above 100% so the full-speed anchor is not clipped to the frame.</summary>
+    public const double ChartMaxDutyPercent = MaxSpeedDutyPercent + 12d;
+
+    /// <summary>Duty axis tick spacing, in percent.</summary>
+    public const double ChartDutyStepPercent = 20d;
 
     /// <summary>Snaps a temperature into the editable band, rounded to the whole degree points are keyed by.</summary>
     public static int ClampTemperature(double celsius) =>

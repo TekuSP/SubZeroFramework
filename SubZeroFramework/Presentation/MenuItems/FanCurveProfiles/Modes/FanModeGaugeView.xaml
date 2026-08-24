@@ -25,7 +25,7 @@
                 FontSize="34"
                 FontWeight="SemiBold"
                 Foreground="{StaticResource TextPrimaryBrush}"
-                Text="{x:Bind ViewModel.Page.SelectedFan.FanSpeedValueDisplay, Mode=OneWay}" />
+                Text="{x:Bind ViewModel.Page.SelectedFan.Snapshot.SpeedRpm, Mode=OneWay, Converter={StaticResource UnitFormatValue}, ConverterParameter=FanSpeed, FallbackValue=--}" />
             <TextBlock
                 HorizontalAlignment="Center"
                 FontSize="12"

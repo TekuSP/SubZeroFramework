@@ -10,6 +10,7 @@ public enum UnitQuantityKind
     Voltage,
     Current,
     ElectricChargeCapacity,
+    Energy,
     Ratio,
     Length,
     Airflow,

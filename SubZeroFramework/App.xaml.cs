@@ -8,6 +8,7 @@ using LiveChartsCore.SkiaSharpView;
 using Microsoft.Extensions.Options;
 
 using SubZeroFramework.Controls.DeviceCapabilities.Models;
+using SubZeroFramework.Converters;
 using SubZeroFramework.Controls.DeviceCapabilities.Models.Categories;
 using SubZeroFramework.Controls.FanCurveProfiles.Models.Modes;
 using SubZeroFramework.Presentation.MenuItems.Dashboard;
@@ -212,6 +213,43 @@ public partial class App : Application
         Host = await builder.NavigateAsync<Shell>();
 
         Logger = Host.Log();
+
+        // The units converter is built HERE, with the DI-resolved formatting service, and placed in
+        // application resources — rather than being constructed by XAML, which cannot inject anything. A
+        // XAML-constructed converter would need a static or a service locator to reach the service, making
+        // the user's unit preference a hidden global and costing the formatting service its testability.
+        var unitFormattingService = Host.Services.GetRequiredService<IUnitFormattingService>();
+        Current.Resources["UnitFormat"] = new UnitFormatConverter(unitFormattingService);
+
+        // Same converter, different empty state. Two instances rather than a second parameter because the
+        // wording is a property of the SURFACE, not of the quantity: a live readout shows "--" for a reading
+        // that has not arrived, while an inventory field shows "Unknown" for something the platform never
+        // reports. Both distinctions already existed and neither should be flattened.
+        Current.Resources["UnitFormatUnknown"] = new UnitFormatConverter(unitFormattingService)
+        {
+            UnavailableDisplay = "Unknown",
+        };
+
+        // Em-dash empty state: "not applicable here" (no adapter attached, device not reporting) rather than
+        // "a reading that has not arrived yet" ("--") or "never reported by the platform" ("Unknown").
+        Current.Resources["UnitFormatDash"] = new UnitFormatConverter(unitFormattingService)
+        {
+            UnavailableDisplay = "—",
+        };
+
+        // Bare number, no unit suffix — for the tiles that draw the value large and the unit small beside it,
+        // where the suffix cannot be part of the same string.
+        Current.Resources["UnitFormatValue"] = new UnitFormatConverter(unitFormattingService)
+        {
+            ValueOnly = true,
+        };
+
+        // The NUMERIC converters, for chart axis limits and steps — properties that take a double, not text.
+        // Usable only where the bound source raises PropertyChanged: a converter cannot re-run by itself, so
+        // a fixed bound converts in the view model instead. UnitValueStep treats its input as a DIFFERENCE,
+        // which matters only for temperature — the one scale with an offset, where a 10 °C step is 18 °F.
+        Current.Resources["UnitValue"] = new UnitValueConverter(unitFormattingService);
+        Current.Resources["UnitValueStep"] = new UnitValueConverter(unitFormattingService) { IsDelta = true };
 
         // Client-only alert opt-ins (Settings → Startup & alerts).
         Host.Services.GetRequiredService<IDesktopNotificationService>().Start();

@@ -61,7 +61,7 @@
                     VerticalAlignment="Bottom"
                     FontSize="15"
                     Foreground="{StaticResource TextSecondaryBrush}"
-                    Text="%" />
+                    Text="{x:Bind ChargeUnitText, Mode=OneWay}" />
             </StackPanel>
             <TextBlock
                 HorizontalAlignment="Center"
