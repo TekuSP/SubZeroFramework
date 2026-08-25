@@ -28,15 +28,12 @@ namespace SubZeroFramework.Service.Services;
 /// </remarks>
 public sealed class FanCalibrationRunner : IDisposable
 {
-    /// <summary>Hard ceiling. Passing it aborts the run, whatever else is happening.</summary>
-    /// <remarks>
-    /// Checked on every sample, in every step, ahead of all other logic. A calibration is the one operation
-    /// that deliberately pushes temperature up, so it is also the one that must be most willing to give up.
-    /// </remarks>
-    public const double SafetyCeilingCelsius = 95d;
+    /// <summary>Hard ceiling, checked on every sample of every step ahead of all other logic.</summary>
+    /// <remarks>Defined in <see cref="FanCalibrationLimits"/> so the UI can quote the same number.</remarks>
+    public const double SafetyCeilingCelsius = FanCalibrationLimits.SafetyCeilingCelsius;
 
     /// <summary>Average package power the run must reach for the result to mean anything.</summary>
-    public const double MinimumAveragePowerWatts = 25d;
+    public const double MinimumAveragePowerWatts = FanCalibrationLimits.MinimumAveragePowerWatts;
 
     /// <summary>The low duty the fan is held at while heat builds, before the step.</summary>
     /// <remarks>
@@ -64,6 +61,16 @@ public sealed class FanCalibrationRunner : IDisposable
     /// samples of tolerance covers an ordinary dropped read; anything more is a failed sensor.
     /// </remarks>
     private const int BlindSampleLimit = 5;
+
+    /// <summary>
+    /// How old the newest thermal reading may be before the run gives up.
+    /// </summary>
+    /// <remarks>
+    /// Generous against the slowest polling tier — the primary tier can be seconds — while still far shorter
+    /// than the minutes a stalled stream would otherwise go unnoticed for. The run heats the machine the
+    /// whole time it is waiting, so the tolerance for "no idea how hot it is" is small.
+    /// </remarks>
+    private static readonly TimeSpan StaleTelemetryLimit = TimeSpan.FromSeconds(15);
 
     /// <summary>
     /// The intermediate duties visited to measure how cooling varies across the range.
@@ -153,12 +160,18 @@ public sealed class FanCalibrationRunner : IDisposable
         }
         finally
         {
-            // All three run whatever happened — including an abort, a cancellation, or the caller's stream
-            // dying. None depends on state the run may have left inconsistent, and the claim is released last
-            // so nothing else can touch the fan until it is back under automatic control.
-            _loadGenerator.Stop();
-            _gpuLoadGenerator.Stop();
-            await session.RestoreFanAsync().ConfigureAwait(false);
+            // Each step is INDEPENDENTLY guarded, and the fan comes first.
+            //
+            // Sequencing them bare meant one throwing skipped everything after it: a load generator failing
+            // to stop would leave the fan pinned wherever the run put it — 0% from the minimum-spin walk, or
+            // 100% from the step — and leave the machine-wide claim held, which permanently stops the curve
+            // worker touching that fan and blocks every future calibration. The restore is the promise this
+            // class exists to keep, so it runs first and nothing can get in front of it.
+            await SafelyAsync(session.RestoreFanAsync, "restore the fan").ConfigureAwait(false);
+            Safely(_loadGenerator.Stop, "stop CPU load");
+            Safely(_gpuLoadGenerator.Stop, "stop GPU load");
+
+            // Released last, so nothing else can drive the fan until it is back under automatic control.
             _arbiter.Release(fanIndex);
         }
     }
@@ -171,7 +184,43 @@ public sealed class FanCalibrationRunner : IDisposable
         }
 
         _disposed = true;
-        _loadGenerator.Stop();
+
+        // BOTH generators. Disposal is an exit path like any other, and stopping only the processor would
+        // leave a GPU calibration dispatching at full rate after the runner that owns it is gone.
+        Safely(_loadGenerator.Stop, "stop CPU load");
+        Safely(_gpuLoadGenerator.Stop, "stop GPU load");
+    }
+
+    /// <summary>
+    /// Runs a cleanup step, logging rather than propagating.
+    /// </summary>
+    /// <remarks>
+    /// Cleanup runs on every exit path INCLUDING the ones already reporting a failure. Letting one step throw
+    /// would both replace a useful error with a meaningless one and skip every step after it — which is how a
+    /// fan gets left pinned.
+    /// </remarks>
+    private void Safely(Action step, string description)
+    {
+        try
+        {
+            step();
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to {Description} after a calibration.", description);
+        }
+    }
+
+    private async Task SafelyAsync(Func<Task> step, string description)
+    {
+        try
+        {
+            await step().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to {Description} after a calibration.", description);
+        }
     }
 
     private static FanCalibrationRunResult Failed(
@@ -247,12 +296,23 @@ public sealed class FanCalibrationRunner : IDisposable
                 return;
             }
 
-            if (sample.CpuPerformanceRatio is double ratio && double.IsFinite(ratio) && ratio > 0d)
+            // Only the LOADED component's speed is recorded. Filing both would let a GPU run report the idle
+            // processor's clock as "what the extra fan bought" — a number about a component this run never
+            // heated and this fan does not cool, presented as the headline answer.
+            var loading = ResolveLoadTarget();
+
+            if (loading != ThermalLoadTarget.Gpu
+                && sample.CpuPerformanceRatio is double ratio
+                && double.IsFinite(ratio)
+                && ratio > 0d)
             {
                 cpuTarget.Add(ratio);
             }
 
-            if (sample.GpuCoreClockMegahertz is double megahertz && double.IsFinite(megahertz) && megahertz > 0d)
+            if (loading == ThermalLoadTarget.Gpu
+                && sample.GpuCoreClockMegahertz is double megahertz
+                && double.IsFinite(megahertz)
+                && megahertz > 0d)
             {
                 gpuTarget.Add(megahertz);
             }
@@ -304,7 +364,18 @@ public sealed class FanCalibrationRunner : IDisposable
             _snapshots = snapshots;
             _power = power;
 
-            return await ExecuteCoreAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                return await ExecuteCoreAsync(cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                // Cleared before the caches are disposed. A disposed cache still returns its last snapshot —
+                // indistinguishable from a live reading — so leaving the fields set would let any later code
+                // path read a frozen value and believe it current.
+                _snapshots = null;
+                _power = null;
+            }
         }
 
         /// <summary>
@@ -649,12 +720,19 @@ public sealed class FanCalibrationRunner : IDisposable
                 return SampleResult.Aborted(Failed(fanIndex, FanCalibrationFailure.Cancelled, step, _elapsed.Elapsed, restored: true, peak: _peakCelsius));
             }
 
-            // A dead telemetry stream leaves the last snapshot in place looking current. Left unchecked, the
-            // run would keep stepping against a frozen temperature and eventually "fail" for too small a
-            // swing — a wrong diagnosis that sends the user off tuning their workload.
-            if (_snapshots?.Fault is { } fault)
+            // A dead telemetry stream leaves the last snapshot in place looking current. Checked by AGE
+            // rather than by fault: the provider never errors this stream on a failed EC read and ends it
+            // cleanly on shutdown, so a stall produces no notification whatsoever. Age is the only signal
+            // that covers a stall, a completion and a fault alike — and without it a frozen reading silently
+            // disables both the safety ceiling and the blind-sample backstop below, on a machine this run is
+            // deliberately holding at full load.
+            if (_snapshots is null || _snapshots.IsStale(StaleTelemetryLimit))
             {
-                owner._logger.LogError(fault, "Aborting calibration for fan {FanIndex}: the thermal telemetry stream ended.", fanIndex);
+                owner._logger.LogError(
+                    "Aborting calibration for fan {FanIndex}: no thermal reading for {Age:0.#} s.",
+                    fanIndex,
+                    _snapshots?.Age.TotalSeconds ?? 0d);
+
                 return SampleResult.Aborted(Failed(fanIndex, FanCalibrationFailure.InsufficientData, step, _elapsed.Elapsed, restored: true, peak: _peakCelsius));
             }
 
@@ -717,7 +795,15 @@ public sealed class FanCalibrationRunner : IDisposable
             }
 
             var control = owner._frameworkDataProvider.GetLatestControlTelemetry();
-            var power = control.Sample.CpuPackagePowerWatts ?? control.Sample.SystemPowerWatts;
+
+            // Read the power of whatever this run is actually HEATING. A GPU-cooled fan's run loads the GPU
+            // and leaves the processor idle, so measuring CPU package power would see ~8 W, decide the machine
+            // never got busy, and abort every single GPU calibration after minutes of heating — while the GPU
+            // sat at full load the whole time. The same figure becomes the feed-forward gain, so reading the
+            // wrong component would also make it duty-per-CPU-watt on a fan that cools neither.
+            var power = ResolveLoadTarget() == ThermalLoadTarget.Gpu
+                ? control.Sample.GpuPowerWatts ?? control.Sample.SystemPowerWatts
+                : control.Sample.CpuPackagePowerWatts ?? control.Sample.SystemPowerWatts;
 
             // Only the loaded steps count. Idle and minimum-spin readings would drag the average down, and
             // because feed-forward is derived as duty-per-watt, a too-low average produces a too-HIGH gain —
@@ -1088,14 +1174,11 @@ public sealed class FanCalibrationRunner : IDisposable
                     continue;
                 }
 
+                // Well conditioned by construction: the filter above admits only samples at least one time
+                // constant past the dead time, so the exponential is at most e⁻¹ and the divisor at least
+                // 0.63. No separate guard is needed — one here would be unreachable.
                 var decayed = Math.Exp(-since / timeConstantSeconds);
-                var remaining = 1d - decayed;
-                if (remaining <= 0.1d)
-                {
-                    continue;
-                }
-
-                estimates.Add((celsius - (startCelsius * decayed)) / remaining);
+                estimates.Add((celsius - (startCelsius * decayed)) / (1d - decayed));
             }
 
             return estimates.Count > 0 ? estimates.Average() : null;

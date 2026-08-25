@@ -1,10 +1,12 @@
+using System.Diagnostics;
 using System.Reactive.Disposables;
 using System.Reactive.Disposables.Fluent;
 
 namespace SubZeroFramework.Service.Services;
 
 /// <summary>
-/// Holds the most recent snapshot from a stream so a pull-style consumer can read it on its own schedule.
+/// Holds the most recent snapshot from a stream, with the age of the reading, so a pull-style consumer can
+/// tell a live value from a frozen one.
 /// </summary>
 /// <typeparam name="T">The snapshot type. Must be a reference type so the swap below is atomic.</typeparam>
 /// <remarks>
@@ -14,14 +16,23 @@ namespace SubZeroFramework.Service.Services;
 /// know the machine's state at each of ITS moments, not at each of the EC's.
 /// </para>
 /// <para>
-/// Exists as its own type mostly so subscription ownership is honest — the cache lives exactly as long as its
-/// subscription, whereas the consumer that reads it may not.
+/// <b>Age is the load-bearing part.</b> A cache that only stores the last value makes a dead stream
+/// indistinguishable from a live one — the reading is still there, still plausible, and a consumer polling it
+/// keeps acting on a number that stopped being true minutes ago. That matters most to the one caller that
+/// deliberately heats the machine: for it, a frozen temperature silently disables both the safety ceiling and
+/// the no-readings backstop at exactly the moment they are needed.
+/// </para>
+/// <para>
+/// Faults and completion are recorded too, but neither can be relied on alone: the provider's stream ends
+/// cleanly on shutdown and never faults on a failed EC read, so a stall produces no notification at all. Age
+/// catches all three.
 /// </para>
 /// </remarks>
 internal sealed class LatestSnapshotCache<T> : IDisposable
     where T : class
 {
     private readonly CompositeDisposable _subscriptions = [];
+    private readonly Stopwatch _sinceLastValue = Stopwatch.StartNew();
 
     /// <summary>
     /// Whole references, swapped atomically; never mutated in place.
@@ -33,6 +44,7 @@ internal sealed class LatestSnapshotCache<T> : IDisposable
     private volatile T? _latest;
 
     private volatile Exception? _fault;
+    private volatile bool _completed;
 
     public LatestSnapshotCache(IObservable<T> snapshots)
     {
@@ -40,23 +52,40 @@ internal sealed class LatestSnapshotCache<T> : IDisposable
 
         snapshots
             .Subscribe(
-                snapshot => _latest = snapshot,
-                exception => _fault = exception)
+                snapshot =>
+                {
+                    _latest = snapshot;
+                    _sinceLastValue.Restart();
+                },
+                exception => _fault = exception,
+                () => _completed = true)
             .DisposeWith(_subscriptions);
     }
 
     /// <summary>The most recent snapshot, or null if none has arrived yet.</summary>
     public T? Latest => _latest;
 
-    /// <summary>
-    /// The error that ended the stream, if one did.
-    /// </summary>
-    /// <remarks>
-    /// Surfaced rather than swallowed because <see cref="Latest"/> cannot express the difference on its own:
-    /// a dead stream leaves the last snapshot sitting there looking current, and a consumer polling it would
-    /// read a value that stopped being true minutes ago.
-    /// </remarks>
+    /// <summary>How long ago the most recent snapshot arrived.</summary>
+    public TimeSpan Age => _sinceLastValue.Elapsed;
+
+    /// <summary>The error that ended the stream, if one did.</summary>
     public Exception? Fault => _fault;
+
+    /// <summary>True once the stream ended normally — what the provider does on shutdown.</summary>
+    public bool IsCompleted => _completed;
+
+    /// <summary>
+    /// True when this cache can no longer be trusted to describe the machine right now.
+    /// </summary>
+    /// <param name="maximumAge">How old a reading may be and still count as current.</param>
+    /// <remarks>
+    /// A value that has not arrived YET is not stale until the limit has passed — the clock starts at
+    /// construction, so the first reading gets exactly the same grace as every later one. Treating "none yet"
+    /// as stale outright would abort every consumer on its first poll, before the stream had a chance to
+    /// deliver anything.
+    /// </remarks>
+    public bool IsStale(TimeSpan maximumAge)
+        => _fault is not null || _completed || _sinceLastValue.Elapsed > maximumAge;
 
     public void Dispose() => _subscriptions.Dispose();
 }

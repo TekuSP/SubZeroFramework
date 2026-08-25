@@ -212,6 +212,18 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                 return FanControlStoreResult.Failed("Adaptive needs at least one driving temperature sensor.");
             }
 
+            // Nothing is known about this fan: never measured, and nothing learned from use. Calibration is
+            // the door into Adaptive — once through it, ordinary use keeps refining the model forever after.
+            //
+            // The check is "measured OR learned", not "calibrated", so a fan that has built its own model
+            // stays armed after a recalibration is discarded. What locks it out is genuine ignorance: a fresh
+            // install, or a fan whose learning was just thrown away without a measurement behind it.
+            if (!lookup.Value.Calibration.IsMeasured && !lookup.Value.AdaptiveLearning.HasLearned)
+            {
+                return FanControlStoreResult.Failed(
+                    "Adaptive needs to learn this fan first. Run the learning test to measure how it moves heat.");
+            }
+
             PublishState(
                 lookup.Value with
                 {

@@ -296,6 +296,24 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [ObservableProperty]
     public partial string ActiveProfileText { get; private set; } = "No curve profile is currently driving this fan.";
 
+    // ----- Adaptive learning-state pill -----
+    //
+    // Sits beside the mode selector, and reports what the controller KNOWS rather than whether it is ready.
+    // The distinction matters: a readiness badge would frame a fan running on its own model as incomplete,
+    // when the only thing left to do is nothing.
+
+    /// <summary>Pill caption for the selected fan's learning state. Assigned by <see cref="RefreshDerivedState"/>.</summary>
+    [ObservableProperty]
+    public partial string LearningStateText { get; private set; } = string.Empty;
+
+    /// <summary>Pill icon for the selected fan's learning state.</summary>
+    [ObservableProperty]
+    public partial string LearningStateIconKind { get; private set; } = "SchoolOutline";
+
+    /// <summary>Visible only while Adaptive is the selected mode — it describes nothing otherwise.</summary>
+    [ObservableProperty]
+    public partial Microsoft.UI.Xaml.Visibility LearningStateVisibility { get; private set; } = Microsoft.UI.Xaml.Visibility.Collapsed;
+
     /// <summary>True when the draft curve differs from the curve the service currently has applied.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(UnsavedChangesVisibility))]
@@ -314,6 +332,44 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
     /// <summary>The mode the service currently has applied to the selected fan (ignores any staged overlay).</summary>
     internal FanControlMode ServiceFanMode => SelectedFan?.ControlState?.Mode ?? FanControlMode.Auto;
+
+    /// <summary>
+    /// Reports what the controller has worked out about the selected fan, beside the mode selector.
+    /// </summary>
+    /// <remarks>
+    /// Phrased as knowledge gained, never as progress toward readiness — no percentages, no bar, nothing that
+    /// reads like a fault. A fan on defaults is a working fan, and the wording has to survive a user glancing
+    /// at it for one second and drawing a conclusion.
+    /// </remarks>
+    private void RefreshLearningStatePill()
+    {
+        if (!IsAdaptiveModeChecked || SelectedFan?.ControlState is not { } controlState)
+        {
+            LearningStateVisibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+            return;
+        }
+
+        LearningStateVisibility = Microsoft.UI.Xaml.Visibility.Visible;
+
+        var learning = controlState.AdaptiveLearning;
+        switch (learning.ConfidenceAt(DateTimeOffset.UtcNow))
+        {
+            case AdaptiveConfidence.Confident:
+                LearningStateIconKind = "CheckDecagram";
+                LearningStateText = "Knows this fan well";
+                break;
+
+            case AdaptiveConfidence.Converging:
+                LearningStateIconKind = "ChartBellCurveCumulative";
+                LearningStateText = $"Learned from {learning.ObservationCount} quiet periods";
+                break;
+
+            default:
+                LearningStateIconKind = "SchoolOutline";
+                LearningStateText = "Getting to know this fan";
+                break;
+        }
+    }
 
     /// <summary>True while the custom editor / curve mode is the active staging surface.</summary>
     private bool IsCustomStaging => ShowCustomEditor || SelectedFanMode == FanControlMode.CustomCurve;
@@ -411,6 +467,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         ActiveProfileText = SelectedFan?.ControlState is { Mode: FanControlMode.CustomCurve } state
             ? $"Profile {state.ActiveCurveSlot + 1} is currently driving this fan."
             : "No curve profile is currently driving this fan.";
+
+        RefreshLearningStatePill();
 
         // The row pill is per-fan: only the selected fan's OWN staged work lights it (other fans keep
         // theirs from when they were parked).
@@ -1570,6 +1628,20 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         }
     }
 
+    /// <summary>
+    /// Runs the calibration hot test for a fan, streaming progress to the wizard.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately thin: the dialog owns the presentation and the cancellation, the service owns the physical
+    /// run and the promise to restore the fan. This exists only because the page holds the client.
+    /// </remarks>
+    internal Task<FanCalibrationRunResult> RunCalibrationAsync(
+        int fanIndex,
+        IReadOnlyCollection<int> drivingSensorIndices,
+        IProgress<FanCalibrationProgress> progress,
+        CancellationToken cancellationToken)
+        => _fanControlClient.RunCalibrationAsync(fanIndex, drivingSensorIndices, progress, cancellationToken);
+
     /// <summary>Discards what a fan learned from ordinary use. Immediate and destructive.</summary>
     internal async Task ForgetAdaptiveLearningAsync(int fanIndex, CancellationToken cancellationToken = default)
     {
@@ -2573,6 +2645,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [NotifyPropertyChangedFor(nameof(IsAutoModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsManualModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsMaxModeChecked))]
+    [NotifyPropertyChangedFor(nameof(IsAdaptiveModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsCustomModeChecked))]
     [NotifyPropertyChangedFor(nameof(AutoTileBackground))]
     [NotifyPropertyChangedFor(nameof(ManualTileBackground))]
@@ -2598,6 +2671,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [NotifyPropertyChangedFor(nameof(IsAutoModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsManualModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsMaxModeChecked))]
+    [NotifyPropertyChangedFor(nameof(IsAdaptiveModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsCustomModeChecked))]
     [NotifyPropertyChangedFor(nameof(AutoTileBackground))]
     [NotifyPropertyChangedFor(nameof(ManualTileBackground))]
@@ -2793,6 +2867,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [NotifyPropertyChangedFor(nameof(IsAutoModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsManualModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsMaxModeChecked))]
+    [NotifyPropertyChangedFor(nameof(IsAdaptiveModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsCustomModeChecked))]
     [NotifyPropertyChangedFor(nameof(AutoTileBackground))]
     [NotifyPropertyChangedFor(nameof(ManualTileBackground))]

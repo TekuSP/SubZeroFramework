@@ -332,6 +332,50 @@ public class AdaptiveFanControllerTests
         Assert.That(decision.DutyPercent, Is.GreaterThanOrEqualTo(30d));
     }
 
+    /// <summary>
+    /// A fan the user has not configured keeps turning on a cold machine.
+    /// </summary>
+    /// <remarks>
+    /// The default is ON, which is a real trade rather than a free win: a binding floor stops the loop
+    /// reaching its target at low load, so the machine runs cooler and louder than asked. That is accepted
+    /// because a fan which stops completely reads as a fault to most people, and the floor is one toggle away
+    /// for anyone who disagrees. Pinned here so the trade cannot be reversed by accident.
+    /// </remarks>
+    [Test]
+    public void Evaluate_OnAnUnconfiguredFan_KeepsItTurningWhenCold()
+    {
+        var controller = new AdaptiveFanController();
+
+        var decision = Step(
+            controller,
+            Calibrated(),
+            AdaptiveFanSettings.Default,
+            temperature: 30d,
+            packageWatts: 1d);
+
+        Assert.That(decision.DutyPercent, Is.GreaterThanOrEqualTo(AdaptiveFanSettings.DefaultSafetyFloorPercent));
+    }
+
+    /// <summary>
+    /// An enabled floor below the fan's measured stall point must never resolve to a stopped fan.
+    /// </summary>
+    /// <remarks>
+    /// The stall guard snaps to whichever end is nearer, which is right when nobody asked for a floor. With a
+    /// floor enabled it can only snap UP: the floor exists precisely to promise the fan never stops, and
+    /// resolving it downward would stop the fan while the editor still displayed the floor as on.
+    /// </remarks>
+    [Test]
+    public void Evaluate_WithAFloorBelowTheStallPoint_StillKeepsTheFanTurning()
+    {
+        var calibration = Calibrated() with { MinimumSpinDutyPercent = 30d };
+        var settings = Settings() with { SafetyFloorEnabled = true, SafetyFloorPercent = 12d };
+        var controller = new AdaptiveFanController();
+
+        var decision = Step(controller, calibration, settings, temperature: 30d, packageWatts: 1d);
+
+        Assert.That(decision.DutyPercent, Is.GreaterThanOrEqualTo(30d), "an enabled safety floor let the fan stop");
+    }
+
     [Test]
     public void Evaluate_NeverCommandsADutyTheFanWouldStallAt()
     {
@@ -530,7 +574,20 @@ public class AdaptiveFanControllerTests
             TimeSpan.FromSeconds(Tick),
             DateTimeOffset.UnixEpoch);
 
-    private static AdaptiveFanSettings Settings() => new() { TargetTemperatureCelsius = 78d };
+    /// <summary>
+    /// Settings for testing the LOOP: target set, safety floor explicitly off.
+    /// </summary>
+    /// <remarks>
+    /// The floor is disabled deliberately rather than left to the record's defaults, which now enable it. A
+    /// binding floor is not a property of the controller — it overrides the loop by design — so leaving it on
+    /// would stop these tests measuring what they claim to, and would do so silently the moment the default
+    /// changed. The floor's own behaviour is covered separately.
+    /// </remarks>
+    private static AdaptiveFanSettings Settings() => new()
+    {
+        TargetTemperatureCelsius = 78d,
+        SafetyFloorEnabled = false,
+    };
 
     /// <summary>A representative Framework 16 fan, in the shape a calibration run would produce.</summary>
     private static FanCalibrationSnapshot Calibrated()

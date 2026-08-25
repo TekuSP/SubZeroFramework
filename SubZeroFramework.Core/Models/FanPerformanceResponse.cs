@@ -17,6 +17,16 @@ namespace SubZeroFramework.Models;
 /// </remarks>
 public sealed record FanPerformanceResponse
 {
+    /// <summary>
+    /// The smallest speed gain worth calling a gain.
+    /// </summary>
+    /// <remarks>
+    /// Below this the difference is inside the noise of two averaged clock readings, and reporting it as
+    /// "+1% sustained speed" would dress measurement scatter up as a benefit. Saying "no extra speed" instead
+    /// is both more honest and more useful — it tells the user the fan is not their limit.
+    /// </remarks>
+    public const double MeaningfulSpeedGainFraction = 0.02d;
+
     /// <summary>Nothing measured — an older calibration, or a machine that reports no speed at all.</summary>
     public static FanPerformanceResponse None { get; } = new();
 

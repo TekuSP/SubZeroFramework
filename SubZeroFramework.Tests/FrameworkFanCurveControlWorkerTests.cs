@@ -164,6 +164,59 @@ public class FrameworkFanCurveControlWorkerTests
     }
 
     /// <summary>
+    /// A fan nothing is known about cannot be armed: calibration is the door into Adaptive.
+    /// </summary>
+    /// <remarks>
+    /// This is the first-run state, and the state a fan returns to when its learning is discarded without a
+    /// measurement behind it. The refusal has to live in the STORE rather than only in the editor, or the
+    /// service would allow through a persisted config, a second client, or a future caller what the UI
+    /// carefully blocks.
+    /// </remarks>
+    [Test]
+    public void SetAdaptiveMode_OnAFanNothingIsKnownAbout_IsRefused()
+    {
+        using var harness = new WorkerHarness();
+        harness.Store.MarkAuto(0);
+
+        var armed = harness.Store.SetAdaptiveMode(0, [0], TemperatureAggregationMode.Maximum, null);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(armed.Succeeded, Is.False, "an unlearned fan was armed into Adaptive");
+            Assert.That(armed.Message, Does.Contain("learn"));
+
+            // And it is a refusal, not a silent no-op that leaves the UI believing it worked.
+            Assert.That(harness.Store.GetState(0)!.Mode, Is.EqualTo(FanControlMode.Auto));
+        });
+    }
+
+    /// <summary>
+    /// A fan that built its own model from ordinary use may arm without ever having run the hot test.
+    /// </summary>
+    /// <remarks>
+    /// The gate is "measured OR learned", not "calibrated". Gating on calibration alone would throw away a
+    /// model the machine spent days assembling, and would make the two learning mechanisms contradict each
+    /// other rather than compose.
+    /// </remarks>
+    [Test]
+    public void SetAdaptiveMode_OnAFanThatLearnedWithoutATest_IsAllowed()
+    {
+        using var harness = new WorkerHarness();
+        harness.Store.MarkAuto(0);
+
+        harness.Store.RecordAdaptiveLearning(0, new AdaptiveLearningState
+        {
+            FeedForwardDutyPerWatt = 0.8d,
+            ObservationCount = 42,
+            LastUpdatedAt = DateTimeOffset.UtcNow,
+        });
+
+        var armed = harness.Store.SetAdaptiveMode(0, [0], TemperatureAggregationMode.Maximum, null);
+
+        Assert.That(armed.Succeeded, Is.True, armed.Message);
+    }
+
+    /// <summary>
     /// The inversion: an uncalibrated adaptive fan runs on conservative defaults rather than being left to
     /// the firmware. A fan on defaults is a working fan.
     /// </summary>

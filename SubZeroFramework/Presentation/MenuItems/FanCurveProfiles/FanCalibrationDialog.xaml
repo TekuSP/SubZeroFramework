@@ -1,0 +1,296 @@
+<ContentDialog
+    x:Class="SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.FanCalibrationDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:modes="using:SubZeroFramework.Controls.FanCurveProfiles.Models.Modes"
+    Title="{x:Bind ViewModel.DialogTitle, Mode=OneWay}"
+    CloseButtonText="{x:Bind ViewModel.CloseText, Mode=OneWay}"
+    CornerRadius="12"
+    DefaultButton="Primary"
+    IsPrimaryButtonEnabled="{x:Bind ViewModel.IsPrimaryEnabled, Mode=OneWay}"
+    PrimaryButtonText="{x:Bind ViewModel.PrimaryText, Mode=OneWay}"
+    mc:Ignorable="d">
+
+    <Grid MinWidth="520" MaxWidth="560">
+
+        <!--
+            CONSENT. Also what a fan nothing is known about meets instead of the Adaptive editor: with no
+            model there is nothing to drive from, so the test is the way in rather than an optional extra.
+            The cost is stated BEFORE agreement — the run deliberately heats the machine and drives the fan to
+            both extremes, and finding that out afterwards is being ambushed by your own fan-control app.
+        -->
+        <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.ConsentVisibility, Mode=OneWay}">
+            <TextBlock
+                FontSize="13"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="{x:Bind ViewModel.Introduction, Mode=OneWay}"
+                TextWrapping="WrapWholeWords" />
+
+            <controls:AutoWrapPanel HorizontalSpacing="30" VerticalSpacing="12">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <material:MaterialIcon
+                        Width="17"
+                        Height="17"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource BrandPrimaryBrush}"
+                        Kind="ClockOutline" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12.5"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="Takes about 5 minutes end to end" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <material:MaterialIcon
+                        Width="17"
+                        Height="17"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource StatusWarningBrush}"
+                        Kind="FanSpeed3" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12.5"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="Fans run to maximum — it will be loud" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <material:MaterialIcon
+                        Width="17"
+                        Height="17"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource StatusWarningBrush}"
+                        Kind="Cpu64Bit" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12.5"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.LoadDescription, Mode=OneWay}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <material:MaterialIcon
+                        Width="17"
+                        Height="17"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource StatusSuccessBrush}"
+                        Kind="PowerPlug" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12.5"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="AC power required — blocked on battery" />
+                </StackPanel>
+            </controls:AutoWrapPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <material:MaterialIcon
+                    Width="15"
+                    Height="15"
+                    VerticalAlignment="Center"
+                    Foreground="{StaticResource TextTertiaryBrush}"
+                    Kind="InformationOutline" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="12"
+                    Foreground="{StaticResource TextTertiaryBrush}"
+                    Text="Nothing has happened yet — this fan keeps running its current mode until you start, and you can stop at any point without leaving it in a strange state."
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+        </StackPanel>
+
+        <!--
+            RUNNING. Watching the temperature actually move is what makes a five-minute wait tolerable, and is
+            the only way to tell a run that is working from one about to fail for lack of load.
+        -->
+        <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.RunningVisibility, Mode=OneWay}">
+            <StackPanel Spacing="7">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.StepTitle, Mode=OneWay}" />
+                    <TextBlock
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.StepCounter, Mode=OneWay}" />
+                </Grid>
+
+                <ProgressBar
+                    Height="6"
+                    CornerRadius="3"
+                    Maximum="1"
+                    Value="{x:Bind ViewModel.Progress, Mode=OneWay}" />
+
+                <TextBlock
+                    FontSize="12"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="{x:Bind ViewModel.RemainingText, Mode=OneWay}" />
+            </StackPanel>
+
+            <!--  The live readings, so the wait is legible rather than a spinner.  -->
+            <controls:AutoWrapPanel HorizontalSpacing="10" VerticalSpacing="10">
+                <Border
+                    Width="150"
+                    Padding="12,10"
+                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                    CornerRadius="10">
+                    <StackPanel Spacing="4">
+                        <TextBlock
+                            FontSize="11.5"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Temperature" />
+                        <TextBlock
+                            FontSize="17"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.TemperatureText, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+                <Border
+                    Width="150"
+                    Padding="12,10"
+                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                    CornerRadius="10">
+                    <StackPanel Spacing="4">
+                        <TextBlock
+                            FontSize="11.5"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Fan speed" />
+                        <TextBlock
+                            FontSize="17"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.SpeedText, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+                <Border
+                    Width="150"
+                    Padding="12,10"
+                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                    CornerRadius="10">
+                    <StackPanel Spacing="4">
+                        <TextBlock
+                            FontSize="11.5"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Load" />
+                        <TextBlock
+                            FontSize="17"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.PowerText, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+            </controls:AutoWrapPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <material:MaterialIcon
+                    Width="15"
+                    Height="15"
+                    VerticalAlignment="Center"
+                    Foreground="{StaticResource TextTertiaryBrush}"
+                    Kind="HandBackLeftOutline" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="12"
+                    Foreground="{StaticResource TextTertiaryBrush}"
+                    Text="Leave the machine alone while this runs — using it changes the heat the test is measuring."
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+        </StackPanel>
+
+        <!--  OUTCOME. Success and every failure share a shape: an icon, what happened, and what was measured.  -->
+        <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.OutcomeVisibility, Mode=OneWay}">
+            <StackPanel Orientation="Horizontal" Spacing="13">
+                <material:MaterialIcon
+                    Width="24"
+                    Height="24"
+                    VerticalAlignment="Center"
+                    Foreground="{x:Bind ViewModel.OutcomeBrushKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                    Kind="{x:Bind ViewModel.OutcomeIconKind, Mode=OneWay}" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="16"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{x:Bind ViewModel.OutcomeHeadline, Mode=OneWay}"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+
+            <TextBlock
+                FontSize="13"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="{x:Bind ViewModel.OutcomeBody, Mode=OneWay}"
+                TextWrapping="WrapWholeWords" />
+
+            <!--  Measured values, on failures as well as successes: a failure that will not say how close it
+                  got leaves the user nothing to change before spending another five minutes.  -->
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.OutcomeFacts, Mode=OneWay}">
+                <ItemsRepeater.Layout>
+                    <UniformGridLayout
+                        ItemsStretch="Fill"
+                        MinColumnSpacing="10"
+                        MinItemWidth="160"
+                        MinRowSpacing="10" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="modes:AdaptiveKnownFact">
+                        <Border
+                            Padding="12,10"
+                            Background="{StaticResource CardSecondaryBackgroundBrush}"
+                            CornerRadius="10">
+                            <StackPanel Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <material:MaterialIcon
+                                        Width="14"
+                                        Height="14"
+                                        VerticalAlignment="Center"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Kind="{x:Bind IconKind}" />
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Text="{x:Bind Label}"
+                                        TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <TextBlock
+                                    FontSize="15"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind Value}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+
+            <!--  Never left ambiguous: the run drives the fan to extremes, so whether it was handed back is
+                  the one fact a failure screen must always state.  -->
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <material:MaterialIcon
+                    Width="15"
+                    Height="15"
+                    VerticalAlignment="Center"
+                    Foreground="{x:Bind ViewModel.RestoredBrushKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                    Kind="{x:Bind ViewModel.RestoredIconKind, Mode=OneWay}" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="12"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="{x:Bind ViewModel.RestoredText, Mode=OneWay}"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</ContentDialog>

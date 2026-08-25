@@ -34,6 +34,15 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     // last value across failed reads, so without an age guard a stale "60 W" would pin feed-forward forever.
     private static readonly TimeSpan MaxControlTelemetryAge = TimeSpan.FromSeconds(10);
 
+    /// <summary>
+    /// The longest gap between evaluations that still counts as a normal interval.
+    /// </summary>
+    /// <remarks>
+    /// Several times the evaluation cadence, so ordinary scheduling jitter passes through untouched while a
+    /// genuine discontinuity — a disabled period, a sleep, a stalled stream — does not.
+    /// </remarks>
+    private static readonly TimeSpan MaximumEvaluationGap = TimeSpan.FromSeconds(10);
+
     // Instance-level so tests can drive evaluations without a real-time wait per assertion. Production
     // always uses the default; nothing but the test constructor overload passes anything else.
     private readonly TimeSpan _evaluationInterval;
@@ -173,6 +182,21 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
             ? TimeSpan.Zero
             : Stopwatch.GetElapsedTime(_lastEvaluationTimestamp, evaluationTimestamp);
         _lastEvaluationTimestamp = evaluationTimestamp;
+
+        // A gap far longer than the cadence is not a long interval, it is a RESUME — fan control was disabled,
+        // the machine slept, or the telemetry stream stalled. Feeding the real gap to the controller would
+        // multiply the integral term by it (railing the integrator in one tick), scale the slew limit by the
+        // same factor (so the fan could jump 0→100 in a single step, defeating the one guard that keeps it
+        // from being audible), and instantly expire a throttle latch meant to hold for a minute. Treated as
+        // "no time passed": the loop re-establishes its own timing from the next tick.
+        if (elapsed > MaximumEvaluationGap)
+        {
+            _logger.LogInformation(
+                "Ignoring a {Elapsed:0.#} s gap between fan evaluations; the loop resumes from this tick.",
+                elapsed.TotalSeconds);
+
+            elapsed = TimeSpan.Zero;
+        }
 
         // Sampled once for the same reason, and because the reading is cached — every adaptive fan this pass
         // should feed-forward from one consistent view of what the CPU is doing.

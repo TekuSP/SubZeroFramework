@@ -83,16 +83,27 @@ public sealed class ControlTelemetrySystemLoadProbe : ISystemLoadProbe, IDisposa
         }
     }
 
+    /// <summary>
+    /// Disposes the reader and the process handle, under the same lock that guards them.
+    /// </summary>
+    /// <remarks>
+    /// Taking the lock is the whole point: <see cref="Refresh"/> checks <c>_disposed</c> INSIDE it, and a
+    /// writer that never enters the lock makes that check decorative — the governor thread can be mid-sample
+    /// when both are torn out from under it.
+    /// </remarks>
     public void Dispose()
     {
-        if (_disposed)
+        lock (_sampleLock)
         {
-            return;
-        }
+            if (_disposed)
+            {
+                return;
+            }
 
-        _disposed = true;
-        _reader.Dispose();
-        _process.Dispose();
+            _disposed = true;
+            _reader.Dispose();
+            _process.Dispose();
+        }
     }
 
     private void Refresh()

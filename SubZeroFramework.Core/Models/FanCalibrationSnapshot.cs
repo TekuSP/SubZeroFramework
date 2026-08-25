@@ -131,6 +131,16 @@ public sealed record FanCalibrationSnapshot
     public FanGainCurve GainCurve { get; init; } = FanGainCurve.None;
 
     /// <summary>
+    /// Whether these numbers came from an actual measurement of this machine.
+    /// </summary>
+    /// <remarks>
+    /// Narrower than <see cref="IsUsable"/>, and the two are not interchangeable. Usable asks "can the
+    /// controller run on this?", which the built-in bootstrap satisfies. This asks "has anyone ever measured
+    /// this fan?", which the bootstrap does not — it is the same guess on every machine in the world.
+    /// </remarks>
+    public bool IsMeasured => (State is FanCalibrationState.Ok or FanCalibrationState.Stale) && IsUsable;
+
+    /// <summary>
     /// True when the model is complete enough to run a controller on.
     /// </summary>
     /// <remarks>

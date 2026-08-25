@@ -388,12 +388,20 @@
                     </StackPanel>
                 </Border>
 
-                <!--  Mode selector (segmented pill)  -->
-                <StackPanel
+                <!--
+                    Mode selector (segmented pill). A Grid rather than a horizontal stack so the learning-state
+                    pill can sit flush right, and so the five segments SCROLL instead of being cut off in a
+                    narrow detail pane — a fixed-width segmented control clips, which we hit and fixed.
+                -->
+                <Grid
+                    ColumnSpacing="11"
                     VerticalAlignment="Center"
-                    Orientation="Horizontal"
-                    Spacing="11"
                     Visibility="{x:Bind ViewModel.EditorControlsVisibility, Mode=OneWay}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
                     <StackPanel
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
@@ -409,6 +417,12 @@
                             Text="Mode" />
                     </StackPanel>
                     <!--  Segmented pill built from ToggleButtons so the active option floods brand blue (matches design).  -->
+                    <ScrollViewer
+                        Grid.Column="1"
+                        HorizontalAlignment="Left"
+                        HorizontalScrollBarVisibility="Auto"
+                        HorizontalScrollMode="Auto"
+                        VerticalScrollMode="Disabled">
                     <Border
                         Padding="3"
                         Background="{StaticResource CardSecondaryBackgroundBrush}"
@@ -471,7 +485,31 @@
                                         Height="16"
                                         VerticalAlignment="Center"
                                         Kind="ChartBellCurve" />
-                                    <TextBlock Text="Custom curve" />
+                                    <!--  Shortened so five segments fit the detail pane at minimum width.
+                                          The mode is still spelled "Custom curve" in the fan list and headers.  -->
+                                    <TextBlock Text="Curve" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <!--
+                                Adaptive sits with the other model-driven modes, BEFORE Max — Max is the
+                                terminal option and reads wrong anywhere but last. Tag is the mode index and
+                                is deliberately not renumbered to match position: it is an identity, and
+                                renumbering it would silently repoint every existing persisted selection.
+                            -->
+                            <ToggleButton
+                                Padding="14,6"
+                                Click="ModeSegment_Click"
+                                CornerRadius="6"
+                                IsChecked="{x:Bind ViewModel.IsAdaptiveModeChecked, Mode=OneWay}"
+                                IsEnabled="{x:Bind ViewModel.CanCommandFanMode, Mode=OneWay}"
+                                Tag="4">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <material:MaterialIcon
+                                        Width="16"
+                                        Height="16"
+                                        VerticalAlignment="Center"
+                                        Kind="TuneVerticalVariant" />
+                                    <TextBlock Text="Adaptive" />
                                 </StackPanel>
                             </ToggleButton>
                             <ToggleButton
@@ -490,25 +528,39 @@
                                     <TextBlock Text="Max" />
                                 </StackPanel>
                             </ToggleButton>
-                            <ToggleButton
-                                Padding="14,6"
-                                Click="ModeSegment_Click"
-                                CornerRadius="6"
-                                IsChecked="{x:Bind ViewModel.IsAdaptiveModeChecked, Mode=OneWay}"
-                                IsEnabled="{x:Bind ViewModel.CanCommandFanMode, Mode=OneWay}"
-                                Tag="4">
-                                <StackPanel Orientation="Horizontal" Spacing="7">
-                                    <material:MaterialIcon
-                                        Width="16"
-                                        Height="16"
-                                        VerticalAlignment="Center"
-                                        Kind="TuneVerticalVariant" />
-                                    <TextBlock Text="Adaptive" />
-                                </StackPanel>
-                            </ToggleButton>
                         </StackPanel>
                     </Border>
-                </StackPanel>
+                    </ScrollViewer>
+
+                    <!--
+                        What the controller knows about this fan, beside the modes it can be put in. Reports
+                        knowledge rather than readiness: a readiness badge would frame a fan running happily on
+                        its own model as incomplete, when there is nothing left to do.
+                    -->
+                    <Border
+                        Grid.Column="2"
+                        Height="24"
+                        Padding="11,0"
+                        VerticalAlignment="Center"
+                        Background="{StaticResource CardSecondaryBackgroundBrush}"
+                        CornerRadius="12"
+                        Visibility="{x:Bind ViewModel.LearningStateVisibility, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <material:MaterialIcon
+                                Width="14"
+                                Height="14"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Kind="{x:Bind ViewModel.LearningStateIconKind, Mode=OneWay}" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="11.5"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind ViewModel.LearningStateText, Mode=OneWay}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
 
             </StackPanel>
             <!--  Scrollable mode body  -->

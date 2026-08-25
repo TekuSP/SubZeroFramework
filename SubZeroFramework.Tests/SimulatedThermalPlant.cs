@@ -327,7 +327,8 @@ public sealed class SimulatedThermalPlant : StubFrameworkDataProvider, ICpuLoadG
         double celsius;
         double rpm;
         double commandedDuty;
-        bool loaded;
+        bool cpuLoaded;
+        bool gpuLoaded;
 
         lock (_stateLock)
         {
@@ -350,7 +351,8 @@ public sealed class SimulatedThermalPlant : StubFrameworkDataProvider, ICpuLoadG
             celsius = _celsius;
             rpm = duty < StallDutyPercent ? 0d : duty * RpmPerDutyPercent;
             commandedDuty = duty;
-            loaded = IsHeated;
+            cpuLoaded = _cpuLoadOn;
+            gpuLoaded = _gpuLoadOn;
         }
 
         // Speed follows the FAN, which is the relationship a calibration exists to measure: more cooling, less
@@ -360,7 +362,11 @@ public sealed class SimulatedThermalPlant : StubFrameworkDataProvider, ICpuLoadG
         LatestControlTelemetry = new ObservedControlTelemetry(
             new ControlTelemetrySample
             {
-                CpuPackagePowerWatts = loaded ? LoadedWatts : IdleWatts,
+                // Power is reported on the channel of whichever component is actually working. A machine
+                // whose GPU is at full load does not report that draw as CPU package power, and a run that
+                // read the wrong channel would see an idle processor and conclude the machine never got busy.
+                CpuPackagePowerWatts = cpuLoaded ? LoadedWatts : IdleWatts,
+                GpuPowerWatts = gpuLoaded ? LoadedWatts : IdleWatts,
                 CpuPerformanceRatio = ReportsClock
                     ? (cool ? CpuPerformanceRatioWhenCool : CpuPerformanceRatioWhenHot)
                     : null,

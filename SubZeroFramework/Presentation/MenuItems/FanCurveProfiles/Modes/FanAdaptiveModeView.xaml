@@ -2,6 +2,7 @@
     x:Class="SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.Modes.FanAdaptiveModeView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -9,6 +10,58 @@
     mc:Ignorable="d">
 
     <StackPanel Spacing="14">
+
+        <!--
+            Nothing measured and nothing learned: the consent dialog has already been offered, and this is
+            what remains behind it. Compact on purpose — the full explanation lives in the dialog, and showing
+            the tuning controls for a loop that is not running would invite the user to adjust nothing.
+        -->
+        <Border
+            Padding="18,16"
+            Background="{StaticResource CardBackgroundBrush}"
+            BorderBrush="{StaticResource CardBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Visibility="{x:Bind ViewModel.LockoutVisibility, Mode=OneWay}">
+            <Grid ColumnSpacing="14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <material:MaterialIcon
+                    Width="20"
+                    Height="20"
+                    VerticalAlignment="Center"
+                    Foreground="{StaticResource BrandPrimaryBrush}"
+                    Kind="TuneVerticalVariant" />
+                <StackPanel Grid.Column="1" Spacing="3">
+                    <TextBlock
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Adaptive needs to learn this fan first" />
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="Until then this fan keeps running its current mode — nothing changes while you read this."
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+                <Button
+                    Grid.Column="2"
+                    Height="34"
+                    Padding="14,0"
+                    VerticalAlignment="Center"
+                    Command="{x:Bind ViewModel.RunCalibrationCommand, Mode=OneWay}"
+                    CornerRadius="8"
+                    Style="{StaticResource AccentButtonStyle}">
+                    <TextBlock FontSize="12.5" Text="Calibrate this fan" />
+                </Button>
+            </Grid>
+        </Border>
+
+        <!--  Everything below describes a loop that is only running once the fan is known.  -->
+        <StackPanel Spacing="14" Visibility="{x:Bind ViewModel.EditorVisibility, Mode=OneWay}">
 
         <!--
             Throttle escalation, above everything. Latched is visually distinct from a transient chip: warning
@@ -199,19 +252,19 @@
                                     Width="10"
                                     Height="10"
                                     VerticalAlignment="Center"
-                                    Background="{Binding BrushKey, Converter={StaticResource ThemeBrushKey}}"
+                                    Background="{x:Bind BrushKey, Converter={StaticResource ThemeBrushKey}}"
                                     CornerRadius="3" />
                                 <TextBlock
                                     VerticalAlignment="Center"
                                     FontSize="12"
                                     Foreground="{StaticResource TextSecondaryBrush}"
-                                    Text="{Binding Name}" />
+                                    Text="{x:Bind Name}" />
                                 <TextBlock
                                     VerticalAlignment="Center"
                                     FontSize="12"
                                     FontWeight="SemiBold"
                                     Foreground="{StaticResource TextPrimaryBrush}"
-                                    Text="{Binding Value}" />
+                                    Text="{x:Bind Value}" />
                             </StackPanel>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
@@ -307,19 +360,19 @@
                                             Height="14"
                                             VerticalAlignment="Center"
                                             Foreground="{StaticResource TextSecondaryBrush}"
-                                            Kind="{Binding IconKind}" />
+                                            Kind="{x:Bind IconKind}" />
                                         <TextBlock
                                             VerticalAlignment="Center"
                                             FontSize="11.5"
                                             Foreground="{StaticResource TextSecondaryBrush}"
-                                            Text="{Binding Label}"
+                                            Text="{x:Bind Label}"
                                             TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
                                     <TextBlock
                                         FontSize="15"
                                         FontWeight="SemiBold"
                                         Foreground="{StaticResource TextPrimaryBrush}"
-                                        Text="{Binding Value}" />
+                                        Text="{x:Bind Value}" />
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
@@ -342,6 +395,57 @@
                         Text="No power reading on this machine, so the fan responds after the heat arrives rather than before."
                         TextWrapping="WrapWholeWords" />
                 </StackPanel>
+
+                <!--
+                    The hot test offered as a shortcut, never as a requirement — and withdrawn entirely once
+                    the fan is confident, because there is nothing left to accelerate.
+                -->
+                <Border
+                    Margin="0,3,0,0"
+                    Padding="0,14,0,0"
+                    BorderBrush="{StaticResource CardBorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    Visibility="{x:Bind ViewModel.CalibrationOfferVisibility, Mode=OneWay}">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <material:MaterialIcon
+                            Width="16"
+                            Height="16"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource BrandPrimaryBrush}"
+                            Kind="ClockFast" />
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            FontSize="12.5"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="In a hurry? A 4-minute test would teach it everything at once."
+                            TextWrapping="WrapWholeWords" />
+                        <Button
+                            Grid.Column="2"
+                            Height="32"
+                            Padding="13,0"
+                            VerticalAlignment="Center"
+                            Command="{x:Bind ViewModel.RunCalibrationCommand, Mode=OneWay}"
+                            CornerRadius="8">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <material:MaterialIcon
+                                    Width="14"
+                                    Height="14"
+                                    VerticalAlignment="Center"
+                                    Kind="TuneVerticalVariant" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="12.5"
+                                    Text="Run the 4-minute test" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </Border>
             </StackPanel>
         </Border>
 
@@ -420,13 +524,14 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <material:MaterialIcon
                         Width="18"
                         Height="18"
                         VerticalAlignment="Center"
                         Foreground="{StaticResource BrandPrimaryBrush}"
-                        Kind="SpeedometerSlow" />
+                        Kind="Metronome" />
                     <TextBlock
                         Grid.Column="1"
                         VerticalAlignment="Center"
@@ -434,11 +539,19 @@
                         FontWeight="SemiBold"
                         Foreground="{StaticResource TextPrimaryBrush}"
                         Text="Response" />
+                    <!--  The chosen setting as a NAME. The seconds behind it live under Advanced.  -->
+                    <TextBlock
+                        Grid.Column="2"
+                        VerticalAlignment="Center"
+                        FontSize="15"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource BrandPrimaryBrush}"
+                        Text="{x:Bind ViewModel.ResponseName, Mode=OneWay}" />
                 </Grid>
                 <TextBlock
                     FontSize="12"
                     Foreground="{StaticResource TextSecondaryBrush}"
-                    Text="How hard the fan chases a change in temperature. Quicker recovers sooner but changes speed more often."
+                    Text="How eagerly this fan reacts when the machine heats up. Quick catches spikes sooner; Calm keeps the fan steadier and quieter."
                     TextWrapping="WrapWholeWords" />
 
                 <!--  Inverted: dragging RIGHT should feel calmer, but a larger lambda IS calmer, so the raw
@@ -462,11 +575,109 @@
                         Text="Calm" />
                 </Grid>
 
-                <TextBlock
-                    FontSize="12"
-                    FontWeight="SemiBold"
-                    Foreground="{StaticResource TextPrimaryBrush}"
-                    Text="{x:Bind ViewModel.ResponseSummaryText, Mode=OneWay}" />
+                <!--
+                    The two consequences, shown as bars that move in OPPOSITE directions — that is the whole
+                    point. Recovery and steadiness trade against each other, and a single summary line lets a
+                    user believe they can have both.
+                -->
+                <StackPanel Spacing="8">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Back on target within" />
+                        <TextBlock
+                            Grid.Column="1"
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            Foreground="{x:Bind ViewModel.SettlingBrushKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                            Text="{x:Bind ViewModel.SettlingText, Mode=OneWay}" />
+                    </Grid>
+                    <ProgressBar
+                        Height="5"
+                        CornerRadius="3"
+                        Foreground="{x:Bind ViewModel.SettlingBrushKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                        Maximum="1"
+                        Value="{x:Bind ViewModel.SettlingBarFraction, Mode=OneWay}" />
+
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Fan speed changes" />
+                        <TextBlock
+                            Grid.Column="1"
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource StatusSuccessBrush}"
+                            Text="{x:Bind ViewModel.SpeedChangeName, Mode=OneWay}" />
+                    </Grid>
+                    <ProgressBar
+                        Height="5"
+                        CornerRadius="3"
+                        Foreground="{StaticResource StatusSuccessBrush}"
+                        Maximum="1"
+                        Value="{x:Bind ViewModel.SpeedChangeBarFraction, Mode=OneWay}" />
+                </StackPanel>
+
+                <!--
+                    The control-theory numbers, collapsed. They are genuinely useful to a handful of people and
+                    actively unhelpful to everyone else, which is exactly what a disclosure is for.
+                -->
+                <Expander
+                    HorizontalAlignment="Stretch"
+                    Background="Transparent"
+                    BorderThickness="0">
+                    <Expander.Header>
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Advanced" />
+                    </Expander.Header>
+                    <controls:AutoWrapPanel HorizontalSpacing="24" VerticalSpacing="8">
+                        <StackPanel Spacing="2">
+                            <TextBlock
+                                FontSize="11"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="Closed-loop time constant (λ)" />
+                            <TextBlock
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{x:Bind ViewModel.LambdaText, Mode=OneWay}" />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock
+                                FontSize="11"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="Proportional gain (Kc)" />
+                            <TextBlock
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{x:Bind ViewModel.ProportionalGainText, Mode=OneWay}" />
+                        </StackPanel>
+                        <StackPanel Spacing="2">
+                            <TextBlock
+                                FontSize="11"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="Integral time (τi)" />
+                            <TextBlock
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{x:Bind ViewModel.IntegralTimeText, Mode=OneWay}" />
+                        </StackPanel>
+                    </controls:AutoWrapPanel>
+                </Expander>
             </StackPanel>
         </Border>
 
@@ -542,26 +753,132 @@
             </StackPanel>
         </Border>
 
-        <!--  Destructive, so it sits last and alone rather than beside the everyday controls.  -->
-        <Button
-            HorizontalAlignment="Right"
-            Background="Transparent"
-            BorderThickness="0"
-            Command="{x:Bind ViewModel.ForgetLearningCommand, Mode=OneWay}"
-            Visibility="{x:Bind ViewModel.ForgetLearningVisibility, Mode=OneWay}">
-            <StackPanel Orientation="Horizontal" Spacing="7">
-                <material:MaterialIcon
-                    Width="14"
-                    Height="14"
-                    VerticalAlignment="Center"
-                    Foreground="{StaticResource StatusErrorTextBrush}"
-                    Kind="DeleteOutline" />
-                <TextBlock
-                    VerticalAlignment="Center"
-                    FontSize="12"
-                    Foreground="{StaticResource StatusErrorTextBrush}"
-                    Text="Forget what it learned" />
+        <!--
+            Optional tools. The header states outright that none of it is required — the card sits at the
+            bottom of a mode that works without anyone opening it, and reading as a checklist of setup steps
+            is the one impression it must not give.
+        -->
+        <Border
+            Padding="18,16"
+            Background="{StaticResource CardBackgroundBrush}"
+            BorderBrush="{StaticResource CardBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="12">
+            <StackPanel Spacing="13">
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <material:MaterialIcon
+                        Width="18"
+                        Height="18"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource BrandPrimaryBrush}"
+                        Kind="WrenchOutline" />
+                    <TextBlock
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        FontSize="15"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Optional tools" />
+                    <TextBlock
+                        Grid.Column="2"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        FontSize="11.5"
+                        Foreground="{StaticResource TextTertiaryBrush}"
+                        Text="Nothing here is required — Adaptive works without it."
+                        TextTrimming="CharacterEllipsis" />
+                </Grid>
+
+                <!--  Wraps rather than clips: four actions do not fit a narrow detail pane on one line.  -->
+                <controls:AutoWrapPanel HorizontalSpacing="10" VerticalSpacing="10">
+                    <Button
+                        Height="34"
+                        Padding="14,0"
+                        Command="{x:Bind ViewModel.ResetToDefaultsCommand, Mode=OneWay}"
+                        CornerRadius="8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <material:MaterialIcon
+                                Width="15"
+                                Height="15"
+                                VerticalAlignment="Center"
+                                Kind="BackupRestore" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Text="Reset to defaults" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button
+                        Height="34"
+                        Padding="14,0"
+                        Command="{x:Bind ViewModel.RunCalibrationCommand, Mode=OneWay}"
+                        CornerRadius="8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <material:MaterialIcon
+                                Width="15"
+                                Height="15"
+                                VerticalAlignment="Center"
+                                Kind="ClockFast" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Text="4-minute learning test" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button
+                        Height="34"
+                        Padding="14,0"
+                        Command="{x:Bind ViewModel.ExplainControlCommand, Mode=OneWay}"
+                        CornerRadius="8">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <material:MaterialIcon
+                                Width="15"
+                                Height="15"
+                                VerticalAlignment="Center"
+                                Kind="BookOpenVariant" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Text="How adaptive control works" />
+                        </StackPanel>
+                    </Button>
+
+                    <!--
+                        Destructive, and the only one here that discards something the machine spent days
+                        gathering — so it is outlined in red rather than sharing the neutral treatment of the
+                        three everyday actions beside it.
+                    -->
+                    <Button
+                        Height="34"
+                        Padding="14,0"
+                        Background="Transparent"
+                        Command="{x:Bind ViewModel.ForgetLearningCommand, Mode=OneWay}"
+                        CornerRadius="8"
+                        Visibility="{x:Bind ViewModel.ForgetLearningVisibility, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <material:MaterialIcon
+                                Width="15"
+                                Height="15"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource StatusErrorTextBrush}"
+                                Kind="DeleteOutline" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Foreground="{StaticResource StatusErrorTextBrush}"
+                                Text="Forget what it learned" />
+                        </StackPanel>
+                    </Button>
+                </controls:AutoWrapPanel>
             </StackPanel>
-        </Button>
+        </Border>
+        </StackPanel>
     </StackPanel>
 </UserControl>

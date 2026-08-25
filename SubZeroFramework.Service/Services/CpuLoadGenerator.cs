@@ -56,6 +56,7 @@ public sealed class CpuLoadGenerator : ICpuLoadGenerator, IDisposable
     private readonly Lock _stateLock = new();
     private CancellationTokenSource? _cancellation;
     private Task[] _workers = [];
+    private Task? _governor;
     private LoadRamp? _ramp;
     private double _effectiveTargetFraction = LoadRamp.DefaultTargetFraction;
     private bool _disposed;
@@ -159,9 +160,13 @@ public sealed class CpuLoadGenerator : ICpuLoadGenerator, IDisposable
 
             // One governor for all workers. Each sampling the machine independently would multiply the probe
             // cost by the core count and let the workers disagree about how much room there is.
+            //
+            // Tracked alongside the workers rather than fired and forgotten: Stop() disposes the cancellation
+            // source, and a governor still inside its loop would then touch a disposed wait handle and die
+            // unobserved on a background thread.
             if (_systemLoad is not null)
             {
-                Task.Factory.StartNew(
+                _governor = Task.Factory.StartNew(
                     () => Govern(cancellation.Token),
                     cancellation.Token,
                     TaskCreationOptions.LongRunning,
@@ -181,13 +186,16 @@ public sealed class CpuLoadGenerator : ICpuLoadGenerator, IDisposable
     {
         CancellationTokenSource? cancellation;
         Task[] workers;
+        Task? governor;
 
         lock (_stateLock)
         {
             cancellation = _cancellation;
             workers = _workers;
+            governor = _governor;
             _cancellation = null;
             _workers = [];
+            _governor = null;
             _ramp = null;
         }
 
@@ -198,19 +206,31 @@ public sealed class CpuLoadGenerator : ICpuLoadGenerator, IDisposable
 
         cancellation.Cancel();
 
+        // The governor waits on the token's handle, so it must be joined BEFORE the source is disposed.
+        Task[] pending = governor is null ? workers : [.. workers, governor];
+
+        var drained = false;
+
         try
         {
             // Bounded: a worker that somehow will not exit must not hang service shutdown. The loop below
             // checks cancellation every iteration, so this should return almost immediately.
-            Task.WaitAll(workers, TimeSpan.FromSeconds(5));
+            drained = Task.WaitAll(pending, TimeSpan.FromSeconds(5));
         }
         catch (AggregateException)
         {
             // Cancellation surfaces here; nothing to report.
+            drained = true;
         }
         finally
         {
-            cancellation.Dispose();
+            // Only disposed once nothing is left waiting on its handle. A timed-out wait means a thread is
+            // still inside WaitOne, and disposing under it throws ObjectDisposedException on a thread whose
+            // Task nobody observes. Leaking one source is the lesser fault.
+            if (drained)
+            {
+                cancellation.Dispose();
+            }
         }
     }
 
@@ -298,7 +318,9 @@ public sealed class CpuLoadGenerator : ICpuLoadGenerator, IDisposable
         }
 
         // Floating-point work with a serial dependency, so the compiler cannot hoist it and the CPU cannot
-        // retire it out of order — the loop has to actually execute, which is the entire point.
+        // retire it out of order — the loop has to actually execute, which is the entire point. The square
+        // root makes it self-limiting: it converges toward ~2.618 rather than growing, so it cannot overflow
+        // however long the run lasts.
         var accumulator = 1.000001d;
         var iterations = 0L;
 
@@ -317,10 +339,6 @@ public sealed class CpuLoadGenerator : ICpuLoadGenerator, IDisposable
                 continue;
             }
 
-            if (accumulator == double.PositiveInfinity)
-            {
-                accumulator = 1.000001d;
-            }
 
             var burned = session.Elapsed - chunkStartedAt;
             if (burned < limiter.BurnFor)

@@ -477,14 +477,18 @@ public sealed class AdaptiveFanController
             duty = Math.Max(duty, settings.SafetyFloorPercent);
         }
 
-        // Stall guard, applied after the user's floor and independent of it. A fan commanded between "off"
-        // and "the slowest it can actually turn" does not spin slowly — it buzzes, or stops while still being
-        // told to run. Snap to whichever end is nearer so the fan is either genuinely off or genuinely
-        // turning. This is a mechanical fact of the hardware and is not the user's to override.
+        // Stall guard. A fan commanded between "off" and "the slowest it can actually turn" does not spin
+        // slowly — it buzzes, or stops while still being told to run. Snap to whichever end is nearer so the
+        // fan is either genuinely off or genuinely turning. This is a mechanical fact of the hardware.
+        //
+        // But an ENABLED floor may only ever snap UP. The floor is a promise that this fan never stops, and a
+        // measured minimum spin above the user's chosen floor would otherwise resolve downward to zero — the
+        // fan stopping while the editor still reports the floor as on. Silently contradicting the setting the
+        // user reached for specifically to prevent this is worse than running the fan faster than they asked.
         var minimumSpin = calibration.MinimumSpinDutyPercent;
         if (minimumSpin > 0d && duty > 0d && duty < minimumSpin)
         {
-            duty = duty >= minimumSpin / 2d ? minimumSpin : 0d;
+            duty = settings.SafetyFloorEnabled || duty >= minimumSpin / 2d ? minimumSpin : 0d;
         }
 
         return Math.Clamp(duty, 0d, 100d);

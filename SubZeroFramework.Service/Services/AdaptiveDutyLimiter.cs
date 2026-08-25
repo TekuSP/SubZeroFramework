@@ -161,7 +161,10 @@ public sealed class AdaptiveDutyLimiter
 
         if (targetFraction is <= 0d or >= 1d)
         {
+            // BOTH sides are set. Leaving the sleep at whatever the previous regime asked for meant a target
+            // of 1.0 still idled — a full-load request that quietly did not deliver full load.
             BurnFor = targetFraction >= 1d ? MaximumBurn : _minimumBurn;
+            SetSleep(targetFraction >= 1d ? TimeSpan.Zero : MinimalSleepRequest);
             Reset();
             return;
         }

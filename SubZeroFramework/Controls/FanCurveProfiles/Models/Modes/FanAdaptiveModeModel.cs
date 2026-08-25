@@ -3,8 +3,10 @@ using CommunityToolkit.Mvvm.Input;
 
 using Microsoft.UI.Xaml;
 
+using SubZeroFramework.Controls.Fans.Models;
 using SubZeroFramework.Models;
 using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
+using SubZeroFramework.Services;
 using SubZeroFramework.Services.Control;
 using SubZeroFramework.Services.Units;
 
@@ -38,7 +40,22 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
         ReleaseThrottleLatchCommand = new AsyncRelayCommand(ReleaseThrottleLatchAsync);
         ForgetLearningCommand = new AsyncRelayCommand(ForgetLearningAsync);
+        RunCalibrationCommand = new RelayCommand(RequestCalibration);
+        ResetToDefaultsCommand = new RelayCommand(ResetToDefaults);
+        ExplainControlCommand = new RelayCommand(RequestExplainer);
     }
+
+    /// <summary>
+    /// Raised when the user asks for the calibration wizard, so the view can host the dialog.
+    /// </summary>
+    /// <remarks>
+    /// An event rather than the view model opening a <c>ContentDialog</c> itself: a dialog needs a XamlRoot,
+    /// which is a view concern, and a view model that reaches for one cannot be tested without one.
+    /// </remarks>
+    public event EventHandler? CalibrationRequested;
+
+    /// <summary>Raised when the user asks to see how adaptive control works.</summary>
+    public event EventHandler? ExplainerRequested;
 
     // ----- Controller readout -----
 
@@ -145,6 +162,72 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     public IAsyncRelayCommand ForgetLearningCommand { get; }
 
+    /// <summary>
+    /// Whether to offer the hot test as a shortcut, inside the confidence card.
+    /// </summary>
+    /// <remarks>
+    /// Hidden once the fan is Confident: there is nothing left to accelerate, and continuing to offer a
+    /// four-minute test on a fan that already knows itself would suggest something is still missing.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CalibrationOfferVisibility))]
+    public partial bool IsCalibrationOfferVisible { get; private set; }
+
+    public Visibility CalibrationOfferVisibility => IsCalibrationOfferVisible ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// True when nothing at all is known about this fan, so Adaptive cannot run yet.
+    /// </summary>
+    /// <remarks>
+    /// The first-run state, and the state a fan returns to if its learning is discarded without a measurement
+    /// behind it. Everything else in this editor is hidden while it holds: the controls describe a loop that
+    /// is not running, and showing them would invite the user to tune something inert.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(LockoutVisibility))]
+    [NotifyPropertyChangedFor(nameof(EditorVisibility))]
+    public partial bool IsAwaitingFirstLearning { get; private set; }
+
+    public Visibility LockoutVisibility => IsAwaitingFirstLearning ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility EditorVisibility => IsAwaitingFirstLearning ? Visibility.Collapsed : Visibility.Visible;
+
+
+    /// <summary>Formatting for the wizard's live readings, so it obeys the user's chosen units too.</summary>
+    public IUnitFormattingService UnitFormattingService => _unitFormattingService;
+
+    /// <summary>Runs the calibration through the page, which owns the service client.</summary>
+    public Task<FanCalibrationRunResult> StartCalibrationAsync(
+        int fanIndex,
+        IReadOnlyCollection<int> drivingSensorIndices,
+        IProgress<FanCalibrationProgress> progress,
+        CancellationToken cancellationToken)
+        => Page.RunCalibrationAsync(fanIndex, drivingSensorIndices, progress, cancellationToken);
+
+    /// <summary>What this fan cools, which decides the component a learning test loads.</summary>
+    [ObservableProperty]
+    public partial FanCoolingRole CoolingRole { get; private set; } = FanCoolingRole.Unknown;
+
+    /// <summary>
+    /// The sensors Adaptive holds, which are also the ones a learning test measures against.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately the SAME set, not a separate choice made inside the wizard. A model fitted against
+    /// sensors the controller does not read would describe a relationship nothing acts on — so the sensors
+    /// are chosen once, in the editor, and the test simply uses them.
+    /// </remarks>
+    [ObservableProperty]
+    public partial IReadOnlyList<int> DrivingSensorIndices { get; private set; } = [];
+
+    /// <summary>Opens the calibration wizard.</summary>
+    public IRelayCommand RunCalibrationCommand { get; }
+
+    /// <summary>Returns every staged knob to its default, without touching what the fan has learned.</summary>
+    public IRelayCommand ResetToDefaultsCommand { get; }
+
+    /// <summary>Opens the control-design explainer.</summary>
+    public IRelayCommand ExplainControlCommand { get; }
+
     // ----- Staged settings -----
 
     /// <summary>Target temperature, in canonical °C. The view binds its slider through the unit converter.</summary>
@@ -152,8 +235,22 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     public partial double TargetDraftCelsius { get; set; } = AdaptiveFanSettings.DefaultTargetCelsius;
 
     /// <summary>λ in seconds, presented to the user as Quick ↔ Calm rather than as a number.</summary>
+    /// <remarks>
+    /// Every readout in the Response card derives from this one value, so each is declared here. A computed
+    /// property whose source does not notify simply never refreshes — the slider would move and the
+    /// consequences beside it would sit at whatever they said when the card first appeared.
+    /// </remarks>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ResponseSummaryText))]
+    [NotifyPropertyChangedFor(nameof(ResponseName))]
+    [NotifyPropertyChangedFor(nameof(SettlingText))]
+    [NotifyPropertyChangedFor(nameof(SettlingBarFraction))]
+    [NotifyPropertyChangedFor(nameof(IsSettlingSlow))]
+    [NotifyPropertyChangedFor(nameof(SettlingBrushKey))]
+    [NotifyPropertyChangedFor(nameof(SpeedChangeName))]
+    [NotifyPropertyChangedFor(nameof(SpeedChangeBarFraction))]
+    [NotifyPropertyChangedFor(nameof(LambdaText))]
+    [NotifyPropertyChangedFor(nameof(ProportionalGainText))]
+    [NotifyPropertyChangedFor(nameof(IntegralTimeText))]
     public partial double ResponseDraftSeconds { get; set; } = AdaptivePidTuning.DefaultLambdaSeconds;
 
     [ObservableProperty]
@@ -162,22 +259,87 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     [ObservableProperty]
     public partial double SafetyFloorDraftPercent { get; set; }
 
-    /// <summary>What the chosen response actually feels like — consequences, not control theory.</summary>
-    public string ResponseSummaryText
-    {
-        get
-        {
-            var settling = AdaptivePidTuning.EstimateSettlingSeconds(ResponseDraftSeconds, DeadTimeSecondsOrDefault);
-            var character = ResponseDraftSeconds switch
-            {
-                <= 4d => "changes speed often",
-                <= 6d => "busy",
-                <= 10d => "steady",
-                _ => "very calm",
-            };
+    // ----- Response, expressed as consequences -----
+    //
+    // λ is the closed-loop time constant and must never be shown as one. What the user is choosing between is
+    // "recovers sooner" and "changes speed less often", so those are what the card states; the seconds live
+    // in a collapsed Advanced section for anyone who wants them.
 
-            return $"Back on target in about {settling:0} s · {character}";
+    /// <summary>The chosen response as a name — the value shown in the card header.</summary>
+    public string ResponseName => ResponseDraftSeconds switch
+    {
+        <= 3d => "Quick",
+        <= 5d => "Eager",
+        <= 9d => "Steady",
+        <= 13d => "Calm",
+        _ => "Very calm",
+    };
+
+    /// <summary>How long a disturbance takes to be corrected, at the chosen response.</summary>
+    private double SettlingSeconds =>
+        AdaptivePidTuning.EstimateSettlingSeconds(ResponseDraftSeconds, DeadTimeSecondsOrDefault);
+
+    public string SettlingText => $"~{SettlingSeconds:0} s";
+
+    /// <summary>Bar fill for recovery time, 0–1. Longer settling means a fuller bar.</summary>
+    public double SettlingBarFraction => Math.Clamp(SettlingSeconds / SlowSettlingSeconds, 0d, 1d);
+
+    /// <summary>
+    /// True once recovery is slow enough to be worth flagging.
+    /// </summary>
+    /// <remarks>
+    /// A warning rather than a block: a very calm fan IS what some people want on a machine that sits on a
+    /// desk. The user is told the cost and left to decide.
+    /// </remarks>
+    public bool IsSettlingSlow => SettlingSeconds > SlowSettlingSeconds;
+
+    public string SettlingBrushKey => IsSettlingSlow ? "StatusWarningBrush" : "StatusSuccessBrush";
+
+    /// <summary>How restless the fan will be, named rather than measured.</summary>
+    public string SpeedChangeName => ResponseDraftSeconds switch
+    {
+        <= 4d => "restless",
+        <= 6d => "busy",
+        <= 10d => "steady",
+        _ => "very calm",
+    };
+
+    /// <summary>
+    /// Bar fill for steadiness, 0–1 — fuller means calmer.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately the inverse of the recovery bar. The two consequences trade against each other, and
+    /// showing both filling the same way would hide that choosing one costs the other.
+    /// </remarks>
+    public double SpeedChangeBarFraction => Math.Clamp(
+        (ResponseDraftSeconds - MinimumResponseSeconds) / (MaximumResponseSeconds - MinimumResponseSeconds),
+        0d,
+        1d);
+
+    /// <summary>λ itself, for the Advanced disclosure.</summary>
+    public string LambdaText => $"{ResponseDraftSeconds:0.#} s";
+
+    /// <summary>The proportional gain the tuning rule derives at this λ.</summary>
+    public string ProportionalGainText => FormatGain(gains => gains.ProportionalGain);
+
+    /// <summary>The integral time the tuning rule derives at this λ.</summary>
+    public string IntegralTimeText => FormatGain(gains => gains.IntegralTimeSeconds, "0.# s");
+
+    /// <summary>Above this, recovery is slow enough that the card says so.</summary>
+    private const double SlowSettlingSeconds = 58d;
+
+    private string FormatGain(Func<AdaptivePidGains, double> select, string format = "0.##")
+    {
+        var calibration = SelectedFan?.ControlState?.Calibration;
+        if (calibration is null || !calibration.IsUsable)
+        {
+            return "—";
         }
+
+        var gains = AdaptivePidTuning.Compute(calibration, ResponseDraftSeconds);
+        return gains.ProportionalGain > 0d
+            ? select(gains).ToString(format, System.Globalization.CultureInfo.CurrentCulture)
+            : "—";
     }
 
     /// <summary>Caption under the floor slider, bound to what was measured rather than a constant.</summary>
@@ -233,11 +395,84 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
             ? calibration.DeadTimeSeconds
             : FanCalibrationSnapshot.Bootstrap.DeadTimeSeconds;
 
+    /// <summary>
+    /// The coordinator properties this body mirrors, on top of the base list.
+    /// </summary>
+    /// <remarks>
+    /// The base gates every refresh on this, so omitting the override leaves the whole readout refreshing
+    /// only by accident — whichever unrelated coordinator property happens to change on the same pass.
+    /// </remarks>
+    protected override bool AffectsDerivedState(string propertyName) => propertyName switch
+    {
+        nameof(FanCurveProfilesModel.CanCommandFanMode) => true,
+        _ => base.AffectsDerivedState(propertyName),
+    };
+
     protected override void RefreshDerivedState()
     {
         base.RefreshDerivedState();
+        FollowSelectedFan();
         RefreshAdaptiveState();
     }
+
+    /// <summary>
+    /// Subscribes to the selected fan's own notifications, which is where live control state actually lands.
+    /// </summary>
+    /// <remarks>
+    /// The coordinator raises <c>SelectedFan</c> only when the SELECTION changes; a telemetry tick replaces
+    /// <see cref="FanCardModel.ControlState"/> on the same card object, so nothing the base watches moves.
+    /// Without this the entire controller readout — setpoint, actual speed, driving temperature, the
+    /// contribution bar, the confidence card — paints once and then sits frozen for as long as the editor is
+    /// open, which is indistinguishable from a controller that has stopped.
+    /// </remarks>
+    private void FollowSelectedFan()
+    {
+        if (ReferenceEquals(_followedFan, SelectedFan))
+        {
+            return;
+        }
+
+        if (_followedFan is not null)
+        {
+            _followedFan.PropertyChanged -= OnSelectedFanPropertyChanged;
+        }
+
+        _followedFan = SelectedFan;
+
+        if (_followedFan is not null)
+        {
+            _followedFan.PropertyChanged += OnSelectedFanPropertyChanged;
+        }
+    }
+
+    private void OnSelectedFanPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is null or nameof(FanCardModel.ControlState))
+        {
+            RefreshAdaptiveState();
+        }
+    }
+
+    /// <summary>
+    /// Releases the selected fan's subscription.
+    /// </summary>
+    /// <remarks>
+    /// The card outlives this body, and a card holding a handler into it would keep the whole editor alive
+    /// for as long as the fan exists. Detach is not virtual, so the release hangs off Dispose.
+    /// </remarks>
+    public override void Dispose()
+    {
+        if (_followedFan is not null)
+        {
+            _followedFan.PropertyChanged -= OnSelectedFanPropertyChanged;
+            _followedFan = null;
+        }
+
+        base.Dispose();
+    }
+
+    /// <summary>The card currently subscribed to, so the handler can be swapped when the selection moves.</summary>
+    private FanCardModel? _followedFan;
 
     private void RefreshAdaptiveState()
     {
@@ -391,8 +626,19 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         var learning = state?.AdaptiveLearning ?? AdaptiveLearningState.None;
         HasLearnedAnything = learning.HasLearned;
 
+        // Nothing measured and nothing learned: the fan is unknown, and Adaptive cannot run on it yet.
+        var calibration = state?.Calibration ?? FanCalibrationSnapshot.None;
+        IsAwaitingFirstLearning = !calibration.IsMeasured && !learning.HasLearned;
+
+        CoolingRole = state?.CoolingRole ?? FanCoolingRole.Unknown;
+        DrivingSensorIndices = state?.DrivingSensorIndices ?? [];
+
         var confidence = learning.ConfidenceAt(DateTimeOffset.UtcNow);
         List<AdaptiveKnownFact> facts = [];
+
+        // Offered while there is still something to accelerate, and withdrawn once the fan knows itself.
+        // Continuing to offer a four-minute test to a Confident fan would imply something is missing.
+        IsCalibrationOfferVisible = confidence != AdaptiveConfidence.Confident;
 
         switch (confidence)
         {
@@ -429,9 +675,11 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
         if (learning.IdentifiedProcessGainCelsiusPerPercent is double gain)
         {
+            // A DELTA, not a temperature: °C per duty point carries no scale offset, and the absolute
+            // formatter would add the freezing point and render 0.35 °C/% as "32.63 °F".
             facts.Add(new AdaptiveKnownFact(
                 "Cooling per 1% fan",
-                _unitFormattingService.FormatTemperature(gain, decimals: 2),
+                $"{_unitFormattingService.ConvertTemperatureDelta(gain):0.##} {_unitFormattingService.TemperatureUnitSuffix}/%",
                 "SnowflakeThermometer"));
         }
         else
@@ -447,7 +695,70 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
                 "FanMinus"));
         }
 
+        AddMeasuredFacts(state, facts);
+
         KnownFacts = facts;
+    }
+
+    /// <summary>
+    /// Facts the hot test measures that the confidence card was designed before we could produce.
+    /// </summary>
+    /// <remarks>
+    /// Added as tiles rather than as charts on purpose. The design settled on Facts as the treatment that
+    /// makes the card accountable — concrete numbers the user can check — and these are exactly that shape.
+    /// A gain curve rendered as a plot would ask the user to interpret a chart to learn something a sentence
+    /// states outright.
+    /// </remarks>
+    private void AddMeasuredFacts(FanControlStateSnapshot? state, List<AdaptiveKnownFact> facts)
+    {
+        if (state is null)
+        {
+            return;
+        }
+
+        // What this fan cools, not where it sits. Worth stating here because it is also what decides which
+        // component a learning test would heat, which is otherwise invisible to the user.
+        if (FrameworkFanNameDisplay.ToFunction(state.CoolingRole) is { } function)
+        {
+            facts.Add(new AdaptiveKnownFact("This fan cools", function, "FanChevronUp"));
+        }
+
+        // Diminishing returns, stated rather than plotted: the ratio between what a duty point buys down low
+        // and what it buys near maximum is the single number that explains why the last 20% of fan is mostly
+        // noise.
+        var curve = state.Calibration.GainCurve;
+        if (curve.IsUsable)
+        {
+            // Sampled inside the measured range rather than at its ends: the sweep visits 22% and 100%, and
+            // reading exactly at those points would use the outermost segment's slope on one side only. 30
+            // and 90 sit within the curve on both sides, so the ratio compares two interpolated slopes.
+            const double lowSampleDuty = 30d;
+            const double highSampleDuty = 90d;
+
+            var low = curve.GainAt(lowSampleDuty, state.Calibration.ProcessGainCelsiusPerPercent);
+            var high = curve.GainAt(highSampleDuty, state.Calibration.ProcessGainCelsiusPerPercent);
+
+            if (high > 0d && low > high)
+            {
+                facts.Add(new AdaptiveKnownFact(
+                    "Airflow worth more at",
+                    $"low speed — {low / high:0.#}× vs high",
+                    "ChartBellCurveCumulative"));
+            }
+        }
+
+        // What the noise actually buys. The unflattering answer is the valuable one: a machine limited by its
+        // power budget rather than its heatsink gains nothing from a louder fan, and nowhere else in the app
+        // can say so.
+        if (state.Calibration.PerformanceResponse.SustainedSpeedGainFraction is double gained)
+        {
+            facts.Add(new AdaptiveKnownFact(
+                "Full fan buys",
+                gained >= FanPerformanceResponse.MeaningfulSpeedGainFraction
+                    ? $"+{gained:P0} sustained speed"
+                    : "no extra speed",
+                "Speedometer"));
+        }
     }
 
     private void RefreshFloorCaption(FanControlStateSnapshot? state)
@@ -472,6 +783,32 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         {
             await Page.ForgetAdaptiveLearningAsync(fan.Snapshot.FanIndex).ConfigureAwait(true);
         }
+    }
+
+    // Synchronous: both only raise an intent for the view to act on. Wrapping them in Task.CompletedTask
+    // would dress a plain event raise as asynchronous work and lose the disabled-while-running behaviour that
+    // is the only reason to reach for an async command in the first place.
+    private void RequestCalibration() => CalibrationRequested?.Invoke(this, EventArgs.Empty);
+
+    private void RequestExplainer() => ExplainerRequested?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>
+    /// Returns every knob to its default — and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Pointedly does NOT discard what the fan has learned. These are two different intentions: "I have
+    /// fiddled with the sliders and want to start over" is routine, while "this machine changed physically
+    /// and the model is now describing hardware that no longer exists" is rare and destructive. Folding them
+    /// together would make an everyday button quietly throw away days of observation.
+    /// </remarks>
+    private void ResetToDefaults()
+    {
+        var defaults = AdaptiveFanSettings.Default;
+
+        TargetDraftCelsius = defaults.TargetTemperatureCelsius;
+        SafetyFloorDraftEnabled = defaults.SafetyFloorEnabled;
+        SafetyFloorDraftPercent = defaults.SafetyFloorPercent;
+        ResponseDraftSeconds = AdaptivePidTuning.DefaultLambdaSeconds;
     }
 
     /// <summary>How far actual speed may sit from the setpoint before the loop reads as "off".</summary>
