@@ -19,6 +19,9 @@ public class StubFrameworkDataProvider : IFrameworkDataProvider
 {
     public List<(int FanIndex, double DutyPercent)> SetFanDutyCalls { get; } = [];
 
+    /// <summary>Speed commands, which is how a cascade-tracked adaptive fan is driven.</summary>
+    public List<(int FanIndex, int TargetSpeedRpm)> SetFanRpmCalls { get; } = [];
+
     public List<int> RestoreAutoCalls { get; } = [];
 
     /// <summary>
@@ -51,7 +54,16 @@ public class StubFrameworkDataProvider : IFrameworkDataProvider
 
     public IObservable<FrameworkFanCapabilitiesSnapshot> FanCapabilitiesSnapshots => Observable.Empty<FrameworkFanCapabilitiesSnapshot>();
 
-    public IObservable<FrameworkPowerSnapshot> PowerSnapshots => Observable.Empty<FrameworkPowerSnapshot>();
+    /// <summary>
+    /// Controllable power stream, so a test can say whether the machine is on AC or on battery.
+    /// </summary>
+    /// <remarks>
+    /// A test that pushes nothing here leaves the power source unknown, which consumers are expected to treat
+    /// as "no information" rather than as "on battery".
+    /// </remarks>
+    public Subject<FrameworkPowerSnapshot> PowerSource { get; } = new();
+
+    public IObservable<FrameworkPowerSnapshot> PowerSnapshots => PowerSource;
 
     public IObservable<FrameworkThermalSnapshot> ThermalSnapshots => ThermalSource;
 
@@ -129,14 +141,20 @@ public class StubFrameworkDataProvider : IFrameworkDataProvider
             LastTelemetryObservedAt = DateTimeOffset.UtcNow,
         });
 
-    public Task<FrameworkFanRpmCommandResult> SetFanRpmAsync(int fanIndex, int targetSpeedRpm, CancellationToken cancellationToken = default)
-        => Task.FromResult(new FrameworkFanRpmCommandResult
+    // Virtual so a test can react to a command rather than only record it. A calibration run is closed-loop —
+    // it sets a duty and then measures what that duty did — so a stub that swallows commands would let the
+    // run "succeed" against a machine that never responded to it.
+    public virtual Task<FrameworkFanRpmCommandResult> SetFanRpmAsync(int fanIndex, int targetSpeedRpm, CancellationToken cancellationToken = default)
+    {
+        SetFanRpmCalls.Add((fanIndex, targetSpeedRpm));
+        return Task.FromResult(new FrameworkFanRpmCommandResult
         {
             FanIndex = fanIndex,
             AppliedSpeedRpm = targetSpeedRpm,
         });
+    }
 
-    public Task<FrameworkFanDutyCommandResult> SetFanDutyAsync(int fanIndex, double dutyPercent, CancellationToken cancellationToken = default)
+    public virtual Task<FrameworkFanDutyCommandResult> SetFanDutyAsync(int fanIndex, double dutyPercent, CancellationToken cancellationToken = default)
     {
         SetFanDutyCalls.Add((fanIndex, dutyPercent));
         return Task.FromResult(new FrameworkFanDutyCommandResult

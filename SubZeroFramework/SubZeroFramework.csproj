@@ -374,6 +374,9 @@
       <Page Update="Presentation\MenuItems\FanCurveProfiles\Modes\FanManualModeView.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>
+      <Page Update="Presentation\MenuItems\FanCurveProfiles\Modes\FanAdaptiveModeView.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
       <Page Update="Presentation\MenuItems\FanCurveProfiles\Modes\FanMaxModeView.xaml">
         <Generator>MSBuild:Compile</Generator>
       </Page>

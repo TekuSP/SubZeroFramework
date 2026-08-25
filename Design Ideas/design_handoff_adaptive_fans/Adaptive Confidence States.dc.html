@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/colors.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/typography.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/expressive.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<script src="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/_ds_bundle.js"></script>
+<style>
+  :root{
+    --app-accent:#0078D7; --app-on-accent:#ffffff;
+    --sz-bg:#1b2727; --sz-container-lowest:#161f1f; --sz-container-low:#1f1f1f;
+    --sz-container:#2e2e2e; --sz-container-high:#383b3b; --sz-container-highest:#474b4b;
+    --sz-outline:rgba(255,255,255,0.07); --sz-outline-strong:rgba(255,255,255,0.13); --sz-violet:#8AB7E8;
+    --text-primary:#fffffa; --text-secondary:#D7D8FF; --text-tertiary:#8d8ea3;
+    --sz-ok:#6ccb5f; --sz-warn:#c5994e; --sz-danger:#d9706a;
+    --sz-ok-bg:rgba(108,203,95,0.14); --sz-warn-bg:rgba(197,153,78,0.16);
+    --accent-text:#8AB7E8;
+  }
+  html,body{ margin:0; background:var(--sz-bg); font-family:var(--font-text); color:var(--text-primary); }
+  a{ color:var(--accent-text); text-decoration:none } a:hover{ text-decoration:underline }
+</style>
+</helmet>
+
+<div data-screen-label="Adaptive confidence states" style="padding:24px 26px 40px">
+  <div style="display:flex; align-items:flex-start gap:14px; margin-bottom:6px">
+    <div>
+      <div style="font-family:var(--font-display); font-weight:600; font-size:26px">Adaptive &mdash; confidence states</div>
+      <div style="font-size:13px; color:var(--text-secondary); margin-top:5px; max-width:900px; line-height:1.55">Every combination of the four treatments and the three learning states, as they appear in the Adaptive editor&rsquo;s <strong style="color:var(--text-primary); font-weight:600">&ldquo;What SubZero knows about this fan&rdquo;</strong> card. Reference sheet for the handoff &mdash; the live version is one card with the state supplied by the controller.</div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:16px; flex-wrap:wrap; margin:18px 0 22px">
+    <sc-for list="{{ legend }}" as="l" hint-placeholder-count="3">
+      <div style="display:flex; align-items:center; gap:10px; padding:11px 15px; border-radius:11px; background:var(--sz-container); border:1px solid var(--sz-outline)">
+        <span class="mdi mdi-{{ l.icon }}" style="font-size:17px; color:{{ l.color }}"></span>
+        <div>
+          <div style="font-family:var(--font-display); font-weight:600; font-size:13.5px">{{ l.name }}</div>
+          <div style="font-size:11.5px; color:var(--text-tertiary); margin-top:1px">{{ l.desc }}</div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+  <sc-for list="{{ rows }}" as="row" hint-placeholder-count="3">
+    <div style="margin-bottom:26px">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px">
+        <span class="mdi mdi-{{ row.icon }}" style="font-size:18px; color:{{ row.color }}"></span>
+        <span style="font-family:var(--font-display); font-weight:600; font-size:18px">{{ row.name }}</span>
+        <span style="font-size:12.5px; color:var(--text-tertiary)">{{ row.feel }}</span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px">
+        <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="4">
+          <div style="display:flex; flex-direction:column; gap:8px">
+            <div style="display:flex; align-items:center; gap:9px">
+              <span style="display:inline-flex; align-items:center; height:22px; padding:0 10px; border-radius:11px; font-size:10.5px; font-weight:600; background:var(--sz-container-highest); color:var(--text-secondary); white-space:nowrap">{{ c.treatName }}</span>
+              <span style="font-size:11px; color:var(--text-tertiary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ c.treatDesc }}</span>
+            </div>
+            <div style="flex:1; padding:16px; border-radius:12px; background:var(--sz-container-high); border:1px solid var(--sz-outline)">
+              <div style="display:flex; align-items:center; gap:10px; margin-bottom:13px">
+                <span class="mdi mdi-{{ c.icon }}" style="font-size:17px; color:{{ c.color }}"></span>
+                <span style="font-family:var(--font-display); font-weight:600; font-size:14px">What SubZero knows about this fan</span>
+              </div>
+
+              <sc-if value="{{ c.isA }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex; align-items:flex-start; gap:12px">
+                  <span class="mdi mdi-{{ c.icon }}" style="font-size:21px; color:{{ c.color }}; flex-shrink:0; margin-top:2px"></span>
+                  <div style="min-width:0">
+                    <div style="font-family:var(--font-display); font-weight:600; font-size:14.5px; color:{{ c.headlineColor }}">{{ c.headline }}</div>
+                    <div style="font-size:12px; color:var(--text-secondary); margin-top:4px; line-height:1.5">{{ c.body }}</div>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ c.isB }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div style="font-size:11px; color:var(--text-tertiary); margin-bottom:5px">How much the model has moved, per observation</div>
+                  <svg viewBox="0 0 380 74" style="width:100%; height:auto; display:block">
+                    <line x1="0" y1="64" x2="380" y2="64" stroke="var(--sz-outline)" stroke-width="1"></line>
+                    <polyline points="{{ c.spark }}" fill="none" stroke="{{ c.color }}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"></polyline>
+                    <circle cx="{{ c.sparkDotX }}" cy="{{ c.sparkDotY }}" r="3.5" fill="{{ c.color }}"></circle>
+                  </svg>
+                  <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px">{{ c.sparkNote }}</div>
+                  <div style="font-family:var(--font-display); font-weight:600; font-size:14px; color:{{ c.headlineColor }}; margin-top:10px">{{ c.headline }}</div>
+                  <div style="font-size:12px; color:var(--text-secondary); margin-top:3px; line-height:1.5">{{ c.body }}</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ c.isC }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div style="font-family:var(--font-display); font-weight:600; font-size:13.5px; color:{{ c.headlineColor }}; margin-bottom:10px">{{ c.headline }}</div>
+                  <div style="display:flex; flex-direction:column; gap:8px">
+                    <sc-for list="{{ c.facts }}" as="f" hint-placeholder-count="3">
+                      <div style="display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:10px; background:var(--sz-container); border:1px solid var(--sz-outline)">
+                        <span class="mdi mdi-{{ f.icon }}" style="font-size:15px; color:{{ f.color }}; flex-shrink:0"></span>
+                        <div style="min-width:0">
+                          <div style="font-size:10.5px; color:var(--text-tertiary)">{{ f.label }}</div>
+                          <div style="font-family:var(--font-display); font-weight:600; font-size:13px; margin-top:1px">{{ f.value }}</div>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="font-size:11.5px; color:var(--text-secondary); margin-top:10px; line-height:1.5">{{ c.body }}</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ c.isD }}" hint-placeholder-val="{{ false }}">
+                <div>
+                  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+                    <span style="{{ c.chipStyle }}"><span class="mdi mdi-{{ c.icon }}" style="font-size:12px"></span>{{ c.chip }}</span>
+                    <span style="font-size:12px; color:var(--text-secondary)">{{ c.headline }}</span>
+                  </div>
+                  <div style="font-size:11.5px; color:var(--text-tertiary); margin-top:8px; line-height:1.5">{{ c.body }}</div>
+                </div>
+              </sc-if>
+
+
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </sc-for>
+
+  <div style="display:flex; align-items:flex-start; gap:11px; padding:14px 17px; border-radius:12px; background:var(--sz-container-high); border:1px solid var(--sz-outline)">
+    <span class="mdi mdi-lightbulb-on-outline" style="font-size:17px; color:var(--sz-violet); flex-shrink:0; margin-top:1px"></span>
+    <div style="font-size:12.5px; color:var(--text-secondary); line-height:1.55">Recommendation: ship <strong style="color:var(--text-primary); font-weight:600">Status</strong> as the headline with <strong style="color:var(--text-primary); font-weight:600">Facts</strong> beneath it. Status carries the reassurance; Facts makes it accountable. Trend is elegant but asks the user to interpret a chart in order to feel calm, and Improvements alone is too quiet to answer &ldquo;is this working?&rdquo;. In the live editor the <strong style="color:var(--text-primary); font-weight:600">4-minute test offer</strong> appears under this card and disappears in the Confident state &mdash; it is left out of this sheet so the treatments compare cleanly.</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1400,&quot;height&quot;:1000}}">
+class Component extends DCLogic {
+  CONF={
+    learning:{
+      key:'learning', name:'Learning', feel:'\u201cIt works. It is getting to know my machine.\u201d',
+      icon:'school-outline', color:'var(--accent-text)',
+      headline:'Still getting to know this fan',
+      body:'Adaptive is running on safe defaults and watching how this machine behaves during ordinary use. It only learns from settled, quiet moments, so this takes a day or two \u2014 the fan is doing its job the whole time.',
+      chip:'Learning', chipBg:'var(--sz-container-highest)', chipFg:'var(--text-secondary)',
+      settled:'6 quiet periods so far', decay:7, offer:true,
+      facts:[
+        { icon:'eye-outline', color:'var(--accent-text)', label:'Quiet periods seen', value:'6' },
+        { icon:'shield-half-full', color:'var(--sz-ok)', label:'Running on', value:'Safe defaults' },
+        { icon:'clock-outline', color:'var(--text-secondary)', label:'Usable estimate in', value:'a day or two' },
+      ],
+    },
+    converging:{
+      key:'converging', name:'Converging', feel:'quiet progress \u2014 not a warning',
+      icon:'chart-bell-curve-cumulative', color:'var(--sz-violet)',
+      headline:'Learned from 40 quiet periods',
+      body:'Adaptive now has its own model of this fan and is steadily refining it. Numbers here are already better than the defaults, and they keep improving as you use the machine.',
+      chip:'Refining', chipBg:'rgba(138,183,232,0.18)', chipFg:'var(--sz-violet)',
+      settled:'last improved 14 minutes ago', decay:3.4, offer:true,
+      facts:[
+        { icon:'eye-outline', color:'var(--accent-text)', label:'Quiet periods used', value:'40' },
+        { icon:'snowflake-thermometer', color:'var(--sz-violet)', label:'Cooling per 1% fan', value:'0.42 \u00b0C' },
+        { icon:'update', color:'var(--text-secondary)', label:'Last improved', value:'14 min ago' },
+      ],
+    },
+    confident:{
+      key:'confident', name:'Confident', feel:'nothing to do \u2014 the numbers are trustworthy',
+      icon:'check-decagram', color:'var(--sz-ok)',
+      headline:'Knows this fan well',
+      body:'The model has been stable across 300+ quiet periods, including hot and cold days. Nothing to do here \u2014 the numbers above are trustworthy, and Adaptive will notice on its own if the machine changes.',
+      chip:'Settled', chipBg:'var(--sz-ok-bg)', chipFg:'var(--sz-ok)',
+      settled:'stable for 6 days', decay:1.9, offer:false,
+      facts:[
+        { icon:'eye-outline', color:'var(--accent-text)', label:'Quiet periods used', value:'312' },
+        { icon:'snowflake-thermometer', color:'var(--sz-violet)', label:'Cooling per 1% fan', value:'0.42 \u00b0C' },
+        { icon:'fan-minus', color:'var(--sz-ok)', label:'Stalls below', value:'1,180 RPM' },
+      ],
+    },
+  };
+
+  TREATS=[
+    { key:'A', name:'Status', desc:'a status line that upgrades' },
+    { key:'B', name:'Trend', desc:'the model settling down' },
+    { key:'C', name:'Facts', desc:'what it figured out' },
+    { key:'D', name:'Improvements', desc:'quiet unless it needs you' },
+  ];
+
+  spark(decay){
+    const n=26, x0=2, x1=376, pts=[];
+    for(let i=0;i<n;i++){
+      const v=Math.exp(-i/decay)*(1+0.16*Math.sin(i*1.7));
+      pts.push((x0+(x1-x0)*i/(n-1)).toFixed(1)+','+(64-v*54).toFixed(1));
+    }
+    return { pts:pts.join(' '), dotX:x1, dotY:(64-Math.exp(-(n-1)/decay)*54).toFixed(1) };
+  }
+
+  renderVals(){
+    const rows=Object.values(this.CONF).map(S=>{
+      const sp=this.spark(S.decay);
+      return {
+        name:S.name, feel:S.feel, icon:S.icon, color:S.color,
+        cells:this.TREATS.map(t=>({
+          treatName:t.name, treatDesc:t.desc,
+          icon:S.icon, color:S.color, headline:S.headline, body:S.body,
+          headlineColor: S.color==='var(--sz-ok)' ? 'var(--sz-ok)' : 'var(--text-primary)',
+          chip:S.chip,
+          chipStyle:{ display:'inline-flex', alignItems:'center', gap:'6px', height:'24px', padding:'0 11px',
+            borderRadius:'12px', fontSize:'11.5px', fontWeight:600, background:S.chipBg, color:S.chipFg, whiteSpace:'nowrap' },
+          facts:S.facts, showOffer:S.offer,
+          spark:sp.pts, sparkDotX:sp.dotX, sparkDotY:sp.dotY, sparkNote:S.settled,
+          isA:t.key==='A', isB:t.key==='B', isC:t.key==='C', isD:t.key==='D',
+        })),
+      };
+    });
+    const legend=Object.values(this.CONF).map(S=>({ icon:S.icon, color:S.color, name:S.name, desc:S.settled }));
+    return { rows, legend };
+  }
+}
+</script>
+</body>
+</html>

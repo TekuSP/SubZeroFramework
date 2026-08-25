@@ -33,6 +33,7 @@
     <!-- Typed P/Invoke for the Windows GPU/NPU utilization readers (PDH counters + SetupAPI device
          enumeration). Preferred over hand-written interop: the struct layouts and handle lifetimes are the
          part most likely to be subtly wrong, and these are maintained and MIT-licensed. -->
+    <PackageVersion Include="ILGPU" Version="1.5.3" />
     <PackageVersion Include="Vanara.PInvoke.Msi" Version="5.0.5" />
     <PackageVersion Include="Vanara.PInvoke.Pdh" Version="5.0.5" />
     <PackageVersion Include="Vanara.PInvoke.SetupAPI" Version="5.0.5" />

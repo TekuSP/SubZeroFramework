@@ -244,6 +244,11 @@ public partial class App : Application
             ValueOnly = true,
         };
 
+        // Resolves a theme brush KEY per item, for collections whose rows carry their own colour. A
+        // DataTemplate cannot pick a StaticResource per row, and putting a Brush on the model would create a
+        // UI object off the UI thread — which fails silently in Uno.
+        Current.Resources["ThemeBrushKey"] = new ThemeBrushKeyConverter();
+
         // The NUMERIC converters, for chart axis limits and steps — properties that take a double, not text.
         // Usable only where the bound source raises PropertyChanged: a converter cannot re-run by itself, so
         // a fixed bound converts in the view model instead. UnitValueStep treats its input as a DIFFERENCE,
@@ -356,6 +361,7 @@ public partial class App : Application
             new ViewMap<FanManualModeView, FanManualModeModel>(),
             new ViewMap<FanMaxModeView, FanMaxModeModel>(),
             new ViewMap<FanCustomCurveView, FanCustomCurveModel>(),
+            new ViewMap<FanAdaptiveModeView, FanAdaptiveModeModel>(),
             new ViewMap<PowerTelemetryPage, PowerTelemetryModel>(),
             new ViewMap<ThermalTelemetryPage, ThermalTelemetryModel>(),
             new ViewMap<WarningIssuesPage, WarningIssuesModel>(),
@@ -427,6 +433,7 @@ public partial class App : Application
                     new RouteMap("Manual", View: views.FindByViewModel<FanManualModeModel>()),
                     new RouteMap("Max", View: views.FindByViewModel<FanMaxModeModel>()),
                     new RouteMap("Custom", View: views.FindByViewModel<FanCustomCurveModel>()),
+                    new RouteMap("Adaptive", View: views.FindByViewModel<FanAdaptiveModeModel>()),
                 ]),
                 new RouteMap("PowerTelemetry",  View: views.FindByViewModel<PowerTelemetryModel>()),
                 new RouteMap("ThermalTelemetry",  View: views.FindByViewModel<ThermalTelemetryModel>()),

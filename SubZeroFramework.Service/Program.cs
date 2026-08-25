@@ -137,6 +137,12 @@ public static class Program
         // CPU signals for fan control, from the same PDH machinery. Replaces Hardware.Info's CPU usage read,
         // which cost a blocking 500 ms sleep per poll; this measures ~1.5-2.9 ms per tick on the same machine.
         builder.Services.AddSingleton<IControlTelemetryReader, WindowsPdhControlTelemetryReader>();
+
+        // A SECOND reader instance, for the load governor. These readers differentiate cumulative counters
+        // against their own previous call, so sharing one would have each caller consuming the other's
+        // interval — leaving the telemetry worker measuring utilisation over whatever milliseconds remained.
+        builder.Services.AddSingleton<ISystemLoadProbe>(static services => new ControlTelemetrySystemLoadProbe(
+            new WindowsPdhControlTelemetryReader(services.GetRequiredService<ILogger<WindowsPdhControlTelemetryReader>>())));
         builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
         builder.Services.AddSingleton<IDriveInventoryReader>(UnavailableDriveInventoryReader.Instance);
         builder.Services.AddSingleton<IMemoryInventoryReader>(UnavailableMemoryInventoryReader.Instance);
@@ -171,11 +177,18 @@ public static class Program
             // CPU signals for fan control: /proc/stat, cpufreq and RAPL. All cumulative counters differenced
             // in place, so unlike Hardware.Info's usage read there is no second measurement and no sleep.
             builder.Services.AddSingleton<IControlTelemetryReader, LinuxProcControlTelemetryReader>();
+
+            // Its own instance, for the same reason as the Windows branch above.
+            builder.Services.AddSingleton<ISystemLoadProbe>(static services => new ControlTelemetrySystemLoadProbe(
+                new LinuxProcControlTelemetryReader(services.GetRequiredService<ILogger<LinuxProcControlTelemetryReader>>())));
         }
         else
         {
             builder.Services.AddSingleton<IComputeUtilizationReader>(UnavailableComputeUtilizationReader.Instance);
             builder.Services.AddSingleton<IControlTelemetryReader>(UnavailableControlTelemetryReader.Instance);
+
+            // No readings here, so the generator falls back to holding its own fixed share.
+            builder.Services.AddSingleton<ISystemLoadProbe>(static _ => new ControlTelemetrySystemLoadProbe(UnavailableControlTelemetryReader.Instance));
             builder.Services.AddSingleton<IGraphicsInventoryReader>(UnavailableGraphicsInventoryReader.Instance);
             builder.Services.AddSingleton<IDriveInventoryReader>(UnavailableDriveInventoryReader.Instance);
             builder.Services.AddSingleton<IMemoryInventoryReader>(UnavailableMemoryInventoryReader.Instance);
@@ -190,6 +203,17 @@ public static class Program
         builder.Services.AddSingleton<FrameworkFatalExitHandler>();
         builder.Services.AddSingleton<FrameworkFanControlStateStore>();
         builder.Services.AddSingleton<FanPreviewWatchdog>();
+        builder.Services.AddSingleton<FanAdaptiveControlSignals>();
+
+        // Singletons because a calibration is a machine-wide exclusive operation: the runner's one-at-a-time
+        // gate only means anything if every caller shares the same instance, and two load generators would
+        // heat the chassis while each measured as though it were the only one.
+        builder.Services.AddSingleton<CpuLoadGenerator>();
+        builder.Services.AddSingleton<ICpuLoadGenerator>(static services => services.GetRequiredService<CpuLoadGenerator>());
+        builder.Services.AddSingleton<IlgpuGpuLoadGenerator>();
+        builder.Services.AddSingleton<IGpuLoadGenerator>(static services => services.GetRequiredService<IlgpuGpuLoadGenerator>());
+        builder.Services.AddSingleton<FanCalibrationArbiter>();
+        builder.Services.AddSingleton<FanCalibrationRunner>();
         builder.Services.AddSingleton<FrameworkFanControlAuthorizationService>();
         builder.Services.AddSingleton<FrameworkServiceConfigurationStore>();
         builder.Services.AddSingleton<FrameworkServiceConfigurationManager>();

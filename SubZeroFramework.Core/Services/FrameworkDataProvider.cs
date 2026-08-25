@@ -134,6 +134,18 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     // because the two now live on different tiers: this is refreshed every primary tick (~150 ms) for fan
     // control, while the snapshot that carries it to the UI is rebuilt on the tertiary tier.
     private ObservedControlTelemetry _latestControlTelemetry = ObservedControlTelemetry.None;
+
+    // Feed-forward inputs, cached at the points these subsystems already publish rather than re-read on the
+    // primary tier — polling a GPU driver or the EC a second time per tick to learn something just measured
+    // would be pure waste. Both are volatile: written on their own tier, read on the primary one.
+    private volatile int _latestGpuPowerMilliwatts = -1;
+    private volatile int _latestGpuCoreClockMegahertz = -1;
+    private volatile int _latestSystemPowerMilliwatts = -1;
+
+    // The most recent PD read, held so the battery publish (which runs on its own cadence) can pair charger
+    // draw with charging draw. Module inventory is read far less often than power, so the two never arrive
+    // together.
+    private PowerDeliverySnapshot? _latestPowerDeliverySnapshot;
     private IFrameworkEcConnection? _connection;
     private TimeSpan? _pollingInterval;
     private TimeSpan? _hardwareInfoPollingInterval;
@@ -1250,7 +1262,10 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             }
 #pragma warning restore FD0001
 
-            _powerDeliverySnapshots.Publish(BuildPowerDeliverySnapshot(moduleInventory!, expansionBay), observedAt);
+            var powerDeliverySnapshot = BuildPowerDeliverySnapshot(moduleInventory!, expansionBay);
+            _latestPowerDeliverySnapshot = powerDeliverySnapshot;
+
+            _powerDeliverySnapshots.Publish(powerDeliverySnapshot, observedAt);
             _moduleInventorySnapshots.Publish(BuildModuleInventorySnapshot(moduleInventory!, expansionBay), observedAt);
             successfulReads += 1;
         }
@@ -1713,6 +1728,110 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     /// rather than left in place: a stale utilisation figure held indefinitely would read as a live one, and
     /// the controller would act on a number that stopped being true minutes ago.
     /// </remarks>
+    /// <summary>Total GPU power across every graphics device, or null when nothing reported it.</summary>
+    private double? ReadTotalGpuPowerWatts()
+    {
+        var milliwatts = _latestGpuPowerMilliwatts;
+        return milliwatts >= 0 ? milliwatts / 1000d : null;
+    }
+
+    /// <summary>The fastest graphics core clock reported, or null when nothing reported one.</summary>
+    private double? ReadGpuCoreClockMegahertz()
+    {
+        var megahertz = _latestGpuCoreClockMegahertz;
+        return megahertz > 0 ? megahertz : null;
+    }
+
+    /// <summary>System draw derived from the charger, or null when running on battery.</summary>
+    private double? ReadSystemPowerWatts()
+    {
+        var milliwatts = _latestSystemPowerMilliwatts;
+        return milliwatts >= 0 ? milliwatts / 1000d : null;
+    }
+
+    /// <summary>
+    /// Caches total system draw — the same physical quantity whichever way the machine is powered.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On AC that is charger draw LESS whatever is going into the battery. The subtraction matters: charging
+    /// can pull 60 W that becomes chemistry rather than heat in the fan's zone, so treating raw adapter draw
+    /// as load would have the fans spin hardest on a cold machine that was simply plugged in — the opposite
+    /// of what the user expects, and worst on a laptop just opened at a desk.
+    /// </para>
+    /// <para>
+    /// On battery it is the discharge rate, which measures exactly the same thing from the other side. Without
+    /// this half a Windows laptop has NO usable feed-forward signal off the charger — no package power, no
+    /// adapter — so a mostly-portable machine would never gather the evidence to identify its own model and
+    /// would run on conservative defaults forever.
+    /// </para>
+    /// <para>
+    /// One caveat worth knowing: on AC, charging also warms the pack and the charging circuitry inside the
+    /// chassis, and that heat is real but is deliberately NOT in this figure. It leaves a small systematic
+    /// difference between the AC and battery couplings, which the identified intercept partly absorbs. If it
+    /// ever proves to matter, the fix is a per-supply coefficient, not abandoning the subtraction.
+    /// </para>
+    /// </remarks>
+    private void CacheSystemPower(FrameworkPowerSnapshot powerSnapshot, PowerDeliverySnapshot powerDelivery)
+    {
+        var adapterWatts = 0d;
+        var sawAdapter = false;
+
+        foreach (var port in powerDelivery.Ports)
+        {
+            // Only a port actually sinking power is an input; a port powering a peripheral is a load we are
+            // not trying to anticipate.
+            if (!port.IsPresent || !port.HasPowerDeliveryContract)
+            {
+                continue;
+            }
+
+            var watts = port.VoltageVolts * port.CurrentAmperes;
+            if (double.IsFinite(watts) && watts > 0d)
+            {
+                adapterWatts += watts;
+                sawAdapter = true;
+            }
+        }
+
+        _latestSystemPowerMilliwatts = sawAdapter
+            ? ToMilliwatts(adapterWatts - TotalBatteryChargeWatts(powerSnapshot))
+            : ToMilliwatts(TotalBatteryDischargeWatts(powerSnapshot));
+    }
+
+    /// <summary>Power flowing INTO the batteries, in watts. Zero when nothing is charging.</summary>
+    private static double TotalBatteryChargeWatts(FrameworkPowerSnapshot powerSnapshot)
+        => SumBatteryWatts(powerSnapshot, FrameworkBatteryState.Charging);
+
+    /// <summary>Power flowing OUT of the batteries, in watts — system draw when off the charger.</summary>
+    private static double TotalBatteryDischargeWatts(FrameworkPowerSnapshot powerSnapshot)
+        => SumBatteryWatts(powerSnapshot, FrameworkBatteryState.Discharging);
+
+    private static double SumBatteryWatts(FrameworkPowerSnapshot powerSnapshot, FrameworkBatteryState state)
+    {
+        var total = 0d;
+
+        foreach (var battery in powerSnapshot.ReportedBatteries)
+        {
+            if (battery.BatteryState != state)
+            {
+                continue;
+            }
+
+            // PresentRate is reported as a magnitude; the state is what carries the direction.
+            var watts = battery.PresentVoltage.Volts * Math.Abs(battery.PresentRate.Amperes);
+            if (double.IsFinite(watts) && watts > 0d)
+            {
+                total += watts;
+            }
+        }
+
+        return total;
+    }
+
+    private static int ToMilliwatts(double watts)
+        => double.IsFinite(watts) && watts > 0d ? (int)Math.Round(watts * 1000d) : -1;
+
     private void SampleControlTelemetry(DateTimeOffset observedAt)
     {
         if (!_controlTelemetryReader.IsAvailable)
@@ -1722,7 +1841,17 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
 
         try
         {
-            _latestControlTelemetry = new ObservedControlTelemetry(_controlTelemetryReader.Sample(), observedAt);
+            // The reader knows CPU signals only. Adapter and GPU power come from subsystems this provider is
+            // already polling, so they are folded in here rather than pushed into the reader abstraction —
+            // which would force every platform reader to learn about chargers and graphics drivers.
+            var sample = _controlTelemetryReader.Sample() with
+            {
+                GpuPowerWatts = ReadTotalGpuPowerWatts(),
+                GpuCoreClockMegahertz = ReadGpuCoreClockMegahertz(),
+                SystemPowerWatts = ReadSystemPowerWatts(),
+            };
+
+            _latestControlTelemetry = new ObservedControlTelemetry(sample, observedAt);
         }
         catch (Exception exception)
         {
@@ -1780,6 +1909,39 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
 
             return;
         }
+
+        // Every GPU's power, summed: a Framework 16 with the graphics module has two, and the fan is cooling
+        // the chassis both sit in. NPUs are excluded — they are a rounding error thermally and reporting them
+        // as GPU load would bias the model on machines that have one.
+        var gpuPowerWatts = 0d;
+        var sawGpuPower = false;
+        foreach (var candidate in devices)
+        {
+            if (candidate.Kind != ComputeDeviceKind.Npu && candidate.PowerWatts is double watts && double.IsFinite(watts) && watts >= 0d)
+            {
+                gpuPowerWatts += watts;
+                sawGpuPower = true;
+            }
+        }
+
+        _latestGpuPowerMilliwatts = sawGpuPower ? (int)Math.Round(gpuPowerWatts * 1000d) : -1;
+
+        // The HIGHEST core clock rather than the sum: clocks do not add. This is the speed the busiest
+        // graphics device is actually sustaining, which is what a calibration compares across fan duties to
+        // answer "what does more fan buy?".
+        var fastestClock = -1;
+        foreach (var candidate in devices)
+        {
+            if (candidate.Kind != ComputeDeviceKind.Npu
+                && candidate.CoreClockMegahertz is double megahertz
+                && double.IsFinite(megahertz)
+                && megahertz > 0d)
+            {
+                fastestClock = Math.Max(fastestClock, (int)Math.Round(megahertz));
+            }
+        }
+
+        _latestGpuCoreClockMegahertz = fastestClock;
 
         var observedGpuChannels = new HashSet<TelemetryChannelId>();
         var observedNpuChannels = new HashSet<TelemetryChannelId>();
@@ -1975,6 +2137,11 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             {
                 FanIndex = fanIndex,
                 DisplayName = displayName,
+
+                // What it cools, not where it sits — the two differ on a Framework 16, where the right fan
+                // is over the GPU. Resolved from the same EC slot role as the display name so they cannot
+                // disagree.
+                CoolingRole = FrameworkFanNameDisplay.ToRole(fanSnapshot.Name),
                 FanState = fanSnapshot.FanState,
                 ObservedAt = observedAt,
                 IsAvailable = true,
@@ -2243,6 +2410,12 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
 
     private void PublishPowerTelemetryCore(FrameworkPowerSnapshot powerSnapshot, DateTimeOffset observedAt)
     {
+        // Refresh the feed-forward load figure here, where charger draw and battery draw are both in hand.
+        if (_latestPowerDeliverySnapshot is { } powerDelivery)
+        {
+            CacheSystemPower(powerSnapshot, powerDelivery);
+        }
+
         var observedBatteryChannels = new HashSet<TelemetryChannelId>();
         var batteryIndex = 0;
 

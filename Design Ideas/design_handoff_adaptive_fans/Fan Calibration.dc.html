@@ -113,8 +113,19 @@
               <!-- ===== CONSENT ===== -->
               <sc-if value="{{ isConsent }}" hint-placeholder-val="{{ true }}">
                 <div>
-                  <div style="font-size:13.5px; color:var(--text-secondary); line-height:1.55; margin-bottom:16px">Before SubZero can drive this fan adaptively, it has to learn it. It learns two things: how much the temperature drops per unit of airflow, and how long that takes. It learns them by deliberately heating the machine, then cooling it, and watching how this fan responds &mdash; and it keeps what it learns for this fan on this machine.</div>
-                  <div style="font-size:12px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px">What will happen</div>
+                  <div style="font-size:13.5px; color:var(--text-secondary); line-height:1.55; margin-bottom:16px">Adaptive is <strong style="color:var(--text-primary); font-weight:600">already learning this fan</strong> from ordinary use — it gets a little better every quiet moment, and it will get there on its own in a day or two. This test does the same learning deliberately, so it is done in four minutes instead.</div>
+                  <div style="display:flex; gap:10px; margin-bottom:18px; flex-wrap:wrap">
+                    <sc-for list="{{ compare }}" as="c" hint-placeholder-count="2">
+                      <div style="{{ c.style }}">
+                        <div style="display:flex; align-items:center; gap:9px; margin-bottom:6px">
+                          <span class="mdi mdi-{{ c.icon }}" style="font-size:16px; color:{{ c.color }}"></span>
+                          <span style="font-family:var(--font-display); font-weight:600; font-size:13.5px">{{ c.title }}</span>
+                        </div>
+                        <div style="font-size:12px; color:var(--text-secondary); line-height:1.5">{{ c.body }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="font-size:12px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px">What the test does to your machine</div>
                   <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:18px">
                     <sc-for list="{{ consentRows }}" as="r" hint-placeholder-count="4">
                       <div style="display:flex; align-items:flex-start; gap:13px; padding:11px 0; border-bottom:1px solid var(--sz-outline)">
@@ -136,11 +147,11 @@
               <!-- ===== BLOCKED: ON BATTERY ===== -->
               <sc-if value="{{ isBattery }}" hint-placeholder-val="{{ false }}">
                 <div>
-                  <div style="display:flex; align-items:flex-start; gap:13px; padding:15px 17px; border-radius:12px; background:var(--sz-danger-bg); border:1px solid rgba(217,112,106,0.35); margin-bottom:18px">
-                    <span class="mdi mdi-battery-alert-variant-outline" style="font-size:20px; color:var(--sz-danger); flex-shrink:0; margin-top:1px"></span>
+                  <div style="display:flex; align-items:flex-start; gap:13px; padding:15px 17px; border-radius:12px; background:var(--sz-warn-bg); border:1px solid rgba(197,153,78,0.35); margin-bottom:18px">
+                    <span class="mdi mdi-battery-alert-variant-outline" style="font-size:20px; color:var(--sz-warn); flex-shrink:0; margin-top:1px"></span>
                     <div>
-                      <div style="font-family:var(--font-display); font-weight:600; font-size:14px; color:var(--sz-danger)">Calibration needs AC power</div>
-                      <div style="font-size:12.5px; color:var(--text-secondary); margin-top:4px; line-height:1.5">This machine is running on battery. Calibration loads the CPU and runs the fans at maximum for several minutes, which would drain the battery and skew the measurement &mdash; power limits behave differently when unplugged.</div>
+                      <div style="font-family:var(--font-display); font-weight:600; font-size:14px; color:var(--sz-warn)">The fast version needs AC power</div>
+                      <div style="font-size:12.5px; color:var(--text-secondary); margin-top:4px; line-height:1.5">This machine is on battery. The test loads the CPU and runs the fans at maximum for several minutes, which would drain the battery and skew the measurement — power limits behave differently when unplugged.</div>
                     </div>
                   </div>
                   <div style="font-size:12px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px">Current power state</div>
@@ -154,9 +165,9 @@
                       <div style="font-size:14px; font-family:var(--font-display); font-weight:600; margin-top:3px">76%</div>
                     </div>
                   </div>
-                  <div style="font-size:12.5px; color:var(--text-secondary); margin-top:16px; display:flex; align-items:center; gap:9px">
-                    <span class="mdi mdi-power-plug-outline" style="font-size:16px; color:var(--accent-text)"></span>
-                    Connect the charger and this dialog will unblock on its own.
+                  <div style="font-size:12.5px; color:var(--text-secondary); margin-top:16px; display:flex; align-items:flex-start; gap:9px">
+                    <span class="mdi mdi-information-outline" style="font-size:16px; color:var(--accent-text); flex-shrink:0; margin-top:1px"></span>
+                    <span>Nothing is blocked by this. Adaptive is still learning {{ head.fan }} from ordinary use, on battery or not — plug in only if you want the fast version.</span>
                   </div>
                 </div>
               </sc-if>
@@ -229,7 +240,7 @@
                 <div>
                   <div style="display:flex; align-items:center; gap:11px; padding:13px 16px; border-radius:11px; background:var(--sz-ok-bg); border:1px solid rgba(108,203,95,0.28); margin-bottom:18px">
                     <span class="mdi mdi-check-decagram" style="font-size:20px; color:var(--sz-ok)"></span>
-                    <span style="font-size:13px; color:var(--text-secondary)">Right fan is calibrated. Adaptive mode is now available for it.</span>
+                    <span style="font-size:13px; color:var(--text-secondary)">Right fan is learned. Adaptive is now using this model instead of its defaults — no further learning needed.</span>
                   </div>
 
                   <div style="font-size:12px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px">What SubZero learned</div>
@@ -338,7 +349,7 @@ class Component extends DCLogic {
       rows:[ {icon:'flash', label:'Average package power', value:'6.4 W', valueColor:'var(--sz-warn)'},
              {icon:'target', label:'Needed at least', value:'25 W', valueColor:'var(--text-primary)'},
              {icon:'clock-outline', label:'Ran for', value:'2 min 41 s', valueColor:'var(--text-primary)'} ],
-      advice:'Set Windows to the Balanced or Best performance power mode, close anything limiting the CPU, and run it again.',
+      advice:'Set Windows to the Balanced or Best performance power mode, close anything limiting the CPU, and try the shortcut again — or skip it: Adaptive is still learning this fan from ordinary use.',
       primary:'Try again', primaryIcon:'refresh',
     },
     delta:{
@@ -349,7 +360,7 @@ class Component extends DCLogic {
       rows:[ {icon:'thermometer', label:'Temperature swing', value:'2.1 \u00b0C', valueColor:'var(--sz-warn)'},
              {icon:'target', label:'Needed at least', value:'8 \u00b0C', valueColor:'var(--text-primary)'},
              {icon:'snowflake', label:'Ambient', value:'19 \u00b0C', valueColor:'var(--text-primary)'} ],
-      advice:'A very cool room or a docked, well-ventilated machine can cause this. Try again with the laptop on a flat surface at normal room temperature.',
+      advice:'A very cool room or a docked, well-ventilated machine can cause this. Try again at normal room temperature, or leave it — gradual learning handles cool machines fine, it just takes longer.',
       primary:'Try again', primaryIcon:'refresh',
     },
     ceiling:{
@@ -360,7 +371,7 @@ class Component extends DCLogic {
       rows:[ {icon:'thermometer-high', label:'Peak temperature', value:'97 \u00b0C', valueColor:'var(--sz-danger)'},
              {icon:'shield-alert-outline', label:'Safety ceiling', value:'95 \u00b0C', valueColor:'var(--text-primary)'},
              {icon:'progress-clock', label:'Stopped at step', value:'4 of 7', valueColor:'var(--text-primary)'} ],
-      advice:'This usually means blocked vents or dust in the heatsink. Check airflow, then try again \u2014 if it keeps happening, this fan may not be a good fit for adaptive control.',
+      advice:'This usually means blocked vents or dust in the heatsink. Worth checking either way — but you do not need to retry: Adaptive learns this fan from ordinary use without ever running it hot.',
       primary:'Try again', primaryIcon:'refresh',
     },
     cancelled:{
@@ -371,7 +382,7 @@ class Component extends DCLogic {
       rows:[ {icon:'progress-clock', label:'Stopped at step', value:'3 of 7', valueColor:'var(--text-primary)'},
              {icon:'content-save-off-outline', label:'Saved', value:'Nothing', valueColor:'var(--text-primary)'},
              {icon:'fan', label:'Fans restored', value:'Yes', valueColor:'var(--sz-ok)'} ],
-      advice:'You can start again whenever the machine is free \u2014 it will pick up from a fresh baseline.',
+      advice:'No harm done. Adaptive is still learning this fan in the background — start the shortcut again whenever the machine is free.',
       primary:'Start again', primaryIcon:'play',
     },
     disconnect:{
@@ -382,7 +393,7 @@ class Component extends DCLogic {
       rows:[ {icon:'progress-clock', label:'Stopped at step', value:'5 of 7', valueColor:'var(--text-primary)'},
              {icon:'fan-alert', label:'Fans restored by service', value:'Yes', valueColor:'var(--sz-ok)'},
              {icon:'lan-connect', label:'Service now', value:'Reachable', valueColor:'var(--sz-ok)'} ],
-      advice:'The service is responding again. Run calibration once more \u2014 if it drops out repeatedly, restart the service from Settings.',
+      advice:'The service is responding again, and it never stopped learning this fan in the background. Retry the shortcut — if it drops out repeatedly, restart the service from Settings.',
       primary:'Try again', primaryIcon:'refresh',
     },
   };
@@ -432,14 +443,24 @@ class Component extends DCLogic {
     const isConsent=s==='consent', isBattery=s==='battery', isRunning=s==='running', isResult=s==='result', isFail=s==='fail';
     const f=this.FAILS[this.state.fail];
 
-    const head = isConsent ? { icon:'tune-vertical-variant', iconColor:'var(--accent-text)', title:'Calibrate Right fan', sub:'One-time learning run \u00b7 Slot 1 \u00b7 Framework Laptop 16' }
-      : isBattery ? { icon:'battery-alert-variant-outline', iconColor:'var(--sz-danger)', title:'Calibrate Right fan', sub:'Cannot start while on battery power' }
+    const cmpCard=(tone)=>({ flex:'1 1 260px', minWidth:'250px', padding:'14px 16px', borderRadius:'11px',
+      background: tone==='ok' ? 'var(--sz-ok-bg)' : 'var(--sz-container-high)',
+      border: '1px solid '+(tone==='ok' ? 'rgba(108,203,95,0.28)' : 'var(--sz-outline)') });
+    const compare=[
+      { icon:'clock-outline', color:'var(--text-secondary)', style:cmpCard('neutral'), title:'If you skip this',
+        body:'Adaptive keeps running on safe defaults and refines itself from quiet moments. Usable in a day or two, fully settled within a week. Nothing is wrong in the meantime.' },
+      { icon:'clock-fast', color:'var(--sz-ok)', style:cmpCard('ok'), title:'If you run the test',
+        body:'The same numbers, measured in one go. Four noisy minutes now, then Adaptive is at full accuracy immediately — and stops needing to learn.' },
+    ];
+
+    const head = isConsent ? { icon:'clock-fast', iconColor:'var(--accent-text)', title:'Teach Right fan in 4 minutes', sub:'Optional shortcut · Slot 1 · Framework Laptop 16' }
+      : isBattery ? { icon:'battery-alert-variant-outline', iconColor:'var(--sz-warn)', title:'Teach Right fan in 4 minutes', sub:'The shortcut needs AC power — Adaptive keeps learning either way' }
       : isRunning ? { icon:'progress-clock', iconColor:'var(--app-accent)', title:'Learning Right fan', sub:'Don\u2019t run anything on the machine until this finishes' }
       : isResult ? { icon:'check-decagram', iconColor:'var(--sz-ok)', title:'SubZero has learned this fan', sub:'Right fan \u00b7 measured just now' }
-      : { icon:f.icon, iconColor:f.color, title:'Calibration did not finish', sub:'Right fan \u00b7 nothing was saved' };
+      : { icon:f.icon, iconColor:f.color, title:'The shortcut didn\u2019t finish', sub:'Right fan \u00b7 nothing saved, nothing lost' };
 
-    const foot = isConsent ? { hasNote:true, noteIcon:'alert-circle-outline', note:'Without this, SubZero will not learn your fans.', hasSecondary:true, secondary:'Cancel', hasPrimary:true, primary:'Start calibration', primaryIcon:'play', primaryVariant:'accent' }
-      : isBattery ? { hasNote:true, noteIcon:'power-plug-outline', note:'Waiting for AC power.', hasSecondary:true, secondary:'Close', hasPrimary:false, primary:'', primaryIcon:'', primaryVariant:'accent' }
+    const foot = isConsent ? { hasNote:true, noteIcon:'information-outline', note:'Skipping this changes nothing — Adaptive carries on learning by itself.', hasSecondary:true, secondary:'Not now', hasPrimary:true, primary:'Start the 4-minute test', primaryIcon:'play', primaryVariant:'accent' }
+      : isBattery ? { hasNote:true, noteIcon:'power-plug-outline', note:'Plug in and this unblocks on its own — or just skip it.', hasSecondary:true, secondary:'Close', hasPrimary:false, primary:'', primaryIcon:'', primaryVariant:'accent' }
       : isRunning ? { hasNote:true, noteIcon:'information-outline', note:'Cancelling is safe at any point \u2014 nothing is written until it completes.', hasSecondary:false, secondary:'', hasPrimary:true, primary:'Cancel calibration', primaryIcon:'stop', primaryVariant:'danger' }
       : isResult ? { hasNote:false, noteIcon:'', note:'', hasSecondary:true, secondary:'Close', hasPrimary:true, primary:'Use Adaptive mode', primaryIcon:'tune-vertical-variant', primaryVariant:'accent' }
       : { hasNote:false, noteIcon:'', note:'', hasSecondary:true, secondary:'Close', hasPrimary:true, primary:f.primary, primaryIcon:f.primaryIcon, primaryVariant:'accent' };
@@ -457,7 +478,7 @@ class Component extends DCLogic {
       step:s, setStep:(k)=>self.set(k),
       stepOptions:[ {key:'consent',label:'Consent'}, {key:'battery',label:'On battery'}, {key:'running',label:'Running'}, {key:'result',label:'Result'}, {key:'fail',label:'Failures'} ],
       isConsent, isBattery, isRunning, isResult, isFail,
-      head, foot, failChips,
+      head:{ ...head, fan:'Right fan' }, foot, failChips, compare,
       consentRows:[
         { icon:'fan-speed-3', color:'var(--sz-warn)', label:'Fans will run to maximum', sub:'This is loud. Both fans spin up and hold there for part of the run.' },
         { icon:'cpu-64-bit', color:'var(--sz-warn)', label:'The CPU will be loaded on purpose', sub:'SubZero generates heat so it has something to measure. The machine may feel sluggish.' },

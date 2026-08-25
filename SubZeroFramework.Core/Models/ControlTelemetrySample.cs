@@ -35,12 +35,50 @@ public sealed record ControlTelemetrySample
     /// </summary>
     public double? CpuPackagePowerWatts { get; init; }
 
+    /// <summary>
+    /// GPU package power, in watts, when a vendor reader can supply it.
+    /// </summary>
+    /// <remarks>
+    /// A second heat source into the same chassis, and on a Framework 16 with the graphics module it can
+    /// exceed the CPU. Folded into <see cref="ThermalLoadWatts"/> alongside package power rather than tracked
+    /// separately, because the fan does not care which die the heat came from.
+    /// </remarks>
+    public double? GpuPowerWatts { get; init; }
+
+    /// <summary>
+    /// The fastest graphics core clock reported, in MHz.
+    /// </summary>
+    /// <remarks>
+    /// Not used for control — it is the GPU's answer to <see cref="CpuPerformanceRatio"/>, recorded during a
+    /// calibration so the run can say what more fan actually BOUGHT. Cooling that produces no extra sustained
+    /// clock is cooling nobody needed, and that is only knowable by measuring speed alongside temperature.
+    /// </remarks>
+    public double? GpuCoreClockMegahertz { get; init; }
+
+    /// <summary>
+    /// Total system draw, in watts, derived from the charger less battery charging.
+    /// </summary>
+    /// <remarks>
+    /// The Windows answer. It is coarser than component power — it carries the display and everything else —
+    /// but it moves with CPU and GPU activity, which is what feed-forward needs. Absent on battery, where
+    /// there is no adapter to measure.
+    /// </remarks>
+    public double? SystemPowerWatts { get; init; }
+
+    // How these three combine into the figure feed-forward acts on is deliberately NOT decided here. A sample
+    // knows only what it managed to read this tick, and choosing per tick is exactly what makes the
+    // composition flap as a discrete GPU enters and leaves low-power states. That decision belongs to
+    // ThermalLoadPolicy, which makes it once for the machine and then holds it.
+
     /// <summary>True when at least one signal was read. A sample with nothing in it must not look like idle.</summary>
     public bool HasAnyReading
         => CpuUtilizationFraction is not null
             || CpuPerformanceRatio is not null
             || CpuPackagePowerWatts is not null
+            || GpuPowerWatts is not null
+            || SystemPowerWatts is not null
             || !PerCoreUtilizationFraction.IsDefaultOrEmpty;
+
 }
 
 /// <summary>

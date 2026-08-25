@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/colors.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/typography.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/tokens/expressive.css">
+<link rel="stylesheet" href="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/styles.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7.4.47/css/materialdesignicons.min.css">
+<script src="_ds/winui-3-design-system-20ec5a6a-ad85-47eb-8901-02e46eef1154/_ds_bundle.js"></script>
+<style>
+  :root{
+    --app-accent:#0078D7; --app-accent-hover:#1f8ae6; --app-accent-press:#0063b1; --app-on-accent:#ffffff;
+    --sz-bg:#1b2727; --sz-container-lowest:#161f1f; --sz-container-low:#1f1f1f;
+    --sz-container:#2e2e2e; --sz-container-high:#383b3b; --sz-container-highest:#474b4b;
+    --sz-outline:rgba(255,255,255,0.07); --sz-outline-strong:rgba(255,255,255,0.13); --sz-violet:#8AB7E8;
+    --text-primary:#fffffa; --text-secondary:#D7D8FF; --text-tertiary:#8d8ea3;
+    --sz-ok:#6ccb5f; --sz-warn:#c5994e; --sz-danger:#d9706a;
+    --sz-ok-bg:rgba(108,203,95,0.14); --sz-warn-bg:rgba(197,153,78,0.16); --sz-danger-bg:rgba(217,112,106,0.16);
+    --accent-text:#8AB7E8; --chart-temp:#e0736c;
+  }
+  html,body{ margin:0; height:100%; background:var(--sz-bg); font-family:var(--font-text); color:var(--text-primary); }
+  a{ color:var(--accent-text); text-decoration:none }
+  a:hover{ color:#a9cbf0; text-decoration:underline }
+  .ftrack{ scrollbar-width:thin; scrollbar-color:var(--sz-container-highest) transparent; }
+  .ftrack::-webkit-scrollbar{ width:11px }
+  .ftrack::-webkit-scrollbar-thumb{ background:var(--sz-container-highest); border-radius:6px; border:3px solid transparent; background-clip:padding-box }
+</style>
+</helmet>
+
+<div style="height:100vh; min-height:100vh; display:flex; flex-direction:column">
+
+  <div style="height:40px; display:flex; align-items:center; padding:0 0 0 16px; flex-shrink:0">
+    <span class="mdi mdi-snowflake" style="font-size:15px; color:var(--sz-violet)"></span>
+    <span style="font-size:12.5px; color:var(--text-secondary); margin-left:9px">SubZero &mdash; Framework Edition</span>
+    <span style="flex:1"></span>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-minimize" style="font-size:15px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-restore" style="font-size:13px"></span></div>
+    <div style="width:46px; height:40px; display:flex; align-items:center; justify-content:center; color:var(--text-secondary)"><span class="mdi mdi-window-close" style="font-size:15px"></span></div>
+  </div>
+
+  <div style="display:flex; flex:1; min-height:0">
+    <div style="width:56px; flex-shrink:0; display:flex; flex-direction:column; padding-top:8px; background:#000000">
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-view-dashboard-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-thermometer" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-flash-outline" style="font-size:19px"></span></div>
+      <div style="position:relative; width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:var(--sz-container-high)">
+        <span style="position:absolute; left:-4px; top:11px; bottom:11px; width:3px; border-radius:2px; background:var(--app-accent)"></span>
+        <span class="mdi mdi-fan" style="font-size:19px; color:var(--app-accent)"></span>
+      </div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; border-radius:10px; color:var(--text-secondary)"><span class="mdi mdi-expansion-card-variant" style="font-size:19px"></span></div>
+      <div style="flex:1"></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-alert-outline" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-github" style="font-size:19px"></span></div>
+      <div style="width:48px; height:42px; margin:2px 4px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary)"><span class="mdi mdi-cog-outline" style="font-size:19px"></span></div>
+    </div>
+
+    <div class="ftrack" data-screen-label="How adaptive control works" style="flex:1; min-width:0; min-height:0; overflow-y:auto; overflow-x:hidden; padding:18px 26px 44px">
+      <div style="max-width:1180px">
+
+        <!-- ===== header ===== -->
+        <div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:4px; flex-wrap:wrap">
+          <span class="mdi mdi-tune-vertical-variant" style="font-size:26px; color:var(--accent-text); margin-top:4px"></span>
+          <div style="flex:1 1 460px; min-width:420px">
+            <div style="font-family:var(--font-display); font-weight:600; font-size:27px">How adaptive control works</div>
+            <div style="font-size:13.5px; color:var(--text-secondary); margin-top:5px; max-width:840px; line-height:1.55">Every number the Adaptive editor shows comes from one of two places: something SubZero <strong style="color:var(--text-primary); font-weight:600">measured</strong> on your machine, or a <strong style="color:var(--text-primary); font-weight:600">design decision</strong> made once and shipped. This page says which is which, and why.</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:7px; align-items:flex-end; flex-shrink:0">
+            <span style="display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 12px; border-radius:13px; font-size:11.5px; font-weight:600; background:var(--sz-container-high); color:var(--text-secondary); white-space:nowrap"><span class="mdi mdi-fan" style="font-size:13px"></span>Right fan &middot; Slot 1</span>
+            <span style="display:inline-flex; align-items:center; gap:6px; height:26px; padding:0 12px; border-radius:13px; font-size:11.5px; font-weight:600; background:var(--sz-ok-bg); color:var(--sz-ok); white-space:nowrap"><span class="mdi mdi-check-decagram" style="font-size:13px"></span>Calibrated 2 days ago</span>
+          </div>
+        </div>
+
+        <!-- ================= 1. THE PLANT ================= -->
+        <div style="display:flex; align-items:center; gap:11px; margin:26px 0 12px; flex-wrap:wrap">
+          <span style="display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:7px; background:var(--app-accent); color:var(--app-on-accent); font-family:var(--font-display); font-weight:600; font-size:13px; flex-shrink:0">1</span>
+          <span style="font-family:var(--font-display); font-weight:600; font-size:19px">The plant &mdash; what is actually being controlled</span>
+        </div>
+
+        <div style="display:flex; gap:16px; align-items:stretch; margin-bottom:16px; flex-wrap:wrap">
+          <div style="flex:1 1 560px; min-width:520px; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:18px 20px 10px">
+            <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:2px; flex-wrap:wrap">
+              <span style="font-family:var(--font-display); font-weight:600; font-size:15px">Measured step response</span>
+              <span style="font-size:11.5px; color:var(--text-tertiary)">fan duty 22% &rarr; 100% at t = 0 &middot; captured in calibration step 5</span>
+            </div>
+            <svg viewBox="0 0 620 292" style="width:100%; height:auto; display:block; margin-top:4px">
+              <sc-for list="{{ plant.ygrid }}" as="g" hint-placeholder-count="5">
+                <line x1="52" y1="{{ g.y }}" x2="606" y2="{{ g.y }}" stroke="var(--sz-outline)" stroke-width="1"></line>
+                <text x="44" y="{{ g.ty }}" text-anchor="end" font-size="10.5" fill="var(--text-tertiary)">{{ g.label }}</text>
+              </sc-for>
+              <sc-for list="{{ plant.xgrid }}" as="t" hint-placeholder-count="7">
+                <text x="{{ t.x }}" y="266" text-anchor="middle" font-size="10.5" fill="var(--text-tertiary)">{{ t.label }}</text>
+              </sc-for>
+              <text x="329" y="286" text-anchor="middle" font-size="10.5" fill="var(--text-tertiary)">seconds after the fan steps up</text>
+
+              <rect x="52" y="20" width="{{ plant.deadW }}" height="212" fill="rgba(197,153,78,0.10)"></rect>
+              <line x1="{{ plant.deadX }}" y1="20" x2="{{ plant.deadX }}" y2="232" stroke="var(--sz-warn)" stroke-width="1" stroke-dasharray="4 4"></line>
+              <text x="{{ plant.deadLabelX }}" y="34" font-size="10.5" fill="var(--sz-warn)">L = 4 s &middot; nothing happens yet</text>
+
+              <line x1="52" y1="{{ plant.asymY }}" x2="606" y2="{{ plant.asymY }}" stroke="var(--sz-violet)" stroke-width="1" stroke-dasharray="5 5" opacity="0.8"></line>
+              <text x="602" y="{{ plant.asymLabelY }}" text-anchor="end" font-size="10.5" fill="var(--sz-violet)">K &times; &Delta;duty = 32.8 &deg;C total drop</text>
+
+              <line x1="{{ plant.tauX }}" y1="{{ plant.tauY }}" x2="{{ plant.tauX }}" y2="232" stroke="var(--sz-ok)" stroke-width="1" stroke-dasharray="4 4"></line>
+              <line x1="52" y1="{{ plant.tauY }}" x2="{{ plant.tauX }}" y2="{{ plant.tauY }}" stroke="var(--sz-ok)" stroke-width="1" stroke-dasharray="4 4"></line>
+              <circle cx="{{ plant.tauX }}" cy="{{ plant.tauY }}" r="4" fill="var(--sz-ok)"></circle>
+              <text x="{{ plant.tauLabelX }}" y="{{ plant.tauLabelY }}" font-size="10.5" fill="var(--sz-ok)">63% of the drop at L + &tau; = 30 s</text>
+
+              <polyline points="{{ plant.curve }}" fill="none" stroke="var(--chart-temp)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"></polyline>
+            </svg>
+          </div>
+
+          <div style="flex:1 1 300px; min-width:290px; display:flex; flex-direction:column; gap:12px">
+            <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:18px 20px">
+              <div style="font-size:11.5px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:10px">First order plus dead time</div>
+              <div style="display:flex; align-items:center; justify-content:center; gap:13px; font-family:var(--font-display); font-size:17px; padding:4px 0 10px">
+                <div style="display:inline-flex; flex-direction:column; align-items:center; gap:3px">
+                  <span>T(s)</span>
+                  <span style="height:1px; width:100%; background:var(--text-secondary)"></span>
+                  <span>D(s)</span>
+                </div>
+                <span style="color:var(--text-tertiary)">&asymp;</span>
+                <div style="display:inline-flex; flex-direction:column; align-items:center; gap:3px">
+                  <span style="white-space:nowrap">K &middot; e<sup style="font-size:11px">&minus;Ls</sup></span>
+                  <span style="height:1px; width:100%; background:var(--text-secondary)"></span>
+                  <span>&tau;s + 1</span>
+                </div>
+              </div>
+              <div style="font-size:12px; color:var(--text-secondary); line-height:1.5; padding-top:10px; border-top:1px solid var(--sz-outline)">Temperature response to a change in fan duty. Three numbers describe it completely &mdash; and all three are measured, never assumed.</div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:9px">
+              <sc-for list="{{ plantVals }}" as="v" hint-placeholder-count="3">
+                <div style="display:flex; align-items:center; gap:14px; background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:12px; padding:13px 16px">
+                  <span style="font-family:var(--font-display); font-weight:600; font-size:19px; color:{{ v.color }}; width:26px; flex-shrink:0">{{ v.sym }}</span>
+                  <div style="flex:1; min-width:0">
+                    <div style="font-family:var(--font-display); font-weight:600; font-size:15px">{{ v.value }}</div>
+                    <div style="font-size:11.5px; color:var(--text-tertiary); margin-top:1px">{{ v.desc }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="display:flex; align-items:flex-start; gap:11px; background:var(--sz-warn-bg); border:1px solid rgba(197,153,78,0.32); border-radius:12px; padding:13px 16px">
+              <span class="mdi mdi-alert-circle-outline" style="font-size:17px; color:var(--sz-warn); flex-shrink:0; margin-top:1px"></span>
+              <div>
+                <div style="font-family:var(--font-display); font-weight:600; font-size:13.5px; color:var(--sz-warn)">Dead time dominates the design</div>
+                <div style="font-size:12px; color:var(--text-secondary); margin-top:3px; line-height:1.5">For four seconds after the fan changes, the sensor says nothing. A controller that reacts only to temperature is always four seconds late &mdash; which is why the control law below leads with power, not temperature.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= 2. TUNING ================= -->
+        <div style="display:flex; align-items:center; gap:11px; margin:26px 0 12px; flex-wrap:wrap">
+          <span style="display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:7px; background:var(--app-accent); color:var(--app-on-accent); font-family:var(--font-display); font-weight:600; font-size:13px; flex-shrink:0">2</span>
+          <span style="font-family:var(--font-display); font-weight:600; font-size:19px">Tuning &mdash; SIMC, one knob</span>
+          <span style="font-size:12.5px; color:var(--text-tertiary)">&lambda; sets how fast the loop closes; every gain follows from it</span>
+        </div>
+
+        <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:20px; margin-bottom:16px">
+          <div style="display:flex; gap:26px; flex-wrap:wrap">
+
+            <div style="flex:1 1 470px; min-width:430px">
+              <div style="font-size:12.5px; color:var(--text-secondary); margin-bottom:8px">Driving temperature after a sudden load, at the &lambda; you pick</div>
+              <svg viewBox="0 0 560 224" style="width:100%; height:auto; display:block">
+                <line x1="34" y1="{{ lam.spY }}" x2="552" y2="{{ lam.spY }}" stroke="var(--text-tertiary)" stroke-width="1" stroke-dasharray="5 5" opacity="0.75"></line>
+                <text x="550" y="{{ lam.spLabelY }}" text-anchor="end" font-size="10" fill="var(--text-tertiary)">target</text>
+                <sc-for list="{{ lam.ygrid }}" as="g" hint-placeholder-count="3">
+                  <line x1="34" y1="{{ g.y }}" x2="552" y2="{{ g.y }}" stroke="var(--sz-outline)" stroke-width="1"></line>
+                  <text x="28" y="{{ g.ty }}" text-anchor="end" font-size="10" fill="var(--text-tertiary)">{{ g.label }}</text>
+                </sc-for>
+                <sc-for list="{{ lam.xgrid }}" as="t" hint-placeholder-count="5">
+                  <text x="{{ t.x }}" y="218" text-anchor="middle" font-size="10" fill="var(--text-tertiary)">{{ t.label }}</text>
+                </sc-for>
+                <polyline points="{{ lam.ghost }}" fill="none" stroke="var(--text-tertiary)" stroke-width="1.6" stroke-dasharray="4 4" opacity="0.55" stroke-linejoin="round"></polyline>
+                <polyline points="{{ lam.curve }}" fill="none" stroke="var(--app-accent)" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"></polyline>
+              </svg>
+              <div style="display:flex; gap:20px; flex-wrap:wrap; font-size:11.5px; margin-top:2px">
+                <span style="display:flex; align-items:center; gap:7px; color:var(--text-secondary)"><span style="width:15px; height:3px; border-radius:2px; background:var(--app-accent)"></span>&lambda; = {{ lam.value }} s</span>
+                <span style="display:flex; align-items:center; gap:7px; color:var(--text-tertiary)"><span style="width:15px; height:0; border-top:2px dashed var(--text-tertiary)"></span>shipped default &middot; &lambda; = 8 s</span>
+              </div>
+            </div>
+
+            <div style="flex:1 1 320px; min-width:300px; display:flex; flex-direction:column; gap:16px">
+              <div>
+                <div style="display:flex; align-items:baseline; gap:9px; margin-bottom:3px; flex-wrap:wrap">
+                  <span style="font-family:var(--font-display); font-weight:600; font-size:15px">Closed-loop time constant</span>
+                  <span style="flex:1"></span>
+                  <span style="font-family:var(--font-display); font-weight:600; font-size:23px; color:var(--accent-text)">{{ lam.value }} s</span>
+                  <span style="font-size:12px; color:var(--text-secondary)">{{ lam.multiple }}</span>
+                </div>
+                <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Slider" value="{{ lam.value }}" min="{{ lam.min }}" max="{{ lam.max }}" step="1" onChange="{{ lam.set }}" hint-size="100%,32px"></x-import>
+                <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-tertiary); margin-top:3px">
+                  <span>2 s &middot; tight, restless fan</span>
+                  <span>16 s &middot; calm, slow to react</span>
+                </div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:11px">
+                <sc-for list="{{ lam.bars }}" as="b" hint-placeholder-count="2">
+                  <div>
+                    <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:5px"><span style="color:var(--text-secondary)">{{ b.label }}</span><span style="font-family:var(--font-display); font-weight:600; color:{{ b.color }}">{{ b.note }}</span></div>
+                    <div style="height:7px; border-radius:4px; background:var(--sz-container-highest); overflow:hidden"><div style="height:100%; border-radius:4px; background:{{ b.color }}; width:{{ b.pct }}"></div></div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:0">
+                <sc-for list="{{ lam.derived }}" as="d" hint-placeholder-count="3">
+                  <div style="display:flex; align-items:baseline; gap:12px; padding:10px 0; border-bottom:1px solid var(--sz-outline)">
+                    <span style="font-family:var(--font-display); font-size:13.5px; color:var(--accent-text); width:30px; flex-shrink:0">{{ d.sym }}</span>
+                    <span style="flex:1; min-width:0; font-size:12px; color:var(--text-tertiary)">{{ d.label }}</span>
+                    <span style="font-family:var(--font-display); font-weight:600; font-size:14px; white-space:nowrap">{{ d.value }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="font-size:11.5px; color:var(--text-tertiary); line-height:1.5">SIMC (Skogestad) is chosen because it targets dead-time-dominant plants directly and collapses tuning to this single knob &mdash; no oscillation hunt, no hand-detuning.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= 3. CASCADE ================= -->
+        <div style="display:flex; align-items:center; gap:11px; margin:26px 0 12px; flex-wrap:wrap">
+          <span style="display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:7px; background:var(--app-accent); color:var(--app-on-accent); font-family:var(--font-display); font-weight:600; font-size:13px; flex-shrink:0">3</span>
+          <span style="font-family:var(--font-display); font-weight:600; font-size:19px">Cascade &mdash; two loops, not one</span>
+          <span style="font-size:12.5px; color:var(--text-tertiary)">SubZero asks for a speed; the firmware holds it</span>
+        </div>
+
+        <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:20px; margin-bottom:16px">
+          <div style="display:flex; align-items:stretch; gap:10px; flex-wrap:wrap">
+            <sc-for list="{{ chain }}" as="b" hint-placeholder-count="5">
+              <div style="{{ b.wrapStyle }}">
+                <div style="{{ b.boxStyle }}">
+                  <div style="display:flex; align-items:center; gap:8px; margin-bottom:5px">
+                    <span class="mdi mdi-{{ b.icon }}" style="font-size:15px; color:{{ b.color }}"></span>
+                    <span style="font-size:10.5px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.05em">{{ b.kind }}</span>
+                  </div>
+                  <div style="font-family:var(--font-display); font-weight:600; font-size:13.5px">{{ b.title }}</div>
+                  <div style="font-size:11.5px; color:var(--text-secondary); margin-top:4px; line-height:1.45">{{ b.body }}</div>
+                  <sc-if value="{{ b.hasSignal }}" hint-placeholder-val="{{ false }}">
+                    <div style="margin-top:9px; padding-top:8px; border-top:1px solid var(--sz-outline); font-family:var(--font-display); font-weight:600; font-size:13px; color:{{ b.color }}">{{ b.signal }}</div>
+                  </sc-if>
+                </div>
+                <sc-if value="{{ b.hasArrow }}" hint-placeholder-val="{{ true }}">
+                  <span class="mdi mdi-chevron-right" style="font-size:22px; color:var(--text-tertiary); flex-shrink:0; align-self:center"></span>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:10px; margin-top:12px; padding:11px 15px; border-radius:11px; background:var(--sz-container-lowest); border:1px dashed var(--sz-outline-strong)">
+            <span class="mdi mdi-arrow-u-left-bottom" style="font-size:17px; color:var(--sz-violet)"></span>
+            <span style="font-size:12px; color:var(--text-secondary)">Feedback &mdash; the driving temperature returns to the outer loop each tick; the tachometer returns to the firmware far faster.</span>
+          </div>
+
+          <div style="display:flex; gap:12px; margin-top:14px; flex-wrap:wrap">
+            <sc-for list="{{ verdicts }}" as="v" hint-placeholder-count="2">
+              <div style="{{ v.style }}">
+                <div style="display:flex; align-items:center; gap:9px; margin-bottom:5px; flex-wrap:wrap">
+                  <span class="mdi mdi-{{ v.icon }}" style="font-size:17px; color:{{ v.color }}"></span>
+                  <span style="font-family:var(--font-display); font-weight:600; font-size:13.5px">{{ v.title }}</span>
+                  <span style="flex:1"></span>
+                  <span style="{{ v.chipStyle }}">{{ v.chip }}</span>
+                </div>
+                <div style="font-size:12px; color:var(--text-secondary); line-height:1.5">{{ v.body }}</div>
+                <div style="font-size:11.5px; color:var(--text-tertiary); margin-top:7px">Shown to the user as: &ldquo;{{ v.plain }}&rdquo;</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- ================= 4. OUTER CONTROL LAW ================= -->
+        <div style="display:flex; align-items:center; gap:11px; margin:26px 0 12px; flex-wrap:wrap">
+          <span style="display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:7px; background:var(--app-accent); color:var(--app-on-accent); font-family:var(--font-display); font-weight:600; font-size:13px; flex-shrink:0">4</span>
+          <span style="font-family:var(--font-display); font-weight:600; font-size:19px">The outer control law</span>
+          <span style="font-size:12.5px; color:var(--text-tertiary)">four terms that add up, two guards that clamp the result</span>
+        </div>
+
+        <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:20px; margin-bottom:16px">
+          <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:12px; flex-wrap:wrap">
+            <span style="font-family:var(--font-display); font-weight:600; font-size:15px">Right now this fan is commanded {{ law.total }} RPM</span>
+            <span style="flex:1"></span>
+            <span style="font-size:11.5px; color:var(--text-tertiary)">the same bar the Adaptive editor shows</span>
+          </div>
+          <div style="display:flex; height:18px; border-radius:9px; overflow:hidden; background:var(--sz-container-lowest); border:1px solid var(--sz-outline)">
+            <sc-for list="{{ law.terms }}" as="t" hint-placeholder-count="4">
+              <div style="{{ t.barStyle }}"></div>
+            </sc-for>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:10px 24px; margin-top:12px">
+            <sc-for list="{{ law.terms }}" as="t" hint-placeholder-count="4">
+              <span style="display:flex; align-items:center; gap:8px; font-size:12px">
+                <span style="{{ t.dotStyle }}"></span>
+                <span style="color:var(--text-secondary)">{{ t.name }}</span>
+                <span style="font-family:var(--font-display); font-weight:600">{{ t.value }}</span>
+                <span style="color:var(--text-tertiary)">{{ t.share }}</span>
+              </span>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:11px; margin-bottom:16px">
+          <sc-for list="{{ law.rows }}" as="r" hint-placeholder-count="6">
+            <div style="{{ r.cardStyle }}">
+              <div style="display:flex; align-items:stretch; gap:16px; flex-wrap:wrap">
+                <div style="width:150px; flex-shrink:0; display:flex; flex-direction:column; gap:7px">
+                  <span style="{{ r.chipStyle }}"><span class="mdi mdi-{{ r.icon }}" style="font-size:13px"></span>{{ r.term }}</span>
+                  <span style="font-size:11px; color:var(--text-tertiary)">{{ r.role }}</span>
+                </div>
+                <div style="flex:1 1 300px; min-width:260px">
+                  <div style="font-size:10.5px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px">Purpose</div>
+                  <div style="font-size:13px; color:var(--text-primary); line-height:1.5">{{ r.purpose }}</div>
+                </div>
+                <div style="flex:1 1 320px; min-width:280px">
+                  <div style="font-size:10.5px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px">Notes &amp; inputs</div>
+                  <div style="font-size:12.5px; color:var(--text-secondary); line-height:1.5">{{ r.notes }}</div>
+                  <sc-if value="{{ r.hasWarn }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex; align-items:flex-start; gap:8px; margin-top:8px; font-size:11.5px; color:var(--sz-warn)">
+                      <span class="mdi mdi-alert-outline" style="font-size:14px; flex-shrink:0; margin-top:1px"></span>
+                      <span>{{ r.warn }}</span>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- ================= 5. DECISIONS ================= -->
+        <div style="display:flex; align-items:center; gap:11px; margin:26px 0 12px; flex-wrap:wrap">
+          <span style="display:flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:7px; background:var(--app-accent); color:var(--app-on-accent); font-family:var(--font-display); font-weight:600; font-size:13px; flex-shrink:0">5</span>
+          <span style="font-family:var(--font-display); font-weight:600; font-size:19px">Where each number comes from</span>
+        </div>
+
+        <div style="background:var(--sz-container); border:1px solid var(--sz-outline); border-radius:14px; padding:6px 20px 4px; margin-bottom:8px">
+          <sc-for list="{{ provenance }}" as="p" hint-placeholder-count="9">
+            <div style="display:flex; align-items:center; gap:16px; padding:13px 0; border-bottom:1px solid var(--sz-outline); flex-wrap:wrap">
+              <span style="{{ p.tagStyle }}">{{ p.tag }}</span>
+              <div style="width:190px; flex-shrink:0">
+                <div style="font-family:var(--font-display); font-weight:600; font-size:13.5px">{{ p.name }}</div>
+                <div style="font-size:11.5px; color:var(--accent-text); margin-top:1px">{{ p.value }}</div>
+              </div>
+              <div style="flex:1 1 340px; min-width:280px; font-size:12.5px; color:var(--text-secondary); line-height:1.5">{{ p.why }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex; align-items:flex-start; gap:11px; padding:14px 17px; border-radius:12px; background:var(--sz-container-high); border:1px solid var(--sz-outline)">
+          <span class="mdi mdi-information-outline" style="font-size:17px; color:var(--accent-text); flex-shrink:0; margin-top:1px"></span>
+          <div style="font-size:12.5px; color:var(--text-secondary); line-height:1.55">Values shown are this machine&rsquo;s: Framework Laptop 16, Right fan, Slot 1. Anything tagged <strong style="color:var(--sz-ok); font-weight:600">measured</strong> is re-learned on every calibration and differs per fan and per machine.</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1380,&quot;height&quot;:900},&quot;defaultLambda&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:8,&quot;min&quot;:2,&quot;max&quot;:16,&quot;step&quot;:1,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Tuning&quot;},&quot;trackingVerdict&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;cascade&quot;,&quot;duty&quot;],&quot;default&quot;:&quot;cascade&quot;,&quot;tsType&quot;:&quot;\&quot;cascade\&quot; | \&quot;duty\&quot;&quot;,&quot;section&quot;:&quot;Cascade&quot;}}">
+class Component extends DCLogic {
+  state = { lambda:null };
+
+  K=0.42; TAU=26; L=4; DUTY_STEP=78; T0=79; TARGET=78;
+
+  plantModel(){
+    const K=this.K, TAU=this.TAU, L=this.L, drop=K*this.DUTY_STEP;
+    const x0=52, x1=606, tMax=90;
+    const xAt=t=>x0+(x1-x0)*t/tMax;
+    const yAt=v=>232-((v-40)/45)*212;
+    const pts=[];
+    for(let i=0;i<=120;i++){
+      const t=tMax*i/120;
+      const v = t<L ? this.T0 : this.T0-drop*(1-Math.exp(-(t-L)/TAU));
+      pts.push(xAt(t).toFixed(1)+','+yAt(v).toFixed(1));
+    }
+    const tau63=this.T0-drop*0.632;
+    return {
+      curve:pts.join(' '),
+      ygrid:[80,70,60,50,40].map(v=>({ y:yAt(v), ty:yAt(v)+3.5, label:v+'\u00b0' })),
+      xgrid:[0,15,30,45,60,75,90].map(t=>({ x:xAt(t), label:t+'s' })),
+      deadX:xAt(L), deadW:(xAt(L)-x0).toFixed(1), deadLabelX:xAt(L)+7,
+      asymY:yAt(this.T0-drop), asymLabelY:yAt(this.T0-drop)-7,
+      tauX:xAt(L+TAU), tauY:yAt(tau63), tauLabelX:xAt(L+TAU)+8, tauLabelY:yAt(tau63)-8,
+    };
+  }
+
+  lamCurvePoints(lambda){
+    const L=this.L, x0=34, x1=552, tMax=80;
+    const xAt=t=>x0+(x1-x0)*t/tMax;
+    const yAt=v=>186-((v-74)/18)*168;
+    const peak=3.4+lambda*0.78;
+    const tp=L+lambda*0.6;
+    const decay=lambda*1.55+2.2;
+    const ripple=Math.max(0,(5-lambda))*0.34;
+    const pts=[];
+    for(let i=0;i<=110;i++){
+      const t=tMax*i/110;
+      const rise=1-Math.exp(-t/2.4);
+      const fall=Math.exp(-Math.max(0,t-tp)/decay);
+      const osc=ripple*Math.sin(t/2.1)*Math.exp(-t/22);
+      pts.push(xAt(t).toFixed(1)+','+yAt(this.TARGET+peak*rise*fall+osc).toFixed(1));
+    }
+    return pts.join(' ');
+  }
+
+  lambdaModel(){
+    const self=this;
+    const lambda=this.state.lambda ?? (this.props.defaultLambda ?? 8);
+    const x0=34, x1=552, tMax=80;
+    const xAt=t=>x0+(x1-x0)*t/tMax;
+    const yAt=v=>186-((v-74)/18)*168;
+    const Kc=this.TAU/(this.K*(lambda+this.L));
+    const tauI=Math.min(this.TAU, 4*(lambda+this.L));
+    const Ki=Kc/tauI;
+    const settle=(lambda+this.L)*3.4;
+    const activity=(19-lambda)/17;
+    const actNote = lambda<=4 ? 'restless' : lambda<=6 ? 'busy' : lambda<=10 ? 'steady' : 'very calm';
+    const actColor = lambda<=4 ? 'var(--sz-warn)' : lambda<=10 ? 'var(--sz-ok)' : 'var(--sz-violet)';
+    const setColor = settle>58 ? 'var(--sz-warn)' : 'var(--sz-ok)';
+    return {
+      value:lambda, min:2, max:16, set:(v)=>self.setState({ lambda:Math.round(v) }),
+      multiple:'= '+(lambda/this.L).toFixed(1)+'\u00d7 dead time',
+      curve:this.lamCurvePoints(lambda), ghost:this.lamCurvePoints(8),
+      spY:yAt(this.TARGET), spLabelY:yAt(this.TARGET)-6,
+      ygrid:[90,84,78].map(v=>({ y:yAt(v), ty:yAt(v)+3.5, label:v+'\u00b0' })),
+      xgrid:[0,20,40,60,80].map(t=>({ x:xAt(t), label:t+'s' })),
+      bars:[
+        { label:'Back on target within', note:Math.round(settle)+' s', color:setColor, pct:Math.min(100,settle/70*100).toFixed(1)+'%' },
+        { label:'Fan speed changes', note:actNote, color:actColor, pct:(activity*100).toFixed(1)+'%' },
+      ],
+      derived:[
+        { sym:'K\u1d9c', label:'Proportional gain, duty per degree of error', value:Kc.toFixed(2)+' %/\u00b0C' },
+        { sym:'\u03c4\u1d62', label:'Integral time, how long trim takes to build', value:Math.round(tauI)+' s' },
+        { sym:'K\u1d62', label:'Integral gain, derived not tuned', value:Ki.toFixed(3)+' %/\u00b0C\u00b7s' },
+      ],
+    };
+  }
+
+  renderVals(){
+    const plant=this.plantModel();
+    const cascade=(this.props.trackingVerdict ?? 'cascade')==='cascade';
+
+    const boxBase={ flex:'1 1 0', minWidth:'0', background:'var(--sz-container-high)', border:'1px solid var(--sz-outline)', borderRadius:'12px', padding:'14px 15px' };
+    const chainDefs=[
+      { kind:'Measurement', icon:'thermometer', color:'var(--chart-temp)', title:'Driving temperature', body:'Aggregate of the sensors you selected, sampled each tick.', signal:'64 \u00b0C', hasArrow:true },
+      { kind:'Outer loop', icon:'chart-timeline-variant', color:'var(--app-accent)', title:'SIMC PI + FF + lead', body:'The control law below. Runs in SubZero, once per tick.', signal:'', hasArrow:true },
+      { kind:'Setpoint', icon:'target', color:'var(--sz-violet)', title:'Commanded RPM', body:'A speed request, not a duty percentage.', signal:'6,100 RPM', hasArrow:true },
+      { kind:'Inner loop', icon:'chip', color:'var(--sz-ok)', title:'SetFanRpmAsync', body:'Already exists. The EC holds the commanded speed against its own tachometer, far faster than we could.', signal:'', hasArrow:true },
+      { kind:'Plant', icon:'fan', color:'var(--text-secondary)', title:'Fan \u2192 heatsink \u2192 sensor', body:'K, \u03c4 and L live here \u2014 the thing measured in section 1.', signal:'', hasArrow:false },
+    ];
+    const chain=chainDefs.map(b=>({ ...b, hasSignal:!!b.signal,
+      wrapStyle:{ display:'flex', alignItems:'stretch', gap:'10px', flex:'1 1 200px', minWidth:'190px' },
+      boxStyle:boxBase }));
+
+    const vChip={ display:'inline-flex', alignItems:'center', height:'22px', padding:'0 10px', borderRadius:'11px', fontSize:'10.5px', fontWeight:600, whiteSpace:'nowrap' };
+    const vCard=(on,tone)=>({ flex:'1 1 320px', minWidth:'300px', padding:'15px 17px', borderRadius:'12px',
+      background: on ? (tone==='ok'?'var(--sz-ok-bg)':'var(--sz-warn-bg)') : 'var(--sz-container-high)',
+      border: '1px solid '+(on ? (tone==='ok'?'rgba(108,203,95,0.32)':'rgba(197,153,78,0.32)') : 'var(--sz-outline)'),
+      opacity: on ? 1 : 0.62 });
+    const verdicts=[
+      { icon:'check-network-outline', color:'var(--sz-ok)', title:'Cascade \u2014 command RPM', chip: cascade?'IN USE':'not used',
+        chipStyle: cascade ? { ...vChip, background:'rgba(108,203,95,0.22)', color:'var(--sz-ok)' } : { ...vChip, background:'var(--sz-container-highest)', color:'var(--text-tertiary)' },
+        style:vCard(cascade,'ok'),
+        body:'Step 7 of the hot test asked for specific speeds and the EC reached them, so the outer loop outputs RPM and lets the firmware handle the motor. Steadiest and quietest.',
+        plain:'This fan takes speed commands directly' },
+      { icon:'alert-decagram-outline', color:'var(--sz-warn)', title:'Fallback \u2014 command duty', chip: cascade?'standby':'IN USE',
+        chipStyle: cascade ? { ...vChip, background:'var(--sz-container-highest)', color:'var(--text-tertiary)' } : { ...vChip, background:'rgba(197,153,78,0.24)', color:'var(--sz-warn)' },
+        style:vCard(!cascade,'warn'),
+        body:'If tracking was poor, the outer loop converts its RPM demand to duty through the measured duty\u2192RPM curve and drives duty instead. Coarser, but never fights the firmware.',
+        plain:'This fan is driven by power level instead of exact speed' },
+    ];
+
+    const ff=3880, pi=920, lead=560, thr=740, total=ff+pi+lead+thr;
+    const termDefs=[
+      { name:'FF', color:'var(--app-accent)', v:ff },
+      { name:'PI trim', color:'var(--sz-violet)', v:pi },
+      { name:'Lead', color:'var(--sz-ok)', v:lead },
+      { name:'Throttle escalation', color:'var(--sz-warn)', v:thr },
+    ];
+    const terms=termDefs.map((t,i)=>({ name:t.name, value:(i===0?'':'+')+t.v.toLocaleString()+' RPM', share:Math.round(t.v/total*100)+'%',
+      barStyle:{ width:(t.v/total*100).toFixed(2)+'%', background:t.color, borderRight: i<termDefs.length-1?'1px solid rgba(0,0,0,0.35)':'none' },
+      dotStyle:{ width:'10px', height:'10px', borderRadius:'3px', background:t.color, flexShrink:0 } }));
+
+    const chip=(bg,fg)=>({ display:'inline-flex', alignItems:'center', gap:'6px', height:'24px', padding:'0 11px', borderRadius:'12px', fontSize:'11.5px', fontWeight:600, background:bg, color:fg, whiteSpace:'nowrap', alignSelf:'flex-start' });
+    const card={ background:'var(--sz-container)', border:'1px solid var(--sz-outline)', borderRadius:'14px', padding:'16px 18px' };
+    const guardCard={ ...card, background:'var(--sz-container-low)' };
+    const rows=[
+      { term:'FF', role:'additive term', icon:'flash', chipStyle:chip('rgba(0,120,215,0.20)','#8fc4f5'), cardStyle:card,
+        purpose:'The anti-lag workhorse. Cools for the heat being generated right now, before the sensor has moved at all \u2014 the only way to beat the 4-second dead time.',
+        notes:'Adapter V\u00d7A + GPU power + (Linux) CPU package power, mapped through the identified steady-state gain. Largest single contributor in normal use.', hasWarn:false, warn:'' },
+      { term:'PI trim', role:'additive term', icon:'tune-variant', chipStyle:chip('rgba(138,183,232,0.20)','#b7cff0'), cardStyle:card,
+        purpose:'Corrects everything feed-forward cannot know: ambient temperature, dust, degraded paste, altitude, a blocked vent.',
+        notes:'Gains come from SIMC above, never hand-tuned. Anti-windup is mandatory \u2014 output clamp plus back-calculation.', hasWarn:true,
+        warn:'Without anti-windup the integrator keeps accumulating while the fan is saturated, and the fan sticks at maximum long after the machine has cooled.' },
+      { term:'Lead', role:'additive term', icon:'trending-up', chipStyle:chip('rgba(108,203,95,0.20)','#9ddb93'), cardStyle:card,
+        purpose:'Early warning. A rise of 3 \u00b0C/s means a transient is underway even while the absolute temperature still looks harmless.',
+        notes:'Derivative on the measurement, not on the error, and low-pass filtered \u2014 so a setpoint change does not kick the fan, and sensor noise does not become fan noise.', hasWarn:false, warn:'' },
+      { term:'Throttle escalation', role:'additive \u00b7 latched', icon:'lock-alert-outline', chipStyle:chip('rgba(197,153,78,0.22)','var(--sz-warn)'), cardStyle:card,
+        purpose:'The direct answer to a thermal freeze: if the hardware says it is throttling, the model was wrong and airflow goes up regardless.',
+        notes:'NVML throttle reasons, or the PDH % Processor Performance ratio. Additive on top of the model and latched, not momentary.', hasWarn:true,
+        warn:'Latched means it holds until the driving temperature stays below target for 60 s \u2014 surfaced in the editor as a HELD badge with a release countdown.' },
+      { term:'Floor', role:'guard \u00b7 clamps output', icon:'shield-half-full', chipStyle:chip('var(--sz-container-highest)','var(--text-secondary)'), cardStyle:guardCard,
+        purpose:'A minimum RPM that no setting, curve or control term can undercut.',
+        notes:'Defaults to the minimum spin measured in calibration (1,180 RPM \u00b7 17% here). User-overridable. Also closes the open half of advisory Finding 4.', hasWarn:false, warn:'' },
+      { term:'Slew limit', role:'guard \u00b7 rate limit', icon:'speedometer-slow', chipStyle:chip('var(--sz-container-highest)','var(--text-secondary)'), cardStyle:guardCard,
+        purpose:'Caps how fast the commanded speed may change \u2014 fast up, slow down.',
+        notes:'Deliberately asymmetric. This is what makes a PI-controlled fan sound acceptable rather than surging: it may react instantly to heat, but it must come back down gently.', hasWarn:false, warn:'' },
+    ];
+
+    const tagM={ display:'inline-flex', alignItems:'center', height:'22px', padding:'0 10px', borderRadius:'11px', fontSize:'10.5px', fontWeight:600, whiteSpace:'nowrap', background:'var(--sz-ok-bg)', color:'var(--sz-ok)', flexShrink:0 };
+    const tagD={ ...tagM, background:'rgba(0,120,215,0.20)', color:'#8fc4f5' };
+    const provenance=[
+      { tag:'measured', tagStyle:tagM, name:'K \u2014 process gain', value:'0.42 \u00b0C per 1% duty', why:'Total temperature drop divided by the duty step applied in calibration. Sets how much airflow is worth on this specific machine.' },
+      { tag:'measured', tagStyle:tagM, name:'\u03c4 \u2014 time constant', value:'26 s', why:'Time to reach 63% of the change. Directly sets the integral time, so a sluggish machine gets a patient controller automatically.' },
+      { tag:'measured', tagStyle:tagM, name:'L \u2014 dead time', value:'4 s', why:'Delay before the sensor reacts at all. The whole reason feed-forward and lead exist, and the lower bound on any sane \u03bb.' },
+      { tag:'measured', tagStyle:tagM, name:'Minimum spin', value:'1,180 RPM \u00b7 17%', why:'Lowest duty at which the fan kept turning during calibration. Becomes the default safety floor \u2014 below it the fan stalls.' },
+      { tag:'measured', tagStyle:tagM, name:'Tracking verdict', value:'cascade', why:'Step 7 checked whether the EC actually holds a commanded RPM. Decides RPM output versus duty fallback, and is stated to the user in plain language.' },
+      { tag:'decided', tagStyle:tagD, name:'Tuning rule', value:'SIMC / lambda', why:'Chosen for dead-time-dominant plants and for exposing one intuitive knob. Ziegler\u2013Nichols is not used \u2014 on this plant it either rings or has to be detuned into uselessness.' },
+      { tag:'decided', tagStyle:tagD, name:'\u03bb default', value:'8 s \u00b7 2\u00d7 L', why:'Two dead times is the standard robust starting point: quick enough to catch a transient, slow enough that the fan is not audibly hunting.' },
+      { tag:'decided', tagStyle:tagD, name:'Target temperature', value:'78 \u00b0C \u00b7 range 60\u201395', why:'Your comfort knob, not a tuning parameter. Bounds keep it above ambient-limited nonsense and below the throttle ceiling.' },
+      { tag:'decided', tagStyle:tagD, name:'Latch release', value:'60 s below target', why:'Long enough that a throttling workload cannot flap the fan, short enough that the machine goes quiet soon after the work stops.' },
+      { tag:'decided', tagStyle:tagD, name:'Slew asymmetry', value:'fast up, slow down', why:'Purely a perceived-noise decision. Symmetric rate limits measure the same and sound worse.' },
+    ];
+
+    return { plant, lam:this.lambdaModel(), chain, verdicts,
+      plantVals:[
+        { sym:'K', color:'var(--sz-violet)', value:'0.42 \u00b0C / 1% duty', desc:'How much cooling one percent of fan buys' },
+        { sym:'\u03c4', color:'var(--sz-ok)', value:'26 s', desc:'How long most of that change takes' },
+        { sym:'L', color:'var(--sz-warn)', value:'4 s', desc:'Delay before anything shows on the sensor' },
+      ],
+      law:{ total:total.toLocaleString(), terms, rows },
+      provenance };
+  }
+}
+</script>
+</body>
+</html>

@@ -182,9 +182,20 @@ public sealed class FanEditSession
         {
             // Persist the mode to the whole linked group so linked fans apply together.
             var group = _parent.ActuationGroup(fan.Snapshot.FanIndex);
-            foreach (var fanIndex in group)
+
+            if (mode == FanControlMode.Adaptive)
             {
-                await _actuator.ActuateSimpleAsync(fanIndex, mode, StagedManualDuty, preview: false, cancellationToken).ConfigureAwait(true);
+                // Arming Adaptive is not a simple actuation: it carries the driving sensors the loop holds,
+                // so it goes through its own command. Deliberately NOT applied to the linked group — two fans
+                // in different positions have different thermal models and cannot share one closed loop.
+                await _parent.ArmAdaptiveModeAsync(fan.Snapshot.FanIndex, cancellationToken).ConfigureAwait(true);
+            }
+            else
+            {
+                foreach (var fanIndex in group)
+                {
+                    await _actuator.ActuateSimpleAsync(fanIndex, mode, StagedManualDuty, preview: false, cancellationToken).ConfigureAwait(true);
+                }
             }
 
             PreTestState = null;

@@ -396,7 +396,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         SelectedFanMode = ShowCustomEditor ? FanControlMode.CustomCurve : _session.StagedMode ?? ServiceFanMode;
 
         var selectedStaged = CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode
-            || LinkSection.HasStagedLinks;
+            || LinkSection.HasStagedLinks
+            || HasStagedAdaptiveSettings;
         var otherStagedCount = OtherStagedFanCount();
         var anyStaged = selectedStaged || otherStagedCount > 0;
         HasPendingFanWork = anyStaged || IsTesting;
@@ -509,6 +510,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             FanControlMode.Manual => 1,
             FanControlMode.CustomCurve => 2,
             FanControlMode.Max => 3,
+            FanControlMode.Adaptive => 4,
             _ => 0,
         };
         set => SelectedMode = value switch
@@ -516,6 +518,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             1 => FanControlMode.Manual,
             2 => FanControlMode.CustomCurve,
             3 => FanControlMode.Max,
+            4 => FanControlMode.Adaptive,
             _ => FanControlMode.Auto,
         };
     }
@@ -800,6 +803,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             await _session.ApplySimpleModeAsync(cancellationToken).ConfigureAwait(true);
             // Persist any staged "Applies to" link changes (the link is grouping-only when no mode is staged).
             await LinkSection.FlushStagedLinksAsync(cancellationToken).ConfigureAwait(true);
+            await FlushStagedAdaptiveSettingsAsync(cancellationToken).ConfigureAwait(true);
             // "Apply all" reaches every fan: commit the other fans' parked staged work too.
             await ApplyOtherStagedFansAsync(cancellationToken).ConfigureAwait(true);
             return;
@@ -844,6 +848,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             // Skip only the selected fan's save; the shared tail still runs (same three calls as the
             // simple-mode branch above) so "Apply all" honors the other fans' parked staged work.
             await LinkSection.FlushStagedLinksAsync(cancellationToken).ConfigureAwait(true);
+            await FlushStagedAdaptiveSettingsAsync(cancellationToken).ConfigureAwait(true);
             await ApplyOtherStagedFansAsync(cancellationToken).ConfigureAwait(true);
             return;
         }
@@ -901,6 +906,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         // Persist any staged "Applies to" link changes alongside the applied curve.
         await LinkSection.FlushStagedLinksAsync(cancellationToken).ConfigureAwait(true);
+        await FlushStagedAdaptiveSettingsAsync(cancellationToken).ConfigureAwait(true);
         // "Apply all" reaches every fan: commit the other fans' parked staged work too.
         await ApplyOtherStagedFansAsync(cancellationToken).ConfigureAwait(true);
     }
@@ -1105,6 +1111,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         // Drop any pending "Applies to" link changes (they were never saved to the service), and every
         // other fan's parked staged work — "Revert all" reaches the whole fleet.
         LinkSection.DiscardStagedLinks();
+        DiscardStagedAdaptiveSettings();
         DiscardOtherStagedFans();
 
         // While previewing, Revert stops the live test and restores the fan's prior state.
@@ -1400,6 +1407,189 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     {
         RefreshDerivedState();
         NotifyCommandStates();
+    }
+
+    // ----- Adaptive mode -----
+
+    /// <summary>
+    /// Adaptive settings the user has changed but not yet applied, keyed by fan.
+    /// </summary>
+    /// <remarks>
+    /// Kept here rather than on the mode body because the body is recreated on every mode switch — staging it
+    /// there would silently discard the user's edits the moment they looked at another mode.
+    /// </remarks>
+    private readonly Dictionary<int, AdaptiveFanSettings> _stagedAdaptiveSettings = [];
+
+    /// <summary>True while any fan has unapplied Adaptive settings.</summary>
+    public bool HasStagedAdaptiveSettings => _stagedAdaptiveSettings.Count > 0;
+
+    /// <summary>Stages Adaptive settings for a fan, to be flushed on Apply.</summary>
+    /// <param name="fanIndex">The fan.</param>
+    /// <param name="settings">The staged values.</param>
+    internal void StageAdaptiveSettings(int fanIndex, AdaptiveFanSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        _stagedAdaptiveSettings[fanIndex] = settings;
+        RefreshDerivedState();
+        NotifyCommandStates();
+    }
+
+    /// <summary>Drops every staged Adaptive change, for Revert.</summary>
+    internal void DiscardStagedAdaptiveSettings()
+    {
+        if (_stagedAdaptiveSettings.Count == 0)
+        {
+            return;
+        }
+
+        _stagedAdaptiveSettings.Clear();
+        RefreshDerivedState();
+        NotifyCommandStates();
+    }
+
+    /// <summary>
+    /// Pushes staged Adaptive settings to the service.
+    /// </summary>
+    /// <remarks>
+    /// A fan keeps its staged entry when the service rejects the change, so a failed apply never silently
+    /// discards what the user asked for — the same contract as the fan-link flush.
+    /// </remarks>
+    internal async Task FlushStagedAdaptiveSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        if (_stagedAdaptiveSettings.Count == 0 || !CanIssueFanCommands)
+        {
+            return;
+        }
+
+        foreach (var (fanIndex, settings) in _stagedAdaptiveSettings.ToArray())
+        {
+            try
+            {
+                var result = await _fanControlClient
+                    .SetAdaptiveSettingsAsync(fanIndex, settings, cancellationToken)
+                    .ConfigureAwait(true);
+
+                if (result.Succeeded)
+                {
+                    _stagedAdaptiveSettings.Remove(fanIndex);
+                }
+                else
+                {
+                    ReportStatus($"Service rejected the Adaptive change: {result.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to persist Adaptive settings for fan {FanIndex}", fanIndex);
+                ReportStatus($"Failed to save the Adaptive settings: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+            }
+        }
+
+        RefreshDerivedState();
+        NotifyCommandStates();
+    }
+
+    /// <summary>
+    /// Clears a latched throttle escalation. Immediate, never staged.
+    /// </summary>
+    /// <remarks>
+    /// Staging this would be nonsense: it is a statement about a control loop that is running right now, and
+    /// if the processor is still throttling the controller latches again on its next tick — which is correct.
+    /// </remarks>
+    internal async Task ReleaseThrottleLatchAsync(int fanIndex, CancellationToken cancellationToken = default)
+    {
+        if (!CanIssueFanCommands)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _fanControlClient.ReleaseThrottleLatchAsync(fanIndex, cancellationToken).ConfigureAwait(true);
+            if (!result.Succeeded)
+            {
+                ReportStatus(result.Message, Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to release the throttle latch for fan {FanIndex}", fanIndex);
+            ReportStatus($"Failed to release the escalation: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+        }
+    }
+
+    /// <summary>
+    /// Arms a fan into Adaptive, carrying the driving sensors the loop will hold.
+    /// </summary>
+    /// <remarks>
+    /// Separate from the simple-mode actuation path because Adaptive needs sensors, and because a refusal
+    /// here is an ordinary, actionable outcome rather than an error — the service reports it as a message.
+    /// </remarks>
+    /// <param name="fanIndex">The fan.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    internal async Task ArmAdaptiveModeAsync(int fanIndex, CancellationToken cancellationToken = default)
+    {
+        if (!CanIssueFanCommands)
+        {
+            ReportFanControlBlocked();
+            return;
+        }
+
+        var sensors = SensorSelection.SelectedIndices();
+        if (sensors.Length == 0)
+        {
+            ReportStatus(
+                "Pick at least one driving temperature sensor before switching to Adaptive.",
+                Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
+            return;
+        }
+
+        try
+        {
+            var settings = _stagedAdaptiveSettings.TryGetValue(fanIndex, out var staged) ? staged : null;
+            var result = await _fanControlClient
+                .SetAdaptiveModeAsync(fanIndex, sensors, SelectedAggregation ?? TemperatureAggregationMode.Maximum, settings, cancellationToken)
+                .ConfigureAwait(true);
+
+            if (result.Succeeded)
+            {
+                // The settings travelled with the arm command, so a separate flush would be a redundant write.
+                _stagedAdaptiveSettings.Remove(fanIndex);
+                ReportStatus("Adaptive is now driving this fan.", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success);
+            }
+            else
+            {
+                ReportStatus(result.Message, Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to arm Adaptive mode for fan {FanIndex}", fanIndex);
+            ReportStatus($"Failed to switch to Adaptive: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+        }
+    }
+
+    /// <summary>Discards what a fan learned from ordinary use. Immediate and destructive.</summary>
+    internal async Task ForgetAdaptiveLearningAsync(int fanIndex, CancellationToken cancellationToken = default)
+    {
+        if (!CanIssueFanCommands)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _fanControlClient.ForgetAdaptiveLearningAsync(fanIndex, cancellationToken).ConfigureAwait(true);
+            ReportStatus(
+                result.Succeeded ? "Discarded what this fan had learned. It will start again from defaults." : result.Message,
+                result.Succeeded ? Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success : Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to discard the learned model for fan {FanIndex}", fanIndex);
+            ReportStatus($"Failed to discard the learned model: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+        }
     }
 
     private FollowOption? FindFollowOption(int? fanIndex)
@@ -2031,11 +2221,12 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             || ((CurrentFanHasStagedEdits || IsCustomActivationStaged) && HasValidDraft)
             || HasStagedSimpleMode
             || LinkSection.HasStagedLinks
+            || HasStagedAdaptiveSettings
             || HasOtherStagedFans);
 
     // Revert stops a live preview (restoring the prior state) or clears staged-but-unapplied work anywhere.
     private bool CanRevertStaged => HasSelectedFan && CanIssueFanCommands
-        && (IsTesting || CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode || LinkSection.HasStagedLinks || HasOtherStagedFans);
+        && (IsTesting || CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode || LinkSection.HasStagedLinks || HasStagedAdaptiveSettings || HasOtherStagedFans);
 
     /// <summary>Parked staged work on non-selected fans ("Apply all" / "Revert all" reach them too).</summary>
     private bool HasOtherStagedFans => OtherStagedFanCount() > 0;
@@ -2238,6 +2429,18 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             if (value)
             {
                 SelectedMode = FanControlMode.Max;
+            }
+        }
+    }
+
+    public bool IsAdaptiveModeChecked
+    {
+        get => SelectedMode == FanControlMode.Adaptive;
+        set
+        {
+            if (value)
+            {
+                SelectedMode = FanControlMode.Adaptive;
             }
         }
     }

@@ -18,6 +18,8 @@ Recreate them in XAML with the app's existing controls and brush resources; do n
 |------|----------------|
 | `Fan Control.dc.html` | Fan editor with the new **Adaptive** mode (uncalibrated + calibrated) |
 | `Fan Calibration.dc.html` | The **calibration wizard** dialog, all states |
+| `Adaptive Confidence States.dc.html` | Reference sheet — all 4 confidence treatments × 3 learning states |
+| `Adaptive Control Explained.dc.html` | The **control-design explainer** page (screen 6) |
 | `Dashboard.dc.html` | Reworked **Profiles** model + mode-dependent per-fan controls |
 | `Settings.dc.html` | Current Settings (unchanged; included for context) |
 
@@ -89,6 +91,12 @@ All glyphs are **Material Design Icons (MDI)** — the SubZero/hardware set — 
 | Target temperature | `thermometer-check` |
 | Safety floor | `shield-half-full` |
 | Reset to defaults | `backup-restore` |
+| Calibration & reference card | `wrench-outline` |
+| Explainer / how it works | `book-open-variant` |
+| Explainer: cascade chain blocks | `thermometer`, `chart-timeline-variant`, `target`, `chip`, `fan` |
+| Explainer: verdict cards | `check-network-outline` / `alert-decagram-outline` |
+| Explainer: control-law terms | `flash`, `tune-variant`, `trending-up`, `lock-alert-outline`, `shield-half-full`, `speedometer-slow` |
+| Explainer: feedback strip | `arrow-u-left-bottom` |
 | Explanation hint | `lightbulb-on-outline` |
 | Don't-touch warning | `hand-back-left-outline` |
 | Fans to maximum | `fan-speed-3` |
@@ -116,54 +124,154 @@ Modifies the **detail pane** of the existing Fan Control page. Everything else o
 
 The mode `SegmentedControl` gains a **fifth** segment. Order and labels:
 
-`Auto · Manual · Curve · Max · Adaptive`
+`Auto · Manual · Curve · Adaptive · Max`
 
+> Adaptive sits **after Curve**, with the other model-driven modes; Max stays the terminal option.
 > The curve segment label is shortened to **"Curve"** so five segments fit the detail pane at
 > the app's minimum width. Elsewhere (fan-list mode pill, headers) the mode is still spelled
 > **"Custom curve"**.
+>
+> **Clipping caution:** five segments overflow a narrow detail pane. Let the selector shrink and
+> scroll horizontally (`min-width:0` on the row, an overflow-x container around the control) —
+> a fixed-width segmented control gets cut off, which we hit and fixed.
 
-Immediately to the right of the selector sits a **calibration pill** — visible **only while the
-Adaptive segment is selected**:
+Immediately to the right of the selector sits a **learning-state pill** — visible **only while the
+Adaptive segment is selected**. It reports what the controller knows, never a readiness gate:
 
-| Calibration state | Pill | Background / foreground |
+| Learning state | Pill | Background / foreground |
 |---|---|---|
-| `Ok` | `check-decagram` "Calibrated · {relative age}" | success wash / `#6ccb5f` |
-| `Stale` | `clock-alert-outline` "Calibration stale" | warning wash / `#c5994e` |
-| `None` | `lock-outline` "Not calibrated" | `#383b3b` / secondary text |
+| `Learning` | `school-outline` "Getting to know this fan" | `#383b3b` / secondary text |
+| `Converging` | `chart-bell-curve-cumulative` "Learned from {n} quiet periods" | violet 18% / `#8AB7E8` |
+| `Confident` | `check-decagram` "Knows this fan well" | success wash / `#6ccb5f` |
 
 Pill geometry: `Height=24`, `CornerRadius=12`, padding `0,11`, `FontSize=11.5`, `SemiBold`.
 
 The mode row is `flex-wrap` in HTML → in XAML use a **`WrapPanel`**-style container so the pill
 drops to a second line rather than clipping the selector at narrow widths.
 
-## State A — uncalibrated (the state most users meet first)
+---
 
-![Adaptive, uncalibrated](screenshots/fan-control/02-adaptive-uncalibrated.png)
+# ⚠ The inversion — read this before Screen 1
 
-The Adaptive segment is **visible and selectable but cannot be armed**. Selecting it shows an
-explanation, not an editor — and the **action bar swaps its Preview/Apply affordances for the
-calibration call to action**, so the mode can never be staged for an uncalibrated fan.
+An earlier revision of this bundle treated the hot-test calibration as a **gate**: an uncalibrated
+fan could not use Adaptive, and the editor showed a lockout with a *"Calibrate this fan"* call to
+action. **That is no longer the design.**
 
-Body: a card (`CardBackgroundBrush` elevated `#383b3b`, radius 12, padding 20) containing
+The controller now identifies the machine's thermal model from ordinary use — recursive least
+squares over settled operating points, fitting `T ≈ a + b·P − K·duty`. Therefore:
 
-- heading — **"Adaptive needs a one-time calibration"**
-- body copy (static): *"Adaptive drives {FanLocation} from a measured model of how fast it moves
-  heat out of this machine — how much the temperature falls per unit of airflow, and how long
-  that takes. SubZero learns those numbers once by running a short auto-tune, then holds your
-  target temperature with the least noise it can."*
-- a 2-column fact grid — icon + one line each:
-  - `clock-outline` — "Takes about 5 minutes end to end"
-  - `fan-speed-3` — "Fans run to maximum — it will be loud"
-  - `cpu-64-bit` — "The CPU is loaded on purpose to raise heat"
-  - `power-plug` — "AC power required — blocked on battery"
-- primary **`Calibrate this fan`** button + caption "Calibration is stored per fan, per machine."
-- footnote: "Until then this fan keeps running its current mode — nothing changes while you read this."
+- **Adaptive arms immediately, on any fan, with no calibration.** There is no lockout state, and
+  no gated action bar. Delete both if you built them.
+- It starts from deliberately conservative defaults and improves the longer the machine runs.
+- The hot test still exists but is an **optional accelerator** — "learn this in 4 minutes instead
+  of over the next few days" — never a prerequisite.
 
-**Action bar (uncalibrated):** `lock-outline` + *"Adaptive can't be applied to {FanLocation}
-until it has been calibrated."* + a **Calibrate this fan** button. The normal
-Discard / Preview / "no unsaved changes" rows are suppressed.
+So the design problem is no longer a lockout. It is **representing confidence honestly over time
+without making the user anxious about a fan that is working fine.**
 
-## State B — calibrated editor
+| State | What is true | What the user should feel |
+|---|---|---|
+| **Learning** | Running on safe defaults; model not yet separable | "It works. It is getting to know my machine." |
+| **Converging** | Model identified, still refining; confidence rising | Quiet progress. Not a warning. |
+| **Confident** | Model stable, many observations | Nothing to do. Numbers are trustworthy. |
+
+**Explicitly avoid:** progress bars that imply the fan is broken until full, percentage-complete
+framing, badges that read like errors, and anything that makes "still learning" feel like a fault.
+**A fan on defaults is a working fan, not a degraded one.**
+
+---
+
+## The confidence card — "What SubZero knows about this fan"
+
+![All 12 confidence combinations](screenshots/confidence/00-all-12-states.png)
+
+Sits directly under the controller readout. `Adaptive Confidence States.dc.html` is a reference
+sheet rendering **all four treatments × all three states**; the live editor is one card whose state
+comes from the controller. The editor carries a `DESIGN REVIEW · state / treatment` switcher row so
+reviewers can see every combination — **that row is scaffolding, not shipping UI.**
+
+Bound inputs: observation count, whether the model is identified, when it last improved, whether
+the fan has ever had a hot test. **Show what the machine has figured out, not a completion metric.**
+
+### Four treatments
+
+| Treatment | Shape | Reads as |
+|---|---|---|
+| **Status** | icon + headline that upgrades + one supporting line | reassurance, instantly legible |
+| **Trend** | sparkline of *how much the model moved* per observation, decaying to flat, + headline | convergence as calm; needs interpretation |
+| **Facts** | tiles — quiet periods used, cooling per 1% fan, stalls below | accountable, concrete |
+| **Improvements** | a small chip + one line, deliberately unemphatic | quiet; designed to grow prominent **only** when something is wrong (model contradicted, likely blocked vent) |
+
+**Recommendation: ship Status as the headline with Facts beneath it.** Status carries the
+reassurance; Facts makes it accountable. Trend is elegant but asks the user to interpret a chart in
+order to feel calm. Improvements alone is too quiet to answer "is this working?".
+
+Note the Learning-state Facts tile: it reads **"Running on: Safe defaults"** rather than leaving a
+blank where a measured value will go — the absence of a model is stated as a working configuration.
+
+### Copy per state (static templates, numbers bound)
+
+| State | Headline | Body |
+|---|---|---|
+| Learning | "Still getting to know this fan" | Running on safe defaults, watching ordinary use; learns only from settled quiet moments, so a day or two — **"the fan is doing its job the whole time"** |
+| Converging | "Learned from {n} quiet periods" | Has its own model and is refining it; already better than the defaults |
+| Confident | "Knows this fan well" | Stable across 300+ quiet periods, hot and cold days; **"Nothing to do here"**, and it will notice on its own if the machine changes |
+
+### The calibration offer, inline
+
+Below a hairline divider in the same card: `clock-fast` + *"In a hurry? A 4-minute test would teach
+it everything at once."* + a **Run the 4-minute test** button. It **disappears entirely in the
+Confident state** — there is nothing left to accelerate.
+
+## Response — the λ knob as felt consequences
+
+Card, `metronome`. λ is internally the closed-loop time constant (2–16 s, default 8 s) and **must
+never look like a control-theory parameter.**
+
+- Slider runs **Quick → Calm**; the header shows the *named* value: Quick / Eager / Steady / Calm /
+  Very calm. End labels are "Quick" and "Calm", not seconds.
+- Two live consequence bars: **Back on target within ~{(λ + L) × 3.4} s** (turns warning above
+  58 s) and **Fan speed changes** — `restless` ≤ 4 s → `busy` → `steady` → `very calm` ≥ 11 s.
+- A small overshoot preview: the response curve at the current λ against a dashed ghost of the
+  default, captioned "dashed = the default setting".
+- Raw values live in a collapsed **Advanced** disclosure: λ in seconds, `Kᶜ`, `τᵢ`. Collapsed by
+  default, chevron-right → chevron-down.
+
+## Optional tools
+
+Replaces the old "Calibration & reference" card. Header `wrench-outline` **"Optional tools"** with
+the right-aligned line **"Nothing here is required — Adaptive works without it."** Four actions, the
+first three identical outlined buttons (`Height=34`, `CornerRadius=8`, padding `0,14`, 12.5px text,
+15px icon at 8px gap):
+
+| Action | Icon | Notes |
+|---|---|---|
+| Reset to defaults | `backup-restore` | target 78 °C, floor on, floor 24%, λ 8 s — **staged** |
+| 4-minute learning test | `clock-fast` | opens the wizard |
+| How adaptive control works | `book-open-variant` | opens the explainer (Screen 6) |
+| Forget what it learned | `delete-outline` | right-aligned, destructive red text, transparent fill |
+
+---
+
+## What was deleted from the previous revision
+
+So an implementer does not build the old model by accident:
+
+- The **uncalibrated lockout** card ("Adaptive needs a one-time calibration") — gone.
+- The **gated action bar** row ("Adaptive can't be applied to {FanLocation} until it has been
+  calibrated") — gone; Adaptive stages and previews like every other mode.
+- The **calibration pill** as a readiness badge (`Calibrated` / `Stale` / `Not calibrated`) —
+  replaced by the learning-state pill above.
+- The safety-floor caption no longer says "measured during calibration": it reads **"Below about
+  {n} RPM this fan stalls."**, which is true whether the value came from the test or from
+  gradual learning.
+
+## The editor's section order
+
+Latched banner (when latched) → **Controller** → **What SubZero knows about this fan** → **Target
+temperature** → **Response** → **Safety floor** → **Optional tools**.
+
+## Adaptive editor — controller readout
 
 Three stacked sections inside the scrolling detail body.
 
@@ -232,10 +340,32 @@ When **on**, a divider then a `Slider` (0–60 %) + large value, and the caption
 measured during calibration was {value} — below that this fan stalls."* (bound to the calibration
 result, not a constant).
 
-### 5. Footer row
+### 5. Calibration & reference (its own card)
 
-`Reset to defaults` (subtle, `backup-restore`) · spacer · `check-decagram-outline` + *"Calibrated
-{age} · K 0.42 · τ 26s · L 4s"* · `Recalibrate` (subtle).
+![Calibration & reference island](screenshots/fan-control/04-calibration-reference-island.png)
+
+The old bare footer row is gone. These actions now sit in a **card of their own**, same shape as the
+other Adaptive sections (icon `wrench-outline` + title → body):
+
+- Header: **"Calibration & reference"**, with the calibration summary right-aligned in the header —
+  `check-decagram-outline` + *"Calibrated {age} · K 0.42 · τ 26s · L 4s"*.
+- Body: three buttons in one row, **all identical geometry** (`Height=34`, `CornerRadius=8`, 14px
+  horizontal padding, 12.5px text, 15px leading icon at 8px gap, `CardBackgroundBrush` fill +
+  1px `CardBorderBrush` stroke):
+
+| Button | Icon | Action |
+|---|---|---|
+| Reset to defaults | `backup-restore` | Restores target 78 °C, floor on, floor 24% — **staged**, not immediate |
+| Auto-calibration routine | `tune-vertical-variant` | Opens the calibration wizard |
+| How adaptive control works | `book-open-variant` | Opens the control-design explainer (screen 6) |
+
+> Two earlier mistakes fixed here, worth keeping fixed in XAML: **Reset to defaults** was a
+> `subtle`-variant button, which renders as bare text and read as a link beside two real buttons —
+> give all three the same outlined treatment. And **Recalibrate** was removed: it invoked the same
+> command as *Auto-calibration routine*, so it was two buttons for one action.
+
+The uncalibrated state carries the same two entry points: the accent **Calibrate this fan** plus an
+outlined **How adaptive control works**.
 
 ## Staging behaviour
 
@@ -245,7 +375,53 @@ they flow through the existing dirty/Preview/Apply model and the navigation guar
 
 ---
 
-# Screen 2 — Calibration wizard
+# Screen 2 — Optional calibration (the 4-minute test)
+
+**Not a gate, and never presented as required setup.** Retitled throughout: the dialog is
+**"Teach {FanLocation} in 4 minutes"** (`clock-fast`, subtitle "Optional shortcut"), and every state
+reassures that gradual learning continues regardless.
+
+| State | Title | Subtitle |
+|---|---|---|
+| Consent | Teach {FanLocation} in 4 minutes | Optional shortcut · {Slot} · {Model} |
+| Blocked | Teach {FanLocation} in 4 minutes | The shortcut needs AC power — Adaptive keeps learning either way |
+| Running | **Learning** {FanLocation} | Don't run anything on the machine until this finishes |
+| Result | SubZero has learned this fan | {FanLocation} · measured just now |
+| Failure | The shortcut didn't finish | {FanLocation} · nothing saved, nothing lost |
+
+**Consent** opens with *"Adaptive is **already learning this fan** from ordinary use"*, then two
+side-by-side cards making the trade explicit rather than implied:
+
+- *If you skip this* (neutral card) — safe defaults, refines from quiet moments, usable in a day or
+  two, fully settled within a week. **"Nothing is wrong in the meantime."**
+- *If you run the test* (success-tinted card) — the same numbers measured in one go; four noisy
+  minutes, then full accuracy immediately, and it stops needing to learn.
+
+The honest section is headed **"What the test does to your machine"** — the *cost of the shortcut*,
+not the price of entry. Footer: **Not now** / **Start the 4-minute test**, with the note
+*"Skipping this changes nothing — Adaptive carries on learning by itself."*
+
+> The previous revision's footer note read *"Without this, SubZero will not learn your fans."* That
+> is now false and must not ship.
+
+**Blocked on battery** is **warning amber, not danger red** — it blocks the *shortcut*, not the
+feature. Title *"The fast version needs AC power"*, closing with **"Nothing is blocked by this.
+Adaptive is still learning {FanLocation} from ordinary use, on battery or not — plug in only if you
+want the fast version."** No primary button; it unblocks live when AC is attached.
+
+**Failures** — each of the five still names its cause, states nothing was saved and the fans were
+restored (and by whom), and now **ends by pointing at gradual learning instead of demanding a
+retry**. The temperature-ceiling case says explicitly that you do *not* need to retry, since
+gradual learning never runs the machine hot.
+
+**Result** — *"{FanLocation} is learned. Adaptive is now using this model instead of its defaults —
+no further learning needed."*
+
+The dialog geometry, the 7-step progress list, the temperature/duty plot with the step change
+marked, and the always-available Cancel are unchanged from the previous revision — as is the
+plain-language result table and the `TextSize="0"` / zero-padding note for the small chart.
+
+# Screen 2 (previous revision) — dialog anatomy
 
 A modal dialog over the dimmed app (`ContentDialog`). **880 × min 680**, radius 14,
 `CardBackgroundBrush`, 1px `#ffffff21` border, shadow `0 32 64 rgba(0,0,0,0.55)`.
@@ -366,6 +542,10 @@ editor on Adaptive, staged.
 ## Failures — distinct copy per cause
 
 ![Failure — insufficient load](screenshots/calibration/05-failure-insufficient-load.png)
+![Failure — insufficient ΔT](screenshots/calibration/06-failure-insufficient-delta-t.png)
+![Failure — temperature ceiling](screenshots/calibration/07-failure-temperature-ceiling.png)
+![Cancelled](screenshots/calibration/08-failure-cancelled.png)
+![Failure — client disconnected](screenshots/calibration/09-failure-client-disconnected.png)
 
 All five share one layout: severity banner (icon + title + body) → **measured-values table** →
 `lightbulb-on-outline` advice line → footer **Close** + a retry primary. Never a generic error.
@@ -473,6 +653,140 @@ All temperatures, speeds, powers, voltages and currents render through
 **`IUnitFormattingService`** — including slider bounds.
 
 ---
+
+| File | Screen |
+|------|--------|
+| `fan-control/01-adaptive-calibrated.png` | Adaptive editor — controller readout + latched escalation |
+| `fan-control/02-adaptive-uncalibrated.png` | Adaptive — uncalibrated lockout |
+| `calibration/01-consent.png` | Wizard — consent |
+| `calibration/02-blocked-on-battery.png` | Wizard — blocked on battery |
+| `calibration/03-running.png` | Wizard — running |
+| `calibration/04-result.png` | Wizard — result |
+| `calibration/05-failure-insufficient-load.png` | Failure — insufficient load |
+| `calibration/06-failure-insufficient-delta-t.png` | Failure — insufficient ΔT |
+| `calibration/07-failure-temperature-ceiling.png` | Failure — temperature ceiling |
+| `calibration/08-failure-cancelled.png` | Cancelled |
+| `calibration/09-failure-client-disconnected.png` | Failure — client disconnected |
+| `fan-control/04-calibration-reference-island.png` | Optional tools card (formerly Calibration & reference) |
+| `confidence/00-all-12-states.png` | **All 4 treatments × 3 learning states** — the confidence reference sheet |
+| `control-explainer/00-full-page.png` | Control-design explainer — whole page |
+| `control-explainer/01-plant-fopdt.png` | Explainer — measured step response + FOPDT |
+| `control-explainer/02-simc-lambda.png` | Explainer — SIMC λ knob |
+| `control-explainer/03-cascade.png` | Explainer — cascade chain + tracking verdict |
+| `control-explainer/04-control-law-terms.png` | Explainer — control-law terms & guards |
+| `control-explainer/05-provenance.png` | Explainer — measured vs decided |
+| `dashboard/01-profiles-and-fans.png` | Dashboard — profiles |
+| `dashboard/02-fan-modes-detail.png` | Dashboard — per-fan mode controls |
+
+---
+
+# Screen 6 — Control design explainer
+
+`Adaptive Control Explained.dc.html` — a **reference page**, reached from the *How adaptive control
+works* button in the Adaptive editor. Its job: make every Adaptive number accountable, and separate
+what was **measured on this machine** from what was **decided once and shipped**.
+
+![Explainer — whole page](screenshots/control-explainer/00-full-page.png)
+
+Same page shell as every other screen (title bar + icon rail untouched), one scrolling content
+column capped at 1180px. Five numbered sections; each number badge is a 24×24 accent square,
+`CornerRadius=7`, `SemiBold` 13px.
+
+## 1. The plant — what is actually being controlled
+
+![Plant / FOPDT](screenshots/control-explainer/01-plant-fopdt.png)
+
+Left: the **measured step response** (fan duty 22% → 100% at t = 0, from calibration step 5), drawn
+as a line chart with three annotations *in the plot*, not in a legend:
+
+| Annotation | Colour | Meaning |
+|---|---|---|
+| Shaded band + dashed vertical at t = L | warning | "L = 4 s · nothing happens yet" |
+| Dashed horizontal asymptote | `#8AB7E8` violet | "K × Δduty = 32.8 °C total drop" |
+| Dashed cross-hair + dot at L + τ | success | "63% of the drop at L + τ = 30 s" |
+
+Right column: the **FOPDT transfer function** rendered as a real fraction (`T(s)/D(s) ≈ K·e^−Ls /
+(τs + 1)`) — build it as stacked `TextBlock`s with a 1px `Rectangle` divider, not an image — then
+three value tiles (K, τ, L) and a warning callout, **"Dead time dominates the design"**, explaining
+why the control law leads with power rather than temperature.
+
+## 2. Tuning — SIMC, one knob
+
+![SIMC lambda](screenshots/control-explainer/02-simc-lambda.png)
+
+An **interactive** section: a `Slider` for λ (2–16 s) redraws the disturbance-response curve against
+a dashed ghost of the shipped default (λ = 8 s), and recomputes everything derived from it:
+
+- Header value: λ in seconds + *"= {n}× dead time"*.
+- Two consequence bars — **Back on target within** `(λ + L) × 3.4` s (turns warning above 58 s) and
+  **Fan speed changes** (`restless` ≤ 4 s → `busy` → `steady` → `very calm` ≥ 11 s).
+- Derived-gain rows: `Kᶜ = τ / (K(λ + L))` %/°C, `τᵢ = min(τ, 4(λ + L))` s, `Kᵢ = Kᶜ / τᵢ`.
+- Closing line: SIMC (Skogestad) chosen because it targets dead-time-dominant plants and collapses
+  tuning to one knob.
+
+**Ziegler–Nichols is deliberately not shown.** It appears once, in the provenance table, as a
+rejected option — not as a side-by-side comparison.
+
+## 3. Cascade — two loops, not one
+
+![Cascade](screenshots/control-explainer/03-cascade.png)
+
+A five-block chain, each block a tile (`kind` label, icon, title, body, optional signal value) with
+`chevron-right` between them:
+
+`Driving temperature (64 °C)` → `SIMC PI + FF + lead` → `Commanded RPM (6,100)` → `SetFanRpmAsync`
+→ `Fan → heatsink → sensor`
+
+Beneath: a dashed feedback strip, then the **step-7 tracking verdict** as two cards — *Cascade —
+command RPM* and *Fallback — command duty*. The active one is tinted and badged **IN USE**; the
+other is `CardBackgroundBrush` at 62% opacity, badged *standby*. Each states the plain-language
+sentence the user sees in the wizard.
+
+## 4. The outer control law
+
+![Control law](screenshots/control-explainer/04-control-law-terms.png)
+
+The same stacked contribution bar as the Adaptive editor (FF 3,880 · PI trim 920 · Lead 560 ·
+Throttle escalation 740 = **6,100 RPM**), each term's share as a percentage, then one row per term —
+**Purpose** and **Notes & inputs** side by side:
+
+| Term | Role | Purpose | Inputs / notes |
+|---|---|---|---|
+| **FF** | additive | Anti-lag workhorse — cools for heat generated *now*, before the sensor moves | Adapter V×A + GPU power + (Linux) CPU package power, through the identified steady-state map |
+| **PI trim** | additive | Corrects what FF cannot know: ambient, dust, degraded paste, altitude | Gains from SIMC. **Anti-windup mandatory** — clamp + back-calculation |
+| **Lead** | additive | Early warning — 3 °C/s means a transient is underway even at a benign absolute temperature | Derivative on **measurement**, not error; low-pass filtered |
+| **Throttle escalation** | additive · **latched** | The direct answer to the freeze | NVML throttle reasons, or PDH % Processor Performance ratio |
+| **Floor** | guard · clamps output | Minimum RPM no setting can undercut | Defaults to measured min spin (1,180 RPM · 17%). Overridable |
+| **Slew limit** | guard · rate limit | Fast up, slow down (asymmetric) | What makes a PI-controlled fan sound acceptable rather than surging |
+
+The two **guards** use a recessed card (`CardSecondaryBackgroundBrush`) and a neutral chip, so they
+read as constraints on the result rather than contributions to it. Two rows carry amber inline
+warnings: PI trim's anti-windup consequence (*fan sticks at maximum long after cooling*) and the
+latch's 60-second release rule.
+
+## 5. Where each number comes from
+
+![Provenance](screenshots/control-explainer/05-provenance.png)
+
+A ten-row table, each row tagged **measured** (success chip) or **decided** (accent chip), with the
+value and a one-sentence reason. Measured: K, τ, L, minimum spin, tracking verdict. Decided: tuning
+rule (SIMC — and why not Ziegler–Nichols), λ default (8 s = 2× L), target range (60–95 °C), latch
+release (60 s below target), slew asymmetry.
+
+Closing note: values are this machine's; anything **measured** is re-learned on every calibration
+and differs per fan and per machine.
+
+## Static vs bound (explainer)
+
+All prose, section titles, term names, purposes, notes and provenance reasons are **static**. Bound:
+the five measured values (K, τ, L, min spin, tracking verdict), the contribution figures, the live
+λ and every gain derived from it, and the chart geometries computed from K/τ/L. The λ slider is a
+**what-if control on this page only** — it must not write the shipped λ.
+
+## Tweaks exposed
+
+`defaultLambda` (range 2–16 s, default 8) and `trackingVerdict` (`cascade` | `duty`) — flip the
+latter to preview the duty-fallback verdict as the active one.
 
 ## Not built yet (from the workstream brief)
 

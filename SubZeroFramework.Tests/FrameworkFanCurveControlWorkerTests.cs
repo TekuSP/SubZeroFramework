@@ -10,6 +10,7 @@ using SubZeroFramework.Service.Models;
 using SubZeroFramework.Service.Services;
 using SubZeroFramework.Service.Services.Hosting;
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Control;
 
 using UnitsNet;
 
@@ -143,6 +144,172 @@ public class FrameworkFanCurveControlWorkerTests
     }
 
     /// <summary>
+    /// The end-to-end claim for Adaptive: an armed, calibrated fan is actually driven by the controller.
+    /// </summary>
+    [Test]
+    public async Task Evaluate_WhenFanIsAdaptiveAndCalibrated_DrivesIt()
+    {
+        using var harness = new WorkerHarness();
+
+        // Seat the fan first: the store only knows fans telemetry (or a command) has introduced, and a
+        // calibration for a fan nobody has seen is correctly refused.
+        harness.Store.MarkAuto(0);
+        harness.Store.SetCalibration(0, Calibration());
+        var armed = harness.Store.SetAdaptiveMode(0, [0], TemperatureAggregationMode.Maximum, null);
+        Assert.That(armed.Succeeded, Is.True, armed.Message);
+
+        await harness.EvaluateAsync(() => harness.Provider.SetFanDutyCalls.Count > 0);
+
+        Assert.That(harness.Provider.SetFanDutyCalls, Is.Not.Empty, "A calibrated adaptive fan must be actuated.");
+    }
+
+    /// <summary>
+    /// The inversion: an uncalibrated adaptive fan runs on conservative defaults rather than being left to
+    /// the firmware. A fan on defaults is a working fan.
+    /// </summary>
+    [Test]
+    public async Task Evaluate_WhenFanIsAdaptiveButUncalibrated_DrivesItOnSafeDefaults()
+    {
+        using var harness = new WorkerHarness();
+
+        // Restored rather than armed through the store, so the WORKER is what is under test here. A state in
+        // exactly this shape also arrives for real after a factory reset wipes a calibration.
+        harness.Store.RestoreState(new FanControlStateSnapshot
+        {
+            FanIndex = 0,
+            DisplayName = "Fan 0",
+            Mode = FanControlMode.Adaptive,
+            DrivingSensorIndices = [0],
+            Calibration = FanCalibrationSnapshot.None,
+            IsAvailable = true,
+            ObservedAt = DateTimeOffset.UtcNow,
+        });
+
+        await harness.EvaluateAsync(() => harness.Provider.SetFanDutyCalls.Count > 0);
+
+        Assert.That(harness.Provider.SetFanDutyCalls, Is.Not.Empty, "An uncalibrated adaptive fan must still be driven.");
+    }
+
+    /// <summary>
+    /// A calibration and this worker must never drive the same fan at once.
+    /// </summary>
+    /// <remarks>
+    /// A calibration commands a duty and then measures what that duty did. If this worker re-resolves the fan
+    /// on its own cadence and writes a different duty in between, the run fits a model to a fan something else
+    /// kept moving — and the result looks entirely plausible while being wrong, which nothing downstream can
+    /// detect. This is the guard that makes the whole hot test trustworthy.
+    /// </remarks>
+    [Test]
+    public async Task Evaluate_WhenAFanIsBeingCalibrated_LeavesItEntirelyAlone()
+    {
+        using var harness = new WorkerHarness();
+
+        // Max would otherwise be re-asserted at 100% on every single evaluation.
+        harness.Store.MarkMax(0);
+        harness.CalibrationArbiter.TryClaim(0);
+
+        await harness.EvaluateAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(harness.Provider.SetFanDutyCalls, Is.Empty, "the worker wrote a duty to a fan under calibration");
+
+            // Nor may it hand the fan back to firmware control: that would undo the duty the run just
+            // commanded, which is just as destructive as writing a competing one.
+            Assert.That(harness.Provider.RestoreAutoCalls, Is.Empty, "the worker restored a fan under calibration");
+        });
+    }
+
+    /// <summary>
+    /// And the moment the calibration lets go, the worker takes the fan back.
+    /// </summary>
+    /// <remarks>
+    /// The fan is left wherever the run put it, which is not where this worker last put it. Without forgetting
+    /// the remembered duty on the way past, the change threshold would compare against a stale value, decide
+    /// nothing needs writing, and strand the fan at the calibration's final duty — indefinitely.
+    /// </remarks>
+    [Test]
+    public async Task Evaluate_WhenACalibrationReleasesAFan_ResumesDrivingItImmediately()
+    {
+        using var harness = new WorkerHarness();
+
+        harness.Store.MarkMax(0);
+
+        // Drive it once so the worker remembers a duty for this fan.
+        await harness.EvaluateAsync(() => harness.Provider.SetFanDutyCalls.Count > 0);
+        Assert.That(harness.Provider.SetFanDutyCalls, Is.Not.Empty);
+
+        harness.CalibrationArbiter.TryClaim(0);
+        await harness.EvaluateAsync();
+
+        harness.Provider.SetFanDutyCalls.Clear();
+        harness.CalibrationArbiter.Release(0);
+
+        await harness.EvaluateAsync(() => harness.Provider.SetFanDutyCalls.Count > 0);
+
+        Assert.That(
+            harness.Provider.SetFanDutyCalls,
+            Is.Not.Empty,
+            "the worker did not re-apply the fan's mode after the calibration released it");
+    }
+
+    /// <summary>
+    /// A cascade-tracked fan gets a SPEED command, not a duty write — that is the whole point of cascade.
+    /// </summary>
+    [Test]
+    public async Task Evaluate_WhenCalibrationSaysCascade_CommandsSpeedInsteadOfDuty()
+    {
+        using var harness = new WorkerHarness();
+
+        harness.Store.MarkAuto(0);
+        harness.Store.SetCalibration(0, Calibration() with { TrackingMode = FanSpeedTrackingMode.Cascade });
+        harness.Store.SetAdaptiveMode(0, [0], TemperatureAggregationMode.Maximum, null);
+
+        await harness.EvaluateAsync(() => harness.Provider.SetFanRpmCalls.Count > 0);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(harness.Provider.SetFanRpmCalls, Is.Not.Empty, "Cascade must reach the EC as a speed command.");
+            Assert.That(harness.Provider.SetFanDutyCalls, Is.Empty, "A cascade fan must not also be written a duty.");
+        });
+    }
+
+    /// <summary>
+    /// Leaving Adaptive must hand the fan back, not strand it at the controller's last duty.
+    /// </summary>
+    [Test]
+    public async Task Evaluate_WhenAdaptiveFanSwitchesToAuto_RestoresAutomaticControl()
+    {
+        using var harness = new WorkerHarness();
+
+        harness.Store.MarkAuto(0);
+        harness.Store.SetCalibration(0, Calibration());
+        harness.Store.SetAdaptiveMode(0, [0], TemperatureAggregationMode.Maximum, null);
+        await harness.EvaluateAsync(() => harness.Provider.SetFanDutyCalls.Count > 0);
+
+        harness.Store.MarkAuto(0);
+        await harness.EvaluateAsync(() => harness.Provider.RestoreAutoCalls.Count > 0);
+
+        Assert.That(harness.Provider.RestoreAutoCalls, Is.Not.Empty);
+    }
+
+    /// <summary>A representative calibrated fan, as a completed run would leave it.</summary>
+    private static FanCalibrationSnapshot Calibration()
+        => (new FanCalibrationSnapshot
+        {
+            State = FanCalibrationState.Ok,
+            CalibratedAt = DateTimeOffset.UtcNow,
+            ProcessGainCelsiusPerPercent = 0.42d,
+            TimeConstantSeconds = 26d,
+            DeadTimeSeconds = 4d,
+            MinimumSpinRpm = 1_180d,
+            MinimumSpinDutyPercent = 17d,
+            MaximumRpm = 7_000d,
+            FeedForwardDutyPerWatt = 0.9d,
+            TrackingMode = FanSpeedTrackingMode.Duty,
+        });
+
+    /// <summary>
     /// Commands disabled means never actuate, even for a persisted override restored at startup.
     /// </summary>
     [Test]
@@ -190,6 +357,8 @@ public class FrameworkFanCurveControlWorkerTests
                 Provider,
                 Store,
                 new FrameworkFanControlAuthorizationService(options, NullLogger<FrameworkFanControlAuthorizationService>.Instance),
+                AdaptiveSignals,
+                CalibrationArbiter,
                 new FrameworkFatalExitHandler(_shutdownCoordinator, _lifetime, NullLogger<FrameworkFatalExitHandler>.Instance),
                 _lifetime,
                 NullLogger<FrameworkFanCurveControlWorker>.Instance,
@@ -201,6 +370,12 @@ public class FrameworkFanCurveControlWorkerTests
         public StubFrameworkDataProvider Provider { get; }
 
         public FrameworkFanControlStateStore Store { get; }
+
+        /// <summary>The channel the gRPC surface uses to reach the worker's live controllers.</summary>
+        public FanAdaptiveControlSignals AdaptiveSignals { get; } = new();
+
+        /// <summary>Claim a fan here to simulate a calibration owning it, which the worker must not fight.</summary>
+        public FanCalibrationArbiter CalibrationArbiter { get; } = new();
 
         /// <summary>
         /// Drives evaluations until <paramref name="until"/> holds, or for the full settle window when no

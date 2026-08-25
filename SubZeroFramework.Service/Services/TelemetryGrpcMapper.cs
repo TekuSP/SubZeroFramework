@@ -157,6 +157,15 @@ internal static class TelemetryGrpcMapper
         return reply;
     }
 
+    /// <summary>Maps what a fan cools onto the wire.</summary>
+    public static FanCoolingRoleValue MapCoolingRole(FanCoolingRole role) => role switch
+    {
+        FanCoolingRole.Cpu => FanCoolingRoleValue.Cpu,
+        FanCoolingRole.Gpu => FanCoolingRoleValue.Gpu,
+        FanCoolingRole.System => FanCoolingRoleValue.System,
+        _ => FanCoolingRoleValue.Unknown,
+    };
+
     public static FanControlStateChangeReply MapFanControlStateChange(Change<FanControlStateSnapshot, int> change)
     {
         var reply = new FanControlStateChangeReply
@@ -164,6 +173,7 @@ internal static class TelemetryGrpcMapper
             ChangeKind = MapChangeReason(change.Reason),
             FanIndex = change.Key,
             DisplayName = change.Current.DisplayName,
+            CoolingRole = MapCoolingRole(change.Current.CoolingRole),
             ControlMode = MapFanControlMode(change.Current.Mode),
             ObservedAtUnixTimeMilliseconds = change.Current.ObservedAt.ToUnixTimeMilliseconds(),
             IsAvailable = change.Current.IsAvailable,
@@ -200,6 +210,8 @@ internal static class TelemetryGrpcMapper
         {
             reply.CurveProfiles.Add(MapCurveProfile(change.Key, profile));
         }
+
+        MapAdaptive(change.Current, reply);
 
         if (change.Current.LinkedLeaderIndex is int linkedLeaderIndex)
         {
@@ -379,11 +391,188 @@ internal static class TelemetryGrpcMapper
             FanControlModeValue.Auto => FanControlMode.Auto,
             FanControlModeValue.Manual => FanControlMode.Manual,
             FanControlModeValue.CustomCurve => FanControlMode.CustomCurve,
+            FanControlModeValue.Adaptive => FanControlMode.Adaptive,
             FanControlModeValue.Max => FanControlMode.Max,
             _ => default,
         };
 
         return value is not FanControlModeValue.Unspecified;
+    }
+
+    /// <summary>
+    /// Projects a fan's Adaptive state onto its control-state reply.
+    /// </summary>
+    /// <remarks>
+    /// Calibration and settings are CONFIGURATION and are sent whenever present. The controller readout is
+    /// LIVE and is sent only while the fan is actually adaptively driven, so a client can tell "Adaptive is
+    /// configured" from "Adaptive is running" without a second field to keep in sync.
+    /// </remarks>
+    /// <summary>
+    /// Maps a calibration state onto the wire.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="FanCalibrationState.Bootstrap"/> is mapped explicitly rather than left to a fallback. It
+    /// used to fall through to <c>None</c>, which told every client that a fan running happily on the
+    /// conservative built-in model had no model at all — the one state the Adaptive UI most needs to name.
+    /// </remarks>
+    private static FanCalibrationStateValue MapCalibrationState(FanCalibrationState state) => state switch
+    {
+        FanCalibrationState.Ok => FanCalibrationStateValue.Ok,
+        FanCalibrationState.Stale => FanCalibrationStateValue.Stale,
+        FanCalibrationState.Bootstrap => FanCalibrationStateValue.Bootstrap,
+        _ => FanCalibrationStateValue.None,
+    };
+
+    /// <summary>Maps a calibration snapshot onto the wire message the progress stream and fan state share.</summary>
+    public static FanCalibrationMessage MapCalibration(FanCalibrationSnapshot calibration)
+    {
+        ArgumentNullException.ThrowIfNull(calibration);
+
+        var message = new FanCalibrationMessage
+        {
+            State = MapCalibrationState(calibration.State),
+            CalibratedAtUnixTimeMilliseconds = calibration.CalibratedAt?.ToUnixTimeMilliseconds() ?? 0L,
+            ProcessGainCelsiusPerPercent = calibration.ProcessGainCelsiusPerPercent,
+            TimeConstantSeconds = calibration.TimeConstantSeconds,
+            DeadTimeSeconds = calibration.DeadTimeSeconds,
+            MinimumSpinRpm = calibration.MinimumSpinRpm,
+            MinimumSpinDutyPercent = calibration.MinimumSpinDutyPercent,
+            MaximumRpm = calibration.MaximumRpm,
+            ProportionalGain = calibration.ProportionalGain,
+            IntegralGain = calibration.IntegralGain,
+            FeedForwardDutyPerWatt = calibration.FeedForwardDutyPerWatt,
+            TrackingMode = calibration.TrackingMode == FanSpeedTrackingMode.Cascade
+                ? FanSpeedTrackingModeValue.Cascade
+                : FanSpeedTrackingModeValue.Duty,
+        };
+
+        // Only sent when something was actually measured. An empty message would tell the UI a speed
+        // comparison exists and then show it two blanks.
+        if (calibration.PerformanceResponse.HasMeasurement)
+        {
+            message.PerformanceResponse = MapPerformanceResponse(calibration.PerformanceResponse);
+        }
+
+        return message;
+    }
+
+    private static FanPerformanceResponseMessage MapPerformanceResponse(FanPerformanceResponse response)
+    {
+        var message = new FanPerformanceResponseMessage
+        {
+            LowDutyPercent = response.LowDutyPercent,
+            FullDutyPercent = response.FullDutyPercent,
+        };
+
+        if (response.CpuPerformanceRatioAtLowDuty is double cpuLow)
+        {
+            message.CpuPerformanceRatioAtLowDuty = cpuLow;
+        }
+
+        if (response.CpuPerformanceRatioAtFullDuty is double cpuFull)
+        {
+            message.CpuPerformanceRatioAtFullDuty = cpuFull;
+        }
+
+        if (response.GpuCoreClockAtLowDutyMegahertz is double gpuLow)
+        {
+            message.GpuCoreClockAtLowDutyMegahertz = gpuLow;
+        }
+
+        if (response.GpuCoreClockAtFullDutyMegahertz is double gpuFull)
+        {
+            message.GpuCoreClockAtFullDutyMegahertz = gpuFull;
+        }
+
+        return message;
+    }
+
+    private static void MapAdaptive(FanControlStateSnapshot state, FanControlStateChangeReply reply)
+    {
+        if (state.Calibration.State != FanCalibrationState.None)
+        {
+            reply.Calibration = MapCalibration(state.Calibration);
+        }
+
+        reply.AdaptiveSettings = new AdaptiveFanSettingsMessage
+        {
+            TargetTemperatureCelsius = state.AdaptiveSettings.TargetTemperatureCelsius,
+            SafetyFloorEnabled = state.AdaptiveSettings.SafetyFloorEnabled,
+            SafetyFloorPercent = state.AdaptiveSettings.SafetyFloorPercent,
+        };
+
+        if (state.AdaptiveLearning.HasLearned)
+        {
+            var learning = new AdaptiveLearningMessage
+            {
+                ObservationCount = state.AdaptiveLearning.ObservationCount,
+                LastUpdatedAtUnixTimeMilliseconds = state.AdaptiveLearning.LastUpdatedAt?.ToUnixTimeMilliseconds() ?? 0L,
+                LastMaterialChangeAtUnixTimeMilliseconds = state.AdaptiveLearning.LastMaterialChangeAt?.ToUnixTimeMilliseconds() ?? 0L,
+
+                // Derived here rather than on each client so every surface agrees on the wording, and so the
+                // thresholds live next to the model they describe.
+                Confidence = state.AdaptiveLearning.ConfidenceAt(DateTimeOffset.UtcNow) switch
+                {
+                    AdaptiveConfidence.Confident => AdaptiveConfidenceValue.Confident,
+                    AdaptiveConfidence.Converging => AdaptiveConfidenceValue.Converging,
+                    _ => AdaptiveConfidenceValue.Learning,
+                },
+            };
+
+            if (state.AdaptiveLearning.IdentifiedProcessGainCelsiusPerPercent is double identifiedGain)
+            {
+                learning.IdentifiedProcessGainCelsiusPerPercent = identifiedGain;
+            }
+
+            if (state.AdaptiveLearning.IdentifiedCelsiusPerWatt is double identifiedResistance)
+            {
+                learning.IdentifiedCelsiusPerWatt = identifiedResistance;
+            }
+
+            if (state.AdaptiveLearning.FeedForwardDutyPerWatt is double learnedGain)
+            {
+                learning.FeedForwardDutyPerWatt = learnedGain;
+            }
+
+            if (state.AdaptiveLearning.CalibratedAnchorDutyPerWatt is double anchor)
+            {
+                learning.CalibratedAnchorDutyPerWatt = anchor;
+            }
+
+            reply.AdaptiveLearning = learning;
+        }
+
+        if (state.AdaptiveControl is not { } control)
+        {
+            return;
+        }
+
+        var message = new AdaptiveControlMessage
+        {
+            FeedForwardDutyPercent = control.FeedForwardDutyPercent,
+            ProportionalIntegralDutyPercent = control.ProportionalIntegralDutyPercent,
+            LeadDutyPercent = control.LeadDutyPercent,
+            ThrottleEscalationDutyPercent = control.ThrottleEscalationDutyPercent,
+            RawDutyPercent = control.RawDutyPercent,
+            DutyPercent = control.DutyPercent,
+            DrivingTemperatureCelsius = control.DrivingTemperatureCelsius,
+            TargetTemperatureCelsius = control.TargetTemperatureCelsius,
+            IsThrottleLatched = control.IsThrottleLatched,
+            ThrottleLatchedAtUnixTimeMilliseconds = control.ThrottleLatchedAt?.ToUnixTimeMilliseconds() ?? 0L,
+            IsFeedForwardUnavailable = control.IsFeedForwardUnavailable,
+        };
+
+        if (control.SetpointRpm is double setpointRpm)
+        {
+            message.SetpointRpm = setpointRpm;
+        }
+
+        if (control.ThrottleLatchReleaseSeconds is double releaseSeconds)
+        {
+            message.ThrottleLatchReleaseSeconds = releaseSeconds;
+        }
+
+        reply.AdaptiveControl = message;
     }
 
     public static bool TryParseTemperatureAggregationMode(TemperatureAggregationModeValue value, out TemperatureAggregationMode mode)
@@ -509,6 +698,7 @@ internal static class TelemetryGrpcMapper
             FanControlMode.Auto => FanControlModeValue.Auto,
             FanControlMode.Manual => FanControlModeValue.Manual,
             FanControlMode.CustomCurve => FanControlModeValue.CustomCurve,
+            FanControlMode.Adaptive => FanControlModeValue.Adaptive,
             FanControlMode.Max => FanControlModeValue.Max,
             _ => FanControlModeValue.Unspecified,
         };

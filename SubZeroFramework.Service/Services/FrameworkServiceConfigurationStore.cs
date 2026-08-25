@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
+using SubZeroFramework.Models;
 using SubZeroFramework.Service.Models;
 
 namespace SubZeroFramework.Service.Services;
@@ -255,6 +256,97 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
         if (state.LinkedLeaderIndex is int linkedLeaderIndex)
         {
             node["LinkedLeaderIndex"] = linkedLeaderIndex;
+        }
+
+        // Each of the three below is written only when present, so a fan that never met Adaptive keeps the
+        // same compact entry it had before the feature existed.
+        if (state.Calibration is { } calibration)
+        {
+            node["Calibration"] = SerializeCalibration(calibration);
+        }
+
+        if (state.AdaptiveSettings is { } adaptiveSettings)
+        {
+            node["AdaptiveSettings"] = new JsonObject
+            {
+                ["TargetTemperatureCelsius"] = adaptiveSettings.TargetTemperatureCelsius,
+                ["SafetyFloorEnabled"] = adaptiveSettings.SafetyFloorEnabled,
+                ["SafetyFloorPercent"] = adaptiveSettings.SafetyFloorPercent,
+            };
+        }
+
+        if (state.AdaptiveLearning is { FeedForwardDutyPerWatt: double learnedGain } learning)
+        {
+            var learningNode = new JsonObject
+            {
+                ["FeedForwardDutyPerWatt"] = learnedGain,
+                ["ObservationCount"] = learning.ObservationCount,
+            };
+
+            if (learning.CalibratedAnchorDutyPerWatt is double anchor)
+            {
+                learningNode["CalibratedAnchorDutyPerWatt"] = anchor;
+            }
+
+            if (learning.LastUpdatedAt is DateTimeOffset lastUpdatedAt)
+            {
+                learningNode["LastUpdatedAt"] = lastUpdatedAt.ToString("O", CultureInfo.InvariantCulture);
+            }
+
+            if (learning.LastMaterialChangeAt is DateTimeOffset lastMaterialChangeAt)
+            {
+                learningNode["LastMaterialChangeAt"] = lastMaterialChangeAt.ToString("O", CultureInfo.InvariantCulture);
+            }
+
+            // The identified plant, so a restart resumes the fit instead of relearning it over days.
+            if (learning.IdentifiedProcessGainCelsiusPerPercent is double identifiedGain)
+            {
+                learningNode["IdentifiedProcessGainCelsiusPerPercent"] = identifiedGain;
+            }
+
+            if (learning.IdentifiedCelsiusPerWatt is double identifiedResistance)
+            {
+                learningNode["IdentifiedCelsiusPerWatt"] = identifiedResistance;
+            }
+
+            if (learning.IdentifiedInterceptCelsius is double identifiedIntercept)
+            {
+                learningNode["IdentifiedInterceptCelsius"] = identifiedIntercept;
+            }
+
+            // Without this the capability window re-runs on every restart and could settle differently,
+            // leaving the fit above being fed samples that mean something else.
+            if (learning.ThermalLoadSource != ThermalLoadSource.None)
+            {
+                learningNode["ThermalLoadSource"] = learning.ThermalLoadSource.ToString();
+            }
+
+            node["AdaptiveLearning"] = learningNode;
+        }
+
+        return node;
+    }
+
+    private static JsonObject SerializeCalibration(FanCalibrationOptions calibration)
+    {
+        var node = new JsonObject
+        {
+            ["State"] = calibration.State.ToString(),
+            ["ProcessGainCelsiusPerPercent"] = calibration.ProcessGainCelsiusPerPercent,
+            ["TimeConstantSeconds"] = calibration.TimeConstantSeconds,
+            ["DeadTimeSeconds"] = calibration.DeadTimeSeconds,
+            ["MinimumSpinRpm"] = calibration.MinimumSpinRpm,
+            ["MinimumSpinDutyPercent"] = calibration.MinimumSpinDutyPercent,
+            ["MaximumRpm"] = calibration.MaximumRpm,
+            ["ProportionalGain"] = calibration.ProportionalGain,
+            ["IntegralGain"] = calibration.IntegralGain,
+            ["FeedForwardDutyPerWatt"] = calibration.FeedForwardDutyPerWatt,
+            ["TrackingMode"] = calibration.TrackingMode.ToString(),
+        };
+
+        if (calibration.CalibratedAt is DateTimeOffset calibratedAt)
+        {
+            node["CalibratedAt"] = calibratedAt.ToString("O", CultureInfo.InvariantCulture);
         }
 
         return node;

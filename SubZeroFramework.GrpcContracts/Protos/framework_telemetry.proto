@@ -51,6 +51,29 @@ service FrameworkFanControlService {
   // "Applies to" group membership: set (or clear, when linked_leader_index is unset) which fan this one is
   // grouped under. Persisted so the grouping survives restarts and streams back via linked_leader_index.
   rpc SetFanLink (SetFanLinkRequest) returns (FanCurveProfileOperationReply);
+  // Adaptive mode: arm a calibrated fan into closed-loop control, and set the target temperature and safety
+  // floor it holds. An uncalibrated fan arms on a conservative bootstrap model and learns from ordinary use;
+  // only a fan with no driving sensor is rejected, because there is nothing for the loop to hold.
+  rpc SetFanAdaptiveMode (SetFanAdaptiveModeRequest) returns (FanCurveProfileOperationReply);
+  // Update the Adaptive knobs without changing the fan's mode. Persisted; kept across mode switches.
+  rpc SetFanAdaptiveSettings (SetFanAdaptiveSettingsRequest) returns (FanCurveProfileOperationReply);
+  // Clears a latched throttle escalation for one fan. Immediate, never staged, and NOT persisted — if the
+  // processor is still throttling the next controller tick latches again, which is the correct outcome.
+  rpc ReleaseFanThrottleLatch (ReleaseFanThrottleLatchRequest) returns (FanCurveProfileOperationReply);
+  // Discards what a fan identified from ordinary use, returning it to its calibration — or, when it has
+  // none, to the conservative bootstrap. Destructive and immediate. For a machine that changed physically
+  // (new heatsink, repaste) where the old model describes hardware that no longer exists.
+  rpc ForgetFanAdaptiveLearning (ForgetFanAdaptiveLearningRequest) returns (FanCurveProfileOperationReply);
+  // Runs the hot test that identifies a fan's thermal model: load the machine, step the fan, watch the
+  // temperature fall, fit K, tau and L. Several minutes long and physically consequential — it deliberately
+  // heats the machine and drives the fan to extremes.
+  //
+  // Streaming is not decoration. The client's live stream IS the run's lease: cancelling the call, or simply
+  // disconnecting, aborts the run, stops the load, and hands the fan back. A unary call could not express
+  // that, and a run whose client has gone away must not keep heating an unattended machine.
+  //
+  // The final message carries is_complete with the outcome; every message before it is progress.
+  rpc RunFanCalibration (RunFanCalibrationRequest) returns (stream FanCalibrationProgressReply);
   // Preview safety lease: the client keeps this server stream open while a volatile preview is live. The
   // service captures the fan's pre-preview state when the stream opens, and if the stream breaks before the
   // preview is committed (Apply) or explicitly released, it reverts the fan to that captured state. This
@@ -467,6 +490,193 @@ message FanCurveProfileOperationReply {
   string message = 4;
 }
 
+message SetFanAdaptiveModeRequest {
+  int32 fan_index = 1;
+  // The driving sensors the loop holds. Same meaning as on a curve profile.
+  repeated int32 driving_sensor_indices = 2;
+  TemperatureAggregationModeValue driving_temperature_aggregation = 3;
+  // Optional: when unset the fan keeps whatever Adaptive settings it already had.
+  optional AdaptiveFanSettingsMessage settings = 4;
+}
+
+message SetFanAdaptiveSettingsRequest {
+  int32 fan_index = 1;
+  AdaptiveFanSettingsMessage settings = 2;
+}
+
+message ReleaseFanThrottleLatchRequest {
+  int32 fan_index = 1;
+}
+
+message ForgetFanAdaptiveLearningRequest {
+  int32 fan_index = 1;
+}
+
+message AdaptiveFanSettingsMessage {
+  double target_temperature_celsius = 1;
+  bool safety_floor_enabled = 2;
+  double safety_floor_percent = 3;
+}
+
+// A fan's learned thermal model. A state of NONE means the fan has never been calibrated and is not yet
+// adaptively driven; BOOTSTRAP means it is running on the conservative built-in model and learning from
+// ordinary use. Neither locks Adaptive out.
+message FanCalibrationMessage {
+  FanCalibrationStateValue state = 1;
+  int64 calibrated_at_unix_time_milliseconds = 2;
+  double process_gain_celsius_per_percent = 3;
+  double time_constant_seconds = 4;
+  double dead_time_seconds = 5;
+  double minimum_spin_rpm = 6;
+  double minimum_spin_duty_percent = 7;
+  double maximum_rpm = 8;
+  double proportional_gain = 9;
+  double integral_gain = 10;
+  double feed_forward_duty_per_watt = 11;
+  FanSpeedTrackingModeValue tracking_mode = 12;
+  // What the extra fan bought in sustained speed. Absent on calibrations from before this was measured, and
+  // on machines that report no clock at all.
+  optional FanPerformanceResponseMessage performance_response = 13;
+}
+
+// Sustained speed at a low fan duty against sustained speed at full duty, measured across the same step the
+// thermal model is fitted from. Answers "what do I get for the noise?", which the temperature model cannot:
+// a machine limited by its power budget rather than its heatsink runs cooler at full fan and no faster.
+message FanPerformanceResponseMessage {
+  double low_duty_percent = 1;
+  double full_duty_percent = 2;
+  // Clock as a fraction of base. Below 1 means the processor was being held back.
+  optional double cpu_performance_ratio_at_low_duty = 3;
+  optional double cpu_performance_ratio_at_full_duty = 4;
+  optional double gpu_core_clock_at_low_duty_megahertz = 5;
+  optional double gpu_core_clock_at_full_duty_megahertz = 6;
+}
+
+// One adaptive controller tick, decomposed. This is what makes an adaptive fan explainable: the terms sum to
+// raw_duty_percent, and the UI renders them as a stacked bar.
+message AdaptiveControlMessage {
+  double feed_forward_duty_percent = 1;
+  double proportional_integral_duty_percent = 2;
+  double lead_duty_percent = 3;
+  double throttle_escalation_duty_percent = 4;
+  double raw_duty_percent = 5;
+  double duty_percent = 6;
+  // Present only under cascade tracking, where a speed rather than a duty is commanded.
+  optional double setpoint_rpm = 7;
+  double driving_temperature_celsius = 8;
+  double target_temperature_celsius = 9;
+  bool is_throttle_latched = 10;
+  int64 throttle_latched_at_unix_time_milliseconds = 11;
+  optional double throttle_latch_release_seconds = 12;
+  // True when no CPU package power reading was available, so the loop is running on feedback alone.
+  bool is_feed_forward_unavailable = 13;
+}
+
+// What ordinary running has refined since the calibration run.
+message AdaptiveLearningMessage {
+  optional double feed_forward_duty_per_watt = 1;
+  optional double calibrated_anchor_duty_per_watt = 2;
+  int32 observation_count = 3;
+  int64 last_updated_at_unix_time_milliseconds = 4;
+  // The identified plant. Absent until the settled samples span enough of both duty and power for the fit
+  // to be separable — which is exactly the Learning state.
+  optional double identified_process_gain_celsius_per_percent = 5;
+  optional double identified_celsius_per_watt = 6;
+  // When the model last moved MATERIALLY, as opposed to the per-sample jitter last_updated_at tracks. This
+  // is what "stable for {n} days" means.
+  int64 last_material_change_at_unix_time_milliseconds = 7;
+  // Derived server-side so every client agrees on the wording; see AdaptiveConfidence.
+  AdaptiveConfidenceValue confidence = 8;
+}
+
+enum AdaptiveConfidenceValue {
+  ADAPTIVE_CONFIDENCE_VALUE_LEARNING = 0;
+  ADAPTIVE_CONFIDENCE_VALUE_CONVERGING = 1;
+  ADAPTIVE_CONFIDENCE_VALUE_CONFIDENT = 2;
+}
+
+enum FanCalibrationStateValue {
+  FAN_CALIBRATION_STATE_VALUE_NONE = 0;
+  FAN_CALIBRATION_STATE_VALUE_OK = 1;
+  FAN_CALIBRATION_STATE_VALUE_STALE = 2;
+  // Running on the conservative built-in model because the fan has never been calibrated. Distinct from NONE
+  // on purpose: NONE is "no model", BOOTSTRAP is "a deliberately cautious model that works and is learning".
+  // Collapsing the two would make a working adaptive fan look broken.
+  FAN_CALIBRATION_STATE_VALUE_BOOTSTRAP = 3;
+}
+
+message RunFanCalibrationRequest {
+  int32 fan_index = 1;
+  // The sensors whose hottest reading the run measures against — the same ones Adaptive will hold.
+  repeated int32 driving_sensor_indices = 2;
+}
+
+// One update from a running calibration. Carries the live readings as well as the step, so the client can
+// plot the response as it happens: watching the temperature actually move is what makes a multi-minute wait
+// tolerable, and is the only way a user can tell a run that is working from one about to fail for lack of load.
+message FanCalibrationProgressReply {
+  int32 fan_index = 1;
+  FanCalibrationStepValue step = 2;
+  // How many steps there are, so no client hard-codes a count that can drift.
+  int32 step_count = 3;
+  double elapsed_seconds = 4;
+  optional double temperature_celsius = 5;
+  optional double speed_rpm = 6;
+  optional double package_power_watts = 7;
+  // Set on the update where the fan was stepped, so the plot can mark it.
+  bool is_step_marker = 8;
+  optional int64 estimated_remaining_milliseconds = 9;
+
+  // False on every progress update; true on the single final message, which carries the outcome below.
+  bool is_complete = 10;
+  bool succeeded = 11;
+  FanCalibrationFailureValue failure = 12;
+  // The identified model, present only on a successful final message.
+  optional FanCalibrationMessage calibration = 13;
+  // Measured values, reported on BOTH outcomes. A failure saying "the machine never got busy enough" without
+  // saying how busy it did get gives the user nothing to act on — and this run costs them several minutes.
+  optional double average_package_power_watts = 14;
+  optional double temperature_swing_celsius = 15;
+  optional double peak_temperature_celsius = 16;
+  int64 duration_milliseconds = 17;
+  // Whether the fan was returned to the control it had before the run. Shown on every failure screen: a
+  // calibration drives the fan to extremes, so this is the one fact a failure must never leave ambiguous.
+  bool fans_restored = 18;
+}
+
+// The stages of a run, in execution order. The ordering is physics, not presentation: identifying K requires
+// varying DUTY while everything else holds still, so the load is applied and allowed to settle FIRST.
+enum FanCalibrationStepValue {
+  FAN_CALIBRATION_STEP_VALUE_NONE = 0;
+  FAN_CALIBRATION_STEP_VALUE_SETTLING_AT_IDLE = 1;
+  FAN_CALIBRATION_STEP_VALUE_FINDING_MINIMUM_SPIN = 2;
+  FAN_CALIBRATION_STEP_VALUE_LOADING_AND_SETTLING = 3;
+  FAN_CALIBRATION_STEP_VALUE_STEPPING_FAN = 4;
+  FAN_CALIBRATION_STEP_VALUE_MEASURING_RESPONSE = 5;
+  FAN_CALIBRATION_STEP_VALUE_FITTING_MODEL = 6;
+  FAN_CALIBRATION_STEP_VALUE_VERIFYING_SPEED_TRACKING = 7;
+  FAN_CALIBRATION_STEP_VALUE_COMPLETED = 8;
+}
+
+enum FanCalibrationFailureValue {
+  FAN_CALIBRATION_FAILURE_VALUE_NONE = 0;
+  FAN_CALIBRATION_FAILURE_VALUE_INSUFFICIENT_LOAD = 1;
+  FAN_CALIBRATION_FAILURE_VALUE_INSUFFICIENT_TEMPERATURE_SWING = 2;
+  FAN_CALIBRATION_FAILURE_VALUE_TEMPERATURE_CEILING = 3;
+  FAN_CALIBRATION_FAILURE_VALUE_CANCELLED = 4;
+  FAN_CALIBRATION_FAILURE_VALUE_CLIENT_DISCONNECTED = 5;
+  FAN_CALIBRATION_FAILURE_VALUE_INSUFFICIENT_DATA = 6;
+  FAN_CALIBRATION_FAILURE_VALUE_ON_BATTERY = 7;
+  // The fan is controlled by GPU sensors and this machine cannot generate GPU load. Reported rather than
+  // silently substituting CPU load, which would heat something this fan does not cool.
+  FAN_CALIBRATION_FAILURE_VALUE_GPU_LOAD_UNAVAILABLE = 8;
+}
+
+enum FanSpeedTrackingModeValue {
+  FAN_SPEED_TRACKING_MODE_VALUE_DUTY = 0;
+  FAN_SPEED_TRACKING_MODE_VALUE_CASCADE = 1;
+}
+
 message GetChargeLimitsRequest {
 }
 
@@ -630,6 +840,7 @@ enum FanControlModeValue {
   FAN_CONTROL_MODE_VALUE_AUTO = 1;
   FAN_CONTROL_MODE_VALUE_MANUAL = 2;
   FAN_CONTROL_MODE_VALUE_CUSTOM_CURVE = 3;
+  FAN_CONTROL_MODE_VALUE_ADAPTIVE = 4;
   FAN_CONTROL_MODE_VALUE_MAX = 7;
 }
 
@@ -777,9 +988,29 @@ message FanControlStateChangeReply {
   // Active slot's setting; see FanCurveProfileReply.treat_missing_sensors_as_zero.
   bool treat_missing_sensors_as_zero = 22;
 
+  // Adaptive mode. The calibration is configuration and changes rarely; adaptive_control is LIVE telemetry
+  // republished every controller tick, and is absent whenever the fan is not adaptively driven.
+  optional FanCalibrationMessage calibration = 23;
+  optional AdaptiveFanSettingsMessage adaptive_settings = 24;
+  optional AdaptiveControlMessage adaptive_control = 25;
+  optional AdaptiveLearningMessage adaptive_learning = 26;
+
+  // What the fan cools, as opposed to where it sits. display_name gives the position ("Right fan"); this
+  // gives the purpose ("GPU fan"), which is what decides the component a calibration must heat.
+  FanCoolingRoleValue cooling_role = 27;
+
   // 21 held cpu_usage_modifier_strength (the per-fan CPU boost), removed 2026-08-24 in favour of a different
   // approach. Reserved so a future field cannot silently inherit an old client's boost value.
   reserved 21;
+}
+
+// What a fan cools. The EC reports a slot position; on a Framework 16 the left fan sits over the CPU
+// heatpipe and the right over the GPU side, and only the purpose tells a calibration what to heat.
+enum FanCoolingRoleValue {
+  FAN_COOLING_ROLE_VALUE_UNKNOWN = 0;
+  FAN_COOLING_ROLE_VALUE_CPU = 1;
+  FAN_COOLING_ROLE_VALUE_GPU = 2;
+  FAN_COOLING_ROLE_VALUE_SYSTEM = 3;
 }
 
 message FanControlStateChangeBatchReply {

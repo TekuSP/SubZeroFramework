@@ -20,6 +20,8 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
     private readonly FrameworkFanControlStateStore _fanControlStateStore;
     private readonly FrameworkServiceConfigurationStore _configurationStore;
     private readonly FanPreviewWatchdog _previewWatchdog;
+    private readonly FanAdaptiveControlSignals _fanControlWorkerSignals;
+    private readonly FanCalibrationRunner _calibrationRunner;
     private readonly IHostApplicationLifetime _applicationLifetime;
     private readonly ILogger<FrameworkFanControlGrpcService> _logger;
 
@@ -29,6 +31,8 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         FrameworkFanControlStateStore fanControlStateStore,
         FrameworkServiceConfigurationStore configurationStore,
         FanPreviewWatchdog previewWatchdog,
+        FanAdaptiveControlSignals fanControlWorkerSignals,
+        FanCalibrationRunner calibrationRunner,
         IHostApplicationLifetime applicationLifetime,
         ILogger<FrameworkFanControlGrpcService> logger)
     {
@@ -37,6 +41,8 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         _fanControlStateStore = fanControlStateStore;
         _configurationStore = configurationStore;
         _previewWatchdog = previewWatchdog;
+        _fanControlWorkerSignals = fanControlWorkerSignals;
+        _calibrationRunner = calibrationRunner;
         _applicationLifetime = applicationLifetime;
         _logger = logger;
     }
@@ -427,6 +433,171 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         }
     }
 
+    public override async Task<FanCurveProfileOperationReply> SetFanAdaptiveMode(SetFanAdaptiveModeRequest request, ServerCallContext context)
+    {
+        try
+        {
+            _logger.LogInformation(
+                "Received SetFanAdaptiveMode for fan {FanIndex} with {SensorCount} driving sensor(s).",
+                request.FanIndex,
+                request.DrivingSensorIndices.Count);
+
+            _authorizationService.EnsureCommandAccess();
+
+            // Same guard as every other command that persists a fan's live state: during an open preview the
+            // in-memory state holds the uncommitted preview, so persisting would commit it and disarm the
+            // watchdog that exists to revert it.
+            if (_previewWatchdog.HasOpenHold(request.FanIndex))
+            {
+                throw new InvalidOperationException(
+                    $"Fan {request.FanIndex} has a live preview open. Apply or discard it before switching to Adaptive.");
+            }
+
+            var settings = request.Settings is null ? null : ToAdaptiveSettings(request.Settings);
+
+            var result = _fanControlStateStore.SetAdaptiveMode(
+                request.FanIndex,
+                [.. request.DrivingSensorIndices],
+                ParseAggregation(request.DrivingTemperatureAggregation),
+                settings);
+
+            if (!result.Succeeded)
+            {
+                // A deliberate non-throwing failure: "this fan is not calibrated" is an expected, actionable
+                // state the UI turns into a Calibrate call to action, not an exception to surface as an error.
+                return new FanCurveProfileOperationReply
+                {
+                    FanIndex = request.FanIndex,
+                    Succeeded = false,
+                    Message = result.Message,
+                };
+            }
+
+            await PersistFanControlStateAsync(request.FanIndex, preview: false, context.CancellationToken).ConfigureAwait(false);
+
+            return new FanCurveProfileOperationReply { FanIndex = request.FanIndex, Succeeded = true, Message = string.Empty };
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Rejected SetFanAdaptiveMode for fan {FanIndex} because the service was not in a writable state.", request.FanIndex);
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
+    }
+
+    public override async Task<FanCurveProfileOperationReply> SetFanAdaptiveSettings(SetFanAdaptiveSettingsRequest request, ServerCallContext context)
+    {
+        try
+        {
+            _logger.LogInformation("Received SetFanAdaptiveSettings for fan {FanIndex}.", request.FanIndex);
+            _authorizationService.EnsureCommandAccess();
+
+            if (_previewWatchdog.HasOpenHold(request.FanIndex))
+            {
+                throw new InvalidOperationException(
+                    $"Fan {request.FanIndex} has a live preview open. Apply or discard it before changing its Adaptive settings.");
+            }
+
+            if (request.Settings is null)
+            {
+                throw new ArgumentException("Adaptive settings are required.", nameof(request));
+            }
+
+            if (!_fanControlStateStore.SetAdaptiveSettings(request.FanIndex, ToAdaptiveSettings(request.Settings)))
+            {
+                return new FanCurveProfileOperationReply
+                {
+                    FanIndex = request.FanIndex,
+                    Succeeded = false,
+                    Message = $"Unknown fan {request.FanIndex}.",
+                };
+            }
+
+            await PersistFanControlStateAsync(request.FanIndex, preview: false, context.CancellationToken).ConfigureAwait(false);
+
+            return new FanCurveProfileOperationReply { FanIndex = request.FanIndex, Succeeded = true, Message = string.Empty };
+        }
+        catch (ArgumentException exception)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, exception.Message));
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Rejected SetFanAdaptiveSettings for fan {FanIndex} because the service was not in a writable state.", request.FanIndex);
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
+    }
+
+    public override Task<FanCurveProfileOperationReply> ReleaseFanThrottleLatch(ReleaseFanThrottleLatchRequest request, ServerCallContext context)
+    {
+        _logger.LogInformation("Received ReleaseFanThrottleLatch for fan {FanIndex}.", request.FanIndex);
+        _authorizationService.EnsureCommandAccess();
+
+        // Nothing is persisted and no EC write happens here — the worker's controller simply drops its latch
+        // on the next tick. That is also why there is no preview-hold guard: this touches no stored state.
+        var isAdaptive = _fanControlStateStore.GetState(request.FanIndex)?.Mode == FanControlMode.Adaptive;
+        if (isAdaptive)
+        {
+            _fanControlWorkerSignals.RequestThrottleLatchRelease(request.FanIndex);
+        }
+
+        return Task.FromResult(new FanCurveProfileOperationReply
+        {
+            FanIndex = request.FanIndex,
+            Succeeded = isAdaptive,
+            Message = isAdaptive ? string.Empty : $"Fan {request.FanIndex} is not running an adaptive controller.",
+        });
+    }
+
+    public override async Task<FanCurveProfileOperationReply> ForgetFanAdaptiveLearning(ForgetFanAdaptiveLearningRequest request, ServerCallContext context)
+    {
+        try
+        {
+            _logger.LogInformation("Received ForgetFanAdaptiveLearning for fan {FanIndex}.", request.FanIndex);
+            _authorizationService.EnsureCommandAccess();
+
+            if (_previewWatchdog.HasOpenHold(request.FanIndex))
+            {
+                throw new InvalidOperationException(
+                    $"Fan {request.FanIndex} has a live preview open. Apply or discard it before discarding its learned model.");
+            }
+
+            if (!_fanControlStateStore.ForgetAdaptiveLearning(request.FanIndex))
+            {
+                return new FanCurveProfileOperationReply
+                {
+                    FanIndex = request.FanIndex,
+                    Succeeded = false,
+                    Message = $"Unknown fan {request.FanIndex}.",
+                };
+            }
+
+            // Clearing the stored model is only half of it — the running controller holds the fit in memory.
+            _fanControlWorkerSignals.RequestControllerReset(request.FanIndex);
+
+            await PersistFanControlStateAsync(request.FanIndex, preview: false, context.CancellationToken).ConfigureAwait(false);
+
+            return new FanCurveProfileOperationReply { FanIndex = request.FanIndex, Succeeded = true, Message = string.Empty };
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Rejected ForgetFanAdaptiveLearning for fan {FanIndex} because the service was not in a writable state.", request.FanIndex);
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
+    }
+
+    private static TemperatureAggregationMode ParseAggregation(TemperatureAggregationModeValue value)
+        => TelemetryGrpcMapper.TryParseTemperatureAggregationMode(value, out var mode)
+            ? mode
+            : TemperatureAggregationMode.Maximum;
+
+    private static AdaptiveFanSettings ToAdaptiveSettings(AdaptiveFanSettingsMessage message)
+        => new AdaptiveFanSettings
+        {
+            TargetTemperatureCelsius = message.TargetTemperatureCelsius,
+            SafetyFloorEnabled = message.SafetyFloorEnabled,
+            SafetyFloorPercent = message.SafetyFloorPercent,
+        }.Sanitized();
+
     public override async Task HoldFanPreview(HoldFanPreviewRequest request, IServerStreamWriter<HoldFanPreviewReply> responseStream, ServerCallContext context)
     {
         var fanIndex = request.FanIndex;
@@ -478,7 +649,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
                 && _previewWatchdog.TryTakeForRevert(fanIndex, holdToken, out var snapshot))
             {
                 _logger.LogWarning("Preview hold for fan {FanIndex} closed without commit; reverting to the pre-preview state.", fanIndex);
-                await RevertPreviewAsync(fanIndex, snapshot, CancellationToken.None).ConfigureAwait(false);
+                await RestoreFanStateAsync(fanIndex, snapshot, "its preview hold dropped", CancellationToken.None).ConfigureAwait(false);
             }
             else
             {
@@ -488,9 +659,219 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         }
     }
 
-    // Restores a fan to its captured pre-preview state after an uncommitted preview hold dropped. Mirrors the
-    // commit actuation paths; a curve snapshot is re-published so the curve worker re-actuates the EC.
-    private async Task RevertPreviewAsync(int fanIndex, FanControlStateSnapshot prePreview, CancellationToken cancellationToken)
+    /// <summary>
+    /// Runs a calibration, streaming progress, and puts the fan back however it ends.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The client's stream is the run's lease. Cancelling the call — or the client simply dying — cancels
+    /// <see cref="FanCalibrationRunner.RunAsync"/>, whose own finally stops the CPU load and hands the fan to
+    /// firmware control. That is the safety floor and it holds without anything here running.
+    /// </para>
+    /// <para>
+    /// This method adds the courtesy on top of that floor: returning the fan to the mode the user actually had
+    /// before the run, rather than leaving it on Auto.
+    /// </para>
+    /// </remarks>
+    public override async Task RunFanCalibration(
+        RunFanCalibrationRequest request,
+        IServerStreamWriter<FanCalibrationProgressReply> responseStream,
+        ServerCallContext context)
+    {
+        var fanIndex = request.FanIndex;
+
+        // Checked up front, like HoldFanPreview: a calibration writes duty to the EC directly, so it may not
+        // start while fan-control commands are disabled.
+        _authorizationService.EnsureCommandAccess();
+
+        if (_previewWatchdog.HasOpenHold(fanIndex))
+        {
+            throw new RpcException(new Status(
+                StatusCode.FailedPrecondition,
+                $"Fan {fanIndex} has a live preview open. Apply or discard it before calibrating."));
+        }
+
+        // Captured before the first duty command, so it describes what the user had rather than anything the
+        // run did.
+        var captured = _fanControlStateStore.GetState(fanIndex);
+
+        _logger.LogInformation("Starting calibration for fan {FanIndex} at a client's request.", fanIndex);
+
+        try
+        {
+            var result = await _calibrationRunner.RunAsync(
+                fanIndex,
+                [.. request.DrivingSensorIndices],
+                progress => responseStream.WriteAsync(MapCalibrationProgress(progress)),
+                context.CancellationToken).ConfigureAwait(false);
+
+            await responseStream.WriteAsync(MapCalibrationResult(result)).ConfigureAwait(false);
+        }
+        catch (InvalidOperationException exception)
+        {
+            // Another calibration already owns a fan. Not an error in this request so much as a fact about
+            // the machine, so it comes back as a precondition rather than an internal fault.
+            _logger.LogWarning(exception, "Rejected a calibration for fan {FanIndex}.", fanIndex);
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
+        catch (OperationCanceledException)
+        {
+            // The client cancelled or disconnected. The runner has already stopped the load and restored the
+            // fan; there is no one left to tell.
+            _logger.LogInformation("The calibration stream for fan {FanIndex} closed before the run finished.", fanIndex);
+        }
+        finally
+        {
+            await RestoreAfterCalibrationAsync(fanIndex, captured).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Returns a fan to the mode it had before a calibration, without discarding what the run just learned.
+    /// </summary>
+    /// <remarks>
+    /// The captured snapshot carries the OLD calibration, so restoring it wholesale would overwrite the model
+    /// the run just produced with the one it replaced — quietly throwing away the entire point of the run. The
+    /// split below is deliberate: what the USER configured comes from the capture, what the MACHINE learned
+    /// comes from the live state.
+    /// </remarks>
+    private async Task RestoreAfterCalibrationAsync(int fanIndex, FanControlStateSnapshot? captured)
+    {
+        if (captured is null)
+        {
+            return;
+        }
+
+        // The shutdown coordinator restores every fan to Auto on the way out; re-applying a mode here would
+        // race it and could leave the EC driven after the service has gone.
+        if (_applicationLifetime.ApplicationStopping.IsCancellationRequested)
+        {
+            _logger.LogInformation("Skipping the post-calibration restore for fan {FanIndex} because the service is stopping.", fanIndex);
+            return;
+        }
+
+        var current = _fanControlStateStore.GetState(fanIndex);
+        var restoreTo = current is null
+            ? captured
+            : captured with
+            {
+                Calibration = current.Calibration,
+                AdaptiveLearning = current.AdaptiveLearning,
+            };
+
+        await RestoreFanStateAsync(fanIndex, restoreTo, "the calibration finished", CancellationToken.None).ConfigureAwait(false);
+    }
+
+    // Optional scalars are assigned only when present. proto3 gives them a Has flag rather than a nullable
+    // property, so writing a default would tell the client "0 C" where the truth is "no reading" — and on a
+    // live plot those two look nothing alike.
+    private static FanCalibrationProgressReply MapCalibrationProgress(FanCalibrationProgress progress)
+    {
+        var reply = new FanCalibrationProgressReply
+        {
+            FanIndex = progress.FanIndex,
+            Step = MapCalibrationStep(progress.Step),
+            StepCount = progress.StepCount,
+            ElapsedSeconds = progress.ElapsedSeconds,
+            IsStepMarker = progress.IsStepMarker,
+            IsComplete = false,
+        };
+
+        if (progress.TemperatureCelsius is double celsius)
+        {
+            reply.TemperatureCelsius = celsius;
+        }
+
+        if (progress.SpeedRpm is double rpm)
+        {
+            reply.SpeedRpm = rpm;
+        }
+
+        if (progress.PackagePowerWatts is double watts)
+        {
+            reply.PackagePowerWatts = watts;
+        }
+
+        if (progress.EstimatedRemaining is TimeSpan remaining)
+        {
+            reply.EstimatedRemainingMilliseconds = (long)remaining.TotalMilliseconds;
+        }
+
+        return reply;
+    }
+
+    private static FanCalibrationProgressReply MapCalibrationResult(FanCalibrationRunResult result)
+    {
+        var reply = new FanCalibrationProgressReply
+        {
+            FanIndex = result.FanIndex,
+            Step = MapCalibrationStep(result.StoppedAt),
+            StepCount = (int)FanCalibrationStep.Completed - 1,
+            IsComplete = true,
+            Succeeded = result.Succeeded,
+            Failure = MapCalibrationFailure(result.Failure),
+            DurationMilliseconds = (long)result.Duration.TotalMilliseconds,
+            FansRestored = result.FansRestored,
+            ElapsedSeconds = result.Duration.TotalSeconds,
+        };
+
+        // Carried on failures too. "The machine never got busy enough" without saying how busy it did get
+        // leaves the user with nothing to change before spending another several minutes on it.
+        if (result.AveragePackagePowerWatts is double averageWatts)
+        {
+            reply.AveragePackagePowerWatts = averageWatts;
+        }
+
+        if (result.TemperatureSwingCelsius is double swing)
+        {
+            reply.TemperatureSwingCelsius = swing;
+        }
+
+        if (result.PeakTemperatureCelsius is double peak)
+        {
+            reply.PeakTemperatureCelsius = peak;
+        }
+
+        if (result.Calibration is { } calibration)
+        {
+            reply.Calibration = TelemetryGrpcMapper.MapCalibration(calibration);
+        }
+
+        return reply;
+    }
+
+    private static FanCalibrationStepValue MapCalibrationStep(FanCalibrationStep step) => step switch
+    {
+        FanCalibrationStep.SettlingAtIdle => FanCalibrationStepValue.SettlingAtIdle,
+        FanCalibrationStep.FindingMinimumSpin => FanCalibrationStepValue.FindingMinimumSpin,
+        FanCalibrationStep.LoadingAndSettling => FanCalibrationStepValue.LoadingAndSettling,
+        FanCalibrationStep.SteppingFan => FanCalibrationStepValue.SteppingFan,
+        FanCalibrationStep.MeasuringResponse => FanCalibrationStepValue.MeasuringResponse,
+        FanCalibrationStep.FittingModel => FanCalibrationStepValue.FittingModel,
+        FanCalibrationStep.VerifyingSpeedTracking => FanCalibrationStepValue.VerifyingSpeedTracking,
+        FanCalibrationStep.Completed => FanCalibrationStepValue.Completed,
+        _ => FanCalibrationStepValue.None,
+    };
+
+    // ClientDisconnected has no case here on purpose: the runner sees a cancelled token and cannot tell a user
+    // pressing Cancel from a client that died, so reporting either as the other would be a guess. Both arrive
+    // as Cancelled, which is true of both.
+    private static FanCalibrationFailureValue MapCalibrationFailure(FanCalibrationFailure failure) => failure switch
+    {
+        FanCalibrationFailure.InsufficientLoad => FanCalibrationFailureValue.InsufficientLoad,
+        FanCalibrationFailure.InsufficientTemperatureSwing => FanCalibrationFailureValue.InsufficientTemperatureSwing,
+        FanCalibrationFailure.TemperatureCeiling => FanCalibrationFailureValue.TemperatureCeiling,
+        FanCalibrationFailure.Cancelled => FanCalibrationFailureValue.Cancelled,
+        FanCalibrationFailure.ClientDisconnected => FanCalibrationFailureValue.ClientDisconnected,
+        FanCalibrationFailure.InsufficientData => FanCalibrationFailureValue.InsufficientData,
+        FanCalibrationFailure.OnBattery => FanCalibrationFailureValue.OnBattery,
+        FanCalibrationFailure.GpuLoadUnavailable => FanCalibrationFailureValue.GpuLoadUnavailable,
+        _ => FanCalibrationFailureValue.None,
+    };
+
+    // Restores a fan to a captured state after something that took it over ends. Mirrors the commit actuation
+    // paths; a curve or adaptive snapshot is re-published so the curve worker re-actuates the EC.
+    private async Task RestoreFanStateAsync(int fanIndex, FanControlStateSnapshot prePreview, string reason, CancellationToken cancellationToken)
     {
         // Matches the client/service default manual duty when a Manual pre-state never recorded one.
         const double defaultManualDutyPercent = 50d;
@@ -535,7 +916,11 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
                     await _frameworkDataProvider.SetFanDutyAsync(fanIndex, 100d, cancellationToken).ConfigureAwait(false);
                     _fanControlStateStore.MarkMax(fanIndex);
                     break;
+                // Both are republish-and-let-the-worker-actuate: the mode is a rule the worker evaluates, not
+                // a duty to write. Adaptive used to fall into the default below and land on Auto, silently
+                // disarming a closed loop the user had turned on.
                 case FanControlMode.CustomCurve:
+                case FanControlMode.Adaptive:
                     _fanControlStateStore.RestoreState(prePreview);
                     break;
                 default:
@@ -544,11 +929,11 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
                     break;
             }
 
-            _logger.LogInformation("Reverted fan {FanIndex} to its pre-preview state ({Mode}) after the preview hold dropped.", fanIndex, prePreview.Mode);
+            _logger.LogInformation("Restored fan {FanIndex} to {Mode} after {Reason}.", fanIndex, prePreview.Mode, reason);
         }
         catch (Exception exception)
         {
-            _logger.LogWarning(exception, "Failed to revert fan {FanIndex} after its preview hold dropped.", fanIndex);
+            _logger.LogWarning(exception, "Failed to restore fan {FanIndex} after {Reason}.", fanIndex, reason);
         }
     }
 

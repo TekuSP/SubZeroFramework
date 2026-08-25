@@ -230,9 +230,9 @@
           </div>
 
           <!-- mode selector (pill, matches the design's segmented controls) -->
-          <div style="display:flex; align-items:center; gap:11px; padding:16px 22px 6px; flex-wrap:wrap">
-            <span style="font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:7px"><span class="mdi mdi-tune-vertical" style="font-size:14px"></span>Mode</span>
-            <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.SegmentedControl" activeTone="app" value="{{ mode }}" onChange="{{ setMode }}" options="{{ modeOptions }}" hint-size="470px,34px"></x-import>
+          <div style="display:flex; align-items:center; gap:11px; padding:16px 22px 6px; flex-wrap:wrap; min-width:0">
+            <span style="font-size:12px; color:var(--text-secondary); display:flex; align-items:center; gap:7px; flex-shrink:0"><span class="mdi mdi-tune-vertical" style="font-size:14px"></span>Mode</span>
+            <div style="flex:1 1 auto; min-width:0; overflow-x:auto"><x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.SegmentedControl" activeTone="app" value="{{ mode }}" onChange="{{ setMode }}" options="{{ modeOptions }}" hint-size="470px,34px"></x-import></div>
             <sc-if value="{{ calibPill.show }}" hint-placeholder-val="{{ false }}">
               <span style="{{ calibPill.style }}"><span class="mdi mdi-{{ calibPill.icon }}" style="font-size:12px"></span>{{ calibPill.label }}</span>
             </sc-if>
@@ -390,36 +390,7 @@
               </div>
             </sc-if>
 
-            <!-- ADAPTIVE — uncalibrated -->
-            <sc-if value="{{ isAdaptiveLocked }}" hint-placeholder-val="{{ false }}">
-              <div style="display:flex; flex-direction:column; gap:16px; padding-top:6px">
-                <div style="display:flex; gap:18px; padding:20px; border-radius:12px; background:var(--sz-container-high); border:1px solid var(--sz-outline)">
-                  <span class="mdi mdi-tune-vertical-variant" style="font-size:22px; color:var(--accent-text); flex-shrink:0; margin-top:1px"></span>
-                  <div style="flex:1; min-width:0">
-                    <div style="font-family:var(--font-display); font-weight:600; font-size:15px; margin-bottom:6px">Adaptive needs a one-time calibration</div>
-                    <div style="font-size:13px; color:var(--text-secondary); line-height:1.5; max-width:640px">Adaptive drives {{ selLoc }} from a measured model of how fast it moves heat out of this machine — how much the temperature falls per unit of airflow, and how long that takes. SubZero learns those numbers once by running a short auto-tune, then holds your target temperature with the least noise it can.</div>
-                    <div style="display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:10px 20px; margin:16px 0 18px; max-width:640px">
-                      <sc-for list="{{ calibFacts }}" as="c" hint-placeholder-count="4">
-                        <div style="display:flex; align-items:center; gap:10px">
-                          <span class="mdi mdi-{{ c.icon }}" style="font-size:16px; color:{{ c.color }}; width:18px; text-align:center; flex-shrink:0"></span>
-                          <span style="font-size:12.5px; color:var(--text-secondary)">{{ c.label }}</span>
-                        </div>
-                      </sc-for>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:10px">
-                      <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="accent" onClick="{{ startCalibration }}" hint-size="auto,34px"><span class="mdi mdi-tune-vertical-variant" style="font-size:14px; margin-right:7px"></span>Calibrate this fan</x-import>
-                      <span style="font-size:11.5px; color:var(--text-tertiary)">Calibration is stored per fan, per machine.</span>
-                    </div>
-                  </div>
-                </div>
-                <div style="display:flex; align-items:center; gap:9px; font-size:11.5px; color:var(--text-tertiary)">
-                  <span class="mdi mdi-information-outline" style="font-size:14px"></span>
-                  Until then this fan keeps running its current mode — nothing changes while you read this.
-                </div>
-              </div>
-            </sc-if>
-
-            <!-- ADAPTIVE — calibrated editor -->
+            <!-- ADAPTIVE editor (no calibration gate — arms immediately) -->
             <sc-if value="{{ isAdaptiveReady }}" hint-placeholder-val="{{ false }}">
               <div style="display:flex; flex-direction:column; gap:16px; padding-top:6px">
 
@@ -482,6 +453,101 @@
                   </div>
                 </div>
 
+                <!-- ===== CONFIDENCE (design review: 4 treatments × 3 states) ===== -->
+                <div style="padding:18px; border-radius:12px; background:var(--sz-container-high); border:1px solid var(--sz-outline)">
+                  <div style="display:flex; align-items:center; gap:10px; margin-bottom:13px">
+                    <span class="mdi mdi-{{ conf.icon }}" style="font-size:18px; color:{{ conf.iconColor }}"></span>
+                    <span style="font-family:var(--font-display); font-weight:600; font-size:15px">What SubZero knows about this fan</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:10px; margin-bottom:15px; padding-bottom:14px; border-bottom:1px solid var(--sz-outline); flex-wrap:wrap">
+                    <span style="font-size:10.5px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em">Design review</span>
+                    <span style="font-size:11.5px; color:var(--text-tertiary)">state</span>
+                    <div style="display:flex; gap:2px; background:var(--sz-container-lowest); border:1px solid var(--sz-outline); border-radius:8px; padding:3px">
+                      <sc-for list="{{ conf.stateBtns }}" as="s" hint-placeholder-count="3">
+                        <div style="{{ s.style }}" onClick="{{ s.select }}">{{ s.label }}</div>
+                      </sc-for>
+                    </div>
+                    <span style="font-size:11.5px; color:var(--text-tertiary); margin-left:6px">treatment</span>
+                    <div style="display:flex; gap:2px; background:var(--sz-container-lowest); border:1px solid var(--sz-outline); border-radius:8px; padding:3px; overflow-x:auto">
+                      <sc-for list="{{ conf.treatBtns }}" as="t" hint-placeholder-count="4">
+                        <div style="{{ t.style }}" onClick="{{ t.select }}" title="{{ t.title }}">{{ t.label }}</div>
+                      </sc-for>
+                    </div>
+                    <span style="flex:1"></span>
+                    <span style="font-size:11px; color:var(--text-tertiary)">{{ conf.treatHint }}</span>
+                  </div>
+
+                  <!-- A · sentence that upgrades -->
+                  <sc-if value="{{ conf.isA }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex; align-items:flex-start; gap:13px">
+                      <span class="mdi mdi-{{ conf.icon }}" style="font-size:22px; color:{{ conf.iconColor }}; flex-shrink:0; margin-top:2px"></span>
+                      <div style="flex:1; min-width:0">
+                        <div style="font-family:var(--font-display); font-weight:600; font-size:15.5px; color:{{ conf.headlineColor }}">{{ conf.headline }}</div>
+                        <div style="font-size:12.5px; color:var(--text-secondary); margin-top:4px; line-height:1.5; max-width:620px">{{ conf.body }}</div>
+                      </div>
+                    </div>
+                  </sc-if>
+
+                  <!-- B · settling sparkline -->
+                  <sc-if value="{{ conf.isB }}" hint-placeholder-val="{{ false }}">
+                    <div>
+                      <div style="display:flex; align-items:flex-end; gap:20px; flex-wrap:wrap">
+                        <div style="flex:1 1 300px; min-width:260px">
+                          <div style="font-size:11.5px; color:var(--text-tertiary); margin-bottom:6px">How much the model has moved, per observation</div>
+                          <svg viewBox="0 0 380 74" style="width:100%; height:auto; display:block">
+                            <line x1="0" y1="64" x2="380" y2="64" stroke="var(--sz-outline)" stroke-width="1"></line>
+                            <polyline points="{{ conf.spark }}" fill="none" stroke="{{ conf.iconColor }}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"></polyline>
+                            <circle cx="{{ conf.sparkDotX }}" cy="{{ conf.sparkDotY }}" r="3.5" fill="{{ conf.iconColor }}"></circle>
+                          </svg>
+                          <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px">{{ conf.sparkNote }}</div>
+                        </div>
+                        <div style="flex:0 0 auto">
+                          <div style="font-family:var(--font-display); font-weight:600; font-size:15.5px; color:{{ conf.headlineColor }}">{{ conf.headline }}</div>
+                          <div style="font-size:12.5px; color:var(--text-secondary); margin-top:4px; max-width:280px; line-height:1.5">{{ conf.body }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </sc-if>
+
+                  <!-- C · what it has figured out (fact rows) -->
+                  <sc-if value="{{ conf.isC }}" hint-placeholder-val="{{ false }}">
+                    <div>
+                      <div style="font-family:var(--font-display); font-weight:600; font-size:14px; color:{{ conf.headlineColor }}; margin-bottom:11px">{{ conf.headline }}</div>
+                      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:9px">
+                        <sc-for list="{{ conf.facts }}" as="f" hint-placeholder-count="3">
+                          <div style="display:flex; align-items:center; gap:11px; padding:11px 13px; border-radius:10px; background:var(--sz-container); border:1px solid var(--sz-outline)">
+                            <span class="mdi mdi-{{ f.icon }}" style="font-size:16px; color:{{ f.color }}; flex-shrink:0"></span>
+                            <div style="min-width:0">
+                              <div style="font-size:11px; color:var(--text-tertiary)">{{ f.label }}</div>
+                              <div style="font-family:var(--font-display); font-weight:600; font-size:13.5px; margin-top:1px">{{ f.value }}</div>
+                            </div>
+                          </div>
+                        </sc-for>
+                      </div>
+                      <div style="font-size:12px; color:var(--text-secondary); margin-top:11px; line-height:1.5; max-width:640px">{{ conf.body }}</div>
+                    </div>
+                  </sc-if>
+
+                  <!-- D · quiet chip, loud only when wrong -->
+                  <sc-if value="{{ conf.isD }}" hint-placeholder-val="{{ false }}">
+                    <div>
+                      <div style="display:flex; align-items:center; gap:11px; flex-wrap:wrap">
+                        <span style="{{ conf.chipStyle }}"><span class="mdi mdi-{{ conf.icon }}" style="font-size:12px"></span>{{ conf.chip }}</span>
+                        <span style="font-size:12.5px; color:var(--text-secondary)">{{ conf.headline }}</span>
+                      </div>
+                      <div style="font-size:12px; color:var(--text-tertiary); margin-top:8px; line-height:1.5; max-width:640px">{{ conf.body }}</div>
+                    </div>
+                  </sc-if>
+
+                  <sc-if value="{{ conf.showOffer }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex; align-items:center; gap:12px; margin-top:15px; padding-top:14px; border-top:1px solid var(--sz-outline); flex-wrap:wrap">
+                      <span class="mdi mdi-clock-fast" style="font-size:16px; color:var(--accent-text)"></span>
+                      <span style="flex:1; min-width:220px; font-size:12.5px; color:var(--text-secondary)">In a hurry? A 4-minute test would teach it everything at once.</span>
+                      <a href="Fan Calibration.dc.html" style="display:inline-flex; align-items:center; height:32px; padding:0 13px; border-radius:8px; background:var(--sz-container); border:1px solid var(--sz-outline-strong); color:var(--text-primary); font-size:12.5px; text-decoration:none; white-space:nowrap"><span class="mdi mdi-tune-vertical-variant" style="font-size:14px; margin-right:8px"></span>Run the 4-minute test</a>
+                    </div>
+                  </sc-if>
+                </div>
+
                 <div style="padding:18px; border-radius:12px; background:var(--sz-container-high); border:1px solid var(--sz-outline)">
                   <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px">
                     <span class="mdi mdi-thermometer-check" style="font-size:18px; color:var(--accent-text)"></span>
@@ -494,6 +560,55 @@
                   <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-tertiary); margin-top:4px">
                     <span>{{ adaptive.targetMinLabel }} · coolest</span>
                     <span>{{ adaptive.targetMaxLabel }} · quietest</span>
+                  </div>
+                </div>
+
+                <!-- ===== RESPONSE (λ as felt consequences) ===== -->
+                <div style="padding:18px; border-radius:12px; background:var(--sz-container-high); border:1px solid var(--sz-outline)">
+                  <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px">
+                    <span class="mdi mdi-metronome" style="font-size:18px; color:var(--accent-text)"></span>
+                    <span style="font-family:var(--font-display); font-weight:600; font-size:15px">Response</span>
+                    <span style="flex:1"></span>
+                    <span style="font-family:var(--font-display); font-weight:600; font-size:15px; color:var(--accent-text)">{{ resp.name }}</span>
+                  </div>
+                  <div style="font-size:12.5px; color:var(--text-secondary); margin-bottom:12px">How eagerly this fan reacts when the machine heats up. Quick catches spikes sooner; Calm keeps the fan steadier and quieter.</div>
+                  <div style="display:flex; gap:22px; flex-wrap:wrap; align-items:flex-start">
+                    <div style="flex:1 1 300px; min-width:280px">
+                      <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Slider" value="{{ resp.value }}" min="{{ resp.min }}" max="{{ resp.max }}" step="1" onChange="{{ resp.set }}" hint-size="100%,32px"></x-import>
+                      <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-tertiary); margin-top:4px">
+                        <span>Quick</span><span>Calm</span>
+                      </div>
+                      <div style="display:flex; flex-direction:column; gap:11px; margin-top:16px">
+                        <sc-for list="{{ resp.bars }}" as="b" hint-placeholder-count="2">
+                          <div>
+                            <div style="display:flex; justify-content:space-between; font-size:11.5px; margin-bottom:5px"><span style="color:var(--text-secondary)">{{ b.label }}</span><span style="font-family:var(--font-display); font-weight:600; color:{{ b.color }}">{{ b.note }}</span></div>
+                            <div style="height:7px; border-radius:4px; background:var(--sz-container-highest); overflow:hidden"><div style="height:100%; border-radius:4px; background:{{ b.color }}; width:{{ b.pct }}"></div></div>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <div style="flex:1 1 260px; min-width:250px">
+                      <div style="font-size:11.5px; color:var(--text-tertiary); margin-bottom:5px">What a sudden load looks like</div>
+                      <svg viewBox="0 0 340 118" style="width:100%; height:auto; display:block">
+                        <line x1="0" y1="{{ resp.spY }}" x2="340" y2="{{ resp.spY }}" stroke="var(--text-tertiary)" stroke-width="1" stroke-dasharray="4 4" opacity="0.7"></line>
+                        <text x="338" y="{{ resp.spLabelY }}" text-anchor="end" font-size="9.5" fill="var(--text-tertiary)">target</text>
+                        <polyline points="{{ resp.ghost }}" fill="none" stroke="var(--text-tertiary)" stroke-width="1.4" stroke-dasharray="3 3" opacity="0.5" stroke-linejoin="round"></polyline>
+                        <polyline points="{{ resp.curve }}" fill="none" stroke="var(--app-accent)" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round"></polyline>
+                      </svg>
+                      <div style="font-size:11px; color:var(--text-tertiary); margin-top:2px">dashed = the default setting</div>
+                    </div>
+                  </div>
+                  <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--sz-outline)">
+                    <div onClick="{{ resp.toggleAdv }}" style="display:inline-flex; align-items:center; gap:7px; font-size:11.5px; color:var(--accent-text); cursor:pointer">
+                      <span class="mdi mdi-{{ resp.advIcon }}" style="font-size:14px"></span>Advanced
+                    </div>
+                    <sc-if value="{{ resp.advOpen }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex; flex-wrap:wrap; gap:8px 26px; margin-top:10px">
+                        <sc-for list="{{ resp.advVals }}" as="a" hint-placeholder-count="3">
+                          <span style="display:flex; align-items:baseline; gap:8px; font-size:11.5px"><span style="color:var(--text-tertiary)">{{ a.label }}</span><span style="font-family:var(--font-display); font-weight:600">{{ a.value }}</span></span>
+                        </sc-for>
+                      </div>
+                    </sc-if>
                   </div>
                 </div>
 
@@ -514,16 +629,25 @@
                         </div>
                         <div style="font-family:var(--font-display); font-weight:600; font-size:20px; min-width:96px; text-align:right">{{ adaptive.floorLabel }}</div>
                       </div>
-                      <div style="font-size:11.5px; color:var(--text-tertiary); margin-top:6px">Minimum spin measured during calibration was {{ adaptive.minSpinLabel }} — below that this fan stalls.</div>
+                      <div style="font-size:11.5px; color:var(--text-tertiary); margin-top:6px">Below about {{ adaptive.minSpinLabel }} this fan stalls.</div>
                     </div>
                   </sc-if>
                 </div>
 
-                <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap">
-                  <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="subtle" onClick="{{ adaptive.resetDefaults }}" hint-size="auto,32px"><span class="mdi mdi-backup-restore" style="font-size:14px; margin-right:7px"></span>Reset to defaults</x-import>
-                  <span style="flex:1"></span>
-                  <span style="font-size:11.5px; color:var(--text-tertiary); display:flex; align-items:center; gap:7px"><span class="mdi mdi-check-decagram-outline" style="font-size:14px; color:var(--sz-ok)"></span>{{ adaptive.calibMsg }}</span>
-                  <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="subtle" onClick="{{ startCalibration }}" hint-size="auto,32px">Recalibrate</x-import>
+                <div style="padding:18px; border-radius:12px; background:var(--sz-container-high); border:1px solid var(--sz-outline)">
+                  <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px">
+                    <span class="mdi mdi-wrench-outline" style="font-size:18px; color:var(--accent-text)"></span>
+                    <span style="font-family:var(--font-display); font-weight:600; font-size:15px">Optional tools</span>
+                    <span style="flex:1"></span>
+                    <span style="font-size:11.5px; color:var(--text-tertiary)">Nothing here is required &mdash; Adaptive works without it.</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+                    <div onClick="{{ adaptive.resetDefaults }}" style="display:inline-flex; align-items:center; height:34px; padding:0 14px; border-radius:8px; background:var(--sz-container); border:1px solid var(--sz-outline-strong); color:var(--text-primary); font-size:12.5px; cursor:pointer; white-space:nowrap"><span class="mdi mdi-backup-restore" style="font-size:15px; margin-right:8px"></span>Reset to defaults</div>
+                    <a href="Fan Calibration.dc.html" style="display:inline-flex; align-items:center; height:34px; padding:0 14px; border-radius:8px; background:var(--sz-container); border:1px solid var(--sz-outline-strong); color:var(--text-primary); font-size:12.5px; text-decoration:none; white-space:nowrap"><span class="mdi mdi-clock-fast" style="font-size:15px; margin-right:8px"></span>4-minute learning test</a>
+                    <a href="Adaptive Control Explained.dc.html" style="display:inline-flex; align-items:center; height:34px; padding:0 14px; border-radius:8px; background:var(--sz-container); border:1px solid var(--sz-outline-strong); color:var(--text-primary); font-size:12.5px; text-decoration:none; white-space:nowrap"><span class="mdi mdi-book-open-variant" style="font-size:15px; margin-right:8px"></span>How adaptive control works</a>
+                    <span style="flex:1"></span>
+                    <div onClick="{{ conf.forget }}" style="display:inline-flex; align-items:center; height:34px; padding:0 14px; border-radius:8px; background:transparent; border:1px solid var(--sz-outline-strong); color:var(--sz-danger); font-size:12.5px; cursor:pointer; white-space:nowrap"><span class="mdi mdi-delete-outline" style="font-size:15px; margin-right:8px"></span>Forget what it learned</div>
+                  </div>
                 </div>
               </div>
             </sc-if>
@@ -549,12 +673,12 @@
                 <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="standard" onClick="{{ togglePreview }}" hint-size="auto,34px"><span class="mdi mdi-play" style="font-size:14px; margin-right:7px"></span>Preview</x-import>
               </div>
             </sc-if>
-            <sc-if value="{{ isAdaptiveLocked }}" hint-placeholder-val="{{ false }}">
+            <sc-if value="{{ neverShow }}" hint-placeholder-val="{{ false }}">
               <div style="display:flex; align-items:center; gap:7px; width:100%">
                 <span class="mdi mdi-lock-outline" style="font-size:16px; color:var(--sz-warn)"></span>
                 <span style="font-size:13px; color:var(--text-secondary)">Adaptive can&rsquo;t be applied to {{ selLoc }} until it has been calibrated.</span>
                 <span style="flex:1"></span>
-                <x-import component-from-global-scope="WinUI3DesignSystem_20ec5a.Button" variant="standard" onClick="{{ startCalibration }}" hint-size="auto,34px"><span class="mdi mdi-tune-vertical-variant" style="font-size:14px; margin-right:7px"></span>Calibrate this fan</x-import>
+                <a href="Fan Calibration.dc.html" style="display:inline-flex; align-items:center; height:34px; padding:0 15px; border-radius:8px; background:var(--sz-container-high); border:1px solid var(--sz-outline-strong); color:var(--text-primary); font-size:13px; text-decoration:none; white-space:nowrap"><span class="mdi mdi-tune-vertical-variant" style="font-size:14px; margin-right:7px"></span>Calibrate this fan</a>
               </div>
             </sc-if>
             <sc-if value="{{ noChanges }}" hint-placeholder-val="{{ true }}">
@@ -577,7 +701,8 @@
 <script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#0078D7&quot;,&quot;options&quot;:[&quot;#0078D7&quot;,&quot;#6ccb5f&quot;,&quot;#A892FF&quot;,&quot;#c5994e&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;ringMode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;segmented&quot;,&quot;solid&quot;],&quot;default&quot;:&quot;segmented&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;showAverages&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
 class Component extends DCLogic {
   state = { sel:'left', mode:'custom', duty:62, agg:'Maximum', sensors:['t0','t3'], linked:['left'], staged:['left'], previewFan:null,
-            adaptTarget:78, floorOn:true, floorPct:24, latched:true };
+            adaptTarget:78, floorOn:true, floorPct:24, latched:true,
+            lambda:8, advOpen:false, confTreat:'A', confState:'converging' };
 
   polar(c, r, deg){ const a=(deg-90)*Math.PI/180; return [c+r*Math.cos(a), c+r*Math.sin(a)]; }
   arc(c, r, a0, a1){
@@ -626,9 +751,120 @@ class Component extends DCLogic {
   calibPill(f, mode){
     if(mode!=='adaptive') return { show:false, label:'', icon:'', style:{} };
     const base={ display:'inline-flex', alignItems:'center', gap:6, height:'24px', padding:'0 11px', borderRadius:'12px', fontSize:'11.5px', fontWeight:600, whiteSpace:'nowrap' };
-    if(f.calib==='ok')    return { show:true, label:'Calibrated · '+f.calibAge, icon:'check-decagram', style:{ ...base, background:'var(--sz-ok-bg)', color:'var(--sz-ok)' } };
-    if(f.calib==='stale') return { show:true, label:'Calibration stale', icon:'clock-alert-outline', style:{ ...base, background:'var(--sz-warn-bg)', color:'var(--sz-warn)' } };
-    return { show:true, label:'Not calibrated', icon:'lock-outline', style:{ ...base, background:'var(--sz-container-high)', color:'var(--text-secondary)' } };
+    const S=this.CONF[this.state.confState];
+    return { show:true, label:S.pill, icon:S.icon, style:{ ...base, background:S.pillBg, color:S.pillFg } };
+  }
+
+  CONF={
+    learning:{
+      key:'learning', label:'Learning', icon:'school-outline', color:'var(--accent-text)',
+      pill:'Getting to know this fan', pillBg:'var(--sz-container-high)', pillFg:'var(--text-secondary)',
+      headline:'Still getting to know this fan',
+      body:'Adaptive is running on safe defaults and watching how this machine behaves during ordinary use. It only learns from settled, quiet moments, so this takes a day or two — the fan is doing its job the whole time.',
+      chip:'Learning', obs:6, settled:'6 quiet periods so far', spread:0.42, offer:true,
+      facts:[
+        { icon:'eye-outline', color:'var(--accent-text)', label:'Quiet periods seen', value:'6' },
+        { icon:'shield-half-full', color:'var(--sz-ok)', label:'Running on', value:'Safe defaults' },
+        { icon:'clock-outline', color:'var(--text-secondary)', label:'Usable estimate in', value:'a day or two' },
+      ],
+    },
+    converging:{
+      key:'converging', label:'Converging', icon:'chart-bell-curve-cumulative', color:'var(--sz-violet)',
+      pill:'Learned from 40 quiet periods', pillBg:'rgba(138,183,232,0.18)', pillFg:'var(--sz-violet)',
+      headline:'Learned from 40 quiet periods',
+      body:'Adaptive now has its own model of this fan and is steadily refining it. Numbers here are already better than the defaults, and they keep improving as you use the machine.',
+      chip:'Refining', obs:40, settled:'last improved 14 minutes ago', spread:0.12, offer:true,
+      facts:[
+        { icon:'eye-outline', color:'var(--accent-text)', label:'Quiet periods used', value:'40' },
+        { icon:'snowflake-thermometer', color:'var(--sz-violet)', label:'Cooling per 1% fan', value:'0.42 °C' },
+        { icon:'update', color:'var(--text-secondary)', label:'Last improved', value:'14 min ago' },
+      ],
+    },
+    confident:{
+      key:'confident', label:'Confident', icon:'check-decagram', color:'var(--sz-ok)',
+      pill:'Knows this fan well', pillBg:'var(--sz-ok-bg)', pillFg:'var(--sz-ok)',
+      headline:'Knows this fan well',
+      body:'The model has been stable across 300+ quiet periods, including hot and cold days. Nothing to do here — the numbers above are trustworthy, and Adaptive will notice on its own if the machine changes.',
+      chip:'Settled', obs:312, settled:'stable for 6 days', spread:0.03, offer:false,
+      facts:[
+        { icon:'eye-outline', color:'var(--accent-text)', label:'Quiet periods used', value:'312' },
+        { icon:'snowflake-thermometer', color:'var(--sz-violet)', label:'Cooling per 1% fan', value:'0.42 °C' },
+        { icon:'fan-minus', color:'var(--sz-ok)', label:'Stalls below', value:'1,180 RPM' },
+      ],
+    },
+  };
+
+  TREATS=[
+    { key:'A', label:'Status', title:'A status line that upgrades as it learns' },
+    { key:'B', label:'Trend', title:'Sparkline of the model settling down' },
+    { key:'C', label:'Facts', title:'What it has figured out, as facts' },
+    { key:'D', label:'Improvements', title:'A quiet badge — prominent only when something needs attention' },
+  ];
+
+  confidenceModel(){
+    const self=this;
+    const S=this.CONF[this.state.confState];
+    const t=this.state.confTreat;
+    const seg=(on)=>({ textAlign:'center', fontSize:'11.5px', padding:'6px 12px', borderRadius:'6px', cursor:'pointer',
+      background:on?'var(--app-accent)':'transparent', color:on?'var(--app-on-accent)':'var(--text-secondary)', whiteSpace:'nowrap' });
+    // settling sparkline: parameter-change magnitude decaying with observations
+    const n=26, x0=2, x1=376;
+    const decay=this.state.confState==='learning'?7:this.state.confState==='converging'?3.4:1.9;
+    const pts=[];
+    for(let i=0;i<n;i++){
+      const v=Math.exp(-i/decay)*(1+0.16*Math.sin(i*1.7));
+      pts.push((x0+(x1-x0)*i/(n-1)).toFixed(1)+','+(64-v*54).toFixed(1));
+    }
+    return {
+      icon:S.icon, iconColor:S.color, headline:S.headline, body:S.body, headlineColor:S.color==='var(--sz-ok)'?'var(--sz-ok)':'var(--text-primary)',
+      chip:S.chip, chipStyle:{ display:'inline-flex', alignItems:'center', gap:'6px', height:'24px', padding:'0 11px', borderRadius:'12px',
+        fontSize:'11.5px', fontWeight:600, background:S.pillBg, color:S.pillFg, whiteSpace:'nowrap' },
+      facts:S.facts, showOffer:S.offer,
+      spark:pts.join(' '), sparkDotX:x1, sparkDotY:(64-Math.exp(-(n-1)/decay)*54).toFixed(1),
+      sparkNote:S.settled,
+      isA:t==='A', isB:t==='B', isC:t==='C', isD:t==='D',
+      treatHint:(this.TREATS.find(x=>x.key===t)||{}).title,
+      stateBtns:Object.values(this.CONF).map(c=>({ label:c.label, style:seg(self.state.confState===c.key), select:()=>self.setState({ confState:c.key }) })),
+      treatBtns:this.TREATS.map(x=>({ label:x.label, title:x.title, style:seg(self.state.confTreat===x.key), select:()=>self.setState({ confTreat:x.key }) })),
+      forget:()=>{},
+    };
+  }
+
+  responseModel(){
+    const self=this;
+    const lam=this.state.lambda, L=4, TAU=26, K=0.42;
+    const name = lam<=4 ? 'Quick' : lam<=7 ? 'Eager' : lam<=10 ? 'Steady' : lam<=13 ? 'Calm' : 'Very calm';
+    const settle=Math.round((lam+L)*3.4);
+    const activity=(19-lam)/17;
+    const actNote = lam<=4 ? 'restless' : lam<=6 ? 'busy' : lam<=10 ? 'steady' : 'very calm';
+    const actColor = lam<=4 ? 'var(--sz-warn)' : lam<=10 ? 'var(--sz-ok)' : 'var(--sz-violet)';
+    const curve=(l)=>{
+      const x0=2,x1=336,tMax=80,pts=[];
+      const peak=3.2+l*0.72, tp=L+l*0.6, decay=l*1.5+2.2, ripple=Math.max(0,(5-l))*0.3;
+      for(let i=0;i<=90;i++){
+        const t=tMax*i/90;
+        const v=78+peak*(1-Math.exp(-t/2.4))*Math.exp(-Math.max(0,t-tp)/decay)+ripple*Math.sin(t/2.1)*Math.exp(-t/22);
+        pts.push((x0+(x1-x0)*t/tMax).toFixed(1)+','+(96-((v-77)/16)*88).toFixed(1));
+      }
+      return pts.join(' ');
+    };
+    const Kc=TAU/(K*(lam+L)), tauI=Math.min(TAU,4*(lam+L));
+    return {
+      value:lam, min:2, max:16, name,
+      set:(v)=>self.stage({ lambda:Math.round(v) }),
+      bars:[
+        { label:'Back on target within', note:'~'+settle+' s', color: settle>58?'var(--sz-warn)':'var(--sz-ok)', pct:Math.min(100,settle/70*100).toFixed(1)+'%' },
+        { label:'Fan speed changes', note:actNote, color:actColor, pct:(activity*100).toFixed(1)+'%' },
+      ],
+      curve:curve(lam), ghost:curve(8), spY:(96-((78-77)/16)*88).toFixed(1), spLabelY:(96-((78-77)/16)*88-4).toFixed(1),
+      advOpen:this.state.advOpen, advIcon:this.state.advOpen?'chevron-down':'chevron-right',
+      toggleAdv:()=>self.setState({ advOpen:!self.state.advOpen }),
+      advVals:[
+        { label:'λ (closed-loop time constant)', value:lam+' s' },
+        { label:'Kᶜ', value:Kc.toFixed(2)+' %/°C' },
+        { label:'τᵢ', value:Math.round(tauI)+' s' },
+      ],
+    };
   }
 
   adaptiveModel(f){
@@ -665,7 +901,7 @@ class Component extends DCLogic {
       floorOn:this.state.floorOn, floor:this.state.floorPct, floorMin:0, floorMax:60,
       floorLabel:this.state.floorPct+'%', minSpinLabel:'1,180 RPM (17%)',
       setFloorOn:(v)=>self.stage({ floorOn:v }), setFloor:(v)=>self.stage({ floorPct:v }),
-      resetDefaults:()=>self.stage({ adaptTarget:78, floorOn:true, floorPct:24 }),
+      resetDefaults:()=>self.stage({ adaptTarget:78, floorOn:true, floorPct:24, lambda:8 }),
       setpoint:setpoint.toLocaleString(), actual: actual>0 ? actual.toLocaleString() : '0',
       parts, explain,
       tempNow:tempNow+'\u00B0C', tempColor: tempNow>=target ? 'var(--sz-warn)' : 'var(--sz-ok)',
@@ -870,14 +1106,16 @@ class Component extends DCLogic {
         { key:'auto', label:'Auto', mdi:'auto-fix' },
         { key:'manual', label:'Manual', mdi:'tune-variant' },
         { key:'custom', label:'Curve', mdi:'chart-bell-curve' },
-        { key:'max', label:'Max', mdi:'speedometer' },
         { key:'adaptive', label:'Adaptive', mdi:'tune-vertical-variant' },
+        { key:'max', label:'Max', mdi:'speedometer' },
       ],
       setMode:(k)=>self.stage({ mode:k }),
       isAuto:mode==='auto', isManual:mode==='manual', isCustom:mode==='custom', isMax:mode==='max',
-      isAdaptiveLocked: mode==='adaptive' && selFan.calib!=='ok',
-      isAdaptiveReady: mode==='adaptive' && selFan.calib==='ok',
+      isAdaptiveLocked:false, neverShow:false,
+      isAdaptiveReady: mode==='adaptive',
       calibPill: this.calibPill(selFan, mode),
+      conf:this.confidenceModel(),
+      resp:this.responseModel(),
       calibFacts:[
         { icon:'clock-outline', color:'var(--accent-text)', label:'Takes about 5 minutes end to end' },
         { icon:'fan-speed-3', color:'var(--sz-warn)', label:'Fans run to maximum — it will be loud' },
@@ -908,8 +1146,8 @@ class Component extends DCLogic {
       applyLabel: this.state.staged.length===1?'Apply 1 fan':'Apply all ('+this.state.staged.length+')',
       applyAll:()=>self.applyAll(), revertAll:()=>self.revertAll(), previewAll:()=>{},
       previewing: this.state.previewFan===sel,
-      canPreview: this.state.staged.includes(sel) && this.state.previewFan!==sel && !(mode==='adaptive' && selFan.calib!=='ok'),
-      noChanges: !this.state.staged.includes(sel) && this.state.previewFan!==sel && !(mode==='adaptive' && selFan.calib!=='ok'),
+      canPreview: this.state.staged.includes(sel) && this.state.previewFan!==sel,
+      noChanges: !this.state.staged.includes(sel) && this.state.previewFan!==sel,
       togglePreview:()=>self.togglePreview(), discardThis:()=>self.discardThis(),
       cleanMsg: selFan.state==='stalled' ? 'Fan reported stalled \u2014 no override pending.' : 'No unsaved changes for this fan.',
       stalled: selFan.state==='stalled', notStalled: selFan.state!=='stalled',

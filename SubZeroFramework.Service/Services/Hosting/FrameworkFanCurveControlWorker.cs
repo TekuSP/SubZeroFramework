@@ -11,6 +11,7 @@ using FrameworkDotnet.Snapshots;
 
 using SubZeroFramework.Models;
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Control;
 
 namespace SubZeroFramework.Service.Services.Hosting;
 
@@ -29,6 +30,10 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     // Evaluate at a calmer cadence than the raw telemetry poll so the EC is not written every poll.
     private static readonly TimeSpan DefaultEvaluationInterval = TimeSpan.FromSeconds(1);
 
+    // A control-telemetry sample older than this is a stalled poll, not a reading. The provider caches the
+    // last value across failed reads, so without an age guard a stale "60 W" would pin feed-forward forever.
+    private static readonly TimeSpan MaxControlTelemetryAge = TimeSpan.FromSeconds(10);
+
     // Instance-level so tests can drive evaluations without a real-time wait per assertion. Production
     // always uses the default; nothing but the test constructor overload passes anything else.
     private readonly TimeSpan _evaluationInterval;
@@ -37,6 +42,8 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     private readonly IFrameworkDataProvider _frameworkDataProvider;
     private readonly FrameworkFanControlStateStore _fanControlStateStore;
     private readonly FrameworkFanControlAuthorizationService _authorizationService;
+    private readonly FanAdaptiveControlSignals _adaptiveSignals;
+    private readonly FanCalibrationArbiter _calibrationArbiter;
     private readonly FrameworkFatalExitHandler _fatalExitHandler;
     private readonly ILogger<FrameworkFanCurveControlWorker> _logger;
     private readonly CancellationTokenRegistration _applicationStoppingRegistration;
@@ -51,6 +58,15 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     // issued once per episode rather than every evaluation. Same threading rules as _lastAppliedDuty.
     private readonly HashSet<int> _fansInSafeFallback = [];
 
+    // One adaptive controller per fan, holding that fan's integrator and throttle latch. Created on demand
+    // and dropped when the fan stops being adaptively driven, so stale integral never survives a mode switch.
+    // Same threading rules as _lastAppliedDuty: only touched inside the serialized evaluation.
+    private readonly Dictionary<int, AdaptiveFanController> _adaptiveControllers = [];
+
+    // Wall-clock of the previous evaluation, for the controllers' time-dependent terms. Stopwatch rather than
+    // DateTimeOffset because integral and decay must not jump when the system clock is corrected.
+    private long _lastEvaluationTimestamp;
+
 
     private readonly CompositeDisposable _subscriptions = [];
 
@@ -58,6 +74,8 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
         IFrameworkDataProvider frameworkDataProvider,
         FrameworkFanControlStateStore fanControlStateStore,
         FrameworkFanControlAuthorizationService authorizationService,
+        FanAdaptiveControlSignals adaptiveSignals,
+        FanCalibrationArbiter calibrationArbiter,
         FrameworkFatalExitHandler fatalExitHandler,
         IHostApplicationLifetime applicationLifetime,
         ILogger<FrameworkFanCurveControlWorker> logger,
@@ -66,6 +84,8 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
         _frameworkDataProvider = frameworkDataProvider;
         _fanControlStateStore = fanControlStateStore;
         _authorizationService = authorizationService;
+        _adaptiveSignals = adaptiveSignals;
+        _calibrationArbiter = calibrationArbiter;
         _fatalExitHandler = fatalExitHandler;
         _logger = logger;
         _evaluationInterval = evaluationInterval ?? DefaultEvaluationInterval;
@@ -146,6 +166,20 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
             return;
         }
 
+        // One elapsed measurement per pass, so every adaptive fan integrates over the same interval. Taken
+        // before the loop rather than per fan: a slow EC write on fan 0 must not inflate fan 1's integral.
+        var evaluationTimestamp = Stopwatch.GetTimestamp();
+        var elapsed = _lastEvaluationTimestamp == 0
+            ? TimeSpan.Zero
+            : Stopwatch.GetElapsedTime(_lastEvaluationTimestamp, evaluationTimestamp);
+        _lastEvaluationTimestamp = evaluationTimestamp;
+
+        // Sampled once for the same reason, and because the reading is cached — every adaptive fan this pass
+        // should feed-forward from one consistent view of what the CPU is doing.
+        var controlTelemetry = ReadFreshControlTelemetry();
+
+        DropControllersForFansNoLongerAdaptive();
+
         foreach (var state in _controlStates.Values)
         {
             if (cancellationToken.IsCancellationRequested)
@@ -153,11 +187,24 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
                 return;
             }
 
+            // A calibration owns this fan: it commands a duty and measures what that duty did, so anything
+            // else writing to the fan corrupts the model it is fitting. Skipped BEFORE ResolveTargetDuty, and
+            // without the hand-back that the NotDriven branch performs — restoring firmware control here would
+            // undo the very duty the run just commanded.
+            if (_calibrationArbiter.IsCalibrating(state.FanIndex))
+            {
+                // Forgotten for the same reason NotDriven forgets it: when the run ends, the fan is wherever
+                // calibration left it, not where this worker last put it. Keeping the old value would let the
+                // change threshold swallow the first write back and strand the fan at the run's final duty.
+                _lastAppliedDuty.Remove(state.FanIndex);
+                continue;
+            }
+
             // Resolve the duty this fan should run: a curve interpolates against temperature (following any
             // per-slot link to a leader); Max is 100%; Manual holds its last duty; Auto (or unresolved) yields
             // null so the EC keeps native control. Re-asserting Max/Manual here is what restores a persisted
             // simple override to the EC after a service restart — the gRPC handlers only actuate on a live command.
-            var decision = ResolveTargetDuty(state.FanIndex, thermalSnapshot, []);
+            var decision = ResolveTargetDuty(state.FanIndex, thermalSnapshot, controlTelemetry, elapsed, []);
 
             // Every pass, for every fan, including the passes where nothing happens. Without this a fan that
             // does not move leaves no record of WHY — the applied-duty log below is skipped both when the
@@ -209,17 +256,38 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
 
             try
             {
-                var result = await _frameworkDataProvider.SetFanDutyAsync(state.FanIndex, targetDuty, cancellationToken).ConfigureAwait(false);
+                // The change threshold above gated on the DUTY DEMAND, which is the controller's output and
+                // is comparable across both tracking modes. Only the delivery differs here.
+                if (decision.SetpointRpm is double setpointRpm)
+                {
+                    var targetRpm = (int)Math.Round(setpointRpm, MidpointRounding.AwayFromZero);
+                    await _frameworkDataProvider.SetFanRpmAsync(state.FanIndex, targetRpm, cancellationToken).ConfigureAwait(false);
 
-                // Record the applied duty without changing the mode (RecordAppliedDuty preserves CustomCurve).
-                _lastAppliedDuty[state.FanIndex] = result.AppliedDutyPercent;
-                _fanControlStateStore.RecordAppliedDuty(state.FanIndex, result.AppliedDutyPercent);
+                    // Record the DUTY, not the speed: it is what every readout and the threshold above use,
+                    // and a cascade fan's actual RPM is reported by ordinary fan telemetry anyway.
+                    _lastAppliedDuty[state.FanIndex] = targetDuty;
+                    _fanControlStateStore.RecordAppliedDuty(state.FanIndex, targetDuty);
 
-                _logger.LogDebug(
-                    "Applied curve duty for fan {FanIndex}. TargetDuty={TargetDuty:0.#}%, AppliedDuty={AppliedDuty:0.#}%.",
-                    state.FanIndex,
-                    targetDuty,
-                    result.AppliedDutyPercent);
+                    _logger.LogDebug(
+                        "Applied cascade speed for fan {FanIndex}. TargetRpm={TargetRpm}, DutyDemand={TargetDuty:0.#}%.",
+                        state.FanIndex,
+                        targetRpm,
+                        targetDuty);
+                }
+                else
+                {
+                    var result = await _frameworkDataProvider.SetFanDutyAsync(state.FanIndex, targetDuty, cancellationToken).ConfigureAwait(false);
+
+                    // Record the applied duty without changing the mode (RecordAppliedDuty preserves CustomCurve).
+                    _lastAppliedDuty[state.FanIndex] = result.AppliedDutyPercent;
+                    _fanControlStateStore.RecordAppliedDuty(state.FanIndex, result.AppliedDutyPercent);
+
+                    _logger.LogDebug(
+                        "Applied curve duty for fan {FanIndex}. TargetDuty={TargetDuty:0.#}%, AppliedDuty={AppliedDuty:0.#}%.",
+                        state.FanIndex,
+                        targetDuty,
+                        result.AppliedDutyPercent);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -258,6 +326,21 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
         string sensorReadings,
         TemperatureAggregationMode aggregation,
         double drivingTemperature,
+        double targetDuty);
+
+    [LoggerMessage(
+        Level = LogLevel.Trace,
+        Message = "Fan {FanIndex} adaptive tick. Driving {DrivingTemperature:0.#}C of {TargetTemperature:0.#}C target; " +
+                  "feed-forward {FeedForward:0.#}pp + PI {ProportionalIntegral:0.#}pp + lead {Lead:0.#}pp + " +
+                  "escalation {Escalation:0.#}pp => {TargetDuty:0.#}%.")]
+    private partial void LogAdaptiveEvaluated(
+        int fanIndex,
+        double drivingTemperature,
+        double targetTemperature,
+        double feedForward,
+        double proportionalIntegral,
+        double lead,
+        double escalation,
         double targetDuty);
 
     [LoggerMessage(
@@ -357,11 +440,21 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     // Resolves the duty a curve-driven fan should run, walking the active slot's per-slot follow link.
     // Follow chains are walked with cycle detection; a leader that is not curve-driven contributes its
     // last applied duty (Max => 100%, Manual => last duty, Auto/unknown => no actuation, fan holds).
-    private FanDutyDecision ResolveTargetDuty(int fanIndex, FrameworkThermalSnapshot snapshot, HashSet<int> visited)
+    private FanDutyDecision ResolveTargetDuty(
+        int fanIndex,
+        FrameworkThermalSnapshot snapshot,
+        ControlTelemetrySample controlTelemetry,
+        TimeSpan elapsed,
+        HashSet<int> visited)
     {
         if (!_controlStates.TryGetValue(fanIndex, out var state))
         {
             return FanDutyDecision.NotDriven;
+        }
+
+        if (state.Mode == FanControlMode.Adaptive)
+        {
+            return ResolveAdaptiveDuty(state, snapshot, controlTelemetry, elapsed);
         }
 
         if (state.Mode != FanControlMode.CustomCurve)
@@ -384,7 +477,7 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
         if (active is { FollowFanIndex: int leaderFanIndex } && leaderFanIndex != fanIndex)
         {
             // A follower of a blind leader is blind too — it must fall back with it, not hold a stale duty.
-            return ResolveTargetDuty(leaderFanIndex, snapshot, visited);
+            return ResolveTargetDuty(leaderFanIndex, snapshot, controlTelemetry, elapsed, visited);
         }
 
         if (state.CustomCurvePoints.Count < 2 || state.DrivingSensorIndices.IsDefaultOrEmpty)
@@ -481,13 +574,194 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
         SafeFallback,
     }
 
-    private readonly record struct FanDutyDecision(FanDutyOutcome Outcome, double Duty)
+    /// <param name="Outcome">Whether and how this fan should be driven.</param>
+    /// <param name="Duty">The duty demand, in percent. Always meaningful — it is what the UI reports.</param>
+    /// <param name="SetpointRpm">
+    /// A speed to command instead of the duty, when the fan is cascade-tracked. Null means write duty.
+    /// </param>
+    private readonly record struct FanDutyDecision(FanDutyOutcome Outcome, double Duty, double? SetpointRpm = null)
     {
         public static readonly FanDutyDecision NotDriven = new(FanDutyOutcome.NotDriven, 0d);
 
         public static readonly FanDutyDecision SafeFallback = new(FanDutyOutcome.SafeFallback, 0d);
 
         public static FanDutyDecision Drive(double duty) => new(FanDutyOutcome.Drive, duty);
+
+        /// <summary>Drive the fan by commanding a SPEED, letting the EC's own loop hold it.</summary>
+        public static FanDutyDecision DriveSpeed(double duty, double setpointRpm)
+            => new(FanDutyOutcome.Drive, duty, setpointRpm);
+    }
+
+    /// <summary>
+    /// Runs one adaptive tick for a fan and publishes the decomposed result.
+    /// </summary>
+    /// <remarks>
+    /// Adaptive fans deliberately do NOT participate in the "Applies to" follow chain. A follower inherits its
+    /// leader's duty, but two fans in different positions with different calibrated models cannot hold the
+    /// same target from the same duty — the follower would be running the leader's answer to a different
+    /// question. Grouping stays a curve concept until there is a per-fan reason to extend it.
+    /// </remarks>
+    private FanDutyDecision ResolveAdaptiveDuty(
+        FanControlStateSnapshot state,
+        FrameworkThermalSnapshot snapshot,
+        ControlTelemetrySample controlTelemetry,
+        TimeSpan elapsed)
+    {
+        if (state.DrivingSensorIndices.IsDefaultOrEmpty)
+        {
+            PublishAdaptiveControl(state.FanIndex, null);
+            return FanDutyDecision.NotDriven;
+        }
+
+        var temperature = AggregateDrivingTemperature(
+            snapshot,
+            state.DrivingSensorIndices,
+            state.DrivingTemperatureAggregation,
+            state.TreatMissingSensorsAsZero);
+
+        if (temperature is not double celsius)
+        {
+            // Blind, exactly as for a curve: hand the fan back to firmware rather than holding a setpoint
+            // derived from a temperature nothing can observe.
+            if (_logger.IsEnabled(LogLevel.Trace))
+            {
+                LogCurveBlind(
+                    state.FanIndex,
+                    DescribeSensorReadings(snapshot, state.DrivingSensorIndices),
+                    state.DrivingTemperatureAggregation,
+                    state.TreatMissingSensorsAsZero);
+            }
+
+            PublishAdaptiveControl(state.FanIndex, null);
+            return FanDutyDecision.SafeFallback;
+        }
+
+        var controller = GetOrCreateAdaptiveController(state);
+
+        // A user pressing "Release now" reaches the controller here, on the thread that owns it. If the
+        // processor is still throttling, the very next tick latches again — which is correct, not a bug to
+        // suppress: the escalation exists because the cooling system already lost once.
+        if (_adaptiveSignals.TryConsumeThrottleLatchRelease(state.FanIndex))
+        {
+            controller.ReleaseThrottleLatch();
+            _logger.LogInformation("Released the throttle escalation latch on fan {FanIndex} at the user's request.", state.FanIndex);
+        }
+
+        var decision = controller.Evaluate(
+            state.Calibration,
+            state.AdaptiveSettings,
+            celsius,
+            controlTelemetry,
+            elapsed,
+            DateTimeOffset.UtcNow);
+
+        // The learner moves rarely — at most once per steady-state observation interval — so this is cheap
+        // and only publishes when the gain actually changed.
+        _fanControlStateStore.RecordAdaptiveLearning(state.FanIndex, controller.LearningState);
+
+        if (!decision.IsDriven)
+        {
+            PublishAdaptiveControl(state.FanIndex, null);
+            return FanDutyDecision.NotDriven;
+        }
+
+        PublishAdaptiveControl(state.FanIndex, decision);
+
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            LogAdaptiveEvaluated(
+                state.FanIndex,
+                celsius,
+                decision.TargetTemperatureCelsius,
+                decision.FeedForwardDutyPercent,
+                decision.ProportionalIntegralDutyPercent,
+                decision.LeadDutyPercent,
+                decision.ThrottleEscalationDutyPercent,
+                decision.DutyPercent);
+        }
+
+        // Cascade when calibration verified the EC tracks speed: hand the firmware a target RPM and let its
+        // inner loop hold it. That loop is far faster than this one and absorbs the fan's non-linear
+        // duty-to-RPM curve, so the same demand produces the same airflow wherever on the curve it lands.
+        return decision.SetpointRpm is double setpointRpm
+            ? FanDutyDecision.DriveSpeed(decision.DutyPercent, setpointRpm)
+            : FanDutyDecision.Drive(decision.DutyPercent);
+    }
+
+    /// <summary>
+    /// Returns the fan's controller, creating it from the calibrated model and whatever it had already
+    /// learned.
+    /// </summary>
+    /// <remarks>
+    /// Seeding from the persisted <see cref="FanControlStateSnapshot.AdaptiveLearning"/> is what makes the
+    /// hybrid model hybrid: a machine that has been running for a month resumes with its refined gain rather
+    /// than falling back to the calibration extrapolation on every service restart.
+    /// </remarks>
+    private AdaptiveFanController GetOrCreateAdaptiveController(FanControlStateSnapshot state)
+    {
+        // A "forget what it learned" request drops the live controller, so the replacement below re-seeds from
+        // the (now cleared) persisted state. Without this the in-memory estimator would re-publish the fit
+        // that was just discarded on its next accepted sample.
+        if (_adaptiveSignals.TryConsumeControllerReset(state.FanIndex)
+            && _adaptiveControllers.Remove(state.FanIndex))
+        {
+            _logger.LogInformation("Discarded the adaptive model for fan {FanIndex} at the user's request.", state.FanIndex);
+        }
+
+        if (!_adaptiveControllers.TryGetValue(state.FanIndex, out var controller))
+        {
+            controller = new AdaptiveFanController(state.AdaptiveLearning);
+
+            _adaptiveControllers[state.FanIndex] = controller;
+        }
+
+        return controller;
+    }
+
+    /// <summary>
+    /// Discards controllers for fans that are no longer adaptively driven.
+    /// </summary>
+    /// <remarks>
+    /// Integrator and latch state describe a fan under active control. Keeping it across a spell in Manual
+    /// would make the first seconds after returning to Adaptive react to an error accumulated before the user
+    /// changed their mind.
+    /// </remarks>
+    private void DropControllersForFansNoLongerAdaptive()
+    {
+        if (_adaptiveControllers.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var fanIndex in _adaptiveControllers.Keys.ToArray())
+        {
+            if (!_controlStates.TryGetValue(fanIndex, out var state) || state.Mode != FanControlMode.Adaptive)
+            {
+                _adaptiveControllers.Remove(fanIndex);
+                PublishAdaptiveControl(fanIndex, null);
+            }
+        }
+    }
+
+    private void PublishAdaptiveControl(int fanIndex, AdaptiveControlDecision? decision)
+        => _fanControlStateStore.RecordAdaptiveControl(fanIndex, decision);
+
+    /// <summary>
+    /// Reads the primary tier's CPU signals, treating anything stale as no reading at all.
+    /// </summary>
+    /// <remarks>
+    /// The provider CACHES the last sample, so a stopped or wedged polling loop leaves an old value in place
+    /// rather than reporting that it has gone away. Feeding that to feed-forward would hold the fan at the
+    /// airflow some workload needed minutes ago — or, just as bad, hold it low because the last thing ever
+    /// recorded was an idle machine.
+    /// </remarks>
+    private ControlTelemetrySample ReadFreshControlTelemetry()
+    {
+        var observed = _frameworkDataProvider.GetLatestControlTelemetry();
+
+        return DateTimeOffset.UtcNow - observed.ObservedAt > MaxControlTelemetryAge
+            ? ControlTelemetrySample.Unavailable
+            : observed.Sample;
     }
 
     private static double? AggregateDrivingTemperature(FrameworkThermalSnapshot snapshot, ImmutableArray<int> sensorIndices, TemperatureAggregationMode aggregation, bool treatMissingSensorsAsZero)

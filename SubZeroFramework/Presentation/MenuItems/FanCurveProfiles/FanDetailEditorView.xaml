@@ -490,6 +490,22 @@
                                     <TextBlock Text="Max" />
                                 </StackPanel>
                             </ToggleButton>
+                            <ToggleButton
+                                Padding="14,6"
+                                Click="ModeSegment_Click"
+                                CornerRadius="6"
+                                IsChecked="{x:Bind ViewModel.IsAdaptiveModeChecked, Mode=OneWay}"
+                                IsEnabled="{x:Bind ViewModel.CanCommandFanMode, Mode=OneWay}"
+                                Tag="4">
+                                <StackPanel Orientation="Horizontal" Spacing="7">
+                                    <material:MaterialIcon
+                                        Width="16"
+                                        Height="16"
+                                        VerticalAlignment="Center"
+                                        Kind="TuneVerticalVariant" />
+                                    <TextBlock Text="Adaptive" />
+                                </StackPanel>
+                            </ToggleButton>
                         </StackPanel>
                     </Border>
                 </StackPanel>
