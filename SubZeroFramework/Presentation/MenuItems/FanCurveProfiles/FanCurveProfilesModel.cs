@@ -18,6 +18,8 @@ using FrameworkDotnet.Enums;
 
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
+
+using Material.Icons;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.SkiaSharpView.Painting.Effects;
@@ -308,7 +310,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
     /// <summary>Pill icon for the selected fan's learning state.</summary>
     [ObservableProperty]
-    public partial string LearningStateIconKind { get; private set; } = "SchoolOutline";
+    public partial MaterialIconKind LearningStateIconKind { get; private set; } = MaterialIconKind.SchoolOutline;
 
     /// <summary>Visible only while Adaptive is the selected mode — it describes nothing otherwise.</summary>
     [ObservableProperty]
@@ -355,17 +357,17 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         switch (learning.ConfidenceAt(DateTimeOffset.UtcNow))
         {
             case AdaptiveConfidence.Confident:
-                LearningStateIconKind = "CheckDecagram";
+                LearningStateIconKind = MaterialIconKind.CheckDecagram;
                 LearningStateText = "Knows this fan well";
                 break;
 
             case AdaptiveConfidence.Converging:
-                LearningStateIconKind = "ChartBellCurveCumulative";
+                LearningStateIconKind = MaterialIconKind.ChartBellCurveCumulative;
                 LearningStateText = $"Learned from {learning.ObservationCount} quiet periods";
                 break;
 
             default:
-                LearningStateIconKind = "SchoolOutline";
+                LearningStateIconKind = MaterialIconKind.SchoolOutline;
                 LearningStateText = "Getting to know this fan";
                 break;
         }

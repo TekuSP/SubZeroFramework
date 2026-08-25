@@ -1,0 +1,675 @@
+<ContentDialog
+    x:Class="SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.FanControlExplainerDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:SubZeroFramework.Controls.FanCurveProfiles.Models"
+    Title="How adaptive control works"
+    CloseButtonText="Close"
+    CornerRadius="12"
+    mc:Ignorable="d">
+
+    <!--
+        A dialog rather than the page the design drew. Fan Control guards navigation while edits are staged,
+        so reaching a reference page would force the user to discard the very settings they opened the
+        reference to understand. Everything else follows the design.
+    -->
+    <ScrollViewer
+        MaxHeight="620"
+        HorizontalScrollMode="Disabled"
+        VerticalScrollBarVisibility="Auto">
+        <StackPanel
+            MinWidth="720"
+            MaxWidth="820"
+            Padding="0,0,14,0"
+            Spacing="10">
+
+            <!--  ===== Header =====  -->
+            <TextBlock
+                FontSize="13.5"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                TextWrapping="WrapWholeWords">
+                <Run Text="Every number the Adaptive editor shows comes from one of two places: something SubZero" />
+                <Run FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="measured" />
+                <Run Text="on your machine, or a" />
+                <Run FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}" Text="design decision" />
+                <Run Text="made once and shipped. This says which is which, and why." />
+            </TextBlock>
+
+            <controls:AutoWrapPanel HorizontalSpacing="8" VerticalSpacing="8">
+                <Border
+                    Height="26"
+                    Padding="12,0"
+                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                    CornerRadius="13">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <material:MaterialIcon
+                            Width="13"
+                            Height="13"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Kind="Fan" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="11.5"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="{x:Bind ViewModel.RoleChip}" />
+                    </StackPanel>
+                </Border>
+                <Border
+                    Height="26"
+                    Padding="12,0"
+                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                    CornerRadius="13">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <material:MaterialIcon
+                            Width="13"
+                            Height="13"
+                            VerticalAlignment="Center"
+                            Foreground="{x:Bind ViewModel.StateBrushKey, Converter={StaticResource ThemeBrushKey}}"
+                            Kind="CheckDecagram" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="11.5"
+                            FontWeight="SemiBold"
+                            Foreground="{x:Bind ViewModel.StateBrushKey, Converter={StaticResource ThemeBrushKey}}"
+                            Text="{x:Bind ViewModel.StateChip}" />
+                    </StackPanel>
+                </Border>
+            </controls:AutoWrapPanel>
+
+            <!--  ===== 1. The plant =====  -->
+            <StackPanel Margin="0,10,0,0" Orientation="Horizontal" Spacing="11">
+                <Border
+                    Width="24"
+                    Height="24"
+                    Background="{StaticResource BrandPrimaryBrush}"
+                    CornerRadius="7">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Text="1" />
+                </Border>
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="17"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="The plant — what is actually being controlled" />
+            </StackPanel>
+
+            <Border
+                Padding="18,16"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="12">
+                <StackPanel Spacing="8">
+                    <TextBlock
+                        FontSize="14.5"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Step response" />
+                    <TextBlock
+                        FontSize="11.5"
+                        Foreground="{StaticResource TextTertiaryBrush}"
+                        Text="{x:Bind ViewModel.StepResponseCaption}"
+                        TextWrapping="WrapWholeWords" />
+
+                    <lvc:CartesianChart
+                        Height="160"
+                        Background="Transparent"
+                        LegendPosition="Hidden"
+                        TooltipPosition="Hidden"
+                        ZoomMode="None">
+                        <lvc:CartesianChart.Series>
+                            <lvc:SeriesCollection>
+                                <lvc:XamlLineSeries
+                                    AnimationsSpeed="0"
+                                    Fill="{x:Null}"
+                                    GeometryFill="{x:Null}"
+                                    GeometryStroke="{x:Null}"
+                                    LineSmoothness="0.4"
+                                    Stroke="{x:Bind ViewModel.StepResponsePaint}"
+                                    Values="{x:Bind ViewModel.StepResponse}" />
+                            </lvc:SeriesCollection>
+                        </lvc:CartesianChart.Series>
+                        <lvc:CartesianChart.XAxes>
+                            <lvc:AxesCollection>
+                                <!--  No axis Name: on a FrameworkElement that is the x:Name directive, and the
+                                      XAML generator turns the caption into field names. The label below the
+                                      chart says the same thing.  -->
+                                <lvc:XamlAxis
+                                    AnimationsSpeed="0"
+                                    LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSubtleAxisLabelColor}}"
+                                    Padding="{lvc:Padding Value='0,0'}"
+                                    SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                    ShowSeparatorLines="True"
+                                    TextSize="10.5" />
+                            </lvc:AxesCollection>
+                        </lvc:CartesianChart.XAxes>
+                        <lvc:CartesianChart.YAxes>
+                            <lvc:AxesCollection>
+                                <lvc:XamlAxis
+                                    AnimationsSpeed="0"
+                                    LabelsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSubtleAxisLabelColor}}"
+                                    Padding="{lvc:Padding Value='0,0'}"
+                                    SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                    ShowSeparatorLines="True"
+                                    TextSize="10.5" />
+                            </lvc:AxesCollection>
+                        </lvc:CartesianChart.YAxes>
+                    </lvc:CartesianChart>
+
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        FontSize="11"
+                        Foreground="{StaticResource TextTertiaryBrush}"
+                        Text="seconds after the fan steps up · vertical axis is temperature change" />
+
+                    <!--  The three measured numbers the curve is made of.  -->
+                    <ItemsRepeater ItemsSource="{x:Bind ViewModel.PlantValues}">
+                        <ItemsRepeater.Layout>
+                            <StackLayout Spacing="8" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="models:FanExplainerPlantValue">
+                                <Border
+                                    Padding="14,11"
+                                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                                    CornerRadius="10">
+                                    <StackPanel Orientation="Horizontal" Spacing="14">
+                                        <TextBlock
+                                            Width="22"
+                                            VerticalAlignment="Center"
+                                            FontSize="16"
+                                            FontWeight="SemiBold"
+                                            Foreground="{x:Bind BrushKey, Converter={StaticResource ThemeBrushKey}}"
+                                            Text="{x:Bind Symbol}" />
+                                        <StackPanel Spacing="1">
+                                            <TextBlock
+                                                FontSize="13.5"
+                                                FontWeight="SemiBold"
+                                                Foreground="{StaticResource TextPrimaryBrush}"
+                                                Text="{x:Bind Value}" />
+                                            <TextBlock
+                                                FontSize="11.5"
+                                                Foreground="{StaticResource TextTertiaryBrush}"
+                                                Text="{x:Bind Description}"
+                                                TextWrapping="WrapWholeWords" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+
+                    <!--  Why the whole design leads with power rather than temperature.  -->
+                    <Border
+                        Padding="14,12"
+                        Background="{StaticResource StatusWarningBrush}"
+                        CornerRadius="10">
+                        <StackPanel Orientation="Horizontal" Spacing="11">
+                            <material:MaterialIcon
+                                Width="16"
+                                Height="16"
+                                VerticalAlignment="Top"
+                                Foreground="{StaticResource StatusWarningForegroundBrush}"
+                                Kind="AlertCircleOutline" />
+                            <StackPanel Spacing="3">
+                                <TextBlock
+                                    FontSize="12.5"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource StatusWarningForegroundBrush}"
+                                    Text="Dead time dominates the design" />
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{StaticResource StatusWarningForegroundBrush}"
+                                    Text="{x:Bind ViewModel.DeadTimeCallout}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!--  ===== 2. Tuning =====  -->
+            <StackPanel Margin="0,10,0,0" Orientation="Horizontal" Spacing="11">
+                <Border
+                    Width="24"
+                    Height="24"
+                    Background="{StaticResource BrandPrimaryBrush}"
+                    CornerRadius="7">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Text="2" />
+                </Border>
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="17"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Tuning — SIMC, one knob" />
+            </StackPanel>
+
+            <Border
+                Padding="18,16"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="12">
+                <StackPanel Spacing="10">
+                    <TextBlock
+                        FontSize="12.5"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="λ sets how fast the loop closes; every gain below follows from it and from the three measured numbers above. Nothing here is hand-tuned."
+                        TextWrapping="WrapWholeWords" />
+
+                    <Grid ColumnSpacing="12" RowSpacing="9">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock
+                            Grid.Row="0"
+                            Grid.Column="0"
+                            FontSize="12.5"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="λ — closed-loop time constant" />
+                        <StackPanel
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <TextBlock
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{x:Bind ViewModel.LambdaText}" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextTertiaryBrush}"
+                                Text="{x:Bind ViewModel.LambdaMultipleText}" />
+                        </StackPanel>
+
+                        <TextBlock
+                            Grid.Row="1"
+                            Grid.Column="0"
+                            FontSize="12.5"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Back on target within" />
+                        <TextBlock
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.SettlingText}" />
+
+                        <TextBlock
+                            Grid.Row="2"
+                            Grid.Column="0"
+                            FontSize="12.5"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Kᶜ — proportional gain, duty per degree of error" />
+                        <TextBlock
+                            Grid.Row="2"
+                            Grid.Column="1"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.ProportionalGainText}" />
+
+                        <TextBlock
+                            Grid.Row="3"
+                            Grid.Column="0"
+                            FontSize="12.5"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="τᵢ — integral time, how long trim takes to build" />
+                        <TextBlock
+                            Grid.Row="3"
+                            Grid.Column="1"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.IntegralTimeText}" />
+
+                        <TextBlock
+                            Grid.Row="4"
+                            Grid.Column="0"
+                            FontSize="12.5"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Kᵢ — integral gain, derived not tuned" />
+                        <TextBlock
+                            Grid.Row="4"
+                            Grid.Column="1"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.IntegralGainText}" />
+                    </Grid>
+
+                    <TextBlock
+                        FontSize="11.5"
+                        Foreground="{StaticResource TextTertiaryBrush}"
+                        Text="SIMC (Skogestad) is chosen because it targets dead-time-dominant plants directly and collapses tuning to this single knob — no oscillation hunt, no hand-detuning."
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+            </Border>
+
+            <!--  ===== 3. Cascade =====  -->
+            <StackPanel Margin="0,10,0,0" Orientation="Horizontal" Spacing="11">
+                <Border
+                    Width="24"
+                    Height="24"
+                    Background="{StaticResource BrandPrimaryBrush}"
+                    CornerRadius="7">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Text="3" />
+                </Border>
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="17"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Two loops, not one" />
+            </StackPanel>
+
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Chain}">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="6" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="models:FanExplainerChainLink">
+                        <Border
+                            Padding="15,13"
+                            Background="{StaticResource CardBackgroundBrush}"
+                            BorderBrush="{StaticResource CardBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="11">
+                            <StackPanel Spacing="5">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <material:MaterialIcon
+                                        Width="14"
+                                        Height="14"
+                                        VerticalAlignment="Center"
+                                        Foreground="{x:Bind BrushKey, Converter={StaticResource ThemeBrushKey}}"
+                                        Kind="{x:Bind IconKind}" />
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="10.5"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource TextTertiaryBrush}"
+                                        Text="{x:Bind Kind}" />
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="12"
+                                        FontWeight="SemiBold"
+                                        Foreground="{x:Bind BrushKey, Converter={StaticResource ThemeBrushKey}}"
+                                        Text="{x:Bind Signal}"
+                                        Visibility="{x:Bind HasSignal}" />
+                                </StackPanel>
+                                <TextBlock
+                                    FontSize="13.5"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                    Text="{x:Bind Title}" />
+                                <TextBlock
+                                    FontSize="12"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="{x:Bind Body}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+
+            <!--  Which of the two output modes this fan actually earned in calibration.  -->
+            <Border
+                Padding="15,13"
+                Background="{StaticResource CardSecondaryBackgroundBrush}"
+                BorderBrush="{x:Bind ViewModel.TrackingVerdictBrushKey, Converter={StaticResource ThemeBrushKey}}"
+                BorderThickness="1"
+                CornerRadius="11">
+                <StackPanel Spacing="5">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <material:MaterialIcon
+                            Width="15"
+                            Height="15"
+                            VerticalAlignment="Center"
+                            Foreground="{x:Bind ViewModel.TrackingVerdictBrushKey, Converter={StaticResource ThemeBrushKey}}"
+                            Kind="{x:Bind ViewModel.TrackingVerdictIconKind}" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="13.5"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.TrackingVerdictTitle}" />
+                    </StackPanel>
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.TrackingVerdictBody}"
+                        TextWrapping="WrapWholeWords" />
+                    <TextBlock
+                        FontSize="11.5"
+                        FontStyle="Italic"
+                        Foreground="{StaticResource TextTertiaryBrush}"
+                        TextWrapping="WrapWholeWords">
+                        <Run Text="Shown to you as: “" /><Run Text="{x:Bind ViewModel.TrackingVerdictPlain}" /><Run Text="”" />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!--  ===== 4. The control law =====  -->
+            <StackPanel Margin="0,10,0,0" Orientation="Horizontal" Spacing="11">
+                <Border
+                    Width="24"
+                    Height="24"
+                    Background="{StaticResource BrandPrimaryBrush}"
+                    CornerRadius="7">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Text="4" />
+                </Border>
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="17"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="The outer control law" />
+            </StackPanel>
+
+            <TextBlock
+                FontSize="12.5"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="{x:Bind ViewModel.LiveDemandText}"
+                TextWrapping="WrapWholeWords" />
+
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.LawRows}">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="6" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="models:FanExplainerLawRow">
+                        <Border
+                            Padding="15,13"
+                            Background="{StaticResource CardBackgroundBrush}"
+                            BorderBrush="{StaticResource CardBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="11">
+                            <StackPanel Spacing="7">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <material:MaterialIcon
+                                        Width="14"
+                                        Height="14"
+                                        VerticalAlignment="Center"
+                                        Foreground="{x:Bind BrushKey, Converter={StaticResource ThemeBrushKey}}"
+                                        Kind="{x:Bind IconKind}" />
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="13.5"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Text="{x:Bind Term}" />
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource TextTertiaryBrush}"
+                                        Text="{x:Bind Role}" />
+                                </StackPanel>
+                                <TextBlock
+                                    FontSize="12.5"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="{x:Bind Purpose}"
+                                    TextWrapping="WrapWholeWords" />
+                                <TextBlock
+                                    FontSize="11.5"
+                                    Foreground="{StaticResource TextTertiaryBrush}"
+                                    Text="{x:Bind Notes}"
+                                    TextWrapping="WrapWholeWords" />
+                                <StackPanel
+                                    Orientation="Horizontal"
+                                    Spacing="8"
+                                    Visibility="{x:Bind HasWarning}">
+                                    <material:MaterialIcon
+                                        Width="13"
+                                        Height="13"
+                                        VerticalAlignment="Top"
+                                        Foreground="{StaticResource StatusWarningForegroundBrush}"
+                                        Kind="AlertOutline" />
+                                    <TextBlock
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource StatusWarningForegroundBrush}"
+                                        Text="{x:Bind Warning}"
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+
+            <!--  ===== 5. Provenance =====  -->
+            <StackPanel Margin="0,10,0,0" Orientation="Horizontal" Spacing="11">
+                <Border
+                    Width="24"
+                    Height="24"
+                    Background="{StaticResource BrandPrimaryBrush}"
+                    CornerRadius="7">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Text="5" />
+                </Border>
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="17"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Where each number comes from" />
+            </StackPanel>
+
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Provenance}">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="5" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="models:FanExplainerProvenance">
+                        <Border
+                            Padding="14,11"
+                            Background="{StaticResource CardSecondaryBackgroundBrush}"
+                            CornerRadius="10">
+                            <StackPanel Spacing="5">
+                                <StackPanel Orientation="Horizontal" Spacing="10">
+                                    <Border
+                                        Height="22"
+                                        Padding="10,0"
+                                        VerticalAlignment="Center"
+                                        Background="{StaticResource CardMetricBackgroundBrush}"
+                                        CornerRadius="11">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="10.5"
+                                            FontWeight="SemiBold"
+                                            Foreground="{x:Bind TagBrushKey, Converter={StaticResource ThemeBrushKey}}"
+                                            Text="{x:Bind Tag}" />
+                                    </Border>
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="13"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Text="{x:Bind Name}" />
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="12"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Text="{x:Bind Value}" />
+                                </StackPanel>
+                                <TextBlock
+                                    FontSize="11.5"
+                                    Foreground="{StaticResource TextTertiaryBrush}"
+                                    Text="{x:Bind Why}"
+                                    TextWrapping="WrapWholeWords" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+
+            <Border
+                Padding="14,12"
+                Background="{StaticResource CardSecondaryBackgroundBrush}"
+                CornerRadius="10">
+                <StackPanel Orientation="Horizontal" Spacing="11">
+                    <material:MaterialIcon
+                        Width="15"
+                        Height="15"
+                        VerticalAlignment="Top"
+                        Foreground="{StaticResource TextTertiaryBrush}"
+                        Kind="InformationOutline" />
+                    <TextBlock
+                        FontSize="11.5"
+                        Foreground="{StaticResource TextTertiaryBrush}"
+                        Text="{x:Bind ViewModel.ProvenanceFooter}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</ContentDialog>

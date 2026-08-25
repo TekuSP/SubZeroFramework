@@ -61,7 +61,6 @@ public sealed class AdaptiveDutyLimiter
     private static readonly TimeSpan AbsoluteMaximumBurn = TimeSpan.FromMilliseconds(400d);
 
     private readonly TimeSpan _window;
-    private readonly TimeSpan _minimumBurn;
 
     private TimeSpan _quantum = AssumedQuantum;
     private TimeSpan _busy;
@@ -73,9 +72,44 @@ public sealed class AdaptiveDutyLimiter
     public AdaptiveDutyLimiter(TimeSpan minimumBurn, TimeSpan? window = null)
     {
         _window = window ?? TimeSpan.FromMilliseconds(250);
-        _minimumBurn = minimumBurn;
 
+        MinimumBurn = minimumBurn;
         BurnFor = minimumBurn;
+    }
+
+    /// <summary>
+    /// The shortest slice of work the caller can actually schedule.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Settable because it is not always a constant. A spin loop on a processor can stop on any instruction,
+    /// so its minimum is simply whatever it was told. A GPU dispatch cannot be cut short once launched, so its
+    /// true minimum is however long one takes — which is not known until one has run, and grows during a run
+    /// as the accelerator heats and drops clocks.
+    /// </para>
+    /// <para>
+    /// <b>Getting this wrong is silent and one-directional.</b> Told a minimum SHORTER than reality, the
+    /// limiter sizes the idle against work that cannot be that short: every target whose slice would fall
+    /// under one real unit collapses onto the same achievable duty, and a ramp climbing through that range
+    /// does nothing at all. The residual trim cannot rescue it either — it can only scale a burn the caller is
+    /// already unable to deliver.
+    /// </para>
+    /// </remarks>
+    public TimeSpan MinimumBurn
+    {
+        get;
+
+        set
+        {
+            field = value > TimeSpan.Zero ? value : TimeSpan.Zero;
+
+            // A burn under the new floor is not merely stale, it is unachievable: the caller would overshoot
+            // it on the very next cycle, and the window would then measure a duty nobody asked for.
+            if (BurnFor < field)
+            {
+                BurnFor = field;
+            }
+        }
     }
 
     /// <summary>
@@ -97,7 +131,7 @@ public sealed class AdaptiveDutyLimiter
                 scaled = AbsoluteMaximumBurn;
             }
 
-            return scaled < _minimumBurn ? _minimumBurn : scaled;
+            return scaled < MinimumBurn ? MinimumBurn : scaled;
         }
     }
 
@@ -163,7 +197,7 @@ public sealed class AdaptiveDutyLimiter
         {
             // BOTH sides are set. Leaving the sleep at whatever the previous regime asked for meant a target
             // of 1.0 still idled — a full-load request that quietly did not deliver full load.
-            BurnFor = targetFraction >= 1d ? MaximumBurn : _minimumBurn;
+            BurnFor = targetFraction >= 1d ? MaximumBurn : MinimumBurn;
             SetSleep(targetFraction >= 1d ? TimeSpan.Zero : MinimalSleepRequest);
             Reset();
             return;
@@ -191,14 +225,14 @@ public sealed class AdaptiveDutyLimiter
 
         if (_quantum > TimeSpan.Zero && workPerIdle > 0d)
         {
-            quanta = Math.Max(1d, Math.Ceiling(_minimumBurn / (_quantum * workPerIdle)));
+            quanta = Math.Max(1d, Math.Ceiling(MinimumBurn / (_quantum * workPerIdle)));
         }
 
         var idleTarget = _quantum * quanta;
         var ideal = idleTarget * workPerIdle * _trim;
 
         var maximum = MaximumBurn;
-        BurnFor = ideal < _minimumBurn ? _minimumBurn : ideal > maximum ? maximum : ideal;
+        BurnFor = ideal < MinimumBurn ? MinimumBurn : ideal > maximum ? maximum : ideal;
 
         // One quantum is requested as the bare minimum, which is also the only case that can measure the
         // floor. More than one is asked for just under the boundary, so it lands in the intended multiple

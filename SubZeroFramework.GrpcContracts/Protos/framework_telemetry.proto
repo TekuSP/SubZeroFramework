@@ -642,6 +642,10 @@ message FanCalibrationProgressReply {
   // Whether the fan was returned to the control it had before the run. Shown on every failure screen: a
   // calibration drives the fan to extremes, so this is the one fact a failure must never leave ambiguous.
   bool fans_restored = 18;
+  // The duty the run has commanded. Not readable back from the hardware — the tachometer reports speed,
+  // which lags it and is scaled differently — so this is the only way a client can plot the step the
+  // temperature curve is responding to.
+  optional double duty_percent = 19;
 }
 
 // The stages of a run, in execution order. The ordering is physics, not presentation: identifying K requires

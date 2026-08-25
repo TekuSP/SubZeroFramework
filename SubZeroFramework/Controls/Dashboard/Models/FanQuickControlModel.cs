@@ -67,6 +67,29 @@ public partial class FanQuickControlModel : ObservableObject
     [ObservableProperty]
     public partial double DutyBarValue { get; private set; }
 
+    /// <summary>
+    /// The saved profile the fans currently match, or null when none does.
+    /// </summary>
+    /// <remarks>
+    /// Pushed in by the page rather than resolved here: whether a profile is in effect is a statement about
+    /// EVERY fan, and a card that only knows its own state cannot answer it.
+    /// </remarks>
+    public string? ActiveProfileName
+    {
+        get;
+
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            RefreshDerivedState();
+        }
+    }
+
     // Read-only mode indicator: the active segment fills with the brand accent (brushes created at bind
     // time — UI thread; see uno-vm-thread-affinity).
     public Brush AutoSegmentBackground => SegmentBackground(FanControlMode.Auto);
@@ -138,7 +161,11 @@ public partial class FanQuickControlModel : ObservableObject
             return "Waiting for state";
         }
 
-        var modeLabel = state.Mode switch
+        // The profile's name wins over the mode's when one is in effect, because it is the more useful
+        // answer: "Balanced · 62%" says which decision produced this, where "Adaptive · 62%" only says how.
+        // It falls back to the mode the moment the fans stop matching any profile, which is exactly when the
+        // profile name would start being a lie.
+        var modeLabel = ActiveProfileName ?? state.Mode switch
         {
             FanControlMode.Auto => "Auto",
             FanControlMode.Manual => "Manual",

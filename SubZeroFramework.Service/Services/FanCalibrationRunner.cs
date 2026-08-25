@@ -260,6 +260,9 @@ public sealed class FanCalibrationRunner : IDisposable
         /// <summary>Consecutive samples where no driving sensor reported. Reset by any successful reading.</summary>
         private int _blindSamples;
 
+        /// <summary>The duty last commanded, for the live plot. Null until the run first drives the fan.</summary>
+        private double? _commandedDutyPercent;
+
         /// <summary>What the machine settled at under load at the pre-step duty — the hot end of the gain curve.</summary>
         private double? _settledAtLowDuty;
 
@@ -859,6 +862,7 @@ public sealed class FanCalibrationRunner : IDisposable
                     EstimatedRemaining = owner._schedule.RemainingAt(step, elapsedInStep),
                     ElapsedSeconds = _elapsed.Elapsed.TotalSeconds,
                     TemperatureCelsius = temperature ?? ReadDrivingTemperature(),
+                    DutyPercent = _commandedDutyPercent,
                     SpeedRpm = speed ?? ReadSpeedRpm(),
                     PackagePowerWatts = power,
                     IsStepMarker = stepMarker,
@@ -961,8 +965,19 @@ public sealed class FanCalibrationRunner : IDisposable
                 : null;
         }
 
+        /// <summary>
+        /// Commands a duty, remembering it so progress updates can report what the fan was told.
+        /// </summary>
+        /// <remarks>
+        /// The commanded duty is not readable back from anywhere — the tachometer reports speed, which lags
+        /// it and is scaled differently. Recording it here is the only way the live plot can draw the step
+        /// that the temperature curve is a response to.
+        /// </remarks>
         private Task SetDutyAsync(double dutyPercent, CancellationToken cancellationToken)
-            => owner._frameworkDataProvider.SetFanDutyAsync(fanIndex, dutyPercent, cancellationToken);
+        {
+            _commandedDutyPercent = dutyPercent;
+            return owner._frameworkDataProvider.SetFanDutyAsync(fanIndex, dutyPercent, cancellationToken);
+        }
 
         /// <summary>
         /// Holds a low duty under load until the temperature stops climbing.

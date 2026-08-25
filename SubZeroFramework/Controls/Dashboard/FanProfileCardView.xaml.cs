@@ -5,26 +5,26 @@ using SubZeroFramework.Controls.Dashboard.Models;
 namespace SubZeroFramework.Controls.Dashboard;
 
 /// <summary>
-/// One cooling-profile preset card (icon + name + description; selected = accent outline + check).
+/// One saved fan setup as a card (icon + name + what it does; active = accent outline + check).
 /// Click handling lives in the consumer (the dashboard wraps each card in a Button).
 /// </summary>
-public sealed partial class CoolingPresetCardView : UserControl
+public sealed partial class FanProfileCardView : UserControl
 {
-    public CoolingPresetCardView()
+    public FanProfileCardView()
     {
         this.InitializeComponent();
     }
 
     public static readonly DependencyProperty ModelProperty = DependencyProperty.Register(
         nameof(Model),
-        typeof(CoolingPresetCardModel),
-        typeof(CoolingPresetCardView),
+        typeof(FanProfileCardModel),
+        typeof(FanProfileCardView),
         new PropertyMetadata(null));
 
-    /// <summary>The preset rendered by this card.</summary>
-    public CoolingPresetCardModel? Model
+    /// <summary>The profile rendered by this card.</summary>
+    public FanProfileCardModel? Model
     {
-        get => (CoolingPresetCardModel?)GetValue(ModelProperty);
+        get => (FanProfileCardModel?)GetValue(ModelProperty);
         set => SetValue(ModelProperty, value);
     }
 }

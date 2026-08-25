@@ -38,7 +38,12 @@ public sealed partial class FanCalibrationDialog : ContentDialog, IDisposable
     /// <summary>Cancels the run. The service restores the fan whether or not anything here is still listening.</summary>
     public CancellationToken CancellationToken => _cancellation.Token;
 
-    public void Dispose()
+    /// <summary>
+    /// Releases the run's lease. Explicit, because <c>FrameworkElement</c> already has a <c>Dispose</c> on the
+    /// Uno target and a second one on this type would shadow it — teardown of the element itself is not this
+    /// method's business.
+    /// </summary>
+    void IDisposable.Dispose()
     {
         Closing -= OnClosing;
         _cancellation.Dispose();

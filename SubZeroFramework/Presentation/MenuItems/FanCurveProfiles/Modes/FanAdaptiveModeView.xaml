@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
     xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:modes="using:SubZeroFramework.Controls.FanCurveProfiles.Models.Modes"
@@ -626,6 +627,77 @@
                         Foreground="{StaticResource StatusSuccessBrush}"
                         Maximum="1"
                         Value="{x:Bind ViewModel.SpeedChangeBarFraction, Mode=OneWay}" />
+                </StackPanel>
+
+                <!--
+                    What a sudden load looks like. The trade being made is a SHAPE — how far it overshoots and
+                    how long it takes to come back — which neither consequence bar conveys on its own. The
+                    dashed ghost is what makes it readable: a curve alone has nothing to be worse than.
+                -->
+                <StackPanel Spacing="6">
+                    <TextBlock
+                        FontSize="11.5"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="What a sudden load looks like" />
+                    <lvc:CartesianChart
+                        Height="96"
+                        AutoUpdateEnabled="True"
+                        Background="Transparent"
+                        LegendPosition="Hidden"
+                        TooltipPosition="Hidden"
+                        ZoomMode="None">
+                        <lvc:CartesianChart.Series>
+                            <lvc:SeriesCollection>
+                                <lvc:XamlLineSeries
+                                    AnimationsSpeed="0"
+                                    Fill="{x:Null}"
+                                    GeometryFill="{x:Null}"
+                                    GeometryStroke="{x:Null}"
+                                    LineSmoothness="0.6"
+                                    Stroke="{x:Bind ViewModel.ResponsePreviewDefaultPaint}"
+                                    Values="{x:Bind ViewModel.ResponsePreviewDefault, Mode=OneWay}" />
+                                <lvc:XamlLineSeries
+                                    AnimationsSpeed="0"
+                                    Fill="{x:Null}"
+                                    GeometryFill="{x:Null}"
+                                    GeometryStroke="{x:Null}"
+                                    LineSmoothness="0.6"
+                                    Stroke="{x:Bind ViewModel.ResponsePreviewPaint}"
+                                    Values="{x:Bind ViewModel.ResponsePreview, Mode=OneWay}" />
+                            </lvc:SeriesCollection>
+                        </lvc:CartesianChart.Series>
+                        <lvc:CartesianChart.XAxes>
+                            <lvc:AxesCollection>
+                                <lvc:XamlAxis
+                                    AnimationsSpeed="0"
+                                    LabelsPaint="{x:Null}"
+                                    Padding="{lvc:Padding Value='0,0'}"
+                                    ShowSeparatorLines="False"
+                                    TextSize="0" />
+                            </lvc:AxesCollection>
+                        </lvc:CartesianChart.XAxes>
+                        <lvc:CartesianChart.YAxes>
+                            <lvc:AxesCollection>
+                                <!--  Pinned, not auto-fitted: the whole point of drawing both curves is that
+                                      one overshoots further than the other, and an axis that rescaled to
+                                      whichever is taller would hide exactly that difference.  -->
+                                <lvc:XamlAxis
+                                    AnimationsSpeed="0"
+                                    LabelsPaint="{x:Null}"
+                                    MaxLimit="1.06"
+                                    MinLimit="-0.05"
+                                    Padding="{lvc:Padding Value='0,0'}"
+                                    SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                    ShowSeparatorLines="True"
+                                    TextSize="0" />
+                            </lvc:AxesCollection>
+                        </lvc:CartesianChart.YAxes>
+                    </lvc:CartesianChart>
+                    <TextBlock
+                        HorizontalAlignment="Right"
+                        FontSize="11"
+                        Foreground="{StaticResource TextTertiaryBrush}"
+                        Text="dashed = the default setting" />
                 </StackPanel>
 
                 <!--

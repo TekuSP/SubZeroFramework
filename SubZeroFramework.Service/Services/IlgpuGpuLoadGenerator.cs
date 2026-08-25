@@ -26,13 +26,47 @@ namespace SubZeroFramework.Service.Services;
 public sealed class IlgpuGpuLoadGenerator : IGpuLoadGenerator, IDisposable
 {
     /// <summary>
-    /// Elements per dispatch. Large enough that a single launch keeps the GPU busy for a meaningful slice of
-    /// time, so the dispatch loop is not spending its life in launch overhead.
+    /// Elements per dispatch: enough lanes to occupy any accelerator this is likely to meet, and no more.
     /// </summary>
-    private const int ProblemSize = 1 << 22;
+    /// <remarks>
+    /// The arithmetic per element — not the element count — is what sets the power draw, and it is the knob
+    /// that gets tuned below. Keeping the buffer modest keeps the kernel compute-bound: a working set large
+    /// enough to fall out of cache turns this into a memory-bandwidth load, which draws its power somewhere
+    /// else entirely and would calibrate the fan for a machine state no real workload produces.
+    /// </remarks>
+    private const int ProblemSize = 1 << 20;
 
-    /// <summary>Arithmetic iterations per element, which is what actually sets the power draw.</summary>
-    private const int IterationsPerElement = 512;
+    /// <summary>Where the search for the right dispatch size starts.</summary>
+    private const int ProbeIterations = 128;
+
+    /// <summary>Dispatches averaged per timing probe, so one unlucky launch cannot size the whole run.</summary>
+    private const int ProbeDispatches = 4;
+
+    /// <summary>
+    /// Bounds on the arithmetic per element.
+    /// </summary>
+    /// <remarks>
+    /// The floor exists to keep the kernel compute-bound: below roughly this much arithmetic the read and
+    /// write per element start to dominate, and the load stops resembling the thing being modelled.
+    /// </remarks>
+    private const int MinimumIterations = 32;
+
+    private const int MaximumIterations = 1 << 16;
+
+    /// <summary>
+    /// How long one dispatch should take.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the control resolution of the whole generator.</b> A dispatch cannot be cut short once
+    /// launched, so it is the finest slice of work that can be scheduled and therefore the smallest step the
+    /// duty control can take. Short enough that even a 15% target is a few dispatches against a sleep; long
+    /// enough that launch and synchronisation overhead — tens of microseconds — stays a rounding error rather
+    /// than becoming the workload.
+    /// </remarks>
+    private static readonly TimeSpan TargetDispatchDuration = TimeSpan.FromMilliseconds(2d);
+
+    /// <summary>How much of each cycle's measurement folds into the running dispatch cost.</summary>
+    private const double DispatchSmoothing = 0.25d;
 
     /// <summary>
     /// How much smaller than the largest GPU a device may be and still count as its sibling.
@@ -60,6 +94,7 @@ public sealed class IlgpuGpuLoadGenerator : IGpuLoadGenerator, IDisposable
     private Task[] _workers = [];
     private LoadRamp? _ramp;
     private double[] _observedByDevice = [];
+    private TimeSpan[] _dispatchByDevice = [];
     private bool _disposed;
     private bool _probed;
     private string? _acceleratorName;
@@ -147,6 +182,25 @@ public sealed class IlgpuGpuLoadGenerator : IGpuLoadGenerator, IDisposable
         }
     }
 
+    /// <summary>
+    /// What one dispatch costs, taken as the LONGEST across the loaded devices.
+    /// </summary>
+    /// <remarks>
+    /// Longest rather than average, for the same reason the observed load takes the lowest: this bounds what
+    /// the duty control can do, and the device with the coarsest resolution is the one that decides whether a
+    /// low target is reachable at all. Zero until a device has measured itself.
+    /// </remarks>
+    public TimeSpan DispatchDuration
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _dispatchByDevice.Length == 0 ? TimeSpan.Zero : _dispatchByDevice.Max();
+            }
+        }
+    }
+
     public bool Start()
     {
         lock (_stateLock)
@@ -175,6 +229,7 @@ public sealed class IlgpuGpuLoadGenerator : IGpuLoadGenerator, IDisposable
             var ramp = new LoadRamp(_rampDuration, _targetFraction);
             _ramp = ramp;
             _observedByDevice = new double[devices.Length];
+            _dispatchByDevice = new TimeSpan[devices.Length];
 
             _workers = new Task[devices.Length];
             for (var i = 0; i < devices.Length; i++)
@@ -208,6 +263,7 @@ public sealed class IlgpuGpuLoadGenerator : IGpuLoadGenerator, IDisposable
             _workers = [];
             _ramp = null;
             _observedByDevice = [];
+            _dispatchByDevice = [];
         }
 
         if (cancellation is null)
@@ -339,28 +395,50 @@ public sealed class IlgpuGpuLoadGenerator : IGpuLoadGenerator, IDisposable
             using var buffer = accelerator.Allocate1D<float>(ProblemSize);
 
             var kernel = accelerator.LoadAutoGroupedStreamKernel<Index1D, ArrayView<float>, int>(BurnKernel);
+            var length = (int)buffer.Length;
+
+            // Sized to THIS accelerator. The same kernel is a fraction of a millisecond on a discrete card
+            // and tens of milliseconds on an integrated one, and since a dispatch cannot be cut short, its
+            // duration is the duty control's resolution. Fixing the arithmetic instead of the duration hands
+            // the slowest machines a control they cannot steer — which is exactly the wrong way round.
+            var (iterations, dispatchCost) = CalibrateDispatch(kernel, buffer.View, length, accelerator, cancellationToken);
+
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            RecordDispatchCost(deviceIndex, dispatchCost);
+
+            _logger.LogDebug(
+                "GPU load on {Device}: {Iterations} iterations per element, {Dispatch:0.##} ms per dispatch.",
+                device.Name,
+                iterations,
+                dispatchCost.TotalMilliseconds);
+
+            // Seeded with what a dispatch actually costs rather than with a hopeful constant. A limiter told
+            // the minimum is shorter than one dispatch cannot reach any target below one-dispatch-per-idle.
+            var limiter = new AdaptiveDutyLimiter(dispatchCost);
 
             var session = Stopwatch.StartNew();
-
-            // A dispatch is the smallest unit of work here — it cannot be cut short once launched — so the
-            // minimum burn is however long one takes on this accelerator. Seeded, then measured below.
-            var limiter = new AdaptiveDutyLimiter(TimeSpan.FromMilliseconds(1d));
 
             while (!cancellationToken.IsCancellationRequested)
             {
                 var startedAt = session.Elapsed;
                 var dispatched = TimeSpan.Zero;
+                var dispatches = 0;
 
                 // Dispatch until the limiter's slice is filled. A single dispatch is atomic, so the slice is
                 // approached in whole dispatches rather than interrupted part-way.
                 do
                 {
-                    kernel((int)buffer.Length, buffer.View, IterationsPerElement);
+                    kernel(length, buffer.View, iterations);
 
                     // Synchronising each dispatch keeps the queue from growing without bound, and means
                     // cancellation takes effect within one dispatch rather than after everything queued.
                     accelerator.Synchronize();
 
+                    dispatches++;
                     dispatched = session.Elapsed - startedAt;
                 }
                 while (dispatched < limiter.BurnFor && !cancellationToken.IsCancellationRequested);
@@ -370,6 +448,17 @@ public sealed class IlgpuGpuLoadGenerator : IGpuLoadGenerator, IDisposable
                 if (limiter.SleepFor > TimeSpan.Zero)
                 {
                     cancellationToken.WaitHandle.WaitOne(limiter.SleepFor);
+                }
+
+                // Re-measured every cycle rather than trusted from start-up. A dispatch gets slower as the
+                // accelerator heats and drops clocks — which is precisely what this run is causing — and a
+                // limiter still holding the cold figure would size every idle against work that no longer
+                // fits inside it.
+                if (dispatches > 0)
+                {
+                    dispatchCost += ((dispatched / dispatches) - dispatchCost) * DispatchSmoothing;
+                    limiter.MinimumBurn = dispatchCost;
+                    RecordDispatchCost(deviceIndex, dispatchCost);
                 }
 
                 // What the sleep ACTUALLY cost, which is the only figure the limiter can learn from.
@@ -387,6 +476,93 @@ public sealed class IlgpuGpuLoadGenerator : IGpuLoadGenerator, IDisposable
         catch (Exception exception)
         {
             _logger.LogWarning(exception, "GPU load on {Device} stopped early because the accelerator faulted.", device.Name);
+        }
+    }
+
+    /// <summary>
+    /// Finds how much arithmetic per element makes one dispatch last about
+    /// <see cref="TargetDispatchDuration"/>, and reports what a dispatch at that size actually costs.
+    /// </summary>
+    /// <remarks>
+    /// The first dispatch is timed and thrown away. It pays for compiling the kernel and for the
+    /// accelerator's clocks coming up off idle, so sizing the workload against it would fit the run to a
+    /// machine that stops existing a second later — and always in the direction of too little work.
+    /// </remarks>
+    private static (int Iterations, TimeSpan DispatchCost) CalibrateDispatch(
+        Action<Index1D, ArrayView<float>, int> kernel,
+        ArrayView<float> view,
+        int length,
+        Accelerator accelerator,
+        CancellationToken cancellationToken)
+    {
+        TimeSpan TimeDispatches(int iterations, int repeats)
+        {
+            var clock = Stopwatch.StartNew();
+            var completed = 0;
+
+            for (var i = 0; i < repeats && !cancellationToken.IsCancellationRequested; i++)
+            {
+                kernel(length, view, iterations);
+                accelerator.Synchronize();
+                completed++;
+            }
+
+            // Averaged over what actually ran, not over what was asked for: a cancelled probe would otherwise
+            // divide a partial elapsed time by the full count and report a dispatch far cheaper than it is.
+            return completed == 0 ? TimeSpan.Zero : clock.Elapsed / completed;
+        }
+
+        TimeDispatches(ProbeIterations, 1);
+
+        var low = TimeDispatches(ProbeIterations, ProbeDispatches);
+        if (low <= TimeSpan.Zero)
+        {
+            // Either cancelled, or a clock too coarse to see a dispatch at the probe size. Both mean the
+            // measurement is unusable, and the largest workload is the safe answer — too MUCH work per
+            // dispatch costs resolution, while too little would spend the run in launch overhead.
+            return (MaximumIterations, TargetDispatchDuration);
+        }
+
+        // A first estimate that assumes cost is proportional to work. It is not — every dispatch pays a fixed
+        // launch-and-synchronise toll on top — so this always lands SHORT, by charging the toll again for
+        // every iteration it adds. Close enough to place a second probe usefully far from the first.
+        var firstGuess = (int)Math.Clamp(
+            ProbeIterations * (TargetDispatchDuration / low),
+            MinimumIterations,
+            MaximumIterations);
+
+        var high = TimeDispatches(firstGuess, ProbeDispatches);
+        var iterations = firstGuess;
+
+        // Two points and a straight line separate the toll from the per-iteration cost, which one ratio can
+        // only fold together.
+        if (firstGuess != ProbeIterations && high > low)
+        {
+            var perIteration = (high - low) / (firstGuess - ProbeIterations);
+            var overhead = low - (perIteration * ProbeIterations);
+
+            if (perIteration > TimeSpan.Zero && TargetDispatchDuration > overhead)
+            {
+                iterations = (int)Math.Clamp(
+                    (TargetDispatchDuration - overhead) / perIteration,
+                    MinimumIterations,
+                    MaximumIterations);
+            }
+        }
+
+        var measured = iterations == firstGuess ? high : TimeDispatches(iterations, ProbeDispatches);
+
+        return (iterations, measured > TimeSpan.Zero ? measured : TargetDispatchDuration);
+    }
+
+    private void RecordDispatchCost(int deviceIndex, TimeSpan cost)
+    {
+        lock (_stateLock)
+        {
+            if (deviceIndex < _dispatchByDevice.Length)
+            {
+                _dispatchByDevice[deviceIndex] = cost;
+            }
         }
     }
 

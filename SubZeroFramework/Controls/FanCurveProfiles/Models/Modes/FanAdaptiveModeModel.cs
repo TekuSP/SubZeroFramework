@@ -1,7 +1,15 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using LiveChartsCore.Defaults;
+using LiveChartsCore.SkiaSharpView.Painting;
+using LiveChartsCore.SkiaSharpView.Painting.Effects;
+
+using Material.Icons;
+
 using Microsoft.UI.Xaml;
+
+using SkiaSharp;
 
 using SubZeroFramework.Controls.Fans.Models;
 using SubZeroFramework.Models;
@@ -148,7 +156,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     public partial string ConfidenceChip { get; private set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string ConfidenceIconKind { get; private set; } = "SchoolOutline";
+    public partial MaterialIconKind ConfidenceIconKind { get; private set; } = MaterialIconKind.SchoolOutline;
 
     [ObservableProperty]
     public partial IReadOnlyList<AdaptiveKnownFact> KnownFacts { get; private set; } = [];
@@ -192,6 +200,16 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     public Visibility EditorVisibility => IsAwaitingFirstLearning ? Visibility.Collapsed : Visibility.Visible;
 
+
+    /// <summary>Stroke for the live response preview.</summary>
+    public SolidColorPaint ResponsePreviewPaint { get; } = new(new SKColor(0x00, 0x78, 0xD7)) { StrokeThickness = 2f };
+
+    /// <summary>Dashed stroke for the default-setting ghost it is compared against.</summary>
+    public SolidColorPaint ResponsePreviewDefaultPaint { get; } = new(new SKColor(0x6E, 0x75, 0x7C))
+    {
+        StrokeThickness = 1.2f,
+        PathEffect = new DashEffect([4f, 4f]),
+    };
 
     /// <summary>Formatting for the wizard's live readings, so it obeys the user's chosen units too.</summary>
     public IUnitFormattingService UnitFormattingService => _unitFormattingService;
@@ -248,10 +266,28 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     [NotifyPropertyChangedFor(nameof(SettlingBrushKey))]
     [NotifyPropertyChangedFor(nameof(SpeedChangeName))]
     [NotifyPropertyChangedFor(nameof(SpeedChangeBarFraction))]
+    [NotifyPropertyChangedFor(nameof(ResponsePreview))]
     [NotifyPropertyChangedFor(nameof(LambdaText))]
     [NotifyPropertyChangedFor(nameof(ProportionalGainText))]
     [NotifyPropertyChangedFor(nameof(IntegralTimeText))]
     public partial double ResponseDraftSeconds { get; set; } = AdaptivePidTuning.DefaultLambdaSeconds;
+
+    /// <summary>
+    /// The fan's measured dead time, or the bootstrap default until one is measured.
+    /// </summary>
+    /// <remarks>
+    /// The other half of every settling estimate, and it changes when a calibration lands rather than when
+    /// the user touches anything — so it has to notify the same readouts λ does. Without that, the card would
+    /// keep quoting the pre-calibration recovery time until the slider happened to be moved.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SettlingText))]
+    [NotifyPropertyChangedFor(nameof(SettlingBarFraction))]
+    [NotifyPropertyChangedFor(nameof(IsSettlingSlow))]
+    [NotifyPropertyChangedFor(nameof(SettlingBrushKey))]
+    [NotifyPropertyChangedFor(nameof(ResponsePreview))]
+    [NotifyPropertyChangedFor(nameof(ResponsePreviewDefault))]
+    public partial double DeadTimeSeconds { get; private set; } = FanCalibrationSnapshot.Bootstrap.DeadTimeSeconds;
 
     [ObservableProperty]
     public partial bool SafetyFloorDraftEnabled { get; set; }
@@ -277,7 +313,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     /// <summary>How long a disturbance takes to be corrected, at the chosen response.</summary>
     private double SettlingSeconds =>
-        AdaptivePidTuning.EstimateSettlingSeconds(ResponseDraftSeconds, DeadTimeSecondsOrDefault);
+        AdaptivePidTuning.EstimateSettlingSeconds(ResponseDraftSeconds, DeadTimeSeconds);
 
     public string SettlingText => $"~{SettlingSeconds:0} s";
 
@@ -316,6 +352,68 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         0d,
         1d);
 
+    /// <summary>
+    /// The shape of a sudden load at the chosen response, against a ghost of the default.
+    /// </summary>
+    /// <remarks>
+    /// A picture because the trade being made is a SHAPE — how far the temperature overshoots and how long it
+    /// takes to come back — and neither number alone conveys it. The ghost is what makes it readable: a curve
+    /// on its own has nothing to be higher or slower than.
+    /// </remarks>
+    public ObservablePoint[] ResponsePreview => BuildResponseCurve(ResponseDraftSeconds);
+
+    /// <summary>The same curve at the default setting, drawn dashed behind the live one.</summary>
+    public ObservablePoint[] ResponsePreviewDefault => BuildResponseCurve(AdaptivePidTuning.DefaultLambdaSeconds);
+
+    /// <summary>
+    /// A normalised disturbance response for one λ.
+    /// </summary>
+    /// <remarks>
+    /// Illustrative rather than simulated. Drawing the real controller against the real plant would cost far
+    /// more than a thumbnail is worth and would not read any differently at this size, so what is plotted is
+    /// the one thing that has to be true: a temperature excursion that gets HIGHER and stays out LONGER the
+    /// calmer the setting, on a rise the user's choice cannot change.
+    /// </remarks>
+    private ObservablePoint[] BuildResponseCurve(double lambdaSeconds)
+    {
+        const int points = 80;
+
+        var lambda = Math.Clamp(lambdaSeconds, MinimumResponseSeconds, MaximumResponseSeconds);
+        var settling = Math.Max(AdaptivePidTuning.EstimateSettlingSeconds(lambda, DeadTimeSeconds), 1d);
+
+        // The rise is the PLANT's, not the controller's: heat takes as long to arrive as it takes, and no
+        // choice of λ makes the temperature move sooner. Holding it fixed across both curves is what lets the
+        // eye read the difference as height and width rather than as the whole shape sliding sideways.
+        var rise = Math.Max(1d, DeadTimeSeconds + 1d);
+        var decay = Math.Max(rise * 1.15d, settling / 3d);
+
+        // Difference of two exponentials — up over `rise`, back down over `decay` — normalised to unit peak so
+        // the excursion below is the only thing setting the height.
+        var peakTime = Math.Log(decay / rise) * (rise * decay) / (decay - rise);
+        var unitPeak = Math.Max(Shape(peakTime), 1e-6d);
+
+        // How far the temperature gets before the loop catches it, which grows with λ. Not normalising THIS
+        // away is the whole point — two curves rescaled to the same height would claim the settings overshoot
+        // equally, which is exactly the cost the user is being asked to weigh.
+        var excursion = lambda / AdaptivePidTuning.MaximumLambdaSeconds;
+
+        // One shared time base for both curves, wide enough for the calmest setting. Letting each fit its own
+        // window would draw them the same width and erase "takes longer to come back" entirely.
+        var window = ResponsePreviewSpans
+            * AdaptivePidTuning.EstimateSettlingSeconds(MaximumResponseSeconds, DeadTimeSeconds);
+
+        var curve = new ObservablePoint[points];
+        for (var i = 0; i < points; i++)
+        {
+            var t = window * i / (points - 1);
+            curve[i] = new ObservablePoint(t, excursion * Shape(t) / unitPeak);
+        }
+
+        return curve;
+
+        double Shape(double t) => Math.Exp(-t / decay) - Math.Exp(-t / rise);
+    }
+
     /// <summary>λ itself, for the Advanced disclosure.</summary>
     public string LambdaText => $"{ResponseDraftSeconds:0.#} s";
 
@@ -327,6 +425,15 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     /// <summary>Above this, recovery is slow enough that the card says so.</summary>
     private const double SlowSettlingSeconds = 58d;
+
+    /// <summary>
+    /// How many settling times the preview plots, so the tail of the curve is visibly flat.
+    /// </summary>
+    /// <remarks>
+    /// Stopping at exactly one settling time would cut every curve off mid-recovery and make the calm setting
+    /// look like it never comes back at all.
+    /// </remarks>
+    private const double ResponsePreviewSpans = 1.35d;
 
     private string FormatGain(Func<AdaptivePidGains, double> select, string format = "0.##")
     {
@@ -390,10 +497,6 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     private bool _isAdoptingFromService;
 
-    private double DeadTimeSecondsOrDefault
-        => SelectedFan?.ControlState?.Calibration is { DeadTimeSeconds: > 0d } calibration
-            ? calibration.DeadTimeSeconds
-            : FanCalibrationSnapshot.Bootstrap.DeadTimeSeconds;
 
     /// <summary>
     /// The coordinator properties this body mirrors, on top of the base list.
@@ -630,6 +733,10 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         var calibration = state?.Calibration ?? FanCalibrationSnapshot.None;
         IsAwaitingFirstLearning = !calibration.IsMeasured && !learning.HasLearned;
 
+        DeadTimeSeconds = calibration.DeadTimeSeconds > 0d
+            ? calibration.DeadTimeSeconds
+            : FanCalibrationSnapshot.Bootstrap.DeadTimeSeconds;
+
         CoolingRole = state?.CoolingRole ?? FanCoolingRole.Unknown;
         DrivingSensorIndices = state?.DrivingSensorIndices ?? [];
 
@@ -643,7 +750,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         switch (confidence)
         {
             case AdaptiveConfidence.Confident:
-                ConfidenceIconKind = "CheckDecagram";
+                ConfidenceIconKind = MaterialIconKind.CheckDecagram;
                 ConfidenceChip = "Settled";
                 ConfidenceHeadline = "Knows this fan well";
                 ConfidenceBody =
@@ -652,7 +759,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
                 break;
 
             case AdaptiveConfidence.Converging:
-                ConfidenceIconKind = "ChartBellCurveCumulative";
+                ConfidenceIconKind = MaterialIconKind.ChartBellCurveCumulative;
                 ConfidenceChip = "Refining";
                 ConfidenceHeadline = $"Learned from {learning.ObservationCount} quiet periods";
                 ConfidenceBody =
@@ -661,7 +768,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
                 break;
 
             default:
-                ConfidenceIconKind = "SchoolOutline";
+                ConfidenceIconKind = MaterialIconKind.SchoolOutline;
                 ConfidenceChip = "Learning";
                 ConfidenceHeadline = "Still getting to know this fan";
                 ConfidenceBody =
@@ -671,7 +778,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
                 break;
         }
 
-        facts.Add(new AdaptiveKnownFact("Quiet periods seen", learning.ObservationCount.ToString(System.Globalization.CultureInfo.CurrentCulture), "EyeOutline"));
+        facts.Add(new AdaptiveKnownFact("Quiet periods seen", learning.ObservationCount.ToString(System.Globalization.CultureInfo.CurrentCulture), MaterialIconKind.EyeOutline));
 
         if (learning.IdentifiedProcessGainCelsiusPerPercent is double gain)
         {
@@ -680,11 +787,11 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
             facts.Add(new AdaptiveKnownFact(
                 "Cooling per 1% fan",
                 $"{_unitFormattingService.ConvertTemperatureDelta(gain):0.##} {_unitFormattingService.TemperatureUnitSuffix}/%",
-                "SnowflakeThermometer"));
+                MaterialIconKind.SnowflakeThermometer));
         }
         else
         {
-            facts.Add(new AdaptiveKnownFact("Running on", "Safe defaults", "ShieldHalfFull"));
+            facts.Add(new AdaptiveKnownFact("Running on", "Safe defaults", MaterialIconKind.ShieldHalfFull));
         }
 
         if (state?.Calibration is { MinimumSpinRpm: > 0d } calibrated)
@@ -692,7 +799,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
             facts.Add(new AdaptiveKnownFact(
                 "Stalls below",
                 _unitFormattingService.FormatFanSpeed(calibrated.MinimumSpinRpm, decimals: 0),
-                "FanMinus"));
+                MaterialIconKind.FanMinus));
         }
 
         AddMeasuredFacts(state, facts);
@@ -720,7 +827,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         // component a learning test would heat, which is otherwise invisible to the user.
         if (FrameworkFanNameDisplay.ToFunction(state.CoolingRole) is { } function)
         {
-            facts.Add(new AdaptiveKnownFact("This fan cools", function, "FanChevronUp"));
+            facts.Add(new AdaptiveKnownFact("This fan cools", function, MaterialIconKind.FanChevronUp));
         }
 
         // Diminishing returns, stated rather than plotted: the ratio between what a duty point buys down low
@@ -743,7 +850,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
                 facts.Add(new AdaptiveKnownFact(
                     "Airflow worth more at",
                     $"low speed — {low / high:0.#}× vs high",
-                    "ChartBellCurveCumulative"));
+                    MaterialIconKind.ChartBellCurveCumulative));
             }
         }
 
@@ -757,7 +864,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
                 gained >= FanPerformanceResponse.MeaningfulSpeedGainFraction
                     ? $"+{gained:P0} sustained speed"
                     : "no extra speed",
-                "Speedometer"));
+                MaterialIconKind.Speedometer));
         }
     }
 
@@ -829,4 +936,4 @@ public sealed record AdaptiveTermLegendEntry(string Name, string Value, string B
 /// <param name="Label">What it is, in plain language.</param>
 /// <param name="Value">Already unit-formatted.</param>
 /// <param name="IconKind">Material icon name.</param>
-public sealed record AdaptiveKnownFact(string Label, string Value, string IconKind);
+public sealed record AdaptiveKnownFact(string Label, string Value, MaterialIconKind IconKind);

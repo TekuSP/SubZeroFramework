@@ -2,7 +2,17 @@ using System.Globalization;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
+using LiveChartsCore.Defaults;
+using LiveChartsCore.Kernel;
+
+using Material.Icons;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
+using LiveChartsCore.SkiaSharpView.Painting.Effects;
+
 using Microsoft.UI.Xaml;
+
+using SkiaSharp;
 
 using SubZeroFramework.Controls.FanCurveProfiles.Models.Modes;
 using SubZeroFramework.Models;
@@ -61,6 +71,13 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
         + "machine — how much the temperature falls per unit of airflow, and how long that takes. SubZero "
         + "learns those numbers once by running a short auto-tune, then holds your target temperature with "
         + "the least noise it can.";
+
+    /// <summary>Why using the machine mid-run ruins the measurement, named to the component being loaded.</summary>
+    public string DoNotDisturbText => CoolingRole == FanCoolingRole.Gpu
+        ? "SubZero controls the GPU load itself. Anything you start — a game, a render, a video call — adds "
+        + "heat it isn't expecting, and the measurement will be wrong. Leave it alone until it finishes."
+        : "SubZero controls the CPU load itself. Anything you start — a game, a build, a video call — adds "
+        + "heat it isn't expecting, and the measurement will be wrong. Leave it alone until it finishes.";
 
     /// <summary>Names the component that will be loaded, which differs per fan and is otherwise invisible.</summary>
     public string LoadDescription => CoolingRole == FanCoolingRole.Gpu
@@ -136,6 +153,34 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
     [ObservableProperty]
     public partial string PowerText { get; private set; } = "—";
 
+    // ----- Live plot -----
+    //
+    // The centre of the running screen. Watching the temperature actually bend after the fan steps is what
+    // makes a five-minute wait tolerable, and it is the only way to tell a run that is working from one that
+    // is about to fail for lack of load — a flat line says that long before the failure screen does.
+
+    /// <summary>Driving temperature against seconds since the run began.</summary>
+    [ObservableProperty]
+    public partial ObservablePoint[] TemperatureSeries { get; private set; } = [];
+
+    /// <summary>Commanded duty against the same clock, so the step and its effect line up.</summary>
+    [ObservableProperty]
+    public partial ObservablePoint[] DutySeries { get; private set; } = [];
+
+    /// <summary>
+    /// Marks the moment the fan was stepped.
+    /// </summary>
+    /// <remarks>
+    /// Without it the temperature curve is just a shape. The whole claim of the plot is "this bend is a
+    /// response to that step", which needs both drawn against one clock and the step called out.
+    /// </remarks>
+    [ObservableProperty]
+    public partial IEnumerable<IChartElement> StepMarker { get; private set; } = [];
+
+    public SolidColorPaint TemperaturePaint { get; } = new(SKColors.Salmon) { StrokeThickness = 2f };
+
+    public SolidColorPaint DutyPaint { get; } = new(new SKColor(0x00, 0x78, 0xD7)) { StrokeThickness = 2f };
+
     // ----- Outcome -----
 
     [ObservableProperty]
@@ -145,7 +190,7 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
     public partial string OutcomeBody { get; private set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string OutcomeIconKind { get; private set; } = "CheckCircle";
+    public partial MaterialIconKind OutcomeIconKind { get; private set; } = MaterialIconKind.CheckCircle;
 
     /// <summary>
     /// Resource key for the outcome icon's colour, resolved by the theme-brush converter.
@@ -164,7 +209,7 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
     public partial string RestoredText { get; private set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string RestoredIconKind { get; private set; } = "CheckCircle";
+    public partial MaterialIconKind RestoredIconKind { get; private set; } = MaterialIconKind.CheckCircle;
 
     [ObservableProperty]
     public partial bool DidSucceed { get; private set; }
@@ -210,7 +255,55 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
         PowerText = progress.PackagePowerWatts is double watts
             ? _unitFormattingService.FormatPowerWatts(watts, decimals: 0)
             : "—";
+
+        AppendPlotPoint(progress);
     }
+
+    /// <summary>
+    /// Adds this sample to the live plot.
+    /// </summary>
+    /// <remarks>
+    /// Arrays are rebuilt rather than an observable collection mutated, matching how the rest of the app
+    /// feeds LiveCharts: the series is replaced wholesale so one assignment raises one change, instead of a
+    /// redraw per point at a sample a second.
+    /// </remarks>
+    private void AppendPlotPoint(FanCalibrationProgress progress)
+    {
+        if (progress.TemperatureCelsius is double celsius)
+        {
+            _temperaturePoints.Add(new ObservablePoint(
+                progress.ElapsedSeconds,
+                _unitFormattingService.ConvertTemperature(celsius)));
+
+            TemperatureSeries = [.. _temperaturePoints];
+        }
+
+        if (progress.DutyPercent is double duty)
+        {
+            _dutyPoints.Add(new ObservablePoint(progress.ElapsedSeconds, duty));
+            DutySeries = [.. _dutyPoints];
+        }
+
+        if (progress.IsStepMarker)
+        {
+            StepMarker =
+            [
+                new RectangularSection
+                {
+                    Xi = progress.ElapsedSeconds,
+                    Xj = progress.ElapsedSeconds,
+                    Stroke = new SolidColorPaint(new SKColor(0xC5, 0x99, 0x4E))
+                    {
+                        StrokeThickness = 1.5f,
+                        PathEffect = new DashEffect([5f, 4f]),
+                    },
+                },
+            ];
+        }
+    }
+
+    private readonly List<ObservablePoint> _temperaturePoints = [];
+    private readonly List<ObservablePoint> _dutyPoints = [];
 
     /// <summary>
     /// Shows the outcome — success or any of the ways it can fail.
@@ -233,7 +326,7 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
 
         if (result.Succeeded && result.Calibration is { } calibration)
         {
-            OutcomeIconKind = "CheckDecagram";
+            OutcomeIconKind = MaterialIconKind.CheckDecagram;
             OutcomeBrushKey = "StatusSuccessBrush";
             OutcomeHeadline = $"{FanDisplayName} is calibrated";
             OutcomeBody =
@@ -243,25 +336,27 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
             facts.Add(new AdaptiveKnownFact(
                 "Cooling per 1% fan",
                 FormatTemperatureDelta(calibration.ProcessGainCelsiusPerPercent, decimals: 2, suffix: "/%"),
-                "SnowflakeThermometer"));
+                MaterialIconKind.SnowflakeThermometer));
 
             facts.Add(new AdaptiveKnownFact(
                 "Responds in",
                 $"{calibration.TimeConstantSeconds.ToString("0", CultureInfo.CurrentCulture)} s",
-                "ChartTimelineVariant"));
+                MaterialIconKind.ChartTimelineVariant));
 
             if (calibration.MinimumSpinRpm > 0d)
             {
                 facts.Add(new AdaptiveKnownFact(
                     "Stalls below",
                     _unitFormattingService.FormatFanSpeed(calibration.MinimumSpinRpm, decimals: 0),
-                    "FanMinus"));
+                    MaterialIconKind.FanMinus));
             }
 
             facts.Add(new AdaptiveKnownFact(
                 "Speed control",
                 calibration.TrackingMode == FanSpeedTrackingMode.Cascade ? "Holds a commanded RPM" : "Duty only",
-                calibration.TrackingMode == FanSpeedTrackingMode.Cascade ? "CheckNetworkOutline" : "AlertDecagramOutline"));
+                calibration.TrackingMode == FanSpeedTrackingMode.Cascade
+                    ? MaterialIconKind.CheckNetworkOutline
+                    : MaterialIconKind.AlertDecagramOutline));
 
             // The unflattering answer is the valuable one, and nowhere else in the app can give it.
             if (calibration.PerformanceResponse.SustainedSpeedGainFraction is double gained)
@@ -271,7 +366,7 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
                     gained >= FanPerformanceResponse.MeaningfulSpeedGainFraction
                         ? $"+{gained:P0} sustained speed"
                         : "no extra speed",
-                    "Speedometer"));
+                    MaterialIconKind.Speedometer));
             }
         }
         else
@@ -291,7 +386,7 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
                     "Load reached",
                     $"{_unitFormattingService.FormatPowerWatts(averageWatts, decimals: 0)} of "
                     + $"{_unitFormattingService.FormatPowerWatts(FanCalibrationLimits.MinimumAveragePowerWatts, decimals: 0)} needed",
-                    "SpeedometerSlow"));
+                    MaterialIconKind.SpeedometerSlow));
             }
 
             if (result.TemperatureSwingCelsius is double swing)
@@ -299,7 +394,7 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
                 facts.Add(new AdaptiveKnownFact(
                     "Temperature moved",
                     FormatTemperatureDelta(swing, decimals: 1),
-                    "ThermometerMinus"));
+                    MaterialIconKind.ThermometerMinus));
             }
 
             if (result.PeakTemperatureCelsius is double peak)
@@ -307,13 +402,13 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
                 facts.Add(new AdaptiveKnownFact(
                     "Hottest reading",
                     _unitFormattingService.FormatTemperature(peak, decimals: 0),
-                    "ThermometerAlert"));
+                    MaterialIconKind.ThermometerAlert));
             }
         }
 
         OutcomeFacts = facts;
 
-        RestoredIconKind = result.FansRestored ? "CheckCircle" : "AlertDecagramOutline";
+        RestoredIconKind = result.FansRestored ? MaterialIconKind.CheckCircle : MaterialIconKind.AlertDecagramOutline;
         RestoredBrushKey = result.FansRestored ? "StatusSuccessBrush" : "StatusErrorTextBrush";
         RestoredText = result.FansRestored
             ? "This fan has been returned to the control it had before the test."
@@ -363,51 +458,51 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
     /// can usually do something about, and the whole point of the run reporting them separately is that the
     /// remedies differ.
     /// </remarks>
-    private static (string Icon, string Headline, string Body) DescribeFailure(FanCalibrationFailure failure) => failure switch
+    private static (MaterialIconKind Icon, string Headline, string Body) DescribeFailure(FanCalibrationFailure failure) => failure switch
     {
         FanCalibrationFailure.InsufficientLoad => (
-            "SpeedometerSlow",
+            MaterialIconKind.SpeedometerSlow,
             "The machine never got busy enough",
             "The test needs sustained load to create heat worth measuring. Something may be limiting the "
             + "processor — a power profile, a thermal limit, or another application holding it back."),
 
         FanCalibrationFailure.InsufficientTemperatureSwing => (
-            "ThermometerMinus",
+            MaterialIconKind.ThermometerMinus,
             "The temperature barely moved",
             "Turning the fan up did not cool this sensor enough to measure. If this fan does not cool the "
             + "sensors it is driven by, choose sensors it actually affects and try again."),
 
         FanCalibrationFailure.TemperatureCeiling => (
-            "ThermometerAlert",
+            MaterialIconKind.ThermometerAlert,
             "It got too hot, so the test stopped",
             "The machine reached the safety ceiling before the measurement finished. This is the test "
             + "protecting the hardware — nothing is damaged, and the fan has been handed back."),
 
         FanCalibrationFailure.OnBattery => (
-            "BatteryAlertVariantOutline",
+            MaterialIconKind.BatteryAlertVariantOutline,
             "Running on battery",
             "On battery the processor runs to different limits, so the model would describe a machine that "
             + "only exists while unplugged. Plug in and try again."),
 
         FanCalibrationFailure.GpuLoadUnavailable => (
-            "AlertDecagramOutline",
+            MaterialIconKind.AlertDecagramOutline,
             "This machine cannot load its GPU",
             "This fan cools the graphics module, so the test has to heat the GPU — and no usable graphics "
             + "accelerator was found. Loading the processor instead would measure the wrong component."),
 
         FanCalibrationFailure.Cancelled => (
-            "CloseCircleOutline",
+            MaterialIconKind.CloseCircleOutline,
             "Test stopped",
             "The run was stopped before it finished, so nothing was learned from it."),
 
         FanCalibrationFailure.ClientDisconnected => (
-            "LanDisconnect",
+            MaterialIconKind.LanDisconnect,
             "Lost contact with the service",
             "The connection dropped while the test was running. The service stops the run and hands the fan "
             + "back on its own when that happens."),
 
         _ => (
-            "AlertDecagramOutline",
+            MaterialIconKind.AlertDecagramOutline,
             "The test could not finish",
             "Not enough usable readings were gathered to build a model. This usually means telemetry stalled "
             + "part-way through."),

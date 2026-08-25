@@ -393,6 +393,7 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         // Has-checks rather than raw reads: proto3 optionals default to 0, and "0 C" plotted as a reading
         // where the truth is "no reading" would draw a cliff that never happened.
         TemperatureCelsius = reply.HasTemperatureCelsius ? reply.TemperatureCelsius : null,
+        DutyPercent = reply.HasDutyPercent ? reply.DutyPercent : null,
         SpeedRpm = reply.HasSpeedRpm ? reply.SpeedRpm : null,
         PackagePowerWatts = reply.HasPackagePowerWatts ? reply.PackagePowerWatts : null,
         EstimatedRemaining = reply.HasEstimatedRemainingMilliseconds

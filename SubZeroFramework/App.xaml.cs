@@ -181,6 +181,7 @@ public partial class App : Application
 
                     // Client-only settings: launch behavior + alert opt-ins persist next to the display units.
                     services.AddSingleton<ILocalClientSettingsStore, LocalClientSettingsStore>();
+                    services.AddSingleton<ILocalFanProfileStore, LocalFanProfileStore>();
                     // Cross-platform launch-at-sign-in via the AutoLaunch library (HKCU Run key /
                     // freedesktop autostart / LaunchAgent behind one API).
                     services.AddSingleton<IStartupRegistrationService, AutoLaunchStartupRegistrationService>();

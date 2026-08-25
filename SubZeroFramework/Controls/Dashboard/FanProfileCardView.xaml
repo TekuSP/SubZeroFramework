@@ -1,5 +1,5 @@
-﻿<UserControl
-    x:Class="SubZeroFramework.Controls.Dashboard.CoolingPresetCardView"
+<UserControl
+    x:Class="SubZeroFramework.Controls.Dashboard.FanProfileCardView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -37,12 +37,32 @@
                     Visibility="{x:Bind Model.CheckVisibility, Mode=OneWay}" />
             </Grid>
 
-            <TextBlock
+            <!--  The name and, on one of them, the badge saying it is where the machine starts.  -->
+            <StackPanel
                 Grid.Row="1"
-                FontSize="14.5"
-                FontWeight="SemiBold"
-                Foreground="{StaticResource TextPrimaryBrush}"
-                Text="{x:Bind Model.Name, Mode=OneWay}" />
+                Orientation="Horizontal"
+                Spacing="8">
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="14.5"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{x:Bind Model.Name, Mode=OneWay}" />
+                <Border
+                    Height="18"
+                    Padding="7,0"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                    CornerRadius="9"
+                    Visibility="{x:Bind Model.DefaultBadgeVisibility, Mode=OneWay}">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="9.5"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextTertiaryBrush}"
+                        Text="DEFAULT" />
+                </Border>
+            </StackPanel>
 
             <TextBlock
                 Grid.Row="2"

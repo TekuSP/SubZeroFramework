@@ -126,7 +126,7 @@ public sealed partial class FanAdaptiveModeView : UserControl, INotifyPropertyCh
             ViewModel.CoolingRole,
             ViewModel.UnitFormattingService);
 
-        var dialog = new FanCalibrationDialog(model) { XamlRoot = XamlRoot };
+        using var dialog = new FanCalibrationDialog(model) { XamlRoot = XamlRoot };
 
         // The dialog stays open across the whole run, so consent must not close it: the primary button is
         // intercepted, the deferral held, and the same dialog re-used for the live run and the outcome.
@@ -186,13 +186,12 @@ public sealed partial class FanAdaptiveModeView : UserControl, INotifyPropertyCh
         finally
         {
             _dialogOpen = false;
-            dialog.Dispose();
         }
     }
 
     private async void OnExplainerRequested(object? sender, EventArgs e)
     {
-        if (_dialogOpen || XamlRoot is null)
+        if (_dialogOpen || XamlRoot is null || ViewModel?.SelectedFan is not { } fan)
         {
             return;
         }
@@ -201,13 +200,17 @@ public sealed partial class FanAdaptiveModeView : UserControl, INotifyPropertyCh
 
         try
         {
-            await new ContentDialog
-            {
-                XamlRoot = XamlRoot,
-                Title = "How adaptive control works",
-                Content = "The control-design explainer is not available yet.",
-                CloseButtonText = "Close",
-            }.ShowAsync();
+            // Snapshotted here rather than bound: the page keeps ticking behind the dialog, and a reference
+            // whose numbers move while it is being read is worse than one that is a few seconds old.
+            var model = new FanControlExplainerModel(
+                fan,
+                fan.ControlState?.Calibration,
+                fan.ControlState?.AdaptiveSettings,
+                fan.ControlState?.AdaptiveControl,
+                ViewModel.CoolingRole,
+                ViewModel.UnitFormattingService);
+
+            await new FanControlExplainerDialog(model) { XamlRoot = XamlRoot }.ShowAsync();
         }
         catch (Exception exception)
         {

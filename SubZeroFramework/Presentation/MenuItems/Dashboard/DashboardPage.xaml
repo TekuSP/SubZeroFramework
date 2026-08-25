@@ -17,8 +17,8 @@
     mc:Ignorable="d">
 
     <Page.Resources>
-        <!--  Preset card wrapped in a Button; Tag carries the model for the Click handler.  -->
-        <DataTemplate x:Key="CoolingPresetTemplate" x:DataType="dashboardModels:CoolingPresetCardModel">
+        <!--  Profile card wrapped in a Button; Tag carries the model for the Click handler.  -->
+        <DataTemplate x:Key="FanProfileTemplate" x:DataType="dashboardModels:FanProfileCardModel">
             <Button
                 Padding="0"
                 HorizontalAlignment="Stretch"
@@ -26,10 +26,10 @@
                 VerticalContentAlignment="Stretch"
                 Background="Transparent"
                 BorderThickness="0"
-                Click="OnPresetClick"
+                Click="OnProfileClick"
                 CornerRadius="12"
                 Tag="{x:Bind}">
-                <dashboardControls:CoolingPresetCardView Model="{x:Bind}" />
+                <dashboardControls:FanProfileCardView Model="{x:Bind}" />
             </Button>
         </DataTemplate>
 
@@ -75,40 +75,129 @@
             <StackPanel Padding="15,0,15,24" Spacing="16">
 
                 <!--
-                    Cooling profile presets: not supported yet — the whole section renders grayed and inert
-                    (feature-flagged off in the model too, so nothing actuates or derives selection).
-                -->
-                <StackPanel
-                    IsHitTestVisible="False"
-                    Opacity="0.4"
-                    Spacing="16">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <material:MaterialIcon
-                            Width="18"
-                            Height="18"
-                            VerticalAlignment="Center"
-                            Foreground="{StaticResource StatusInfoBrush}"
-                            Kind="Tune" />
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            FontSize="20"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="Cooling profile" />
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            FontSize="12.5"
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Text="{x:Bind ViewModel.CoolingProfileSubtitle, Mode=OneWay}" />
-                    </StackPanel>
+                    Saved fan setups. Applying one switches every fan at once; which one reads as active is
+                    derived from the live control states rather than remembered, so it survives a restart and
+                    stops being claimed the moment a fan is changed by hand.
 
-                    <ItemsControl ItemTemplate="{StaticResource CoolingPresetTemplate}" ItemsSource="{x:Bind ViewModel.CoolingPresets, Mode=OneWay}">
+                    Collapsed entirely while the feature is off rather than greyed: with seeding off there are
+                    no cards to grey, and a heading over an empty space reads as broken. See
+                    DashboardModel.ProfilesEnabled.
+                -->
+                <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.AreProfilesAvailable, Mode=OneWay}">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <controls:AutoWrapPanel HorizontalSpacing="10" VerticalSpacing="6">
+                            <material:MaterialIcon
+                                Width="18"
+                                Height="18"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource StatusInfoBrush}"
+                                Kind="AccountCogOutline" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="20"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="Profiles" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="saved fan setups — applying one switches every fan at once" />
+
+                            <!--  The prompt to save: without it, tuning a fan just blanks the row.  -->
+                            <Border
+                                Height="24"
+                                Padding="11,0"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource CardSecondaryBackgroundBrush}"
+                                CornerRadius="12"
+                                Visibility="{x:Bind ViewModel.IsModified, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <material:MaterialIcon
+                                        Width="13"
+                                        Height="13"
+                                        VerticalAlignment="Center"
+                                        Foreground="{StaticResource StatusWarningForegroundBrush}"
+                                        Kind="CircleEditOutline" />
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="11.5"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource StatusWarningForegroundBrush}"
+                                        Text="Modified" />
+                                </StackPanel>
+                            </Border>
+                        </controls:AutoWrapPanel>
+
+                        <StackPanel
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="14">
+                            <HyperlinkButton
+                                Padding="0"
+                                Click="OnSaveAsProfileClick"
+                                Visibility="{x:Bind ViewModel.IsModified, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <material:MaterialIcon
+                                        Width="14"
+                                        Height="14"
+                                        VerticalAlignment="Center"
+                                        Kind="ContentSaveOutline" />
+                                    <TextBlock FontSize="12" Text="Save as profile" />
+                                </StackPanel>
+                            </HyperlinkButton>
+
+                            <HyperlinkButton Padding="0" Click="OnManageProfilesClick">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <material:MaterialIcon
+                                        Width="14"
+                                        Height="14"
+                                        VerticalAlignment="Center"
+                                        Kind="PencilOutline" />
+                                    <TextBlock FontSize="12" Text="Manage profiles" />
+                                </StackPanel>
+                            </HyperlinkButton>
+                        </StackPanel>
+                    </Grid>
+
+                    <ItemsControl ItemTemplate="{StaticResource FanProfileTemplate}" ItemsSource="{x:Bind ViewModel.Profiles, Mode=OneWay}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <deviceCapControls:StatTilePanel MaxColumns="5" MinTileWidth="200" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
+
+                    <!--  Saves what the fans are doing right now, which is the only way to make one.  -->
+                    <Button
+                        Height="52"
+                        Padding="18,0"
+                        HorizontalAlignment="Left"
+                        Background="Transparent"
+                        BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                        BorderThickness="1"
+                        Click="OnSaveAsProfileClick"
+                        CornerRadius="12">
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                            <material:MaterialIcon
+                                Width="16"
+                                Height="16"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Kind="Plus" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="New profile" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <!--  Fans (read-only live overview)  -->

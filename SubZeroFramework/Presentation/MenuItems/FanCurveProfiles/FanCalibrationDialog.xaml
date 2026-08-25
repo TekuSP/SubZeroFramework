@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
     xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:modes="using:SubZeroFramework.Controls.FanCurveProfiles.Models.Modes"
@@ -138,60 +139,200 @@
                     Text="{x:Bind ViewModel.RemainingText, Mode=OneWay}" />
             </StackPanel>
 
-            <!--  The live readings, so the wait is legible rather than a spinner.  -->
-            <controls:AutoWrapPanel HorizontalSpacing="10" VerticalSpacing="10">
-                <Border
-                    Width="150"
-                    Padding="12,10"
-                    Background="{StaticResource CardSecondaryBackgroundBrush}"
-                    CornerRadius="10">
-                    <StackPanel Spacing="4">
+            <!--
+                The live plot. Two series against ONE clock so the bend in the temperature reads as a
+                response to the step in duty, with the step itself marked — without the marker the curve is
+                just a shape. Axes are hidden: this is about the shape, and exact values are in the row below.
+            -->
+            <Border
+                Padding="14,12"
+                Background="{StaticResource CardSecondaryBackgroundBrush}"
+                CornerRadius="10">
+                <StackPanel Spacing="10">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
                         <TextBlock
-                            FontSize="11.5"
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Text="Temperature" />
-                        <TextBlock
-                            FontSize="17"
+                            VerticalAlignment="Center"
+                            FontSize="12"
                             FontWeight="SemiBold"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="{x:Bind ViewModel.TemperatureText, Mode=OneWay}" />
-                    </StackPanel>
-                </Border>
-                <Border
-                    Width="150"
-                    Padding="12,10"
-                    Background="{StaticResource CardSecondaryBackgroundBrush}"
-                    CornerRadius="10">
-                    <StackPanel Spacing="4">
+                            Text="Temperature response" />
+                        <StackPanel
+                            Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="14">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border
+                                    Width="12"
+                                    Height="3"
+                                    VerticalAlignment="Center"
+                                    Background="Salmon"
+                                    CornerRadius="2" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="Driving temp" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border
+                                    Width="12"
+                                    Height="3"
+                                    VerticalAlignment="Center"
+                                    Background="{StaticResource BrandPrimaryBrush}"
+                                    CornerRadius="2" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="Fan duty" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+
+                    <lvc:CartesianChart
+                        Height="180"
+                        AutoUpdateEnabled="True"
+                        Background="Transparent"
+                        LegendPosition="Hidden"
+                        Sections="{x:Bind ViewModel.StepMarker, Mode=OneWay}"
+                        TooltipPosition="Hidden"
+                        ZoomMode="None">
+                        <lvc:CartesianChart.Series>
+                            <lvc:SeriesCollection>
+                                <lvc:XamlLineSeries
+                                    AnimationsSpeed="0"
+                                    Fill="{x:Null}"
+                                    GeometryFill="{x:Null}"
+                                    GeometryStroke="{x:Null}"
+                                    LineSmoothness="0.4"
+                                    Stroke="{x:Bind ViewModel.TemperaturePaint}"
+                                    Values="{x:Bind ViewModel.TemperatureSeries, Mode=OneWay}" />
+
+                                <!--  Its own Y scale: duty is a percentage and temperature is not, and one
+                                      shared axis would flatten whichever range is smaller into a straight line.  -->
+                                <lvc:XamlLineSeries
+                                    AnimationsSpeed="0"
+                                    Fill="{x:Null}"
+                                    GeometryFill="{x:Null}"
+                                    GeometryStroke="{x:Null}"
+                                    LineSmoothness="0"
+                                    ScalesYAt="1"
+                                    Stroke="{x:Bind ViewModel.DutyPaint}"
+                                    Values="{x:Bind ViewModel.DutySeries, Mode=OneWay}" />
+                            </lvc:SeriesCollection>
+                        </lvc:CartesianChart.Series>
+                        <lvc:CartesianChart.XAxes>
+                            <lvc:AxesCollection>
+                                <lvc:XamlAxis
+                                    AnimationsSpeed="0"
+                                    LabelsPaint="{x:Null}"
+                                    Padding="{lvc:Padding Value='0,0'}"
+                                    SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                    ShowSeparatorLines="True"
+                                    TextSize="0" />
+                            </lvc:AxesCollection>
+                        </lvc:CartesianChart.XAxes>
+                        <lvc:CartesianChart.YAxes>
+                            <lvc:AxesCollection>
+                                <lvc:XamlAxis
+                                    AnimationsSpeed="0"
+                                    LabelsPaint="{x:Null}"
+                                    Padding="{lvc:Padding Value='0,0'}"
+                                    SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                    ShowSeparatorLines="True"
+                                    TextSize="0" />
+                                <lvc:XamlAxis
+                                    AnimationsSpeed="0"
+                                    IsVisible="False"
+                                    LabelsPaint="{x:Null}"
+                                    MaxLimit="100"
+                                    MinLimit="0"
+                                    Padding="{lvc:Padding Value='0,0'}"
+                                    ShowSeparatorLines="False"
+                                    TextSize="0" />
+                            </lvc:AxesCollection>
+                        </lvc:CartesianChart.YAxes>
+                    </lvc:CartesianChart>
+
+                    <!--  Exact values, since the plot deliberately has no axis labels.  -->
+                    <controls:AutoWrapPanel HorizontalSpacing="22" VerticalSpacing="6">
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="Driving temp" />
+                            <TextBlock
+                                FontSize="12.5"
+                                FontWeight="SemiBold"
+                                Foreground="Salmon"
+                                Text="{x:Bind ViewModel.TemperatureText, Mode=OneWay}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="Fan" />
+                            <TextBlock
+                                FontSize="12.5"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource BrandPrimaryBrush}"
+                                Text="{x:Bind ViewModel.SpeedText, Mode=OneWay}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="7">
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="Package power" />
+                            <TextBlock
+                                FontSize="12.5"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{x:Bind ViewModel.PowerText, Mode=OneWay}" />
+                        </StackPanel>
+                    </controls:AutoWrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!--
+                A full warning rather than a footnote. The run measures heat it believes it caused; anything
+                the user starts adds heat it is not expecting, and the resulting model is wrong in a way
+                nothing downstream can detect. Worth interrupting for.
+            -->
+            <Border
+                Padding="16,12"
+                Background="{StaticResource StatusWarningBrush}"
+                BorderBrush="{StaticResource StatusWarningBrush}"
+                BorderThickness="3,0,0,0"
+                CornerRadius="10">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <material:MaterialIcon
+                        Width="18"
+                        Height="18"
+                        VerticalAlignment="Top"
+                        Foreground="{StaticResource StatusWarningForegroundBrush}"
+                        Kind="HandBackLeftOutline" />
+                    <StackPanel Grid.Column="1" Spacing="4">
                         <TextBlock
-                            FontSize="11.5"
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Text="Fan speed" />
-                        <TextBlock
-                            FontSize="17"
+                            FontSize="13"
                             FontWeight="SemiBold"
-                            Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="{x:Bind ViewModel.SpeedText, Mode=OneWay}" />
-                    </StackPanel>
-                </Border>
-                <Border
-                    Width="150"
-                    Padding="12,10"
-                    Background="{StaticResource CardSecondaryBackgroundBrush}"
-                    CornerRadius="10">
-                    <StackPanel Spacing="4">
+                            Foreground="{StaticResource StatusWarningForegroundBrush}"
+                            Text="Don't use the machine while this runs" />
                         <TextBlock
-                            FontSize="11.5"
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Text="Load" />
-                        <TextBlock
-                            FontSize="17"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="{x:Bind ViewModel.PowerText, Mode=OneWay}" />
+                            FontSize="12"
+                            Foreground="{StaticResource StatusWarningForegroundBrush}"
+                            Text="{x:Bind ViewModel.DoNotDisturbText, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
                     </StackPanel>
-                </Border>
-            </controls:AutoWrapPanel>
+                </Grid>
+            </Border>
 
             <StackPanel Orientation="Horizontal" Spacing="10">
                 <material:MaterialIcon
@@ -199,12 +340,12 @@
                     Height="15"
                     VerticalAlignment="Center"
                     Foreground="{StaticResource TextTertiaryBrush}"
-                    Kind="HandBackLeftOutline" />
+                    Kind="InformationOutline" />
                 <TextBlock
                     VerticalAlignment="Center"
                     FontSize="12"
                     Foreground="{StaticResource TextTertiaryBrush}"
-                    Text="Leave the machine alone while this runs — using it changes the heat the test is measuring."
+                    Text="Stopping is safe at any point — nothing is written until it completes."
                     TextWrapping="WrapWholeWords" />
             </StackPanel>
         </StackPanel>

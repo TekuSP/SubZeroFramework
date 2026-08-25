@@ -84,6 +84,18 @@ public class LoadGeneratorStabilityTests
     private const double PeakCeilingFraction = 0.9d;
 
     /// <summary>
+    /// The longest a GPU dispatch may take and still leave the duty control something to steer with.
+    /// </summary>
+    /// <remarks>
+    /// A dispatch is atomic, so at the gentle end of the ramp the cycle is one dispatch of work against
+    /// several times that much idle. Past a few milliseconds the machine stops experiencing a light load and
+    /// starts experiencing a stutter several times a second — the same square wave the fan would then be
+    /// modelled against. Four times the size the generator aims for: loose enough to absorb a slow
+    /// accelerator and a hot one, tight enough that a workload which was never sized at all cannot pass.
+    /// </remarks>
+    private static readonly TimeSpan MaximumUsefulDispatch = TimeSpan.FromMilliseconds(8);
+
+    /// <summary>
     /// Checks the load lands where it is TOLD, at several different settings.
     /// </summary>
     /// <remarks>
@@ -209,7 +221,17 @@ public class LoadGeneratorStabilityTests
         Assert.That(generator.AcceleratorName, Is.Not.Null.And.Not.Empty);
     }
 
-    /// <summary>The GPU's version of the same question: does it land where it is told, at several settings?</summary>
+    /// <summary>
+    /// The GPU's version of the same question: does it land where it is told, at several settings?
+    /// </summary>
+    /// <remarks>
+    /// The LOW target is the one that matters, and it is here because it failed. A GPU dispatch cannot be cut
+    /// short once launched, so one dispatch is the shortest slice of work that exists — and while the limiter
+    /// was told the minimum was a millisecond, every target whose slice was shorter than a real dispatch
+    /// silently became "one dispatch, then the shortest sleep the machine serves". The whole low half of the
+    /// range collapsed onto a single achievable duty, and the ramp through it did nothing at all.
+    /// </remarks>
+    [TestCase(0.15d)]
     [TestCase(0.4d)]
     [TestCase(0.8d)]
     public async Task GpuLoad_LandsOnWhicheverTargetItIsGiven(double target)
@@ -247,6 +269,100 @@ public class LoadGeneratorStabilityTests
         }
     }
 
+    /// <summary>
+    /// Checks a dispatch is short enough for the duty control to have somewhere to stand.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A GPU dispatch cannot be cut short, so its duration is the smallest slice of work the generator can
+    /// schedule — and the lowest duty it can produce is one dispatch against the shortest sleep the machine
+    /// serves. A dispatch that grew large would put the whole bottom of the range out of reach, and the ramp
+    /// climbing through that range would sit flat at the floor instead.
+    /// </para>
+    /// <para>
+    /// Nothing here caught that before, because the fixed workload happened to be sub-millisecond on the
+    /// hardware it was written against. It is the machines where it is NOT — an integrated part, a throttled
+    /// card — that the sizing exists for, and this is the check that the sizing happened at all.
+    /// </para>
+    /// </remarks>
+    [Test]
+    public async Task GpuLoad_SizesItsDispatchSmallEnoughToSteer()
+    {
+        using var generator = new IlgpuGpuLoadGenerator(NullLogger<IlgpuGpuLoadGenerator>.Instance, TestRamp);
+
+        if (!generator.IsAvailable)
+        {
+            Assert.Ignore("No GPU accelerator on this machine.");
+        }
+
+        Assert.That(generator.Start(), Is.True, "the accelerator reported available but could not be started");
+
+        try
+        {
+            await WaitForRampAsync(
+                () => generator.DispatchDuration > TimeSpan.Zero,
+                "the generator never measured its own dispatch").ConfigureAwait(false);
+
+            var dispatch = generator.DispatchDuration;
+            TestContext.Out.WriteLine($"One dispatch costs {dispatch.TotalMilliseconds:0.###} ms on {generator.AcceleratorName}");
+
+            Assert.That(
+                dispatch,
+                Is.LessThanOrEqualTo(MaximumUsefulDispatch),
+                $"a {dispatch.TotalMilliseconds:0.#} ms dispatch is too coarse to steer — the lowest reachable "
+                + "duty is one dispatch against the shortest sleep the machine will serve.");
+        }
+        finally
+        {
+            generator.Stop();
+        }
+    }
+
+    /// <summary>
+    /// The GPU's version of the gradual-climb check.
+    /// </summary>
+    /// <remarks>
+    /// Worth asserting separately from the CPU's because the two fail differently. The CPU's ramp can only be
+    /// broken by the schedule; the GPU's can also be defeated from underneath, by a dispatch so long that the
+    /// early, gentle part of the climb is below anything the accelerator can actually be asked to do.
+    /// </remarks>
+    [Test]
+    public async Task GpuLoad_ClimbsGraduallyRatherThanJumpingToTarget()
+    {
+        using var generator = new IlgpuGpuLoadGenerator(NullLogger<IlgpuGpuLoadGenerator>.Instance, TestRamp);
+
+        if (!generator.IsAvailable)
+        {
+            Assert.Ignore("No GPU accelerator on this machine.");
+        }
+
+        Assert.That(generator.Start(), Is.True, "the accelerator reported available but could not be started");
+
+        try
+        {
+            // The schedule itself, which is shared with the CPU generator and cheap to check.
+            Assert.That(
+                generator.CurrentLoadFraction,
+                Is.LessThan(LoadRamp.DefaultTargetFraction),
+                "load started at its target instead of ramping");
+
+            await WaitForRampAsync(() => generator.IsAtTargetLoad).ConfigureAwait(false);
+
+            Assert.That(generator.CurrentLoadFraction, Is.EqualTo(LoadRamp.DefaultTargetFraction).Within(0.001d));
+
+            // And that the accelerator can actually FOLLOW the schedule down at its gentle end, which is the
+            // half a too-long dispatch silently removes.
+            Assert.That(
+                generator.DispatchDuration,
+                Is.LessThanOrEqualTo(MaximumUsefulDispatch),
+                "the dispatch is too long for the start of the ramp to be reachable at all");
+        }
+        finally
+        {
+            generator.Stop();
+        }
+    }
+
     [Test]
     public async Task CpuLoad_ClimbsGraduallyRatherThanJumpingToTarget()
     {
@@ -274,16 +390,16 @@ public class LoadGeneratorStabilityTests
         }
     }
 
-    private static async Task WaitForRampAsync(Func<bool> isAtTarget)
+    private static async Task WaitForRampAsync(Func<bool> ready, string what = "the load never reached its target")
     {
         var deadline = Stopwatch.StartNew();
 
-        while (!isAtTarget() && deadline.Elapsed < RampTimeout)
+        while (!ready() && deadline.Elapsed < RampTimeout)
         {
             await Task.Delay(250).ConfigureAwait(false);
         }
 
-        Assert.That(isAtTarget(), Is.True, $"the load never reached its target within {RampTimeout}.");
+        Assert.That(ready(), Is.True, $"{what} within {RampTimeout}.");
     }
 
     /// <summary>

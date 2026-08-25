@@ -782,6 +782,11 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             reply.TemperatureCelsius = celsius;
         }
 
+        if (progress.DutyPercent is double duty)
+        {
+            reply.DutyPercent = duty;
+        }
+
         if (progress.SpeedRpm is double rpm)
         {
             reply.SpeedRpm = rpm;
