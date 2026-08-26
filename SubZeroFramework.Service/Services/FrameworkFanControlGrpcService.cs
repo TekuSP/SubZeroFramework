@@ -472,9 +472,14 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
                 };
             }
 
-            await PersistFanControlStateAsync(request.FanIndex, request.Preview, context.CancellationToken).ConfigureAwait(false);
+            var persisted = await PersistFanControlStateAsync(request.FanIndex, request.Preview, context.CancellationToken).ConfigureAwait(false);
 
-            return new FanCurveProfileOperationReply { FanIndex = request.FanIndex, Succeeded = true, Message = string.Empty };
+            return new FanCurveProfileOperationReply
+            {
+                FanIndex = request.FanIndex,
+                Succeeded = true,
+                Message = persisted ? string.Empty : PersistenceFailedWarning,
+            };
         }
         catch (InvalidOperationException exception)
         {
@@ -507,9 +512,14 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
                 };
             }
 
-            await PersistFanControlStateAsync(request.FanIndex, preview: false, context.CancellationToken).ConfigureAwait(false);
+            var persisted = await PersistFanControlStateAsync(request.FanIndex, preview: false, context.CancellationToken).ConfigureAwait(false);
 
-            return new FanCurveProfileOperationReply { FanIndex = request.FanIndex, Succeeded = true, Message = string.Empty };
+            return new FanCurveProfileOperationReply
+            {
+                FanIndex = request.FanIndex,
+                Succeeded = true,
+                Message = persisted ? string.Empty : PersistenceFailedWarning,
+            };
         }
         catch (ArgumentException exception)
         {
@@ -1080,14 +1090,25 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
     private static FanCurveProfileOperationReply SucceededProfileReply(int fanIndex, int slot)
         => new() { FanIndex = fanIndex, Slot = slot, Succeeded = true, Message = string.Empty };
 
-    private async Task PersistFanControlStateAsync(int fanIndex, bool preview, CancellationToken cancellationToken)
+    /// <summary>
+    /// The warning a reply carries when the command took effect live but could not be written to disk. The
+    /// command still succeeds — the fan IS doing what was asked — but claiming plain success taught users
+    /// their applied Adaptive "randomly" reverted on the next restart, with the truth visible only in the
+    /// Event Log.
+    /// </summary>
+    internal const string PersistenceFailedWarning =
+        "Applied, but saving to disk failed — this will not survive a service restart. "
+        + "Check write permissions on the service's configuration folder.";
+
+    /// <summary>Returns false when the state took effect in memory but could not be written to disk.</summary>
+    private async Task<bool> PersistFanControlStateAsync(int fanIndex, bool preview, CancellationToken cancellationToken)
     {
         // A preview is volatile: the EC and the in-memory store reflect it (so live clients see it), but it
         // is never written to the configuration store. A service restart therefore restores the last applied
         // state, and "Apply" simply re-sends the same command with preview=false to persist it.
         if (preview)
         {
-            return;
+            return true;
         }
 
         // A persisting command commits (or restores) the fan, so any open preview hold must not later revert it.
@@ -1096,16 +1117,18 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         var options = _fanControlStateStore.BuildFanControlOptions(fanIndex);
         if (options is null)
         {
-            return;
+            return true;
         }
 
         try
         {
             await _configurationStore.UpsertFanControlStateAsync(options, cancellationToken).ConfigureAwait(false);
+            return true;
         }
         catch (Exception persistenceException)
         {
             _logger.LogWarning(persistenceException, "Saved fan curve profiles for fan {FanIndex} in memory but failed to persist them. They will not survive a service restart.", fanIndex);
+            return false;
         }
     }
 }

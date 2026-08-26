@@ -624,7 +624,7 @@
                             VerticalAlignment="Center"
                             FontSize="13"
                             Foreground="{StaticResource BrandPrimaryBrush}"
-                            Text="Staged changes — Preview them live, or Apply to commit." />
+                            Text="{x:Bind ViewModel.ActionBarEditingHint, Mode=OneWay}" />
                     </StackPanel>
                     <StackPanel
                         Grid.Column="0"

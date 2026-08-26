@@ -171,6 +171,7 @@ public partial class FanQuickControlModel : ObservableObject
             FanControlMode.Manual => "Manual",
             FanControlMode.Max => "Max",
             FanControlMode.CustomCurve => "Custom curve",
+            FanControlMode.Adaptive => "Adaptive",
             _ => state.Mode.ToString(),
         };
 

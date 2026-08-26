@@ -454,6 +454,14 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [ObservableProperty]
     public partial string StagedSummaryText { get; private set; } = "1 fan has unsaved changes";
 
+    /// <summary>
+    /// The editing action bar's hint. Normally invites Preview/Apply; for a staged Adaptive the service
+    /// would refuse (uncalibrated fan) those buttons are greyed, so the hint names the real way forward
+    /// instead of inviting two dead clicks. Stored; assigned by <see cref="RefreshDerivedState"/>.
+    /// </summary>
+    [ObservableProperty]
+    public partial string ActionBarEditingHint { get; private set; } = "Staged changes — Preview them live, or Apply to commit.";
+
     // Mirror the staged state onto the selected fan card so its row shows the "Changes pending" pill.
     partial void OnIsDirtyChanged(bool value)
     {
@@ -485,6 +493,10 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         StagedSummaryText = IsTesting
             ? "Previewing live on this fan"
             : stagedFanCount == 1 ? "1 fan has unsaved changes" : $"{stagedFanCount} fans have unsaved changes";
+
+        ActionBarEditingHint = HasStagedSimpleMode && !HasStagedRunnableSimpleMode
+            ? "Adaptive needs a calibrated fan — run the learning test, or Discard to go back."
+            : "Staged changes — Preview them live, or Apply to commit.";
 
         ActiveProfileText = SelectedFan?.ControlState is { Mode: FanControlMode.CustomCurve } state
             ? $"Profile {state.ActiveCurveSlot + 1} is currently driving this fan."
@@ -1720,7 +1732,17 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
                 // write. A PREVIEW keeps them staged on purpose: reverting it restores the fan's previous
                 // state, and dropping the stage here would throw the user's edits away with it.
                 _stagedAdaptiveSettings.Remove(fanIndex);
-                ReportStatus("Adaptive is now driving this fan.", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success);
+
+                // A successful reply can still carry a warning — "armed, but could not be saved to disk".
+                // Celebrating over it is how a persistence failure once hid until the next restart.
+                if (string.IsNullOrEmpty(result.Message))
+                {
+                    ReportStatus("Adaptive is now driving this fan.", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success);
+                }
+                else
+                {
+                    ReportStatus(result.Message, Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
+                }
             }
 
             return true;
@@ -2493,12 +2515,24 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     //   staged      → Preview + Revert + Apply enabled (preview optional; Apply commits the staged change)
     //   previewing  → Apply + Revert enabled, Preview disabled (a test is already live)
 
+    /// <summary>
+    /// Mirror of the service's Adaptive arming gate: measured OR learned. A staged Adaptive on a fan that
+    /// passes neither cannot be previewed or applied — the service would refuse the arm — so those commands
+    /// grey out and the panel's Calibrate call to action is the only way forward. Discard stays available.
+    /// </summary>
+    internal bool SelectedFanCanRunAdaptive => SelectedFan?.ControlState is { } controlState
+        && (controlState.Calibration.IsMeasured || controlState.AdaptiveLearning.HasLearned);
+
+    /// <summary>A staged simple mode the service would actually accept (an unrunnable Adaptive is not one).</summary>
+    private bool HasStagedRunnableSimpleMode => HasStagedSimpleMode
+        && (_session.StagedMode != FanControlMode.Adaptive || SelectedFanCanRunAdaptive);
+
     // Apply commits every staged change — the selected fan's and every other fan's parked staged work
     // ("Apply all"). Preview is optional: staged work can commit directly. A custom draft must be valid.
     private bool CanApplyStaged => HasSelectedFan && CanIssueFanCommands
         && (IsTesting
             || ((CurrentFanHasStagedEdits || IsCustomActivationStaged) && HasValidDraft)
-            || HasStagedSimpleMode
+            || HasStagedRunnableSimpleMode
             || LinkSection.HasStagedLinks
             || HasStagedAdaptiveSettings
             || HasOtherStagedFans);
@@ -2543,7 +2577,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     private bool CanPreviewStaged => HasSelectedFan && CanIssueFanCommands && !IsTesting
         && (IsCustomStaging
             ? (CurrentFanHasStagedEdits || IsCustomActivationStaged) && !IsFollowing && HasValidDraft
-            : HasStagedSimpleMode);
+            : HasStagedRunnableSimpleMode);
 
     private bool CanClearProfile => HasSelectedFan && !IsTesting && CanIssueFanCommands && _session.AppliedBaseline is not null;
 
@@ -3139,6 +3173,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     {
         FanControlMode.Max => "→ Max target",
         FanControlMode.Manual => $"→ {_unitFormattingService.FormatRatio(ManualDutyPercent, decimals: 0)} duty target",
+        FanControlMode.Adaptive => "→ Temperature target",
         _ => "→ Controller policy",
     };
 
@@ -3177,6 +3212,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         FanControlMode.Manual => "Manual",
         FanControlMode.CustomCurve => "Custom curve",
         FanControlMode.Max => "Max",
+        FanControlMode.Adaptive => "Adaptive",
         _ => string.Empty,
     };
 

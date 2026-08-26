@@ -135,7 +135,7 @@ public class FanCalibrationRunnerTests
             Assert.That(result.Succeeded, Is.True, "a hot walk on an otherwise healthy machine must still calibrate");
             Assert.That(
                 plant.SetFanDutyCalls,
-                Does.Not.Contain((siblingIndex, FanCalibrationRunner.SiblingSpinFloorDutyPercent)),
+                Does.Not.Contain((siblingIndex, FanCalibrationRunner.SiblingHoldDutyPercent + FanCalibrationRunner.SiblingRetryStepPercent)),
                 "a retry escalated the sibling — the walk heat leaked past the flush into the load phase");
             Assert.That(
                 plant.SetFanDutyCalls,
@@ -184,7 +184,7 @@ public class FanCalibrationRunnerTests
             Assert.That(result.Succeeded, Is.True, "with the trigger disarmed at full sibling duty, the final attempt must complete inside the margin");
             Assert.That(
                 plant.SetFanDutyCalls,
-                Does.Contain((siblingIndex, FanCalibrationRunner.SiblingSpinFloorDutyPercent)),
+                Does.Contain((siblingIndex, FanCalibrationRunner.SiblingHoldDutyPercent + FanCalibrationRunner.SiblingRetryStepPercent)),
                 "the first retry never raised the sibling hold");
             Assert.That(
                 plant.SetFanDutyCalls,
@@ -240,7 +240,7 @@ public class FanCalibrationRunnerTests
             Assert.That(result.Failure, Is.EqualTo(FanCalibrationFailure.TemperatureCeiling));
             Assert.That(
                 plant.SetFanDutyCalls,
-                Does.Contain((siblingIndex, FanCalibrationRunner.SiblingSpinFloorDutyPercent)),
+                Does.Contain((siblingIndex, FanCalibrationRunner.SiblingHoldDutyPercent + FanCalibrationRunner.SiblingRetryStepPercent)),
                 "the walk crossed the margin but no retry raised the siblings — the walk is outside the armed region again");
             Assert.That(
                 plant.SetFanDutyCalls,

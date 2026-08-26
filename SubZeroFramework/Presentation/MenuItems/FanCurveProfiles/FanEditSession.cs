@@ -142,6 +142,10 @@ public sealed class FanEditSession
         if (fan is null || StagedMode is not { } mode) return;
         if (!_parent.CanIssueFanCommands) { _parent.ReportFanControlBlocked(); return; }
 
+        // An Adaptive the service would refuse (never measured, nothing learned) cannot be previewed —
+        // the command is greyed for this state; this guard keeps any other path honest too.
+        if (mode == FanControlMode.Adaptive && !_parent.SelectedFanCanRunAdaptive) return;
+
         var group = _parent.ActuationGroup(fan.Snapshot.FanIndex);
         PreTestState = fan.ControlState;
         // Open the safety hold on the whole linked group before actuating so the service captures each fan's
@@ -194,6 +198,11 @@ public sealed class FanEditSession
         if (fan is null || StagedMode is not { } mode) return;
         if (!_parent.CanIssueFanCommands) { _parent.ReportFanControlBlocked(); return; }
 
+        // An Adaptive the service would refuse never reaches the wire. Returning here (without clearing
+        // the stage) also keeps "Apply all" from torpedoing OTHER fans' staged work on the rejected arm —
+        // the caller continues past this method to flush links, settings, and the other fans.
+        if (mode == FanControlMode.Adaptive && !_parent.SelectedFanCanRunAdaptive) return;
+
         try
         {
             // Persist the mode to the whole linked group so linked fans apply together.
@@ -230,6 +239,8 @@ public sealed class FanEditSession
                 {
                     FanControlMode.Manual => $"{scope} set to {_unitFormattingService.FormatRatio(StagedManualDuty, decimals: 0)} manual duty.",
                     FanControlMode.Max => $"{scope} set to Max ({_unitFormattingService.FormatRatio(100d, decimals: 0)}). Acoustics will be loud.",
+                    // The fan's own name, not the group scope: Adaptive deliberately arms this fan alone.
+                    FanControlMode.Adaptive => $"{fan.Snapshot.DisplayName} set to Adaptive — the loop is holding its target now.",
                     _ => $"{scope} restored to Auto.",
                 },
                 mode == FanControlMode.Max ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
@@ -245,6 +256,7 @@ public sealed class FanEditSession
     {
         FanControlMode.Manual => "Manual",
         FanControlMode.Max => "Max",
+        FanControlMode.Adaptive => "Adaptive",
         _ => "Auto",
     };
 }

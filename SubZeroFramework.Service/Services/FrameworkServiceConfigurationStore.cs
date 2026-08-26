@@ -33,6 +33,40 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
         _defaultPersistentConfigurationPath = Path.GetFullPath(defaultPersistentConfigurationPath);
         _persistentConfigurationPath = StorePathBootstrap.ResolveActivePath(_defaultPersistentConfigurationPath);
         _logger = logger;
+
+        ProbeWritability();
+    }
+
+    /// <summary>
+    /// Proves at startup that the configuration path can actually be written, and logs a WARNING when it
+    /// cannot — one loud line at second zero instead of a quiet failure on every apply. A service run
+    /// without write access (a dev build launched un-elevated against a ProgramData folder the installed
+    /// service created as SYSTEM) otherwise persists nothing while every command reports success, and the
+    /// user discovers it as "my applied mode randomly reverts on restart".
+    /// </summary>
+    private void ProbeWritability()
+    {
+        var probePath = _persistentConfigurationPath + ".probe";
+        try
+        {
+            var directory = Path.GetDirectoryName(probePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.WriteAllText(probePath, string.Empty);
+            File.Delete(probePath);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "The persistent configuration path {PersistentConfigurationPath} is NOT writable by this process. "
+                + "Nothing applied in this session will survive a service restart. "
+                + "Grant this account write access to the folder, or run the service with sufficient rights.",
+                _persistentConfigurationPath);
+        }
     }
 
     public string PersistentConfigurationPath => Volatile.Read(ref _persistentConfigurationPath);
@@ -243,8 +277,20 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
         {
             ["FanIndex"] = state.FanIndex,
             ["Mode"] = state.Mode.ToString(),
+            // The live top-level driving fields. For an ADAPTIVE fan these are the only record of the
+            // sensors the loop holds — the store put them in the options, but this hand-written serializer
+            // dropped them on the floor, so a restart restored Adaptive with no sensors and the fan fell
+            // back to Auto.
+            ["DrivingTemperatureAggregation"] = state.DrivingTemperatureAggregation.ToString(),
             ["ActiveCurveSlot"] = state.ActiveCurveSlot,
         };
+
+        var drivingSensors = new JsonArray();
+        foreach (var sensorIndex in state.DrivingSensorIndices)
+        {
+            drivingSensors.Add(sensorIndex);
+        }
+        node["DrivingSensorIndices"] = drivingSensors;
 
         var profiles = new JsonArray();
         foreach (var profile in state.CurveProfiles.OrderBy(static p => p.Slot))
@@ -272,6 +318,7 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
                 ["TargetTemperatureCelsius"] = adaptiveSettings.TargetTemperatureCelsius,
                 ["SafetyFloorEnabled"] = adaptiveSettings.SafetyFloorEnabled,
                 ["SafetyFloorPercent"] = adaptiveSettings.SafetyFloorPercent,
+                ["LambdaSeconds"] = adaptiveSettings.LambdaSeconds,
             };
         }
 

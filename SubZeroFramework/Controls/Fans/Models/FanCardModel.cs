@@ -477,6 +477,8 @@ public partial class FanCardModel : ObservableObject
                     ? $"Fixed {_unitFormattingService.FormatRatio(duty, decimals: 0)} duty"
                     : "Manual duty",
                 FanControlMode.Max => "Commanded to full speed",
+                FanControlMode.Adaptive =>
+                    $"Adaptive · holding {_unitFormattingService.FormatTemperature(state.AdaptiveSettings.TargetTemperatureCelsius, decimals: 0)}",
                 _ => "Controller policy",
             };
         }
@@ -674,6 +676,7 @@ public partial class FanCardModel : ObservableObject
             FanControlMode.Manual => "Manual",
             FanControlMode.CustomCurve => "Curve",
             FanControlMode.Max => "Max",
+            FanControlMode.Adaptive => "Adaptive",
             _ => "Auto",
         };
 
@@ -684,7 +687,8 @@ public partial class FanCardModel : ObservableObject
             return;
         }
 
-        if (ControlState.Mode != FanControlMode.CustomCurve)
+        // Adaptive drives by sensors exactly as a curve does, so its aggregated temperature shows too.
+        if (ControlState.Mode is not (FanControlMode.CustomCurve or FanControlMode.Adaptive))
         {
             DrivingTemperature = _unitFormattingService.FormatTemperature(null);
             UpdateOverrideStatePresentation();

@@ -47,29 +47,22 @@ public sealed class FanCalibrationRunner : IDisposable
     /// </summary>
     /// <remarks>
     /// The identification needs everything except the measured fan's duty held still; ANY constant satisfies
-    /// that, and this one only picks the operating point. OFF, not merely low: the previous 10% sat in the
-    /// sputter band just under a typical stall point (~12%, ~730 RPM measured), where the fan does not hold
-    /// still at all — it stalls, gets kicked by the motor controller, spins, and stalls again, toggling the
-    /// plant's cooling mid-measurement. A fan at zero is CONSTANT zero airflow, which is genuinely held
-    /// still, and it hands the measured fan the whole airflow range. The machine runs hotter this way, and
-    /// the retry ladder plus the 95 °C ceiling abort are the backstops that make that acceptable.
+    /// that, and this one only picks the operating point. 40%, not off: a dead sibling maximises the measured
+    /// swing, but the sibling's own zone then has NO airflow for the whole run — and during a GPU-fan
+    /// calibration that zone is the CPU's, soaking under idle and housekeeping heat with nothing moving air
+    /// over it. Real runs on the reference chassis escalated the sibling to ~50% anyway before an attempt
+    /// could survive, so starting near the converged point also spares the abort-cooldown-retry cycles that
+    /// rediscovered it. Comfortably above the sputter band around the ~12% stall (where a fan toggles
+    /// between stalling and being kicked, modulating the plant mid-measurement), so the hold is genuinely
+    /// constant. The swing this costs is the noise gate's problem: a too-small swing is refused with a
+    /// message, not fitted.
     /// </remarks>
-    public const double SiblingHoldDutyPercent = 0d;
-
-    /// <summary>
-    /// The lowest duty an ESCALATED sibling hold may take — the other side of the sputter band.
-    /// </summary>
-    /// <remarks>
-    /// A retry's first raise jumps here rather than stepping through 10% and 20%, both of which live around
-    /// the stall boundary where a fan sputters instead of holding. Comfortably above the measured ~12% stall
-    /// for the same reason the pre-step hold sits at 22%: the fan must be genuinely turning throughout.
-    /// </remarks>
-    public const double SiblingSpinFloorDutyPercent = 25d;
+    public const double SiblingHoldDutyPercent = 40d;
 
     /// <summary>How close to the safety ceiling a measurement may get before it is retried, in °C.</summary>
     /// <remarks>
     /// <para>
-    /// Retry rather than abort: parking the siblings near-dead maximises the measured swing, but on a hot
+    /// Retry rather than abort: parking the siblings low maximises the measured swing, but on a hot
     /// chassis it can put a settle's own asymptote at the ceiling — a run that then ABORTED at 95 °C every
     /// time, which one machine did. At this margin the attempt stops, the load is dropped, every fan runs
     /// at full until the machine cools, and the measurement runs again with the siblings a step higher —
@@ -694,9 +687,7 @@ public sealed class FanCalibrationRunner : IDisposable
                 // The first raise jumps clear across the sputter band to a duty the fan can actually hold;
                 // every raise after that steps normally. 10% or 20% would leave the sibling stalling and
                 // restarting mid-attempt — the exact noise pinning it exists to remove.
-                _siblingHoldDutyPercent = _siblingHoldDutyPercent < SiblingSpinFloorDutyPercent
-                    ? SiblingSpinFloorDutyPercent
-                    : Math.Min(MaximumSiblingHoldDutyPercent, _siblingHoldDutyPercent + SiblingRetryStepPercent);
+                _siblingHoldDutyPercent = Math.Min(MaximumSiblingHoldDutyPercent, _siblingHoldDutyPercent + SiblingRetryStepPercent);
 
                 owner._logger.LogInformation(
                     "Calibration for fan {FanIndex}: cooling down, then retrying with the sibling hold raised to {Duty}%.",
