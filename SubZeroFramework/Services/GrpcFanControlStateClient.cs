@@ -235,6 +235,10 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
                 TargetTemperatureCelsius = message.TargetTemperatureCelsius,
                 SafetyFloorEnabled = message.SafetyFloorEnabled,
                 SafetyFloorPercent = message.SafetyFloorPercent,
+                // 0 is an older service's unset proto default, not a chosen pace.
+                LambdaSeconds = message.LambdaSeconds > 0d
+                    ? message.LambdaSeconds
+                    : Services.Control.AdaptivePidTuning.DefaultLambdaSeconds,
             };
 
     private static AdaptiveControlDecision? ParseAdaptiveControl(AdaptiveControlMessage? message)

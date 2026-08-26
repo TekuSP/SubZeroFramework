@@ -26,5 +26,5 @@ public static class FanCalibrationLimits
     /// A calibration is the one operation that deliberately pushes temperature up, so it is also the one that
     /// must be most willing to give up.
     /// </remarks>
-    public const double SafetyCeilingCelsius = 95d;
+    public const double SafetyCeilingCelsius = 98d;
 }

@@ -600,6 +600,12 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         {
             FanIndex = fanIndex,
             Mode = state.Mode,
+            // The live top-level driving fields — for a curve fan they mirror the active slot, but for an
+            // ADAPTIVE fan they are the only record of which sensors the loop holds. Leaving them out once
+            // meant a service restart restored Mode=Adaptive with zero sensors, which the worker cannot
+            // drive — the user applied Adaptive and came back to a fan behaving as Auto.
+            DrivingTemperatureAggregation = state.DrivingTemperatureAggregation,
+            DrivingSensorIndices = [.. state.DrivingSensorIndices],
             ActiveCurveSlot = state.ActiveCurveSlot,
             CurveProfiles =
             [
@@ -623,6 +629,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                 TargetTemperatureCelsius = state.AdaptiveSettings.TargetTemperatureCelsius,
                 SafetyFloorEnabled = state.AdaptiveSettings.SafetyFloorEnabled,
                 SafetyFloorPercent = state.AdaptiveSettings.SafetyFloorPercent,
+                LambdaSeconds = state.AdaptiveSettings.LambdaSeconds,
             },
             AdaptiveLearning = state.AdaptiveLearning.HasLearned
                 ? new AdaptiveLearningOptions
@@ -876,9 +883,19 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
     private static FanControlStateSnapshot ApplyConfiguredState(FanControlStateSnapshot state, FanControlStateOptions configuredState)
     {
+        // Adaptive persisted without sensors (a config written before the sensors were persisted) cannot be
+        // driven — the worker would sit at NotDriven forever while the UI claimed the loop was armed. Auto
+        // is the honest restore: the fan is under firmware control either way, and re-applying Adaptive
+        // re-picks the sensors.
+        var mode = configuredState.Mode == FanControlMode.Adaptive && configuredState.DrivingSensorIndices.Length == 0
+            ? FanControlMode.Auto
+            : configuredState.Mode;
+
         var next = state with
         {
-            Mode = configuredState.Mode,
+            Mode = mode,
+            DrivingTemperatureAggregation = configuredState.DrivingTemperatureAggregation,
+            DrivingSensorIndices = [.. configuredState.DrivingSensorIndices],
             ActiveCurveSlot = Math.Clamp(configuredState.ActiveCurveSlot, 0, MaxCurveProfileSlots - 1),
             CurveProfiles = BuildProfilesFromOptions(configuredState),
             LinkedLeaderIndex = configuredState.LinkedLeaderIndex,
@@ -889,6 +906,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     TargetTemperatureCelsius = adaptiveSettings.TargetTemperatureCelsius,
                     SafetyFloorEnabled = adaptiveSettings.SafetyFloorEnabled,
                     SafetyFloorPercent = adaptiveSettings.SafetyFloorPercent,
+                    LambdaSeconds = adaptiveSettings.LambdaSeconds,
                 }.Sanitized()
                 : AdaptiveFanSettings.Default,
             AdaptiveLearning = configuredState.AdaptiveLearning is { FeedForwardDutyPerWatt: not null } learning

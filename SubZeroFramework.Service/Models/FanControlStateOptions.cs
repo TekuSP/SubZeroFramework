@@ -79,6 +79,9 @@ public sealed record AdaptiveFanSettingsOptions
     public bool SafetyFloorEnabled { get; init; }
 
     public double SafetyFloorPercent { get; init; }
+
+    /// <summary>λ, the response pace. Defaulted so configs written before it existed keep loading.</summary>
+    public double LambdaSeconds { get; init; } = SubZeroFramework.Services.Control.AdaptivePidTuning.DefaultLambdaSeconds;
 }
 
 /// <summary>Persisted form of <see cref="AdaptiveLearningState"/>.</summary>

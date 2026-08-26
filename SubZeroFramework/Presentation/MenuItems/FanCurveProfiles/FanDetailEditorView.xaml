@@ -624,7 +624,7 @@
                             VerticalAlignment="Center"
                             FontSize="13"
                             Foreground="{StaticResource BrandPrimaryBrush}"
-                            Text="Staged changes — Preview them live, then Apply from the fan list to commit." />
+                            Text="Staged changes — Preview them live, or Apply to commit." />
                     </StackPanel>
                     <StackPanel
                         Grid.Column="0"
@@ -663,25 +663,69 @@
                                 <TextBlock Text="Preview" />
                             </StackPanel>
                         </Button>
+                        <Button MinWidth="90" Command="{x:Bind ViewModel.ApplyCustomCurveCommand, Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <material:MaterialIcon
+                                    Width="14"
+                                    Height="14"
+                                    VerticalAlignment="Center"
+                                    Kind="Check" />
+                                <TextBlock Text="Apply" />
+                            </StackPanel>
+                            <Button.Resources>
+                                <SolidColorBrush x:Key="ButtonBackground" Color="#FF0078D7" />
+                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FF1184E0" />
+                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FF006CC1" />
+                                <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#FF2A2D2D" />
+                                <SolidColorBrush x:Key="ButtonForeground" Color="White" />
+                                <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White" />
+                                <SolidColorBrush x:Key="ButtonForegroundPressed" Color="White" />
+                                <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#59FFFFFF" />
+                            </Button.Resources>
+                        </Button>
                     </StackPanel>
-                    <Button
+                    <StackPanel
                         Grid.Column="1"
-                        MinWidth="90"
-                        Background="#FFC42B1C"
-                        BorderBrush="#FFC42B1C"
-                        Command="{x:Bind ViewModel.RevertToAppliedCommand, Mode=OneWay}"
-                        Foreground="White"
+                        Orientation="Horizontal"
+                        Spacing="8"
                         Visibility="{x:Bind ViewModel.TestingVisibility, Mode=OneWay}">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <material:MaterialIcon
-                                Width="14"
-                                Height="14"
-                                VerticalAlignment="Center"
-                                Foreground="White"
-                                Kind="Stop" />
-                            <TextBlock Text="Stop preview" />
-                        </StackPanel>
-                    </Button>
+                        <Button
+                            MinWidth="90"
+                            Background="#FFC42B1C"
+                            BorderBrush="#FFC42B1C"
+                            Command="{x:Bind ViewModel.RevertToAppliedCommand, Mode=OneWay}"
+                            Foreground="White">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <material:MaterialIcon
+                                    Width="14"
+                                    Height="14"
+                                    VerticalAlignment="Center"
+                                    Foreground="White"
+                                    Kind="Stop" />
+                                <TextBlock Text="Stop preview" />
+                            </StackPanel>
+                        </Button>
+                        <Button MinWidth="90" Command="{x:Bind ViewModel.ApplyCustomCurveCommand, Mode=OneWay}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <material:MaterialIcon
+                                    Width="14"
+                                    Height="14"
+                                    VerticalAlignment="Center"
+                                    Kind="Check" />
+                                <TextBlock Text="Apply" />
+                            </StackPanel>
+                            <Button.Resources>
+                                <SolidColorBrush x:Key="ButtonBackground" Color="#FF0078D7" />
+                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FF1184E0" />
+                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FF006CC1" />
+                                <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#FF2A2D2D" />
+                                <SolidColorBrush x:Key="ButtonForeground" Color="White" />
+                                <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White" />
+                                <SolidColorBrush x:Key="ButtonForegroundPressed" Color="White" />
+                                <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#59FFFFFF" />
+                            </Button.Resources>
+                        </Button>
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>

@@ -260,11 +260,12 @@
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
 
-                <!--  Thermal snapshot | Power  -->
+                <!--  Thermal snapshot | Power. The Power card wraps a fixed 160px ring, so it gets a
+                      fixed column and the sensor bars take every remaining pixel.  -->
                 <Grid ColumnSpacing="14">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="3*" />
-                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="240" />
                     </Grid.ColumnDefinitions>
 
                     <Border
@@ -366,72 +367,24 @@
                                     Text="Power" />
                             </StackPanel>
 
-                            <Grid
+                            <!--  The whole power story lives inside the ring: charge figure, state dot +
+                                  text, and the time-to-full fine print in the centre; the adapter wattage
+                                  as a pill seated in the arc's bottom mouth, so incoming power reads as
+                                  feeding the ring through its opening.  -->
+                            <powerControls:BatteryChargeRingView
                                 Grid.Row="1"
+                                Width="160"
+                                Height="160"
+                                HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
-                                ColumnSpacing="18">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <powerControls:BatteryChargeRingView
-                                    Width="160"
-                                    Height="160"
-                                    ChargeFraction="{x:Bind ViewModel.BatteryChargeFraction, Mode=OneWay}"
-                                    ChargeText="{x:Bind ViewModel.BatteryChargePercent, Mode=OneWay, Converter={StaticResource UnitFormatValue}, ConverterParameter=Ratio, FallbackValue=--}"
-                                    ChargeUnitText="{x:Bind ViewModel.BatteryChargeUnitSuffix, Mode=OneWay}"
-                                    IsAnimating="{x:Bind ViewModel.IsBatteryCharging, Mode=OneWay}" />
-                                <StackPanel
-                                    Grid.Column="1"
-                                    VerticalAlignment="Center"
-                                    Spacing="8">
-                                    <StackPanel Orientation="Horizontal" Spacing="7">
-                                        <Ellipse
-                                            Width="8"
-                                            Height="8"
-                                            VerticalAlignment="Center"
-                                            Fill="{StaticResource StatusSuccessBrush}" />
-                                        <TextBlock
-                                            VerticalAlignment="Center"
-                                            FontSize="13.5"
-                                            FontWeight="SemiBold"
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind ViewModel.ChargingStateText, Mode=OneWay}" />
-                                    </StackPanel>
-                                    <Grid ColumnSpacing="10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock
-                                            FontSize="12.5"
-                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                            Text="Adapter" />
-                                        <TextBlock
-                                            Grid.Column="1"
-                                            FontSize="12.5"
-                                            FontWeight="SemiBold"
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind ViewModel.AdapterInputWatts, Mode=OneWay, Converter={StaticResource UnitFormatDash}, ConverterParameter=Power:0}" />
-                                    </Grid>
-                                    <Grid ColumnSpacing="10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock
-                                            FontSize="12.5"
-                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                            Text="Full in" />
-                                        <TextBlock
-                                            Grid.Column="1"
-                                            FontSize="12.5"
-                                            FontWeight="SemiBold"
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind ViewModel.FullInDisplay, Mode=OneWay}" />
-                                    </Grid>
-                                </StackPanel>
-                            </Grid>
+                                BadgeText="{x:Bind ViewModel.AdapterBadgeText, Mode=OneWay}"
+                                ChargeFraction="{x:Bind ViewModel.BatteryChargeFraction, Mode=OneWay}"
+                                ChargeText="{x:Bind ViewModel.BatteryChargePercent, Mode=OneWay, Converter={StaticResource UnitFormatValue}, ConverterParameter=Ratio, FallbackValue=--}"
+                                ChargeUnitText="{x:Bind ViewModel.BatteryChargeUnitSuffix, Mode=OneWay}"
+                                DetailText="{x:Bind ViewModel.FullInDetailText, Mode=OneWay}"
+                                IsAnimating="{x:Bind ViewModel.IsBatteryCharging, Mode=OneWay}"
+                                StatusDotBrush="{x:Bind ViewModel.ChargeStatusDotBrush, Mode=OneWay}"
+                                StatusText="{x:Bind ViewModel.ChargingStateText, Mode=OneWay}" />
                         </Grid>
                     </Border>
                 </Grid>

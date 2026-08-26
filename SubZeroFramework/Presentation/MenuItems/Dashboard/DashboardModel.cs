@@ -11,12 +11,15 @@ using FrameworkDotnet.Enums;
 
 using Material.Icons;
 
+using Microsoft.UI.Xaml.Media;
+
 using SubZeroFramework.Controls.Dashboard.Models;
 using SubZeroFramework.Controls.Fans.Models;
 using SubZeroFramework.Controls.Thermal.Models;
 using SubZeroFramework.Models;
 using SubZeroFramework.Services.Units;
 using SubZeroFramework.Services;
+using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 
@@ -356,6 +359,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
         UpdateAverageFanSpeed();
         UpdateThermalSummary();
         UpdatePowerSummary();
+        RefreshAdapterBadge();
         BatteryChargeUnitSuffix = _unitFormattingService.RatioUnitSuffix;
 
         // The canonical readings on this page are formatted by UnitFormatConverter at render time, so they
@@ -633,12 +637,23 @@ public partial class DashboardModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ChargingStateText { get; set; } = "Waiting for battery";
 
-    /// <summary>Negotiated adapter input, canonical watts; null when no adapter is attached ("—" via UnitFormatDash).</summary>
+    /// <summary>State colour for the dot beside <see cref="ChargingStateText"/> inside the ring — green
+    /// charging, amber discharging, neutral otherwise. Assigned at runtime on the UI thread (never in a
+    /// field initializer) like the Power page's state brushes.</summary>
+    [ObservableProperty]
+    public partial Brush? ChargeStatusDotBrush { get; set; }
+
+    /// <summary>Negotiated adapter input, canonical watts; null when no adapter is attached.</summary>
     [ObservableProperty]
     public partial double? AdapterInputWatts { get; set; }
 
+    /// <summary>Adapter figure for the pill in the ring's bottom mouth ("240 W"); empty hides the pill.</summary>
     [ObservableProperty]
-    public partial string FullInDisplay { get; set; } = "—";
+    public partial string AdapterBadgeText { get; set; } = string.Empty;
+
+    /// <summary>Fine print under the state line ("full in ~21 min"); empty when there is no estimate.</summary>
+    [ObservableProperty]
+    public partial string FullInDetailText { get; set; } = string.Empty;
 
     private void UpdatePowerSummary()
     {
@@ -650,7 +665,8 @@ public partial class DashboardModel : ObservableObject, IDisposable
             BatteryChargePercent = null;
             IsBatteryCharging = false;
             ChargingStateText = "No battery detected";
-            FullInDisplay = "—";
+            ChargeStatusDotBrush = AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextSecondaryColor);
+            FullInDetailText = string.Empty;
             return;
         }
 
@@ -667,15 +683,22 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 : "Idle",
         };
 
+        ChargeStatusDotBrush = battery.BatteryState switch
+        {
+            FrameworkBatteryState.Charging => AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor),
+            FrameworkBatteryState.Discharging => AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor),
+            _ => AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextSecondaryColor),
+        };
+
         // Time-to-full: remaining capacity gap over the live charge current.
-        FullInDisplay = IsBatteryCharging
+        FullInDetailText = IsBatteryCharging
             && battery.LastFullChargeCapacityAmpereHours is double fullCapacity
             && battery.RemainingCapacityAmpereHours is double remaining
             && battery.Amperage is double amps
             && Math.Abs(amps) > 0.05d
             && fullCapacity > remaining
-                ? $"~{Math.Round((fullCapacity - remaining) / Math.Abs(amps) * 60d):0} min"
-                : "—";
+                ? $"full in ~{Math.Round((fullCapacity - remaining) / Math.Abs(amps) * 60d):0} min"
+                : string.Empty;
     }
 
     private void UpdateAdapterInput(IReadOnlyList<PowerDeliveryPortStatus> ports)
@@ -684,7 +707,15 @@ public partial class DashboardModel : ObservableObject, IDisposable
         var watts = activePort is null ? 0d : activePort.VoltageVolts * activePort.CurrentAmperes;
 
         AdapterInputWatts = watts > 0d ? watts : null;
+        RefreshAdapterBadge();
     }
+
+    // Composed here (not converter-formatted in XAML) so the pill can collapse entirely when no adapter is
+    // attached — a converter would have to render a placeholder. Re-run on unit-preference changes too.
+    private void RefreshAdapterBadge() =>
+        AdapterBadgeText = AdapterInputWatts is double adapterWatts
+            ? _unitFormattingService.FormatPowerWatts(adapterWatts, decimals: 0)
+            : string.Empty;
 
     public void Dispose()
     {

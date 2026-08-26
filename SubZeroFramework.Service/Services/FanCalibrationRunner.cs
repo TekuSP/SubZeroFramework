@@ -821,6 +821,20 @@ public sealed class FanCalibrationRunner : IDisposable
                 }
 
                 _cachedMinimumSpin = minimumSpin;
+
+                // The walk ends on a chassis that just soaked for a minute with EVERY fan near-dead, and
+                // the load phase would start from that stored heat — riding at the ceiling before the
+                // measurement contributed a single degree of its own. Flush it first with every fan at
+                // full; on a machine that stayed cool the loop exits on its first sample, so this costs
+                // nothing when there is nothing to flush.
+                if (await CoolDownAtFullFanAsync(cancellationToken).ConfigureAwait(false) is { } walkCooldownAbort)
+                {
+                    return walkCooldownAbort;
+                }
+
+                // The cooldown ran the siblings at full; put them back on their measurement hold before
+                // anything warms up again.
+                await PinSiblingFansAsync(cancellationToken).ConfigureAwait(false);
             }
 
             // 3 — load, entered under FULL fan rather than at the low hold. The measured step still goes

@@ -499,6 +499,7 @@ internal static class TelemetryGrpcMapper
             TargetTemperatureCelsius = state.AdaptiveSettings.TargetTemperatureCelsius,
             SafetyFloorEnabled = state.AdaptiveSettings.SafetyFloorEnabled,
             SafetyFloorPercent = state.AdaptiveSettings.SafetyFloorPercent,
+            LambdaSeconds = state.AdaptiveSettings.LambdaSeconds,
         };
 
         if (state.AdaptiveLearning.HasLearned)

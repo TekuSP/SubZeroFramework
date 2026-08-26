@@ -257,21 +257,33 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     /// are chosen once, in the editor, and the test simply uses them.
     /// </remarks>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(DrivingSensorsText))]
+    [NotifyPropertyChangedFor(nameof(DrivingSensorChips))]
+    [NotifyPropertyChangedFor(nameof(DrivingSensorChipsVisibility))]
+    [NotifyPropertyChangedFor(nameof(DrivingSensorFallbackVisibility))]
     public partial IReadOnlyList<int> DrivingSensorIndices { get; private set; } = [];
 
     /// <summary>
-    /// The held sensors as names, for READING — deliberately not a picker.
+    /// The held sensors as one single-line chip label each ("CPU · Temp 2"), for READING — deliberately
+    /// not a picker.
     /// </summary>
     /// <remarks>
     /// The Adaptive editor states what the loop watches without offering to change it here: the sensors are
     /// a property of what this fan physically cools, chosen in the calibration wizard (or inherited from the
-    /// fan's curve), and a fitted model describes exactly that set.
+    /// fan's curve), and a fitted model describes exactly that set. Sensor names arrive as two lines — index
+    /// above location — which joined into a sentence rendered as a wall of wrapped text; each chip takes one
+    /// line, location first because it is the half that says what the sensor is.
     /// </remarks>
-    public string DrivingSensorsText => DrivingSensorIndices.Count == 0
-        ? "Not chosen yet — the calibration wizard sets them"
-        : string.Join(" · ", DrivingSensorIndices.Select(index =>
-            AvailableSensors.FirstOrDefault(sensor => sensor.SensorIndex == index)?.DisplayName ?? $"Temp {index}"));
+    public IReadOnlyList<string> DrivingSensorChips => [.. DrivingSensorIndices.Select(index =>
+    {
+        var name = AvailableSensors.FirstOrDefault(sensor => sensor.SensorIndex == index)?.DisplayName ?? $"Temp {index}";
+        var breakAt = name.IndexOf('\n');
+        return breakAt < 0 ? name.Trim() : $"{name[(breakAt + 1)..].Trim()} · {name[..breakAt].Trim()}";
+    })];
+
+    public Visibility DrivingSensorChipsVisibility => DrivingSensorIndices.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Shown in place of the chips until the wizard (or an inherited curve) picks the sensors.</summary>
+    public Visibility DrivingSensorFallbackVisibility => DrivingSensorIndices.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
 
     /// <summary>Opens the calibration wizard.</summary>
     public IRelayCommand RunCalibrationCommand { get; }

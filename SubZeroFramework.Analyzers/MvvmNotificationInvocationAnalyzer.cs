@@ -39,7 +39,11 @@ public sealed class MvvmNotificationInvocationAnalyzer : DiagnosticAnalyzer
         if (string.Equals(invocation.TargetMethod.Name, "OnPropertyChanged", StringComparison.Ordinal)
             && AnalyzerSymbolHelpers.DerivesFromOrEquals(context.ContainingSymbol?.ContainingType, context.Compilation, AnalyzerSymbolHelpers.ObservableObjectMetadataName))
         {
-            context.ReportDiagnostic(Diagnostic.Create(SubZeroDiagnosticDescriptors.AvoidDirectOnPropertyChanged, invocation.Syntax.GetLocation()));
+            if (!IsBroadcastRaise(invocation))
+            {
+                context.ReportDiagnostic(Diagnostic.Create(SubZeroDiagnosticDescriptors.AvoidDirectOnPropertyChanged, invocation.Syntax.GetLocation()));
+            }
+
             return;
         }
 
@@ -54,6 +58,29 @@ public sealed class MvvmNotificationInvocationAnalyzer : DiagnosticAnalyzer
         {
             context.ReportDiagnostic(Diagnostic.Create(SubZeroDiagnosticDescriptors.AvoidDirectNotifyCanExecuteChanged, invocation.Syntax.GetLocation()));
         }
+    }
+
+    /// <summary>
+    /// The one direct raise the rule permits: an explicit null / empty property name — WinUI's
+    /// "everything changed" broadcast, used to re-run every UnitFormatConverter binding after a
+    /// unit-preference change. No attribute can express it, because it names no property. An implicit
+    /// CallerMemberName fill-in arrives as a non-null constant, so a bare OnPropertyChanged() still trips
+    /// the rule as before.
+    /// </summary>
+    private static bool IsBroadcastRaise(IInvocationOperation invocation)
+    {
+        if (invocation.Arguments.Length != 1)
+        {
+            return false;
+        }
+
+        var argumentValue = invocation.Arguments[0].Value;
+        if (argumentValue is IConversionOperation conversion)
+        {
+            argumentValue = conversion.Operand;
+        }
+
+        return argumentValue.ConstantValue is { HasValue: true, Value: null or "" };
     }
 
     private static bool IsObservableObjectSetPropertyInvocation(IInvocationOperation invocation, OperationAnalysisContext context)

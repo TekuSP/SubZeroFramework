@@ -174,21 +174,57 @@
                         Text="{x:Bind ViewModel.TrackingText, Mode=OneWay}" />
                 </Grid>
 
-                <!--  Which sensors the loop watches — stated, not editable. The wizard owns the choice.  -->
-                <StackPanel Orientation="Horizontal" Spacing="7">
+                <!--  Which sensors the loop watches — stated as chips, not editable. The wizard owns the
+                      choice. One pill per sensor: the two-line sensor names joined into a sentence used to
+                      render as a wall of wrapped text.  -->
+                <Grid ColumnSpacing="7">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
                     <material:MaterialIcon
                         Width="13"
                         Height="13"
-                        VerticalAlignment="Center"
+                        Margin="0,4,0,0"
+                        VerticalAlignment="Top"
                         Foreground="{StaticResource TextTertiaryBrush}"
                         Kind="Thermometer" />
                     <TextBlock
+                        Grid.Column="1"
                         VerticalAlignment="Center"
                         FontSize="11.5"
                         Foreground="{StaticResource TextTertiaryBrush}"
-                        Text="{x:Bind ViewModel.DrivingSensorsText, Mode=OneWay}"
-                        TextTrimming="CharacterEllipsis" />
-                </StackPanel>
+                        Text="Not chosen yet — the calibration wizard sets them"
+                        TextTrimming="CharacterEllipsis"
+                        Visibility="{x:Bind ViewModel.DrivingSensorFallbackVisibility, Mode=OneWay}" />
+                    <ItemsControl
+                        Grid.Column="1"
+                        ItemsSource="{x:Bind ViewModel.DrivingSensorChips, Mode=OneWay}"
+                        Visibility="{x:Bind ViewModel.DrivingSensorChipsVisibility, Mode=OneWay}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <controls:AutoWrapPanel HorizontalSpacing="6" VerticalSpacing="6" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <Border
+                                    Height="22"
+                                    Padding="9,0"
+                                    Background="#14FFFFFF"
+                                    BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="11">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Text="{Binding}" />
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
 
                 <!--  Commanded vs actual vs the temperature it is holding.  -->
                 <Grid ColumnSpacing="20">

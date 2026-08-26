@@ -102,6 +102,53 @@ public class FanCalibrationRunnerTests
     }
 
     /// <summary>
+    /// The minimum-spin walk's stored heat is flushed — every fan at full — before the load phase, so the
+    /// measurement starts from a cool chassis instead of inheriting a walk that soaked toward the ceiling.
+    /// </summary>
+    /// <remarks>
+    /// Idle rise 50 puts the walk's end around 85–90 °C: above the cooldown exit line (83 °C), so the flush
+    /// genuinely has to cool, yet below the 95 °C retry arm, so NO retry fires. The sibling reaching full
+    /// duty on a clean single-attempt run is therefore possible only through the walk cooldown — and the
+    /// second hold pin only through the re-pin after it.
+    /// </remarks>
+    [Test]
+    public async Task RunAsync_CoolsDownWithEveryFan_BetweenTheWalkAndTheLoadPhase()
+    {
+        using var plant = new SimulatedThermalPlant { IdleRiseCelsius = 50d };
+        using var harness = new Harness(plant);
+
+        const int siblingIndex = FanIndex + 1;
+        plant.FanStateSource.AddOrUpdate(new FanStateSnapshot
+        {
+            FanIndex = siblingIndex,
+            DisplayName = "Sibling",
+            CoolingRole = FanCoolingRole.Cpu,
+            FanState = default,
+            ObservedAt = DateTimeOffset.UtcNow,
+            IsAvailable = true,
+        });
+
+        var result = await harness.RunAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True, "a hot walk on an otherwise healthy machine must still calibrate");
+            Assert.That(
+                plant.SetFanDutyCalls,
+                Does.Not.Contain((siblingIndex, FanCalibrationRunner.SiblingSpinFloorDutyPercent)),
+                "a retry escalated the sibling — the walk heat leaked past the flush into the load phase");
+            Assert.That(
+                plant.SetFanDutyCalls,
+                Does.Contain((siblingIndex, 100d)),
+                "the sibling never ran at full, so the walk's stored heat was never flushed before the load phase");
+            Assert.That(
+                plant.SetFanDutyCalls.Count(call => call == (siblingIndex, FanCalibrationRunner.SiblingHoldDutyPercent)),
+                Is.GreaterThanOrEqualTo(2),
+                "the sibling was not re-pinned to its hold after the flush, so the measurement ran with it at full");
+        });
+    }
+
+    /// <summary>
     /// A machine whose loaded hold rides the retry margin gets retried with more sibling airflow — and even
     /// when that never helps, the run converges and completes rather than aborting or looping.
     /// </summary>
@@ -114,9 +161,9 @@ public class FanCalibrationRunnerTests
     [Test]
     public async Task RunAsync_RetriesWithMoreSiblingAirflow_WhenTheHoldRidesTheCeilingMargin()
     {
-        // Hold asymptote = ambient 40 + rise − gain×22 ≈ 93.5 °C: sustained past the 92 °C retry line long
-        // enough to outlast the persistence, below the 95 °C abort. The warm phase at full fan is unaffected.
-        using var plant = new SimulatedThermalPlant { LoadRiseCelsius = 62.7d };
+        // Hold asymptote = ambient 40 + rise − gain×22 ≈ 96.5 °C: sustained past the 95 °C retry line long
+        // enough to outlast the persistence, below the 98 °C abort. The warm phase at full fan is unaffected.
+        using var plant = new SimulatedThermalPlant { LoadRiseCelsius = 65.7d };
         using var harness = new Harness(plant);
 
         const int siblingIndex = FanIndex + 1;

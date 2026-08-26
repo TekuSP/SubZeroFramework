@@ -46,6 +46,7 @@ public sealed partial class FanCalibrationSensorChoice : ObservableObject, IDisp
         _source = source;
         IsSelected = isSelected;
 
+        RefreshFromSource();
         _source.PropertyChanged += OnSourceChanged;
     }
 
@@ -61,7 +62,11 @@ public sealed partial class FanCalibrationSensorChoice : ObservableObject, IDisp
 
     public int SensorIndex => _source.SensorIndex;
 
-    public string DisplayName => _source.DisplayName;
+    // Mirrored from the source chip as STORED properties (assigned in RefreshFromSource) rather than
+    // pass-through getters, so a change on the chip raises exactly the mirrors whose values moved.
+
+    [ObservableProperty]
+    public partial string DisplayName { get; private set; } = string.Empty;
 
     /// <summary>
     /// The sensor's index label — "Temp 3" — which the chip shows quietly.
@@ -72,14 +77,18 @@ public sealed partial class FanCalibrationSensorChoice : ObservableObject, IDisp
     /// distinguishes two sensors with the same location and is otherwise noise, while the location is the
     /// only part that says what the sensor actually is.
     /// </remarks>
-    public string IndexLabel => SplitName().Index;
+    [ObservableProperty]
+    public partial string IndexLabel { get; private set; } = string.Empty;
 
     /// <summary>Where the sensor measures — "APU / SoC" — which is the part worth reading.</summary>
-    public string LocationLabel => SplitName().Location;
+    [ObservableProperty]
+    public partial string LocationLabel { get; private set; } = string.Empty;
 
-    public bool HasIndexLabel => IndexLabel.Length > 0;
+    [ObservableProperty]
+    public partial bool HasIndexLabel { get; private set; }
 
-    public string TemperatureDisplay => _source.TemperatureDisplay;
+    [ObservableProperty]
+    public partial string TemperatureDisplay { get; private set; } = string.Empty;
 
     private (string Index, string Location) SplitName()
     {
@@ -92,12 +101,15 @@ public sealed partial class FanCalibrationSensorChoice : ObservableObject, IDisp
             : (name[..breakAt].Trim(), name[(breakAt + 1)..].Trim());
     }
 
-    public double? CurrentTemperatureCelsius => _source.CurrentTemperatureCelsius;
+    [ObservableProperty]
+    public partial double? CurrentTemperatureCelsius { get; private set; }
 
     /// <summary>False for a sensor that is not reporting, which cannot be measured against.</summary>
-    public bool IsUsable => _source.IsUsable;
+    [ObservableProperty]
+    public partial bool IsUsable { get; private set; }
 
-    public double ChipOpacity => _source.ChipOpacity;
+    [ObservableProperty]
+    public partial double ChipOpacity { get; private set; } = 1d;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CheckIconKind))]
@@ -125,15 +137,21 @@ public sealed partial class FanCalibrationSensorChoice : ObservableObject, IDisp
                 or nameof(SensorChipModel.DisplayName)
                 or nameof(SensorChipModel.State))
         {
-            OnPropertyChanged(nameof(TemperatureDisplay));
-            OnPropertyChanged(nameof(CurrentTemperatureCelsius));
-            OnPropertyChanged(nameof(DisplayName));
-            OnPropertyChanged(nameof(IndexLabel));
-            OnPropertyChanged(nameof(LocationLabel));
-            OnPropertyChanged(nameof(HasIndexLabel));
-            OnPropertyChanged(nameof(IsUsable));
-            OnPropertyChanged(nameof(ChipOpacity));
+            RefreshFromSource();
         }
+    }
+
+    private void RefreshFromSource()
+    {
+        DisplayName = _source.DisplayName;
+        var (index, location) = SplitName();
+        IndexLabel = index;
+        LocationLabel = location;
+        HasIndexLabel = index.Length > 0;
+        TemperatureDisplay = _source.TemperatureDisplay;
+        CurrentTemperatureCelsius = _source.CurrentTemperatureCelsius;
+        IsUsable = _source.IsUsable;
+        ChipOpacity = _source.ChipOpacity;
     }
 }
 

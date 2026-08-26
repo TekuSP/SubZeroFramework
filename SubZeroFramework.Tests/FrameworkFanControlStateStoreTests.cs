@@ -124,6 +124,98 @@ public class FrameworkFanControlStateStoreTests
         Assert.That(store.GetState(1)!.Mode, Is.EqualTo(FanControlMode.Max));
     }
 
+    /// <summary>
+    /// An applied Adaptive survives a service restart: the persisted options carry the driving sensors the
+    /// loop holds, and a store seeded from them restores the mode WITH those sensors.
+    /// </summary>
+    /// <remarks>
+    /// Regression: the options carried the mode but never the top-level driving sensors, so a restart
+    /// restored "Adaptive with zero sensors" — a state the worker cannot drive. The user applied Adaptive,
+    /// restarted, and found the fan behaving as Auto.
+    /// </remarks>
+    [Test]
+    public void BuildFanControlOptions_ThenSeedANewStore_KeepsAdaptiveAndItsSensors()
+    {
+        var provider = new StubFrameworkDataProvider();
+        using var store = new FrameworkFanControlStateStore(
+            provider,
+            new FrameworkFanControlSafetyTracker(),
+            new TestOptionsMonitor<FrameworkServiceOptions>(new FrameworkServiceOptions()),
+            NullLogger<FrameworkFanControlStateStore>.Instance);
+
+        provider.FanStateSource.AddOrUpdate(NewFanState(1, DateTimeOffset.UtcNow));
+        store.SetCalibration(1, MeasuredCalibration());
+
+        var armed = store.SetAdaptiveMode(1, [2, 3], TemperatureAggregationMode.Maximum, new AdaptiveFanSettings
+        {
+            TargetTemperatureCelsius = 78d,
+            SafetyFloorEnabled = true,
+            SafetyFloorPercent = 30d,
+            LambdaSeconds = 12d, // inside λ's [2, 16] valid range, away from the default 8 so a reset is visible
+        });
+        Assert.That(armed.Succeeded, Is.True, armed.Message);
+
+        var options = store.BuildFanControlOptions(1);
+        Assert.That(options, Is.Not.Null);
+        Assert.That(options!.Mode, Is.EqualTo(FanControlMode.Adaptive));
+        Assert.That(options.DrivingSensorIndices, Is.EquivalentTo(new[] { 2, 3 }), "the sensors never reached the persisted options");
+
+        // "Restart": a fresh store seeded from exactly what the first one persisted.
+        var restartedProvider = new StubFrameworkDataProvider();
+        using var restartedStore = new FrameworkFanControlStateStore(
+            restartedProvider,
+            new FrameworkFanControlSafetyTracker(),
+            new TestOptionsMonitor<FrameworkServiceOptions>(new FrameworkServiceOptions { FanControlStates = [options] }),
+            NullLogger<FrameworkFanControlStateStore>.Instance);
+        restartedProvider.FanStateSource.AddOrUpdate(NewFanState(1, DateTimeOffset.UtcNow));
+
+        var restored = restartedStore.GetState(1);
+        Assert.That(restored, Is.Not.Null);
+        Assert.Multiple(() =>
+        {
+            Assert.That(restored!.Mode, Is.EqualTo(FanControlMode.Adaptive), "the applied mode did not survive the restart");
+            Assert.That(restored.DrivingSensorIndices, Is.EquivalentTo(new[] { 2, 3 }), "Adaptive came back without the sensors the loop holds — the worker cannot drive that");
+            Assert.That(restored.AdaptiveSettings.TargetTemperatureCelsius, Is.EqualTo(78d), "the target temperature was lost");
+            Assert.That(restored.AdaptiveSettings.SafetyFloorEnabled, Is.True, "the safety floor toggle was lost");
+            Assert.That(restored.AdaptiveSettings.SafetyFloorPercent, Is.EqualTo(30d), "the safety floor level was lost");
+            Assert.That(restored.AdaptiveSettings.LambdaSeconds, Is.EqualTo(12d), "λ (the Quick↔Calm response pace) was lost");
+        });
+    }
+
+    /// <summary>
+    /// A config persisted before the sensors were saved restores as Auto, not as an undrivable Adaptive.
+    /// </summary>
+    [Test]
+    public void SeedingAdaptiveWithoutSensors_RestoresAuto()
+    {
+        var provider = new StubFrameworkDataProvider();
+        using var store = new FrameworkFanControlStateStore(
+            provider,
+            new FrameworkFanControlSafetyTracker(),
+            new TestOptionsMonitor<FrameworkServiceOptions>(new FrameworkServiceOptions
+            {
+                FanControlStates = [new FanControlStateOptions { FanIndex = 1, Mode = FanControlMode.Adaptive }],
+            }),
+            NullLogger<FrameworkFanControlStateStore>.Instance);
+        provider.FanStateSource.AddOrUpdate(NewFanState(1, DateTimeOffset.UtcNow));
+
+        Assert.That(store.GetState(1)!.Mode, Is.EqualTo(FanControlMode.Auto), "an Adaptive nothing can drive should restore as honest Auto");
+    }
+
+    private static FanCalibrationSnapshot MeasuredCalibration() => new()
+    {
+        State = FanCalibrationState.Ok,
+        CalibratedAt = DateTimeOffset.UtcNow,
+        ProcessGainCelsiusPerPercent = 0.42d,
+        TimeConstantSeconds = 26d,
+        DeadTimeSeconds = 4d,
+        MinimumSpinRpm = 1_180d,
+        MinimumSpinDutyPercent = 17d,
+        MaximumRpm = 7_000d,
+        FeedForwardDutyPerWatt = 0.9d,
+        TrackingMode = FanSpeedTrackingMode.Duty,
+    };
+
     private static FanStateSnapshot NewFanState(int fanIndex, DateTimeOffset observedAt) => new()
     {
         FanIndex = fanIndex,

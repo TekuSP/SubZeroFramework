@@ -591,6 +591,8 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             TargetTemperatureCelsius = message.TargetTemperatureCelsius,
             SafetyFloorEnabled = message.SafetyFloorEnabled,
             SafetyFloorPercent = message.SafetyFloorPercent,
+            // 0 is an older client's unset proto default, not a chosen pace — the valid range starts above it.
+            LambdaSeconds = message.LambdaSeconds > 0d ? message.LambdaSeconds : AdaptivePidTuning.DefaultLambdaSeconds,
         }.Sanitized();
 
     public override async Task HoldFanPreview(HoldFanPreviewRequest request, IServerStreamWriter<HoldFanPreviewReply> responseStream, ServerCallContext context)

@@ -304,6 +304,7 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
             TargetTemperatureCelsius = settings.TargetTemperatureCelsius,
             SafetyFloorEnabled = settings.SafetyFloorEnabled,
             SafetyFloorPercent = settings.SafetyFloorPercent,
+            LambdaSeconds = settings.LambdaSeconds,
         };
 
     public async Task<FrameworkFanControlResetCommandResult> ResetFanControlToFactoryDefaultsAsync(CancellationToken cancellationToken = default)

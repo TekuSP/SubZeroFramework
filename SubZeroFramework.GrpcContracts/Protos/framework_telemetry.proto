@@ -533,6 +533,9 @@ message AdaptiveFanSettingsMessage {
   double target_temperature_celsius = 1;
   bool safety_floor_enabled = 2;
   double safety_floor_percent = 3;
+  // λ, the response pace (Quick ↔ Calm). 0 (an older peer's unset default) means "use the default";
+  // the valid range starts above zero, so 0 is unambiguous.
+  double lambda_seconds = 4;
 }
 
 // A fan's learned thermal model. A state of NONE means the fan has never been calibrated and is not yet
