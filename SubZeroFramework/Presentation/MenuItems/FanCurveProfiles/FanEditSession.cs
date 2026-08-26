@@ -151,9 +151,25 @@ public sealed class FanEditSession
 
         try
         {
-            foreach (var fanIndex in group)
+            if (mode == FanControlMode.Adaptive)
             {
-                await _actuator.ActuateSimpleAsync(fanIndex, mode, StagedManualDuty, preview: true, cancellationToken).ConfigureAwait(true);
+                // Adaptive previews like every other mode, but arms through its own sensor-carrying command
+                // — the simple actuation path cannot express it and throws on purpose. Deliberately NOT the
+                // linked group: two fans in different positions have different thermal models and cannot
+                // share one closed loop. The staged settings stay staged; only Apply persists anything.
+                if (!await _parent.ArmAdaptiveModeAsync(fan.Snapshot.FanIndex, preview: true, cancellationToken: cancellationToken).ConfigureAwait(true))
+                {
+                    _parent.IsTesting = false;
+                    PreTestState = null;
+                    return;
+                }
+            }
+            else
+            {
+                foreach (var fanIndex in group)
+                {
+                    await _actuator.ActuateSimpleAsync(fanIndex, mode, StagedManualDuty, preview: true, cancellationToken).ConfigureAwait(true);
+                }
             }
 
             var detail = mode == FanControlMode.Manual ? $" at {_unitFormattingService.FormatRatio(StagedManualDuty, decimals: 0)} duty" : string.Empty;
@@ -188,7 +204,12 @@ public sealed class FanEditSession
                 // Arming Adaptive is not a simple actuation: it carries the driving sensors the loop holds,
                 // so it goes through its own command. Deliberately NOT applied to the linked group — two fans
                 // in different positions have different thermal models and cannot share one closed loop.
-                await _parent.ArmAdaptiveModeAsync(fan.Snapshot.FanIndex, cancellationToken).ConfigureAwait(true);
+                // A failed arm ENDS the apply: clearing the stage and reporting the mode switch anyway once
+                // let a rejected arm read as success while the fan quietly stayed where it was.
+                if (!await _parent.ArmAdaptiveModeAsync(fan.Snapshot.FanIndex, cancellationToken: cancellationToken).ConfigureAwait(true))
+                {
+                    return;
+                }
             }
             else
             {

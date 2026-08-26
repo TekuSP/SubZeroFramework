@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -219,8 +221,28 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         int fanIndex,
         IReadOnlyCollection<int> drivingSensorIndices,
         IProgress<FanCalibrationProgress> progress,
-        CancellationToken cancellationToken)
-        => Page.RunCalibrationAsync(fanIndex, drivingSensorIndices, progress, cancellationToken);
+        CancellationToken cancellationToken,
+        ThermalLoadTarget loadTarget = ThermalLoadTarget.None)
+        => Page.RunCalibrationAsync(fanIndex, drivingSensorIndices, progress, cancellationToken, loadTarget);
+
+    /// <summary>Every sensor the machine reports, for the wizard's picker.</summary>
+    public ReadOnlyObservableCollection<SensorChipModel> AvailableSensors => Page.AvailableSensors;
+
+    /// <summary>Whether a test could run right now, and what to say about it. Relayed from the page.</summary>
+    public bool IsOnBattery => Page.IsOnBattery;
+
+    /// <summary>The lowest pack's charge, relayed for the wizard's blocked-on-battery readout.</summary>
+    public double? BatteryChargePercent => Page.BatteryChargePercent;
+
+    /// <summary>Records the sensors a successful calibration measured, so arming Adaptive can reuse them.</summary>
+    public void RememberCalibratedSensors(int fanIndex, IReadOnlyCollection<int> sensorIndices)
+        => Page.RememberCalibratedSensors(fanIndex, sensorIndices);
+
+    public string PowerReadyText => Page.PowerReadyText;
+
+    public string PowerReadyBrushKey => Page.PowerReadyBrushKey;
+
+    public MaterialIconKind PowerReadyIconKind => Page.PowerReadyIconKind;
 
     /// <summary>What this fan cools, which decides the component a learning test loads.</summary>
     [ObservableProperty]
@@ -235,7 +257,21 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     /// are chosen once, in the editor, and the test simply uses them.
     /// </remarks>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DrivingSensorsText))]
     public partial IReadOnlyList<int> DrivingSensorIndices { get; private set; } = [];
+
+    /// <summary>
+    /// The held sensors as names, for READING — deliberately not a picker.
+    /// </summary>
+    /// <remarks>
+    /// The Adaptive editor states what the loop watches without offering to change it here: the sensors are
+    /// a property of what this fan physically cools, chosen in the calibration wizard (or inherited from the
+    /// fan's curve), and a fitted model describes exactly that set.
+    /// </remarks>
+    public string DrivingSensorsText => DrivingSensorIndices.Count == 0
+        ? "Not chosen yet — the calibration wizard sets them"
+        : string.Join(" · ", DrivingSensorIndices.Select(index =>
+            AvailableSensors.FirstOrDefault(sensor => sensor.SensorIndex == index)?.DisplayName ?? $"Temp {index}"));
 
     /// <summary>Opens the calibration wizard.</summary>
     public IRelayCommand RunCalibrationCommand { get; }
@@ -457,6 +493,88 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     public double MaximumTargetCelsius => AdaptiveFanSettings.MaximumTargetCelsius;
 
+    // ----- Unit-aware slider surface -----
+    //
+    // A slider editing a quantity has to present its Minimum, Maximum AND Value in the display unit, so a
+    // Fahrenheit user gets a Fahrenheit scale rather than a Celsius one wearing a °F label. It cannot be done
+    // with a converter: UnitValueConverter is one-way by design and throws on ConvertBack, because a TwoWay
+    // binding through it would write display units into canonical state. So the conversion lives here, and
+    // the slider binds these directly with no converter at all.
+
+    /// <summary>The staged target in the user's chosen unit (TwoWay slider value).</summary>
+    [ObservableProperty]
+    public partial double TargetDisplayValue { get; set; }
+
+    [ObservableProperty]
+    public partial double TargetDisplayMinimum { get; private set; }
+
+    [ObservableProperty]
+    public partial double TargetDisplayMaximum { get; private set; }
+
+    /// <summary>The staged floor in the user's chosen unit (TwoWay slider value).</summary>
+    /// <remarks>
+    /// A ratio, which every supported unit renders identically — but it goes through the service anyway, so
+    /// that adding a unit option later does not leave this one slider quietly untranslated.
+    /// </remarks>
+    [ObservableProperty]
+    public partial double SafetyFloorDisplayValue { get; set; }
+
+    [ObservableProperty]
+    public partial double SafetyFloorDisplayMaximum { get; private set; }
+
+    /// <summary>Guards the display → canonical → display round trip from chasing its own tail.</summary>
+    private bool _suppressUnitSync;
+
+    partial void OnTargetDisplayValueChanged(double value)
+    {
+        if (_suppressUnitSync)
+        {
+            return;
+        }
+
+        TargetDraftCelsius = Math.Clamp(
+            _unitFormattingService.ConvertTemperatureToCelsius(value),
+            AdaptiveFanSettings.MinimumTargetCelsius,
+            AdaptiveFanSettings.MaximumTargetCelsius);
+    }
+
+    partial void OnSafetyFloorDisplayValueChanged(double value)
+    {
+        if (_suppressUnitSync)
+        {
+            return;
+        }
+
+        SafetyFloorDraftPercent = Math.Clamp(
+            _unitFormattingService.ConvertRatioToPercent(value),
+            0d,
+            AdaptiveFanSettings.MaximumSafetyFloorPercent);
+    }
+
+    /// <summary>Re-projects the canonical staged values into the display unit.</summary>
+    /// <remarks>
+    /// Called both when the canonical value moves and when the user changes their unit preference — the
+    /// second is why the bounds are stored rather than computed: the whole scale has to move, not the label.
+    /// </remarks>
+    private void RefreshUnitAwareSliders()
+    {
+        _suppressUnitSync = true;
+
+        try
+        {
+            TargetDisplayMinimum = _unitFormattingService.ConvertTemperature(AdaptiveFanSettings.MinimumTargetCelsius);
+            TargetDisplayMaximum = _unitFormattingService.ConvertTemperature(AdaptiveFanSettings.MaximumTargetCelsius);
+            TargetDisplayValue = _unitFormattingService.ConvertTemperature(TargetDraftCelsius);
+
+            SafetyFloorDisplayMaximum = _unitFormattingService.ConvertRatio(AdaptiveFanSettings.MaximumSafetyFloorPercent);
+            SafetyFloorDisplayValue = _unitFormattingService.ConvertRatio(SafetyFloorDraftPercent);
+        }
+        finally
+        {
+            _suppressUnitSync = false;
+        }
+    }
+
     public double MinimumResponseSeconds => AdaptivePidTuning.MinimumLambdaSeconds;
 
     public double MaximumResponseSeconds => AdaptivePidTuning.MaximumLambdaSeconds;
@@ -475,13 +593,21 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     // Every draft change stages, so the page's Preview/Apply bar lights up exactly as it does for a curve
     // edit. Without these the sliders would move and then silently do nothing on Apply.
-    partial void OnTargetDraftCelsiusChanged(double value) => StageDraft();
+    partial void OnTargetDraftCelsiusChanged(double value)
+    {
+        RefreshUnitAwareSliders();
+        StageDraft();
+    }
 
     partial void OnResponseDraftSecondsChanged(double value) => StageDraft();
 
     partial void OnSafetyFloorDraftEnabledChanged(bool value) => StageDraft();
 
-    partial void OnSafetyFloorDraftPercentChanged(double value) => StageDraft();
+    partial void OnSafetyFloorDraftPercentChanged(double value)
+    {
+        RefreshUnitAwareSliders();
+        StageDraft();
+    }
 
     private void StageDraft()
     {
@@ -516,6 +642,10 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         base.RefreshDerivedState();
         FollowSelectedFan();
         RefreshAdaptiveState();
+
+        // Also re-projects the sliders, which is how a change of display unit moves the whole scale rather
+        // than just relabelling a Celsius one.
+        RefreshUnitAwareSliders();
     }
 
     /// <summary>

@@ -143,6 +143,12 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     {
         _applicationStoppingRegistration.Dispose();
         _subscriptions.Dispose();
+
+        // Released here too: the loop stopping is exactly when the GPU should be allowed back to sleep, and a
+        // lease outliving the worker that took it would keep it awake for the life of the service.
+        _gpuControlLease?.Dispose();
+        _gpuControlLease = null;
+
         base.Dispose();
     }
 
@@ -203,6 +209,7 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
         var controlTelemetry = ReadFreshControlTelemetry();
 
         DropControllersForFansNoLongerAdaptive();
+        RefreshGpuControlDemand();
 
         foreach (var state in _controlStates.Values)
         {
@@ -625,6 +632,50 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     /// same target from the same duty — the follower would be running the leader's answer to a different
     /// question. Grouping stays a curve concept until there is a per-fan reason to extend it.
     /// </remarks>
+    /// <summary>Held while at least one GPU-cooled fan is adaptive; null when none is.</summary>
+    private IDisposable? _gpuControlLease;
+
+    /// <summary>
+    /// Takes or releases the GPU control-telemetry lease to match what is actually being driven.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ANY adaptive fan, not only a GPU-cooled one. It is tempting to scope this to fans over the graphics
+    /// module, but <c>ThermalLoadPolicy</c> ranks a CPU+GPU sum above either reading alone whenever both are
+    /// present — so on a machine that reports both, a CPU fan's feed-forward includes GPU watts too. Scoping
+    /// the lease by cooling role would leave exactly that fan anticipating heat from a stale number.
+    /// </para>
+    /// <para>
+    /// Cheap despite the breadth, because the sleep gate sits underneath: a suspended GPU is never queried at
+    /// all, and a suspended GPU is contributing no heat for the feed-forward to miss.
+    /// </para>
+    /// <para>
+    /// Re-evaluated per pass rather than on a mode-change event, because the set of adaptive fans changes
+    /// through several paths — a mode command, a calibration taking a fan, a fan disappearing with its module
+    /// — and a lease that leaked on any one of them would pin the GPU awake indefinitely.
+    /// </para>
+    /// </remarks>
+    private void RefreshGpuControlDemand()
+    {
+        var wanted = _controlStates.Values.Any(static state =>
+            state.Mode == FanControlMode.Adaptive
+            && !state.DrivingSensorIndices.IsDefaultOrEmpty);
+
+        if (wanted == (_gpuControlLease is not null))
+        {
+            return;
+        }
+
+        if (wanted)
+        {
+            _gpuControlLease = _frameworkDataProvider.RequireGpuControlTelemetry();
+            return;
+        }
+
+        _gpuControlLease?.Dispose();
+        _gpuControlLease = null;
+    }
+
     private FanDutyDecision ResolveAdaptiveDuty(
         FanControlStateSnapshot state,
         FrameworkThermalSnapshot snapshot,

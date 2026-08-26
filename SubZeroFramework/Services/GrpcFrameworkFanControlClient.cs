@@ -1,6 +1,7 @@
 using Grpc.Core;
 
 using SubZeroFramework.GrpcContracts;
+using SubZeroFramework.Services.Control;
 
 namespace SubZeroFramework.Services;
 
@@ -238,6 +239,7 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         IReadOnlyCollection<int> drivingSensorIndices,
         TemperatureAggregationMode aggregation,
         AdaptiveFanSettings? settings,
+        bool preview = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(drivingSensorIndices);
@@ -247,6 +249,7 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         {
             FanIndex = fanIndex,
             DrivingTemperatureAggregation = MapAggregationMode(aggregation),
+            Preview = preview,
         };
 
         request.DrivingSensorIndices.AddRange(drivingSensorIndices);
@@ -340,12 +343,20 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         int fanIndex,
         IReadOnlyCollection<int> drivingSensorIndices,
         IProgress<FanCalibrationProgress>? progress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ThermalLoadTarget loadTarget = ThermalLoadTarget.None)
     {
         ArgumentNullException.ThrowIfNull(drivingSensorIndices);
 
         var request = new RunFanCalibrationRequest { FanIndex = fanIndex };
         request.DrivingSensorIndices.AddRange(drivingSensorIndices);
+
+        // Left unset when nothing was chosen, so the service falls back to the cooling role rather than
+        // being told to heat "None" — which it would honour, and then measure nothing.
+        if (loadTarget != ThermalLoadTarget.None)
+        {
+            request.LoadTarget = (int)loadTarget;
+        }
 
         // Deliberately NOT wrapped in the unary timeout source. A calibration runs for minutes by design, and
         // the shared deadline would kill it mid-test — leaving the service to abort a run the user was
@@ -354,21 +365,54 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
 
         FanCalibrationProgressReply? final = null;
 
-        while (await call.ResponseStream.MoveNext(cancellationToken).ConfigureAwait(false))
+        try
         {
-            var reply = call.ResponseStream.Current;
-
-            if (reply.IsComplete)
+            while (await call.ResponseStream.MoveNext(cancellationToken).ConfigureAwait(false))
             {
-                final = reply;
-                continue;
-            }
+                var reply = call.ResponseStream.Current;
 
-            progress?.Report(ParseCalibrationProgress(reply));
+                if (reply.IsComplete)
+                {
+                    final = reply;
+                    continue;
+                }
+
+                progress?.Report(ParseCalibrationProgress(reply));
+            }
+        }
+        catch (RpcException exception) when (
+            exception.StatusCode == StatusCode.Cancelled && cancellationToken.IsCancellationRequested)
+        {
+            // Cancelling the call does NOT make MoveNext return false — it makes it THROW. Letting that
+            // propagate is exactly the bug this guards: the caller's generic handler reported "lost contact
+            // with the service" for a button the user had just pressed. Swallowed so the token check below
+            // names the event truthfully.
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The same event surfaced as the BCL type — which of the two a cancelled read throws varies
+            // with where in the await the cancellation lands.
         }
 
         if (final is null)
         {
+            // Stopping deliberately ends the stream without a final message: cancelling the call aborts the
+            // HTTP/2 stream outright, so the service could not deliver one even though it writes it. That is
+            // not the same event as the connection dropping.
+            //
+            // The fan IS restored here: the service's handler observes the cancellation and its own finally
+            // hands the fan back, listener or no listener.
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return new FanCalibrationRunResult
+                {
+                    FanIndex = fanIndex,
+                    Succeeded = false,
+                    Failure = FanCalibrationFailure.Cancelled,
+                    FansRestored = true,
+                };
+            }
+
             // The stream ended without the final message — the service died, or the connection dropped. The
             // run is over either way, and the one thing the caller must not be told is that the fan was put
             // back, because nothing here observed that happening.
@@ -396,10 +440,18 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         DutyPercent = reply.HasDutyPercent ? reply.DutyPercent : null,
         SpeedRpm = reply.HasSpeedRpm ? reply.SpeedRpm : null,
         PackagePowerWatts = reply.HasPackagePowerWatts ? reply.PackagePowerWatts : null,
+        ClockMegahertz = reply.HasClockMegahertz ? reply.ClockMegahertz : null,
+        UtilizationPercent = reply.HasUtilizationPercent ? reply.UtilizationPercent : null,
         EstimatedRemaining = reply.HasEstimatedRemainingMilliseconds
             ? TimeSpan.FromMilliseconds(reply.EstimatedRemainingMilliseconds)
             : null,
         IsStepMarker = reply.IsStepMarker,
+
+        // Not optional, so a plain read: the runner always computes it, and 0 at the very start is the
+        // truthful value rather than a missing one. Never parsed before, which is why the bar stayed empty
+        // for the whole run.
+        OverallProgress = reply.OverallProgress,
+        PowerIsSystemWide = reply.PowerIsSystemWide,
     };
 
     private static FanCalibrationRunResult ParseCalibrationResult(FanCalibrationProgressReply reply) => new()
@@ -425,6 +477,8 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         FanCalibrationStepValue.MeasuringResponse => FanCalibrationStep.MeasuringResponse,
         FanCalibrationStepValue.FittingModel => FanCalibrationStep.FittingModel,
         FanCalibrationStepValue.VerifyingSpeedTracking => FanCalibrationStep.VerifyingSpeedTracking,
+        FanCalibrationStepValue.MeasuringGainCurve => FanCalibrationStep.MeasuringGainCurve,
+        FanCalibrationStepValue.CoolingDown => FanCalibrationStep.CoolingDown,
         FanCalibrationStepValue.Completed => FanCalibrationStep.Completed,
         _ => FanCalibrationStep.None,
     };

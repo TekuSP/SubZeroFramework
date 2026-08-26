@@ -48,15 +48,31 @@
                         Text="Until then this fan keeps running its current mode — nothing changes while you read this."
                         TextWrapping="WrapWholeWords" />
                 </StackPanel>
+                <!--
+                    The button's own resources, not AccentButtonStyle and not a local Background.
+                    AccentButtonStyle draws from the SYSTEM accent, and overriding that at application level
+                    does not reach it. A plain Background does not work either — the template's PointerOver
+                    state outranks a local value, so the button sat blue and turned grey under the cursor.
+                    Overriding the state brushes here is the only form that survives both.
+                -->
                 <Button
                     Grid.Column="2"
                     Height="34"
                     Padding="14,0"
                     VerticalAlignment="Center"
                     Command="{x:Bind ViewModel.RunCalibrationCommand, Mode=OneWay}"
-                    CornerRadius="8"
-                    Style="{StaticResource AccentButtonStyle}">
+                    CornerRadius="8">
                     <TextBlock FontSize="12.5" Text="Calibrate this fan" />
+                    <Button.Resources>
+                        <SolidColorBrush x:Key="ButtonBackground" Color="#FF0078D7" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FF1F8AE6" />
+                        <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FF0063B1" />
+                        <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#FF2A2D2D" />
+                        <SolidColorBrush x:Key="ButtonForeground" Color="White" />
+                        <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White" />
+                        <SolidColorBrush x:Key="ButtonForegroundPressed" Color="White" />
+                        <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#59FFFFFF" />
+                    </Button.Resources>
                 </Button>
             </Grid>
         </Border>
@@ -157,6 +173,22 @@
                         Foreground="{StaticResource TextSecondaryBrush}"
                         Text="{x:Bind ViewModel.TrackingText, Mode=OneWay}" />
                 </Grid>
+
+                <!--  Which sensors the loop watches — stated, not editable. The wizard owns the choice.  -->
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                    <material:MaterialIcon
+                        Width="13"
+                        Height="13"
+                        VerticalAlignment="Center"
+                        Foreground="{StaticResource TextTertiaryBrush}"
+                        Kind="Thermometer" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="11.5"
+                        Foreground="{StaticResource TextTertiaryBrush}"
+                        Text="{x:Bind ViewModel.DrivingSensorsText, Mode=OneWay}"
+                        TextTrimming="CharacterEllipsis" />
+                </StackPanel>
 
                 <!--  Commanded vs actual vs the temperature it is holding.  -->
                 <Grid ColumnSpacing="20">
@@ -491,13 +523,18 @@
                     Text="Adaptive holds the driving temperature here, using as little airflow as it can. Lower runs cooler and louder; higher runs quieter and warmer."
                     TextWrapping="WrapWholeWords" />
 
-                <!--  Bounds go through the unit converter too, so a Fahrenheit user sees 140–203 °F.  -->
+                <!--
+                    The whole scale is in the display unit, so a Fahrenheit user gets 140–203 °F rather than a
+                    Celsius scale with a °F label. NOT via the unit converter: it is one-way by design and
+                    throws on ConvertBack, because a TwoWay binding through it would write display units into
+                    canonical state. The view model converts both ways instead.
+                -->
                 <Slider
                     IsEnabled="{x:Bind ViewModel.Page.CanCommandFanMode, Mode=OneWay}"
-                    Maximum="{x:Bind ViewModel.MaximumTargetCelsius, Converter={StaticResource UnitValue}, ConverterParameter=Temperature}"
-                    Minimum="{x:Bind ViewModel.MinimumTargetCelsius, Converter={StaticResource UnitValue}, ConverterParameter=Temperature}"
+                    Maximum="{x:Bind ViewModel.TargetDisplayMaximum, Mode=OneWay}"
+                    Minimum="{x:Bind ViewModel.TargetDisplayMinimum, Mode=OneWay}"
                     StepFrequency="1"
-                    Value="{x:Bind ViewModel.TargetDraftCelsius, Mode=TwoWay, Converter={StaticResource UnitValue}, ConverterParameter=Temperature}" />
+                    Value="{x:Bind ViewModel.TargetDisplayValue, Mode=TwoWay}" />
 
                 <Grid>
                     <TextBlock
@@ -803,9 +840,9 @@
                     <Slider
                         VerticalAlignment="Center"
                         IsEnabled="{x:Bind ViewModel.Page.CanCommandFanMode, Mode=OneWay}"
-                        Maximum="{x:Bind ViewModel.MaximumSafetyFloorPercent, Converter={StaticResource UnitValue}, ConverterParameter=Ratio}"
+                        Maximum="{x:Bind ViewModel.SafetyFloorDisplayMaximum, Mode=OneWay}"
                         Minimum="0"
-                        Value="{x:Bind ViewModel.SafetyFloorDraftPercent, Mode=TwoWay, Converter={StaticResource UnitValue}, ConverterParameter=Ratio}" />
+                        Value="{x:Bind ViewModel.SafetyFloorDisplayValue, Mode=TwoWay}" />
                     <TextBlock
                         Grid.Column="1"
                         MinWidth="64"

@@ -13,6 +13,23 @@
     PrimaryButtonText="Save"
     mc:Ignorable="d">
 
+    <!--
+        The primary button is styled with AccentButtonStyle, which reads the SYSTEM accent — so this is blue
+        only if the keys are overridden in the dialog's own lookup chain. Overriding them at application level
+        does not reach it.
+    -->
+    <ContentDialog.Resources>
+        <SolidColorBrush x:Key="AccentButtonBackground" Color="#FF0078D7" />
+        <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#FF1F8AE6" />
+        <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#FF0063B1" />
+        <SolidColorBrush x:Key="AccentButtonBackgroundDisabled" Color="#FF2A2D2D" />
+        <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="#FF0078D7" />
+        <SolidColorBrush x:Key="AccentButtonForeground" Color="White" />
+        <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="White" />
+        <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="White" />
+        <SolidColorBrush x:Key="AccentButtonForegroundDisabled" Color="#59FFFFFF" />
+    </ContentDialog.Resources>
+
     <StackPanel MinWidth="420" Spacing="14">
         <TextBlock
             FontSize="13"

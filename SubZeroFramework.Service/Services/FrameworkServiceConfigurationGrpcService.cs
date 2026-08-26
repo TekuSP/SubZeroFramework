@@ -111,6 +111,12 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
                 PollingInterval = TimeSpan.FromMilliseconds(request.PollingIntervalMilliseconds),
                 SecondaryPollingInterval = TimeSpan.FromMilliseconds(request.SecondaryPollingIntervalMilliseconds),
                 HardwareInfoPollingInterval = TimeSpan.FromMilliseconds(request.HardwareInfoPollingIntervalMilliseconds),
+
+                // Zero from an older client means "not sent", which the manager reads as "keep what you have".
+                PrimaryRetention = TimeSpan.FromMinutes(request.PrimaryRetentionMinutes),
+                SecondaryRetention = TimeSpan.FromMinutes(request.SecondaryRetentionMinutes),
+                TertiaryRetention = TimeSpan.FromMinutes(request.TertiaryRetentionMinutes),
+
                 AllowFanControlCommands = request.AllowFanControlCommands,
             },
             context.CancellationToken).ConfigureAwait(false);

@@ -287,6 +287,18 @@ public sealed class CpuLoadGenerator : ICpuLoadGenerator, IDisposable
     {
         const double smoothing = 0.25d;
 
+        // The foreign estimate is smoothed MUCH harder than the response above, and the asymmetry is the
+        // fix for a real oscillation. Total and own come from different clocks — a PDH counter window and
+        // process CPU accounting — so around our own load transients their difference swings by the full
+        // transient amplitude: back off a little and "foreign" balloons (total still carries our old load,
+        // own has already dropped), so the governor backs off more; then total catches up, foreign
+        // collapses, and it floors the throttle. Fed back at governor speed that self-excites — measured
+        // 20-90% load swings on the reference machine, which put ±4 °C of load noise on a calibration that
+        // then failed for an unmeasurable temperature swing. Genuinely foreign load — another process —
+        // changes over tens of seconds, so a slow estimate loses nothing real while breaking the loop.
+        const double foreignSmoothing = 0.06d;
+        var smoothedForeign = 0d;
+
         while (!cancellationToken.IsCancellationRequested)
         {
             if (_systemLoad?.TotalCpuUtilizationFraction is double total)
@@ -294,7 +306,9 @@ public sealed class CpuLoadGenerator : ICpuLoadGenerator, IDisposable
                 // Everything that is not us. Clamped at zero because the two figures come from different
                 // sources and can disagree by a little around the edges.
                 var foreign = Math.Max(0d, total - _systemLoad.OwnCpuUtilizationFraction);
-                var room = Math.Clamp(_targetFraction - foreign, Math.Min(MinimumOwnFraction, _targetFraction), _targetFraction);
+                smoothedForeign += (foreign - smoothedForeign) * foreignSmoothing;
+
+                var room = Math.Clamp(_targetFraction - smoothedForeign, Math.Min(MinimumOwnFraction, _targetFraction), _targetFraction);
 
                 lock (_stateLock)
                 {

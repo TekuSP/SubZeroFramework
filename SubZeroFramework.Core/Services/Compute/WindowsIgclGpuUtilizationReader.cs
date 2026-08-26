@@ -98,6 +98,14 @@ public sealed partial class WindowsIgclGpuUtilizationReader : IComputeUtilizatio
             }
 
             var identities = ResolveIdentities();
+
+            // Skip a suspended GPU entirely. An IGCL call against one wakes it, exactly as an NVML call does
+            // against a sleeping NVIDIA part — this reader simply never had the guard.
+            if (ComputeDeviceSleepGate.AreAllAsleep(identities))
+            {
+                return [];
+            }
+
             List<ComputeDeviceUtilization> samples = new(_devices.Count);
 
             var started = Stopwatch.GetTimestamp();

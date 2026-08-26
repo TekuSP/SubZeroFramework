@@ -140,6 +140,9 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     // would be pure waste. Both are volatile: written on their own tier, read on the primary one.
     private volatile int _latestGpuPowerMilliwatts = -1;
     private volatile int _latestGpuCoreClockMegahertz = -1;
+
+    /// <summary>Busiest GPU's utilization in tenths of a percent, or -1 when nothing reported one.</summary>
+    private volatile int _latestGpuUtilizationPerMille = -1;
     private volatile int _latestSystemPowerMilliwatts = -1;
 
     // The most recent PD read, held so the battery publish (which runs on its own cadence) can pair charger
@@ -314,6 +317,9 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     public IObservable<IChangeSet<FanStateSnapshot, int>> ConnectFanStates()
         => _fanStates.Connect();
 
+    public IReadOnlyList<int> GetFanIndices()
+        => [.. _fanStates.Keys];
+
     public IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> ConnectTelemetryChannels()
         => _telemetryChannels.Connect();
 
@@ -407,6 +413,46 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         }
 
         return clamped;
+    }
+
+    /// <summary>
+    /// Sets how long each tier's retained history is kept.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Applied live, with no restart: each stream's retention window is settable and shrinking one trims what
+    /// it already holds. Streams are grouped by the tier that PUBLISHES them, because that is what decides
+    /// how dense the history is — the EC streams at the primary interval, the inventory streams at the
+    /// tertiary one.
+    /// </para>
+    /// <para>
+    /// A non-positive value leaves that tier alone rather than emptying it, so a caller that only knows about
+    /// some of the tiers cannot silently discard the others' history.
+    /// </para>
+    /// </remarks>
+    public void SetRetention(TimeSpan primary, TimeSpan secondary, TimeSpan tertiary)
+    {
+        ThrowIfDisposed();
+
+        if (primary > TimeSpan.Zero)
+        {
+            _systemStatus.RetentionWindow = primary;
+            _flashSnapshots.RetentionWindow = primary;
+            _fanCapabilitiesSnapshots.RetentionWindow = primary;
+            _powerSnapshots.RetentionWindow = primary;
+            _thermalSnapshots.RetentionWindow = primary;
+        }
+
+        if (secondary > TimeSpan.Zero)
+        {
+            _powerDeliverySnapshots.RetentionWindow = secondary;
+        }
+
+        if (tertiary > TimeSpan.Zero)
+        {
+            _moduleInventorySnapshots.RetentionWindow = tertiary;
+            _hardwareInfoSnapshots.RetentionWindow = tertiary;
+        }
     }
 
     /// <summary>
@@ -974,6 +1020,10 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                     ? controlSample.PerCoreUtilizationFraction
                     : [];
 
+                // Package power rides the same single-package rule for the same reason: the reading is
+                // machine-wide, so on a multi-package machine there is no honest way to attribute it.
+                var packagePowerWatts = isSinglePackage ? controlSample.CpuPackagePowerWatts : null;
+
                 cpus = _hardwareInfo.CpuList
                     .Select(cpu =>
                     {
@@ -1007,7 +1057,8 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                             VirtualizationFirmwareEnabled: cpu.VirtualizationFirmwareEnabled,
                             VMMonitorModeExtensions: cpu.VMMonitorModeExtensions,
                             PercentProcessorTime: aggregateUsagePercent,
-                            CpuCores: mappedCpuCores);
+                            CpuCores: mappedCpuCores,
+                            PackagePowerWatts: packagePowerWatts);
                     })
                     .ToImmutableArray();
             }
@@ -1276,12 +1327,28 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         // ~600 ms the Hardware.Info read it replaces used to cost).
         SampleControlTelemetry(observedAt);
 
-        // SECONDARY tier — GPU/NPU load is display data, not control data, so it runs on the calmer cadence.
-        // Independent of the EC, so it is published even when an EC read above failed.
-        if (observedAt >= _nextSecondaryTierAt)
+        // GPU/NPU telemetry, on whichever cadence is actually needed — and on NEITHER when nobody is asking.
+        //
+        // Two different consumers want two different things from one expensive device query. Adaptive needs
+        // GPU power for its feed-forward, which is worthless stale: it exists to react to power before the
+        // temperature moves, and reading it on the secondary tier meant a GPU fan anticipated heat from a
+        // number up to a minute old. The charts want per-device utilisation, and are happy on the calm tier.
+        //
+        // So the query runs at the PRIMARY cadence when a GPU-cooled fan is being driven adaptively, and the
+        // display channels are still only published on the secondary deadline. When neither is wanted it does
+        // not run at all — this is a discrete GPU, and polling it holds it out of its idle power state, so
+        // "nobody is looking" has to mean "do not touch it" rather than "read it anyway and discard".
+        var secondaryDue = observedAt >= _nextSecondaryTierAt;
+        var controlNeedsGpu = Volatile.Read(ref _gpuControlDemand) > 0;
+
+        if (secondaryDue)
         {
             _nextSecondaryTierAt = PollingSchedule.NextDeadline(_nextSecondaryTierAt, GetSecondaryPollingInterval(), observedAt);
-            PublishComputeUtilization(observedAt);
+        }
+
+        if (secondaryDue || controlNeedsGpu)
+        {
+            SampleComputeDevices(observedAt, publishChannels: secondaryDue);
         }
 
         if (TryReadSnapshot(connection.GetThermalSnapshot, "thermal", ref snapshotError, out var thermalSnapshot))
@@ -1742,6 +1809,13 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         return megahertz > 0 ? megahertz : null;
     }
 
+    /// <summary>The busiest GPU's busy share as 0–1, or null when nothing reported one.</summary>
+    private double? ReadGpuUtilizationFraction()
+    {
+        var perMille = _latestGpuUtilizationPerMille;
+        return perMille >= 0 ? perMille / 1000d : null;
+    }
+
     /// <summary>System draw derived from the charger, or null when running on battery.</summary>
     private double? ReadSystemPowerWatts()
     {
@@ -1848,6 +1922,7 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             {
                 GpuPowerWatts = ReadTotalGpuPowerWatts(),
                 GpuCoreClockMegahertz = ReadGpuCoreClockMegahertz(),
+                GpuUtilizationFraction = ReadGpuUtilizationFraction(),
                 SystemPowerWatts = ReadSystemPowerWatts(),
             };
 
@@ -1886,7 +1961,46 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     /// once a second and wasteful at the primary tick rate. Devices are published individually — never
     /// blended — and a device the reader stops seeing goes unavailable rather than freezing at its last value.
     /// </summary>
-    private void PublishComputeUtilization(DateTimeOffset observedAt)
+    /// <summary>
+    /// How many callers currently need GPU power on the control cadence. Zero means the device is left alone.
+    /// </summary>
+    /// <remarks>
+    /// A count rather than a flag: two adaptive GPU fans, or a fan plus a running calibration, each want it,
+    /// and the last one to finish is the one that may let the device go back to sleep.
+    /// </remarks>
+    private int _gpuControlDemand;
+
+    /// <inheritdoc />
+    public IDisposable RequireGpuControlTelemetry()
+    {
+        ThrowIfDisposed();
+
+        Interlocked.Increment(ref _gpuControlDemand);
+        return new GpuControlDemandLease(this);
+    }
+
+    /// <summary>Releases one caller's claim; the device stops being polled when the last one goes.</summary>
+    private sealed class GpuControlDemandLease(FrameworkDataProvider owner) : IDisposable
+    {
+        private int _released;
+
+        public void Dispose()
+        {
+            // Guarded, because disposing a lease twice would drop the count below the number of real holders
+            // and stop polling for whoever is still using it.
+            if (Interlocked.Exchange(ref _released, 1) == 0)
+            {
+                Interlocked.Decrement(ref owner._gpuControlDemand);
+            }
+        }
+    }
+
+    /// <param name="publishChannels">
+    /// False when this read exists only to refresh the control figures. The per-device channels are the
+    /// secondary tier's output, and republishing them at the primary cadence would push history into the
+    /// charts far faster than the user asked them to move.
+    /// </param>
+    private void SampleComputeDevices(DateTimeOffset observedAt, bool publishChannels)
     {
         if (!_computeUtilizationReader.IsAvailable)
         {
@@ -1942,6 +2056,28 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         }
 
         _latestGpuCoreClockMegahertz = fastestClock;
+
+        // The BUSIEST device, not a sum — busy shares do not add, and during a GPU-load calibration the
+        // loaded device is by definition the busiest one. Tenths of a percent so the volatile stays an int.
+        var busiestPerMille = -1;
+        foreach (var candidate in devices)
+        {
+            if (candidate.Kind != ComputeDeviceKind.Npu
+                && double.IsFinite(candidate.UtilizationPercent)
+                && candidate.UtilizationPercent >= 0d)
+            {
+                busiestPerMille = Math.Max(busiestPerMille, (int)Math.Round(candidate.UtilizationPercent * 10d));
+            }
+        }
+
+        _latestGpuUtilizationPerMille = busiestPerMille;
+
+        // The control figures are extracted above and are always refreshed. Everything below is the display
+        // side — per-device channels and their history — which belongs to the secondary tier alone.
+        if (!publishChannels)
+        {
+            return;
+        }
 
         var observedGpuChannels = new HashSet<TelemetryChannelId>();
         var observedNpuChannels = new HashSet<TelemetryChannelId>();

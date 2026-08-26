@@ -57,6 +57,16 @@ public interface IFrameworkDataProvider
 
     IObservable<IChangeSet<FanStateSnapshot, int>> ConnectFanStates();
 
+    /// <summary>
+    /// The indices of every fan the machine currently reports, as a snapshot.
+    /// </summary>
+    /// <remarks>
+    /// For consumers that need the LIST once rather than its changes — a calibration pinning every fan it is
+    /// not measuring, most importantly. Subscribing to <see cref="ConnectFanStates"/> for that would be a
+    /// stream dismantled after its first element.
+    /// </remarks>
+    IReadOnlyList<int> GetFanIndices();
+
     IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> ConnectTelemetryChannels();
 
     IObservable<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>> ConnectCurrentTelemetryValues();
@@ -92,6 +102,29 @@ public interface IFrameworkDataProvider
     /// inside the primary loop on this calmer cadence.
     /// </summary>
     bool SetSecondaryPolling(TimeSpan pollingInterval);
+
+    /// <summary>
+    /// Sets how long each tier's retained history is kept. Applied live; a non-positive value leaves that
+    /// tier's retention unchanged rather than discarding its history.
+    /// </summary>
+    void SetRetention(TimeSpan primary, TimeSpan secondary, TimeSpan tertiary);
+
+    /// <summary>
+    /// Claims GPU power and clock on the CONTROL cadence, for as long as the returned lease is held.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Adaptive's feed-forward reads GPU power to anticipate heat, which is worthless if the reading is
+    /// stale — so while a GPU-cooled fan is being driven adaptively the device is sampled on the primary
+    /// tier rather than the secondary one.
+    /// </para>
+    /// <para>
+    /// A lease rather than a flag because the cost is real: this is a discrete GPU, and querying it keeps it
+    /// out of its idle power state. Nothing holds a lease means nothing polls it — the device is left asleep
+    /// rather than woken to produce numbers no one reads.
+    /// </para>
+    /// </remarks>
+    IDisposable RequireGpuControlTelemetry();
 
     /// <summary>Sets the TERTIARY tier interval — the Hardware.Info inventory poll.</summary>
     bool SetHardwareInfoPolling(TimeSpan pollingInterval);

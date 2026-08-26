@@ -56,6 +56,9 @@ public sealed class FrameworkServiceConfigurationManager : IDisposable
             PollingInterval = options.PollingInterval,
             SecondaryPollingInterval = options.SecondaryPollingInterval,
             HardwareInfoPollingInterval = options.HardwareInfoPollingInterval,
+            PrimaryRetention = options.PrimaryRetention,
+            SecondaryRetention = options.SecondaryRetention,
+            TertiaryRetention = options.TertiaryRetention,
             AllowFanControlCommands = options.AllowFanControlCommands,
             PersistentConfigurationPath = _store.PersistentConfigurationPath,
         };
@@ -83,6 +86,14 @@ public sealed class FrameworkServiceConfigurationManager : IDisposable
                 PollingInterval = request.PollingInterval,
                 SecondaryPollingInterval = request.SecondaryPollingInterval,
                 HardwareInfoPollingInterval = request.HardwareInfoPollingInterval,
+
+                // Zero means the caller did not send one — an older client, or a persisted overlay written
+                // before retention existed. Keeping the current value there is what stops such a client
+                // silently reducing every tier's history to nothing.
+                PrimaryRetention = request.PrimaryRetention > TimeSpan.Zero ? request.PrimaryRetention : previousOptions.PrimaryRetention,
+                SecondaryRetention = request.SecondaryRetention > TimeSpan.Zero ? request.SecondaryRetention : previousOptions.SecondaryRetention,
+                TertiaryRetention = request.TertiaryRetention > TimeSpan.Zero ? request.TertiaryRetention : previousOptions.TertiaryRetention,
+
                 AllowFanControlCommands = request.AllowFanControlCommands,
             };
 
@@ -212,6 +223,9 @@ public sealed class FrameworkServiceConfigurationManager : IDisposable
                 PollingInterval = loaded.PollingInterval,
                 SecondaryPollingInterval = loaded.SecondaryPollingInterval,
                 HardwareInfoPollingInterval = loaded.HardwareInfoPollingInterval,
+                PrimaryRetention = loaded.PrimaryRetention,
+                SecondaryRetention = loaded.SecondaryRetention,
+                TertiaryRetention = loaded.TertiaryRetention,
                 AllowFanControlCommands = loaded.AllowFanControlCommands,
             };
 
@@ -328,6 +342,13 @@ public sealed class FrameworkServiceConfigurationManager : IDisposable
             throw new InvalidOperationException("Unable to configure the Framework polling interval while applying the updated service configuration.");
         }
 
+        // No loop to stop for this: retention is a property of the retained streams, and shrinking one trims
+        // what it holds there and then.
+        _frameworkDataProvider.SetRetention(
+            options.PrimaryRetention,
+            options.SecondaryRetention,
+            options.TertiaryRetention);
+
         // No loop to stop first: the secondary tier gates work inside the primary loop, so the next primary
         // tick simply compares against the new interval.
         if (!_frameworkDataProvider.SetSecondaryPolling(options.SecondaryPollingInterval))
@@ -394,6 +415,9 @@ public sealed class FrameworkServiceConfigurationManager : IDisposable
             PollingInterval = PollingTiers.Primary.Clamp(options.PollingInterval),
             SecondaryPollingInterval = PollingTiers.Secondary.Clamp(options.SecondaryPollingInterval),
             HardwareInfoPollingInterval = PollingTiers.Tertiary.Clamp(options.HardwareInfoPollingInterval),
+            PrimaryRetention = PollingTiers.Primary.ClampRetention(options.PrimaryRetention),
+            SecondaryRetention = PollingTiers.Secondary.ClampRetention(options.SecondaryRetention),
+            TertiaryRetention = PollingTiers.Tertiary.ClampRetention(options.TertiaryRetention),
         };
 
     private static bool TryValidate(FrameworkServiceConfigurationApplyRequest request, out string validationError)

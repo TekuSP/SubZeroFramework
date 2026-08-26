@@ -45,7 +45,70 @@ namespace SubZeroFramework.Services.Control;
 public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
 {
     private const string UtilityCounterPath = @"\Processor Information(*)\% Processor Utility";
-    private const string PerformanceCounterPath = @"\Processor Information(_Total)\% Processor Performance";
+
+    /// <summary>
+    /// Each processor's clock as a percentage of its nominal clock, over 100 when boosting.
+    /// </summary>
+    /// <remarks>
+    /// Read as a wildcard ARRAY rather than the machine total alone, and it costs no extra counter to do so —
+    /// the array carries <c>_Total</c> as one of its instances, so a single read serves both the ratio
+    /// published on the sample and the per-processor divisor the utilisation pass needs.
+    /// </remarks>
+    private const string PerformanceCounterPath = @"\Processor Information(*)\% Processor Performance";
+
+    /// <summary>
+    /// The clock the processor is actually running at, in megahertz.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Note this is <c>Actual Frequency</c> and NOT the similarly named <c>Processor Frequency</c> in the same
+    /// counter set. The latter reports the BASE clock and is a constant — measured 2000 MHz on a Ryzen AI 9
+    /// HX 370 whether idle or fully loaded — so a reader that picked it would publish a plausible megahertz
+    /// figure that never moves. Actual Frequency measured 3563 MHz idle against 4066 MHz under load.
+    /// </para>
+    /// <para>
+    /// OPTIONAL, like the energy meter below: not every machine populates it, and a machine that does not must
+    /// still get utilisation and the performance ratio.
+    /// </para>
+    /// </remarks>
+    private const string ActualFrequencyCounterPath = @"\Processor Information(_Total)\Actual Frequency";
+
+    /// <summary>
+    /// Package power, from the in-box Energy Meter counter set.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Windows surfaces the platform's energy meters — including the processor's own RAPL domains — through
+    /// PDH, so the package figure needs no kernel driver and no MSR access. Measured on a Ryzen AI 9 HX 370:
+    /// 16 W at idle, 48 W under an eight-thread load, tracking within a sample.
+    /// </para>
+    /// <para>
+    /// OPTIONAL, unlike the two above. A machine whose firmware exposes no energy meter simply has no
+    /// instances here, and that must not cost it CPU utilisation as well — so a failure to add this counter
+    /// leaves the rest of the query working.
+    /// </para>
+    /// </remarks>
+    private const string EnergyMeterCounterPath = @"\Energy Meter(*)\Power";
+
+    /// <summary>
+    /// Which energy-meter instance is the processor package, best first.
+    /// </summary>
+    /// <remarks>
+    /// The instance names come from the platform, so they are matched by preference rather than assumed. The
+    /// RAPL package domain is the same quantity Linux reads from sysfs, which is what keeps the two platforms
+    /// reporting the same thing. "socket"/"apu" is the vendor's own package rollup where RAPL is absent, and
+    /// "cpu" is cores-only — a real undercount on an APU, hence last.
+    /// </remarks>
+    private static readonly string[] PackagePowerInstancePreference =
+    [
+        "rapl_package0_pkg",
+        "socket power",
+        "apu power",
+        "cpu power",
+    ];
+
+    /// <summary>The Energy Meter counter set reports in milliwatts.</summary>
+    private const double MilliwattsPerWatt = 1000d;
 
     private const uint PdhSuccess = 0x00000000;
     private const uint PdhMoreData = 0x800007D2;
@@ -68,11 +131,33 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
     // immutable array handed to the caller.
     private readonly List<(long Ordinal, double Fraction)> _perCoreScratch = [];
 
+    /// <summary>
+    /// Each processor's speed ratio this tick, keyed by the ordinal the utilisation pass uses.
+    /// </summary>
+    /// <remarks>
+    /// Per processor rather than one machine-wide figure because a hybrid part does not run its cores at one
+    /// speed. Measured on a Ryzen AI 9 HX 370 under load: the Zen5 cores reported 204% of nominal while the
+    /// Zen5c cores reported 146% at the same instant. Dividing every core by the machine total would
+    /// understate busy time on the fast cores and overstate it on the dense ones.
+    /// </remarks>
+    private readonly Dictionary<long, double> _performanceRatioByOrdinal = [];
+
     private SafePDH_HQUERY _query = SafePDH_HQUERY.Null;
     private PDH_HCOUNTER _utilityCounter;
     private PDH_HCOUNTER _performanceCounter;
-    private SafeHGlobalHandle _itemBuffer = SafeHGlobalHandle.Null;
-    private uint _itemBufferSize;
+
+    /// <summary>Default when the platform does not populate Actual Frequency, which leaves the clock unreported.</summary>
+    private PDH_HCOUNTER _actualFrequencyCounter;
+    private bool _hasActualFrequency;
+
+    /// <summary>Default when the platform exposes no energy meter, which leaves package power unreported.</summary>
+    private PDH_HCOUNTER _energyMeterCounter;
+    private bool _hasEnergyMeter;
+    // One buffer per counter, never shared. The utilisation pass walks a span over its own buffer while the
+    // others are being filled, and a shared buffer could resize out from under that span.
+    private readonly CounterArray _utilityArray = new();
+    private readonly CounterArray _performanceArray = new();
+    private readonly CounterArray _powerArray = new();
 
     private bool _attemptedOpen;
     private bool _loggedCollectFailure;
@@ -117,8 +202,9 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
                 return ControlTelemetrySample.Unavailable;
             }
 
-            var (aggregate, perCore) = ReadUtilization();
-            var performance = ReadScalarCounter(_performanceCounter, PerformanceCounterPath);
+            // Ratios first: the utilisation pass divides by them to cancel the clock out of its readings.
+            var performanceRatio = ReadPerformanceRatios();
+            var (aggregate, perCore) = ReadUtilization(performanceRatio);
 
             return new ControlTelemetrySample
             {
@@ -126,12 +212,18 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
                 PerCoreUtilizationFraction = perCore,
 
                 // Deliberately NOT clamped. Values above 1 mean turbo, and erasing them would collapse the
-                // difference between "at rated speed" and "boosting hard" — measured 121-136% on the dev
+                // difference between "at rated speed" and "boosting hard" — measured 1.21-2.07 on the dev
                 // machine under load, so this is the normal case, not an edge one.
-                CpuPerformanceRatio = performance is { } performancePercent ? performancePercent / 100d : null,
+                CpuPerformanceRatio = performanceRatio,
 
-                // No package power on Windows without a kernel driver; the controller substitutes adapter power.
-                CpuPackagePowerWatts = null,
+                // The live clock, so the CPU package card stops showing a figure from the thirty-second
+                // inventory tier next to power read on this one.
+                CpuClockMegahertz = ReadActualClockMegahertz(),
+
+                // From the platform's own energy meters via PDH — the same RAPL package domain Linux reads
+                // from sysfs, and no kernel driver for either. Null only where the firmware exposes no meter,
+                // in which case the controller falls back to system power as it always did.
+                CpuPackagePowerWatts = ReadPackagePowerWatts(),
             };
         }
     }
@@ -151,25 +243,25 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
             _query = SafePDH_HQUERY.Null;
             _utilityCounter = default;
             _performanceCounter = default;
+            _actualFrequencyCounter = default;
+            _hasActualFrequency = false;
+            _energyMeterCounter = default;
+            _hasEnergyMeter = false;
 
-            _itemBuffer.Dispose();
-            _itemBuffer = SafeHGlobalHandle.Null;
-            _itemBufferSize = 0;
+            _utilityArray.Dispose();
+            _performanceArray.Dispose();
+            _powerArray.Dispose();
+            _performanceRatioByOrdinal.Clear();
         }
     }
 
-    private unsafe (double? Aggregate, ImmutableArray<double> PerCore) ReadUtilization()
+    /// <param name="totalPerformanceRatio">
+    /// The machine-wide speed ratio, used for the aggregate and as the fallback divisor for any processor the
+    /// performance array did not report.
+    /// </param>
+    private unsafe (double? Aggregate, ImmutableArray<double> PerCore) ReadUtilization(double? totalPerformanceRatio)
     {
-        // Vanara ships no managed wrapper for PdhGetFormattedCounterArray, so the two-call sizing dance stays:
-        // ask with the buffer we already hold, and only grow it when PDH says it is too small.
-        var bufferSize = _itemBufferSize;
-        var status = PdhGetFormattedCounterArray(_utilityCounter, CounterFormat, ref bufferSize, out var itemCount, _itemBuffer.DangerousGetHandle());
-        if (status == PdhMoreData)
-        {
-            EnsureItemBuffer(bufferSize);
-            bufferSize = _itemBufferSize;
-            status = PdhGetFormattedCounterArray(_utilityCounter, CounterFormat, ref bufferSize, out itemCount, _itemBuffer.DangerousGetHandle());
-        }
+        var items = _utilityArray.Read(_utilityCounter, out var status);
 
         if (status != PdhSuccess)
         {
@@ -186,7 +278,7 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
             return (null, []);
         }
 
-        if (itemCount == 0 || _itemBuffer.IsInvalid)
+        if (items.IsEmpty)
         {
             return (null, []);
         }
@@ -194,7 +286,6 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
         double? aggregate = null;
         _perCoreScratch.Clear();
 
-        var items = new ReadOnlySpan<PdhFormattedCounterValueItem>((void*)_itemBuffer.DangerousGetHandle(), checked((int)itemCount));
         foreach (var item in items)
         {
             if (item.Name.IsNull || (uint)item.Value.CStatus is not (PdhCStatusValidData or PdhCStatusNewData))
@@ -205,14 +296,11 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
             // PDH writes the instance names into the tail of the same buffer, so this reads them in place
             // rather than allocating a string per processor per tick.
             var instanceName = MemoryMarshal.CreateReadOnlySpanFromNullTerminated((char*)item.Name);
-
-            // Utility can exceed 100% when boosting above nominal. These are busy FRACTIONS by definition, so
-            // they are clamped; the speed information is not lost, it is what CpuPerformanceRatio carries.
-            var fraction = Math.Clamp(item.Value.doubleValue / 100d, 0d, 1d);
+            var utility = item.Value.doubleValue / 100d;
 
             if (ProcessorInstanceName.IsMachineTotal(instanceName))
             {
-                aggregate = fraction;
+                aggregate = ProcessorUtilityMath.ToBusyFraction(utility, totalPerformanceRatio);
                 continue;
             }
 
@@ -220,7 +308,12 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
             // extra processor carrying the average of its group.
             if (ProcessorInstanceName.TryParse(instanceName, out var group, out var processor))
             {
-                _perCoreScratch.Add((ProcessorInstanceName.ToOrdinal(group, processor), fraction));
+                var ordinal = ProcessorInstanceName.ToOrdinal(group, processor);
+                var ratio = _performanceRatioByOrdinal.TryGetValue(ordinal, out var perCoreRatio)
+                    ? perCoreRatio
+                    : totalPerformanceRatio;
+
+                _perCoreScratch.Add((ordinal, ProcessorUtilityMath.ToBusyFraction(utility, ratio)));
             }
         }
 
@@ -235,6 +328,131 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
         }
 
         return (aggregate, perCore.MoveToImmutable());
+    }
+
+    /// <summary>
+    /// Reads every processor's speed ratio, returning the machine-wide one and caching the rest by ordinal.
+    /// </summary>
+    /// <remarks>
+    /// Runs before the utilisation pass because that pass consumes what this caches. Both read from the same
+    /// collect, so the two arrays describe the same instant rather than straddling a clock change.
+    /// </remarks>
+    private unsafe double? ReadPerformanceRatios()
+    {
+        _performanceRatioByOrdinal.Clear();
+
+        var items = _performanceArray.Read(_performanceCounter, out var status);
+
+        if (status != PdhSuccess || items.IsEmpty)
+        {
+            // Expected on the first collect of a rate counter. Not logged: the utilisation pass reports the
+            // same condition against the same query, and two lines per cause is noise.
+            return null;
+        }
+
+        double? total = null;
+
+        foreach (var item in items)
+        {
+            if (item.Name.IsNull || (uint)item.Value.CStatus is not (PdhCStatusValidData or PdhCStatusNewData))
+            {
+                continue;
+            }
+
+            var instanceName = MemoryMarshal.CreateReadOnlySpanFromNullTerminated((char*)item.Name);
+            var ratio = item.Value.doubleValue / 100d;
+
+            if (ProcessorInstanceName.IsMachineTotal(instanceName))
+            {
+                total = ratio;
+                continue;
+            }
+
+            if (ProcessorInstanceName.TryParse(instanceName, out var group, out var processor))
+            {
+                _performanceRatioByOrdinal[ProcessorInstanceName.ToOrdinal(group, processor)] = ratio;
+            }
+        }
+
+        return total;
+    }
+
+    /// <summary>
+    /// The clock the processor is actually running at, or null when this machine does not report one.
+    /// </summary>
+    /// <remarks>
+    /// Zero is treated as no reading rather than as a stopped processor. PDH answers a rate counter's first
+    /// collect with no interval to average over, and a 0 MHz clock published into the UI would read as a
+    /// hung machine for the one tick it survived.
+    /// </remarks>
+    private double? ReadActualClockMegahertz()
+    {
+        if (!_hasActualFrequency)
+        {
+            return null;
+        }
+
+        return ReadScalarCounter(_actualFrequencyCounter, ActualFrequencyCounterPath) is { } megahertz and > 0d
+            ? megahertz
+            : null;
+    }
+
+    /// <summary>
+    /// Package power in watts, picked from the energy meter's instances by preference.
+    /// </summary>
+    /// <remarks>
+    /// Scans the whole array once and keeps the best-ranked instance rather than stopping at the first match,
+    /// because PDH does not enumerate in any guaranteed order — taking the first would report cores-only power
+    /// on one boot and the package on the next.
+    /// </remarks>
+    private unsafe double? ReadPackagePowerWatts()
+    {
+        if (!_hasEnergyMeter)
+        {
+            return null;
+        }
+
+        var items = _powerArray.Read(_energyMeterCounter, out var status);
+
+        if (status != PdhSuccess || items.IsEmpty)
+        {
+            // PDH_INVALID_DATA on the first collect is expected of a rate counter, and an absent meter is a
+            // fact about the machine — neither is worth a log line every tick.
+            return null;
+        }
+
+        var bestRank = int.MaxValue;
+        double? best = null;
+
+        foreach (var item in items)
+        {
+            if (item.Name.IsNull || (uint)item.Value.CStatus is not (PdhCStatusValidData or PdhCStatusNewData))
+            {
+                continue;
+            }
+
+            var instanceName = MemoryMarshal.CreateReadOnlySpanFromNullTerminated((char*)item.Name);
+
+            for (var rank = 0; rank < PackagePowerInstancePreference.Length && rank < bestRank; rank++)
+            {
+                if (!instanceName.Equals(PackagePowerInstancePreference[rank], StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // Zero is what an unpopulated domain reports — an NPU with no work, say — and treating it as a
+                // reading would hand the controller a hard zero for package power.
+                if (item.Value.doubleValue > 0d)
+                {
+                    bestRank = rank;
+                    best = item.Value.doubleValue / MilliwattsPerWatt;
+                }
+
+                break;
+            }
+        }
+
+        return best;
     }
 
     private double? ReadScalarCounter(PDH_HCOUNTER counter, string counterPath)
@@ -263,21 +481,67 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
         return value.doubleValue;
     }
 
-    private void EnsureItemBuffer(uint requiredBytes)
+    /// <summary>
+    /// One PDH counter array's native buffer, and the two-call sizing dance that fills it.
+    /// </summary>
+    /// <remarks>
+    /// Vanara ships no managed wrapper for <c>PdhGetFormattedCounterArray</c>, so the caller must ask once to
+    /// learn the size and again to read. That sequence was written out per counter until there were three of
+    /// them; it lives here instead so a new counter costs a field rather than another copy.
+    /// </remarks>
+    private sealed class CounterArray : IDisposable
     {
-        if (requiredBytes <= _itemBufferSize && !_itemBuffer.IsInvalid)
+        private SafeHGlobalHandle _buffer = SafeHGlobalHandle.Null;
+        private uint _sizeBytes;
+
+        /// <summary>
+        /// Reads the array, growing the buffer if PDH says it is too small.
+        /// </summary>
+        /// <param name="counter">The counter to read.</param>
+        /// <param name="status">PDH's status, so the caller can tell "no data yet" from a real failure.</param>
+        /// <returns>The items, or empty when nothing could be read.</returns>
+        public unsafe ReadOnlySpan<PdhFormattedCounterValueItem> Read(PDH_HCOUNTER counter, out uint status)
         {
-            return;
+            var required = _sizeBytes;
+            var result = PdhGetFormattedCounterArray(counter, CounterFormat, ref required, out var itemCount, _buffer.DangerousGetHandle());
+
+            if (result == PdhMoreData)
+            {
+                Grow(required);
+                required = _sizeBytes;
+                result = PdhGetFormattedCounterArray(counter, CounterFormat, ref required, out itemCount, _buffer.DangerousGetHandle());
+            }
+
+            status = (uint)result;
+
+            return status != PdhSuccess || itemCount == 0 || _buffer.IsInvalid
+                ? []
+                : new ReadOnlySpan<PdhFormattedCounterValueItem>((void*)_buffer.DangerousGetHandle(), checked((int)itemCount));
         }
 
-        _itemBuffer.Dispose();
-        _itemBufferSize = 0;
+        public void Dispose()
+        {
+            _buffer.Dispose();
+            _buffer = SafeHGlobalHandle.Null;
+            _sizeBytes = 0;
+        }
 
-        // A little slack, because the instance count only changes when logical processors are parked or
-        // hot-added — far more stable than the GPU engine set, so no large margin is warranted.
-        var size = requiredBytes + 64;
-        _itemBuffer = new SafeHGlobalHandle(size);
-        _itemBufferSize = size;
+        private void Grow(uint requiredBytes)
+        {
+            if (requiredBytes <= _sizeBytes && !_buffer.IsInvalid)
+            {
+                return;
+            }
+
+            _buffer.Dispose();
+            _sizeBytes = 0;
+
+            // A little slack, because the instance count only changes when logical processors are parked or
+            // hot-added — far more stable than the GPU engine set, so no large margin is warranted.
+            var size = requiredBytes + 64;
+            _buffer = new SafeHGlobalHandle(size);
+            _sizeBytes = size;
+        }
     }
 
     private bool EnsureQuery()
@@ -311,8 +575,8 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
                 return false;
             }
 
-            if (!TryAddCounter(query, UtilityCounterPath, out var utilityCounter)
-                || !TryAddCounter(query, PerformanceCounterPath, out var performanceCounter))
+            if (!TryAddCounter(query, UtilityCounterPath, required: true, out var utilityCounter)
+                || !TryAddCounter(query, PerformanceCounterPath, required: true, out var performanceCounter))
             {
                 query.Dispose();
                 return false;
@@ -320,6 +584,16 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
 
             _utilityCounter = utilityCounter;
             _performanceCounter = performanceCounter;
+
+            // Optional: a machine with no energy meter still reports utilisation, and losing that as well
+            // would trade a nice-to-have for the controller's primary input.
+            _hasEnergyMeter = TryAddCounter(query, EnergyMeterCounterPath, required: false, out var energyMeterCounter);
+            _energyMeterCounter = _hasEnergyMeter ? energyMeterCounter : default;
+
+            // Optional on the same terms, and for a display figure rather than a control one.
+            _hasActualFrequency = TryAddCounter(query, ActualFrequencyCounterPath, required: false, out var actualFrequencyCounter);
+            _actualFrequencyCounter = _hasActualFrequency ? actualFrequencyCounter : default;
+
             _query = query;
             return true;
         }
@@ -333,7 +607,13 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
         }
     }
 
-    private bool TryAddCounter(SafePDH_HQUERY query, string counterPath, out PDH_HCOUNTER counter)
+    /// <param name="required">
+    /// False for a counter whose absence costs only its own field. It changes the LOG WORDING and nothing
+    /// else: most of these counters are optional, and reporting each missing one as "control telemetry
+    /// unavailable" would describe a machine that is merely missing an energy meter as having no telemetry
+    /// at all.
+    /// </param>
+    private bool TryAddCounter(SafePDH_HQUERY query, string counterPath, bool required, out PDH_HCOUNTER counter)
     {
         // The English variant, so the path still resolves on a localized Windows where the counter set is
         // named in the user's language.
@@ -342,7 +622,9 @@ public sealed class WindowsPdhControlTelemetryReader : IControlTelemetryReader
         {
             counter = default;
             _logger.LogInformation(
-                "CPU control telemetry unavailable: the '{CounterPath}' counter returned 0x{Status:X8}.",
+                required
+                    ? "CPU control telemetry unavailable: the '{CounterPath}' counter returned 0x{Status:X8}."
+                    : "CPU control telemetry: the optional '{CounterPath}' counter returned 0x{Status:X8}; that field will be unreported and the rest continue.",
                 counterPath,
                 (uint)status);
             return false;

@@ -18,6 +18,80 @@ namespace SubZeroFramework.Tests;
 [TestFixture]
 public class FrameworkServiceConfigurationManagerTests
 {
+    /// <summary>
+    /// Retention reaches the provider, and an unset value leaves that tier alone.
+    /// </summary>
+    /// <remarks>
+    /// The "leave it alone" half is the one that matters. Zero on the wire means an older client did not send
+    /// retention at all, and reading that as a request to retain nothing would have such a client silently
+    /// wipe every tier's history the first time it applied an unrelated interval change.
+    /// </remarks>
+    [Test]
+    public async Task ApplyAsync_PushesRetentionToTheProvider_AndLeavesUnsetTiersAlone()
+    {
+        var filePath = CreateTemporaryPath();
+
+        try
+        {
+            var (manager, provider, _, _) = CreateManager(filePath);
+            using var _manager = manager;
+
+            var applied = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
+            {
+                PollingInterval = TimeSpan.FromMilliseconds(250),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
+                PrimaryRetention = TimeSpan.FromMinutes(7),
+                AllowFanControlCommands = true,
+            });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(applied.Succeeded, Is.True);
+                Assert.That(applied.Configuration.PrimaryRetention, Is.EqualTo(TimeSpan.FromMinutes(7)));
+
+                // Not sent, so they keep the tier defaults rather than collapsing to zero.
+                Assert.That(applied.Configuration.SecondaryRetention, Is.EqualTo(PollingTiers.Secondary.DefaultRetention));
+                Assert.That(applied.Configuration.TertiaryRetention, Is.EqualTo(PollingTiers.Tertiary.DefaultRetention));
+
+                Assert.That(provider.LastRetention, Is.Not.Null);
+                Assert.That(provider.LastRetention!.Value.Primary, Is.EqualTo(TimeSpan.FromMinutes(7)));
+            });
+        }
+        finally
+        {
+            DeleteTemporaryPath(filePath);
+        }
+    }
+
+    /// <summary>A retention outside the tier's range is clamped in, exactly as an interval is.</summary>
+    [Test]
+    public async Task ApplyAsync_ClampsRetentionIntoTheTierRange()
+    {
+        var filePath = CreateTemporaryPath();
+
+        try
+        {
+            var (manager, _, _, _) = CreateManager(filePath);
+            using var _manager = manager;
+
+            var applied = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
+            {
+                PollingInterval = TimeSpan.FromMilliseconds(250),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
+                PrimaryRetention = TimeSpan.FromDays(1),
+                AllowFanControlCommands = true,
+            });
+
+            Assert.That(applied.Configuration.PrimaryRetention, Is.EqualTo(PollingTiers.Primary.MaximumRetention));
+        }
+        finally
+        {
+            DeleteTemporaryPath(filePath);
+        }
+    }
+
     [Test]
     public async Task ApplyAsync_WhenRequestIsValid_AppliesRuntimeConfigurationWithoutPersisting()
     {
@@ -337,6 +411,8 @@ public class FrameworkServiceConfigurationManagerTests
 
         public IObservable<IChangeSet<FanStateSnapshot, int>> ConnectFanStates() => Observable.Empty<IChangeSet<FanStateSnapshot, int>>();
 
+        public IReadOnlyList<int> GetFanIndices() => [];
+
         public IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> ConnectTelemetryChannels() => Observable.Empty<IChangeSet<TelemetryChannel, TelemetryChannelId>>();
 
         public IObservable<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>> ConnectCurrentTelemetryValues() => Observable.Empty<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>>();
@@ -372,6 +448,14 @@ public class FrameworkServiceConfigurationManagerTests
             LastSecondaryPollingInterval = pollingInterval;
             return true;
         }
+
+        /// <summary>Recorded so a test can assert what retention an apply actually pushed to the provider.</summary>
+        public (TimeSpan Primary, TimeSpan Secondary, TimeSpan Tertiary)? LastRetention { get; private set; }
+
+        public void SetRetention(TimeSpan primary, TimeSpan secondary, TimeSpan tertiary)
+            => LastRetention = (primary, secondary, tertiary);
+
+        public IDisposable RequireGpuControlTelemetry() => System.Reactive.Disposables.Disposable.Empty;
 
         public bool SetHardwareInfoPolling(TimeSpan pollingInterval)
         {

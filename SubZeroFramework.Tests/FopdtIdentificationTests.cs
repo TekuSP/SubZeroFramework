@@ -87,9 +87,10 @@ public class FopdtIdentificationTests
     [Test]
     public void Identify_WithATinySwing_ReportsItRatherThanFitting()
     {
-        // A cool room. The timing points would land essentially at random, so a confident answer here would
-        // be worse than no answer.
-        var samples = SimulateStep(processGain: 0.05d, timeConstant: 26d, deadTime: 4d);
+        // A cool room. Under the EC's whole-degree quantisation the timing points would land essentially at
+        // random, so a confident answer here would be worse than no answer. The gain is chosen to land the
+        // swing under the ABSOLUTE floor — a swing this small is unfittable however quiet the signal.
+        var samples = SimulateStep(processGain: 0.03d, timeConstant: 26d, deadTime: 4d);
 
         var result = FopdtIdentification.Identify(samples, DutyStep);
 
@@ -100,6 +101,74 @@ public class FopdtIdentificationTests
             Assert.That(result.TemperatureSwingCelsius, Is.GreaterThan(0d), "The failure screen has to report how small the swing actually was.");
         });
     }
+
+    /// <summary>
+    /// The swing gate is relative to the measured noise, not a fixed number.
+    /// </summary>
+    /// <remarks>
+    /// The SAME modest swing, twice: quiet, it must fit — this is one fan of a dual-fan shared-heatpipe
+    /// chassis, whose genuine 4-5 °C authority a flat 8 °C gate refused on real hardware. Noisy — the load
+    /// bouncing, as a governor oscillation really produced — the identical swing must be refused, because
+    /// tail noise that large can fake the crossings the timing points come from.
+    /// </remarks>
+    [Test]
+    public void Identify_GatesTheSwingAgainstTheMeasuredNoise()
+    {
+        // ~4.7 °C of swing across a 78-point step: real numbers from a Framework 16 left fan.
+        var clean = SimulateStep(processGain: 0.06d, timeConstant: 26d, deadTime: 4d);
+
+        // The same response under a SLOW disturbance — a load oscillation with a period far wider than the
+        // fit's smoothing window, which is what real un-smoothable noise looks like. A fast alternating
+        // pattern was used here once, and it was a hollow test: the centred average removes period-two
+        // noise almost perfectly, so the refusal it asserted was one smoothing legitimately prevents.
+        var noisy = AddSlowDisturbance(clean, amplitudeCelsius: 1.7d);
+
+        var quiet = FopdtIdentification.Identify(clean, DutyStep);
+        var disturbed = FopdtIdentification.Identify(noisy, DutyStep);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(quiet.IsSuccess, Is.True, "a quiet 4-5 °C response is genuinely fittable and must not be refused");
+            Assert.That(quiet.ProcessGainCelsiusPerPercent, Is.EqualTo(0.06d).Within(0.01d));
+
+            Assert.That(disturbed.IsSuccess, Is.False, "the same swing buried in comparable noise must be refused");
+            Assert.That(disturbed.Failure, Is.EqualTo(FanCalibrationFailure.InsufficientTemperatureSwing));
+        });
+    }
+
+    /// <summary>
+    /// Quantisation-grade jitter is smoothed away before the gate judges the swing.
+    /// </summary>
+    /// <remarks>
+    /// The regression this pins: a real run measured a genuine 6.5 °C swing and was refused, because the
+    /// raw tail — whole-degree EC quantisation on a maximum over several sensors — wobbled ±1 °C and the
+    /// noise gate demanded more swing than the machine's fans can produce. The fit now reads a zero-phase
+    /// smoothed curve, so the gate sees the residual wobble instead of the raw flicker.
+    /// </remarks>
+    [Test]
+    public void Identify_FitsAModestSwing_OnceQuantisationJitterIsSmoothed()
+    {
+        // 6.5 °C of swing with fast ±1.8 °C jitter on every reading — the EC's flicker at the amplitude the
+        // real refusal measured (raw tail sigma ≈ 1.2 °C, making the unsmoothed gate demand 7.2 °C).
+        var samples = SimulateStep(processGain: 6.5d / DutyStep, timeConstant: 26d, deadTime: 4d)
+            .Select(static (sample, index) => (sample.Seconds, Celsius: sample.Celsius + (((index * 31) % 7) - 3) * 0.6d))
+            .ToArray();
+
+        var result = FopdtIdentification.Identify(samples, DutyStep);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.IsSuccess, Is.True, "a genuine 6.5 °C swing under sensor flicker must fit — this refusal happened on real hardware");
+            Assert.That(result.ProcessGainCelsiusPerPercent, Is.EqualTo(6.5d / DutyStep).Within(0.015d));
+        });
+    }
+
+    /// <summary>A disturbance the smoothing window cannot absorb: a slow sinusoid, like an oscillating load.</summary>
+    private static (double Seconds, double Celsius)[] AddSlowDisturbance(
+        IReadOnlyList<(double Seconds, double Celsius)> samples,
+        double amplitudeCelsius)
+        => [.. samples.Select(static (sample, index) => (sample.Seconds, sample.Celsius))
+            .Select((sample, index) => (sample.Item1, sample.Item2 + (amplitudeCelsius * Math.Sin(index * 2d * Math.PI / 14d))))];
 
     [Test]
     public void Identify_WhenTemperatureRose_RefusesToFit()

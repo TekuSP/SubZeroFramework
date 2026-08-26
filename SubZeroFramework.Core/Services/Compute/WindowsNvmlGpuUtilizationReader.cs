@@ -162,9 +162,28 @@ public sealed partial class WindowsNvmlGpuUtilizationReader : IComputeUtilizatio
             return;
         }
 
+        // Ask Windows directly whether the GPU is up, BEFORE the timing heuristic below. This is the cure the
+        // backoff is only a mitigation for: a definite low-power answer means the device is left completely
+        // alone rather than woken once a minute to prove it is still asleep.
+        if (AreAllGpusAsleep())
+        {
+            if (!_loggedAsleep)
+            {
+                _loggedAsleep = true;
+                _logger.LogDebug("Every NVIDIA GPU reports a low-power device state; skipping NVML entirely until one wakes.");
+            }
+
+            return;
+        }
+
+        _loggedAsleep = false;
+
         // Do not disturb a GPU that the last call had to wake. Without this the service pins an idle dGPU
         // awake for as long as it runs — measured at roughly 19 W on the reference machine — to produce
         // telemetry that, with no client attached, nobody is reading.
+        //
+        // Kept as a second line of defence: the power-state read above returns null on a machine that cannot
+        // answer, and this is what protects those.
         if (_lastSampleStartedAt != 0
             && !NvmlSamplingBackoff.ShouldSample(Stopwatch.GetElapsedTime(_lastSampleStartedAt), _lastSampleDuration))
         {
@@ -182,6 +201,25 @@ public sealed partial class WindowsNvmlGpuUtilizationReader : IComputeUtilizatio
 
         _samplingTask = Task.Run(SampleOnBackgroundThread);
     }
+
+    /// <summary>Logged once per sleep, so a machine that idles for hours does not fill the log.</summary>
+    private bool _loggedAsleep;
+
+    /// <summary>
+    /// True only when every known GPU definitely reports a low-power device state.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately unanimous and deliberately definite. One awake GPU is a reason to sample — the reader
+    /// reports them together — and an unknown answer must NOT suppress a read, or a machine whose power state
+    /// cannot be queried would report every GPU as permanently idle.
+    /// </para>
+    /// <para>
+    /// Cheap enough for the sampling path: this reads a device property Windows already holds, with no call
+    /// into the graphics driver and nothing that can wake the device.
+    /// </para>
+    /// </remarks>
+    private bool AreAllGpusAsleep() => ComputeDeviceSleepGate.AreAllAsleep(_identities);
 
     private void SampleOnBackgroundThread()
     {

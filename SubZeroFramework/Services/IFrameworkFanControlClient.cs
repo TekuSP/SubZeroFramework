@@ -1,3 +1,5 @@
+using SubZeroFramework.Services.Control;
+
 namespace SubZeroFramework.Services;
 
 /// <summary>
@@ -88,12 +90,14 @@ public interface IFrameworkFanControlClient
     /// <param name="drivingSensorIndices">The sensors whose aggregate temperature the loop holds.</param>
     /// <param name="aggregation">How to combine them.</param>
     /// <param name="settings">Target and safety floor, or null to keep what the fan already had.</param>
+    /// <param name="preview">When true, arm the loop live without persisting — the volatile preview contract every other mode's command carries.</param>
     /// <param name="cancellationToken">Cancels the call.</param>
     Task<FrameworkFanCurveProfileCommandResult> SetAdaptiveModeAsync(
         int fanIndex,
         IReadOnlyCollection<int> drivingSensorIndices,
         TemperatureAggregationMode aggregation,
         AdaptiveFanSettings? settings,
+        bool preview = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>Updates a fan's Adaptive target and safety floor without changing its mode.</summary>
@@ -161,11 +165,17 @@ public interface IFrameworkFanControlClient
     /// driving the fan to both extremes. Callers must show it as the deliberate, interruptible operation it
     /// is — never start one implicitly.
     /// </remarks>
+    /// <param name="loadTarget">
+    /// What to heat, or <see cref="ThermalLoadTarget.None"/> to let the service decide from the fan's cooling
+    /// role. Worth passing whenever the user has been asked, because the role is inferred and a wrong guess
+    /// costs a full run that could never have measured anything.
+    /// </param>
     Task<FanCalibrationRunResult> RunCalibrationAsync(
         int fanIndex,
         IReadOnlyCollection<int> drivingSensorIndices,
         IProgress<FanCalibrationProgress>? progress,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        ThermalLoadTarget loadTarget = ThermalLoadTarget.None);
 
     /// <summary>Reads the battery charge floor/ceiling from the EC.</summary>
     Task<FrameworkChargeLimitsResult> GetChargeLimitsAsync(CancellationToken cancellationToken = default);

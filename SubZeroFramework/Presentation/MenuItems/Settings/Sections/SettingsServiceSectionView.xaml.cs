@@ -54,6 +54,8 @@ public sealed partial class SettingsServiceSectionView : UserControl, INotifyPro
             XamlRoot = xamlRoot,
         };
 
+        AccentDialogPalette.Apply(dialog);
+
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
         {
             return;
@@ -94,6 +96,8 @@ public sealed partial class SettingsServiceSectionView : UserControl, INotifyPro
             DefaultButton = ContentDialogButton.Close,
             XamlRoot = xamlRoot,
         };
+
+        AccentDialogPalette.Apply(dialog);
 
         if (await dialog.ShowAsync() != ContentDialogResult.Primary)
         {

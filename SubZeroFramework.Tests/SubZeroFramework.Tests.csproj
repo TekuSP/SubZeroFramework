@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!--
+      Stays plain net10.0 on purpose, and build.yml depends on it: the Linux publish job builds and runs this
+      project on ubuntu with no -f, so a second windows TFM here would send that job looking for a Windows
+      targeting pack. Windows-only readers are covered by SubZeroFramework.Tests.Windows instead.
+    -->
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>

@@ -78,11 +78,17 @@ public sealed partial class LinuxProcControlTelemetryReader : IControlTelemetryR
     {
         var (aggregate, perCore) = ReadUtilization();
 
+        // Read ONCE and derive both figures from it. The ratio and the clock are the same measurement scaled
+        // two ways, and reading it twice would walk every cpu* directory twice per tick to produce two
+        // answers that could then disagree because the second sweep saw a different clock.
+        var currentKilohertz = ReadMeanCurrentKilohertz();
+
         return new ControlTelemetrySample
         {
             CpuUtilizationFraction = aggregate,
             PerCoreUtilizationFraction = perCore,
-            CpuPerformanceRatio = ReadPerformanceRatio(),
+            CpuPerformanceRatio = ResolvePerformanceRatio(currentKilohertz),
+            CpuClockMegahertz = currentKilohertz is { } kilohertz and > 0d ? kilohertz / 1000d : null,
             CpuPackagePowerWatts = ReadPackagePowerWatts(),
         };
     }
@@ -216,17 +222,38 @@ public sealed partial class LinuxProcControlTelemetryReader : IControlTelemetryR
         return true;
     }
 
-    private double? ReadPerformanceRatio()
+    /// <summary>
+    /// Scales an already-read clock against the base clock. Null base or clock yields no ratio.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately NOT clamped to 1, matching the Windows reader: values above 1 mean turbo, and collapsing
+    /// them would erase the difference between "at rated speed" and "boosting hard".
+    /// </remarks>
+    private double? ResolvePerformanceRatio(double? currentKilohertz)
+    {
+        if (currentKilohertz is not { } current)
+        {
+            return null;
+        }
+
+        return ResolveBaseFrequencyKilohertz() is { } baseKilohertz and > 0d
+            ? current / baseKilohertz
+            : null;
+    }
+
+    /// <summary>
+    /// The mean of every core's current clock, in kilohertz, or null when none could be read.
+    /// </summary>
+    /// <remarks>
+    /// A mean across cores rather than a maximum. On a hybrid part the fastest core says what the silicon can
+    /// do for one thread; the mean says what the package is doing, which is the figure that corresponds to
+    /// the heat the fan has to move.
+    /// </remarks>
+    private double? ReadMeanCurrentKilohertz()
     {
         try
         {
             if (!Directory.Exists(CpuDeviceRoot))
-            {
-                return null;
-            }
-
-            var baseKilohertz = ResolveBaseFrequencyKilohertz();
-            if (baseKilohertz is not > 0d)
             {
                 return null;
             }
@@ -244,7 +271,7 @@ public sealed partial class LinuxProcControlTelemetryReader : IControlTelemetryR
                 }
             }
 
-            return count > 0 ? sum / count / baseKilohertz.Value : null;
+            return count > 0 ? sum / count : null;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -344,16 +371,20 @@ public sealed partial class LinuxProcControlTelemetryReader : IControlTelemetryR
             return null;
         }
 
-        foreach (var zone in Directory.EnumerateDirectories(PowercapRoot, "intel-rapl:*"))
+        // Both spellings — see RaplEnergyMath.PackageZonePrefixes. An AMD part may register either.
+        foreach (var prefix in RaplEnergyMath.PackageZonePrefixes)
         {
-            if (!RaplEnergyMath.IsPackageZoneName(Path.GetFileName(zone)))
+            foreach (var zone in Directory.EnumerateDirectories(PowercapRoot, prefix + "*"))
             {
-                continue;
-            }
+                if (!RaplEnergyMath.IsPackageZoneName(Path.GetFileName(zone)))
+                {
+                    continue;
+                }
 
-            if (File.Exists(Path.Combine(zone, "energy_uj")))
-            {
-                return zone;
+                if (File.Exists(Path.Combine(zone, "energy_uj")))
+                {
+                    return zone;
+                }
             }
         }
 

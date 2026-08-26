@@ -7,16 +7,44 @@
     xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
     xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:SubZeroFramework.Controls.FanCurveProfiles.Models"
     xmlns:modes="using:SubZeroFramework.Controls.FanCurveProfiles.Models.Modes"
     Title="{x:Bind ViewModel.DialogTitle, Mode=OneWay}"
-    CloseButtonText="{x:Bind ViewModel.CloseText, Mode=OneWay}"
     CornerRadius="12"
-    DefaultButton="Primary"
-    IsPrimaryButtonEnabled="{x:Bind ViewModel.IsPrimaryEnabled, Mode=OneWay}"
-    PrimaryButtonText="{x:Bind ViewModel.PrimaryText, Mode=OneWay}"
     mc:Ignorable="d">
 
-    <Grid MinWidth="520" MaxWidth="560">
+    <!--
+        The template caps itself at ContentDialogMaxWidth — about 548px — so setting a width on the content
+        does nothing except get it clipped. The sensor picker needs a row of chips and a right-aligned
+        readout, which does not fit in that, so the cap itself has to move.
+    -->
+    <ContentDialog.Resources>
+        <x:Double x:Key="ContentDialogMinWidth">720</x:Double>
+        <x:Double x:Key="ContentDialogMaxWidth">960</x:Double>
+        <x:Double x:Key="ContentDialogMaxHeight">1000</x:Double>
+    </ContentDialog.Resources>
+
+    <!--
+        The dialog's own buttons are not used. Their order is fixed by the template — primary first — and the
+        design puts Cancel to the LEFT of the action, which that ordering cannot express. Owning the footer
+        also keeps them the size they are drawn at, rather than stretched across the dialog.
+    -->
+    <Grid RowSpacing="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--
+            No MaxHeight of its own: the row is starred, so this takes whatever the dialog has after the
+            footer and the content fits outright on a normal window. A fixed cap made it scroll on a screen
+            with room to spare, which hid the power banner below the fold.
+        -->
+        <ScrollViewer
+            controls:ScrollHint.IsEnabled="True"
+            HorizontalScrollMode="Disabled"
+            VerticalScrollBarVisibility="Auto">
+            <Grid Padding="0,0,12,0">
 
         <!--
             CONSENT. Also what a fan nothing is known about meets instead of the Adaptive editor: with no
@@ -24,67 +52,427 @@
             The cost is stated BEFORE agreement — the run deliberately heats the machine and drives the fan to
             both extremes, and finding that out afterwards is being ambushed by your own fan-control app.
         -->
-        <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.ConsentVisibility, Mode=OneWay}">
+        <!--
+            BLOCKED ON BATTERY. Replaces the consent body outright — an explanation with the power readout,
+            not a disabled Start with no reason. Warning-toned, not danger: it blocks THIS shortcut, not the
+            feature — Adaptive keeps learning from ordinary use either way. Unblocks live when the charger
+            is attached, because the page pushes the power state for as long as the dialog is open.
+        -->
+        <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.ConsentBlockedVisibility, Mode=OneWay}">
+            <Border
+                Padding="16,13"
+                Background="{StaticResource StatusWarningWashBrush}"
+                BorderBrush="{StaticResource StatusWarningBrush}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <material:MaterialIcon
+                        Width="20"
+                        Height="20"
+                        VerticalAlignment="Top"
+                        Foreground="{StaticResource StatusWarningBrush}"
+                        Kind="BatteryAlertVariantOutline" />
+                    <StackPanel Grid.Column="1" Spacing="5">
+                        <TextBlock
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource StatusWarningBrush}"
+                            Text="Calibration needs AC power" />
+                        <TextBlock
+                            FontSize="13"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="This machine is running on battery. Calibration loads the CPU and runs the fans at maximum for several minutes, which would drain the battery and skew the measurement — power limits behave differently when unplugged."
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <StackPanel Spacing="6">
+                <TextBlock
+                    CharacterSpacing="60"
+                    FontSize="11.5"
+                    Foreground="{StaticResource TextTertiaryBrush}"
+                    Text="CURRENT POWER STATE" />
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border
+                        Padding="14,11"
+                        Background="{StaticResource CardSecondaryBackgroundBrush}"
+                        CornerRadius="10">
+                        <StackPanel Spacing="3">
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="Power source" />
+                            <TextBlock
+                                FontSize="15"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="Battery" />
+                        </StackPanel>
+                    </Border>
+                    <Border
+                        Grid.Column="1"
+                        Padding="14,11"
+                        Background="{StaticResource CardSecondaryBackgroundBrush}"
+                        CornerRadius="10">
+                        <StackPanel Spacing="3">
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="Charge" />
+                            <TextBlock
+                                FontSize="15"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="{x:Bind ViewModel.BatteryChargeText, Mode=OneWay}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <material:MaterialIcon
+                    Width="15"
+                    Height="15"
+                    VerticalAlignment="Center"
+                    Foreground="{StaticResource StatusInfoBrush}"
+                    Kind="PowerPlug" />
+                <TextBlock
+                    FontSize="12.5"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="Connect the charger and this dialog will unblock on its own." />
+            </StackPanel>
+
+            <TextBlock
+                FontSize="12.5"
+                Foreground="{StaticResource TextTertiaryBrush}"
+                Text="Nothing else is blocked — Adaptive keeps learning this fan from ordinary use, on battery or not."
+                TextWrapping="WrapWholeWords" />
+        </StackPanel>
+
+        <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.ConsentReadyVisibility, Mode=OneWay}">
             <TextBlock
                 FontSize="13"
                 Foreground="{StaticResource TextSecondaryBrush}"
                 Text="{x:Bind ViewModel.Introduction, Mode=OneWay}"
                 TextWrapping="WrapWholeWords" />
 
-            <controls:AutoWrapPanel HorizontalSpacing="30" VerticalSpacing="12">
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <material:MaterialIcon
-                        Width="17"
-                        Height="17"
-                        VerticalAlignment="Center"
-                        Foreground="{StaticResource BrandPrimaryBrush}"
-                        Kind="ClockOutline" />
-                    <TextBlock
-                        VerticalAlignment="Center"
-                        FontSize="12.5"
-                        Foreground="{StaticResource TextSecondaryBrush}"
-                        Text="Takes about 5 minutes end to end" />
+            <!--
+                WHAT IT LEARNS FROM. The two inputs the run's success actually depends on, and the two the
+                app cannot reliably work out on its own: which component produces the heat, and which sensors
+                register it. Both were inferred before, and both are wrong often enough that getting them
+                wrong costs a five-minute run which could never have measured anything.
+            -->
+            <TextBlock
+                FontSize="11"
+                Foreground="{StaticResource TextTertiaryBrush}"
+                Text="WHAT IT LEARNS FROM" />
+
+            <Border
+                Padding="16,14"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource CardBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="12">
+                <StackPanel Spacing="12">
+
+                    <!--  Which component to heat.  -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="9">
+                            <material:MaterialIcon
+                                Width="16"
+                                Height="16"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Kind="Target" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="Heat this fan with" />
+                        </StackPanel>
+
+                        <Border
+                            Grid.Column="1"
+                            Padding="3"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource CardSecondaryBackgroundBrush}"
+                            CornerRadius="9">
+
+                            <!--
+                                Declared on the container so both toggles pick them up. A checked ToggleButton
+                                draws from the SYSTEM accent, and overriding these keys at application level
+                                does not reach it — only a dictionary in the element's own lookup chain does.
+                            -->
+                            <Border.Resources>
+                                <SolidColorBrush x:Key="ToggleButtonBackgroundChecked" Color="#FF0078D7" />
+                                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPointerOver" Color="#FF1F8AE6" />
+                                <SolidColorBrush x:Key="ToggleButtonBackgroundCheckedPressed" Color="#FF0063B1" />
+                                <SolidColorBrush x:Key="ToggleButtonForegroundChecked" Color="White" />
+                                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPointerOver" Color="White" />
+                                <SolidColorBrush x:Key="ToggleButtonForegroundCheckedPressed" Color="White" />
+                                <SolidColorBrush x:Key="ToggleButtonBorderBrushChecked" Color="#FF0078D7" />
+                                <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPointerOver" Color="#FF1F8AE6" />
+                                <SolidColorBrush x:Key="ToggleButtonBorderBrushCheckedPressed" Color="#FF0063B1" />
+                            </Border.Resources>
+
+                            <StackPanel Orientation="Horizontal" Spacing="3">
+                                <ToggleButton
+                                    Height="30"
+                                    Padding="12,0"
+                                    Command="{x:Bind ViewModel.ChooseLoadCommand}"
+                                    CommandParameter="Cpu"
+                                    CornerRadius="7"
+                                    IsChecked="{x:Bind ViewModel.IsCpuLoad, Mode=OneWay}">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <material:MaterialIcon
+                                            Width="14"
+                                            Height="14"
+                                            VerticalAlignment="Center"
+                                            Kind="Chip" />
+                                        <TextBlock FontSize="12.5" Text="CPU load" />
+                                    </StackPanel>
+                                </ToggleButton>
+                                <ToggleButton
+                                    Height="30"
+                                    Padding="12,0"
+                                    Command="{x:Bind ViewModel.ChooseLoadCommand}"
+                                    CommandParameter="Gpu"
+                                    CornerRadius="7"
+                                    IsChecked="{x:Bind ViewModel.IsGpuLoad, Mode=OneWay}">
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <material:MaterialIcon
+                                            Width="14"
+                                            Height="14"
+                                            VerticalAlignment="Center"
+                                            Kind="ExpansionCard" />
+                                        <TextBlock FontSize="12.5" Text="GPU load" />
+                                    </StackPanel>
+                                </ToggleButton>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock
+                            Grid.Column="2"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            FontSize="11.5"
+                            Foreground="{StaticResource TextTertiaryBrush}"
+                            Text="{x:Bind ViewModel.LoadHint, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </Grid>
+
+                    <!--  Which sensors the run follows.  -->
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="9">
+                            <material:MaterialIcon
+                                Width="16"
+                                Height="16"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Kind="Thermometer" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="Sensors it will watch" />
+                        </StackPanel>
+
+                        <StackPanel
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextTertiaryBrush}"
+                                Text="Hottest of the selected sensors" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource StatusSuccessBrush}"
+                                Text="{x:Bind ViewModel.HottestSensorText, Mode=OneWay}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!--
+                        AutoWrapPanel, not UniformGridLayout: a uniform grid sizes every cell to the first
+                        one, so "GPU ambient 111°" was being clipped to fit "Temp 0". Chips are different
+                        widths by nature and have to size to their own content.
+                    -->
+                    <ItemsControl ItemsSource="{x:Bind ViewModel.Sensors}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <controls:AutoWrapPanel HorizontalSpacing="8" VerticalSpacing="8" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="models:FanCalibrationSensorChoice">
+                                <!--  The chip IS the control: a check ring plus name plus its live reading.  -->
+                                <Button
+                                    Height="46"
+                                    Padding="13,0"
+                                    Background="{StaticResource CardSecondaryBackgroundBrush}"
+                                    BorderBrush="{x:Bind ChipBorderBrushKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                                    BorderThickness="1"
+                                    Command="{x:Bind Owner.ToggleSensorCommand}"
+                                    CommandParameter="{x:Bind}"
+                                    CornerRadius="23"
+                                    IsEnabled="{x:Bind IsUsable, Mode=OneWay}"
+                                    Opacity="{x:Bind ChipOpacity, Mode=OneWay}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <material:MaterialIcon
+                                            Width="15"
+                                            Height="15"
+                                            VerticalAlignment="Center"
+                                            Foreground="{x:Bind CheckBrushKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                                            Kind="{x:Bind CheckIconKind, Mode=OneWay}" />
+                                        <!--
+                                            The index is dim and the location is not: "Temp 3" only
+                                            distinguishes two sensors in the same place, while "APU / SoC" is
+                                            the part that says what is being measured.
+                                        -->
+                                        <StackPanel VerticalAlignment="Center" Spacing="1">
+                                            <TextBlock
+                                                FontSize="10.5"
+                                                Foreground="{StaticResource TextTertiaryBrush}"
+                                                Text="{x:Bind IndexLabel, Mode=OneWay}"
+                                                Visibility="{x:Bind HasIndexLabel, Mode=OneWay}" />
+                                            <TextBlock
+                                                FontSize="12.5"
+                                                Foreground="{StaticResource TextPrimaryBrush}"
+                                                Text="{x:Bind LocationLabel, Mode=OneWay}" />
+                                        </StackPanel>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="12.5"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                            Text="{x:Bind TemperatureDisplay, Mode=OneWay}" />
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <StackPanel Orientation="Horizontal" Spacing="9">
+                        <material:MaterialIcon
+                            Width="14"
+                            Height="14"
+                            VerticalAlignment="Center"
+                            Foreground="{StaticResource TextTertiaryBrush}"
+                            Kind="ShieldHalfFull" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="11.5"
+                            Foreground="{StaticResource TextTertiaryBrush}"
+                            Text="Calibration follows the hottest of these" />
+                    </StackPanel>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="10">
+            </Border>
+
+            <!--
+                WHAT THE TEST DOES. One column of title-and-consequence rows: the title alone is a
+                specification, and the consequence underneath is the part that lets somebody decide this is
+                the wrong moment.
+            -->
+            <TextBlock
+                Margin="0,4,0,0"
+                FontSize="11"
+                Foreground="{StaticResource TextTertiaryBrush}"
+                Text="WHAT THE TEST DOES TO YOUR MACHINE" />
+
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Facts, Mode=OneWay}">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="0" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="models:FanCalibrationFact">
+                        <Border
+                            Padding="0,11"
+                            BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                            BorderThickness="0,0,0,1">
+                            <Grid ColumnSpacing="13">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <material:MaterialIcon
+                                    Width="17"
+                                    Height="17"
+                                    VerticalAlignment="Top"
+                                    Foreground="{x:Bind BrushKey, Converter={StaticResource ThemeBrushKey}}"
+                                    Kind="{x:Bind IconKind}" />
+                                <StackPanel Grid.Column="1" Spacing="3">
+                                    <TextBlock
+                                        FontSize="13"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Text="{x:Bind Title}"
+                                        TextWrapping="WrapWholeWords" />
+                                    <TextBlock
+                                        FontSize="12"
+                                        Foreground="{StaticResource TextTertiaryBrush}"
+                                        Text="{x:Bind Detail}"
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+
+            <!--
+                Whether this machine can run a test at all, decided by the same rule the service refuses on.
+                Saying "ready to start" and then aborting minutes later for being on battery would be worse
+                than never having offered.
+            -->
+            <Border
+                Padding="15,13"
+                Background="{StaticResource CardSecondaryBackgroundBrush}"
+                BorderBrush="{x:Bind ViewModel.PowerReadyBrushKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                BorderThickness="1"
+                CornerRadius="10">
+                <StackPanel Orientation="Horizontal" Spacing="11">
                     <material:MaterialIcon
-                        Width="17"
-                        Height="17"
-                        VerticalAlignment="Center"
-                        Foreground="{StaticResource StatusWarningBrush}"
-                        Kind="FanSpeed3" />
+                        Width="16"
+                        Height="16"
+                        VerticalAlignment="Top"
+                        Foreground="{x:Bind ViewModel.PowerReadyBrushKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                        Kind="{x:Bind ViewModel.PowerReadyIconKind, Mode=OneWay}" />
                     <TextBlock
-                        VerticalAlignment="Center"
                         FontSize="12.5"
-                        Foreground="{StaticResource TextSecondaryBrush}"
-                        Text="Fans run to maximum — it will be loud" />
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.PowerReadyText, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <material:MaterialIcon
-                        Width="17"
-                        Height="17"
-                        VerticalAlignment="Center"
-                        Foreground="{StaticResource StatusWarningBrush}"
-                        Kind="Cpu64Bit" />
-                    <TextBlock
-                        VerticalAlignment="Center"
-                        FontSize="12.5"
-                        Foreground="{StaticResource TextSecondaryBrush}"
-                        Text="{x:Bind ViewModel.LoadDescription, Mode=OneWay}" />
-                </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <material:MaterialIcon
-                        Width="17"
-                        Height="17"
-                        VerticalAlignment="Center"
-                        Foreground="{StaticResource StatusSuccessBrush}"
-                        Kind="PowerPlug" />
-                    <TextBlock
-                        VerticalAlignment="Center"
-                        FontSize="12.5"
-                        Foreground="{StaticResource TextSecondaryBrush}"
-                        Text="AC power required — blocked on battery" />
-                </StackPanel>
-            </controls:AutoWrapPanel>
+            </Border>
 
             <StackPanel Orientation="Horizontal" Spacing="10">
                 <material:MaterialIcon
@@ -140,30 +528,43 @@
             </StackPanel>
 
             <!--
-                The live plot. Two series against ONE clock so the bend in the temperature reads as a
-                response to the step in duty, with the step itself marked — without the marker the curve is
-                just a shape. Axes are hidden: this is about the shape, and exact values are in the row below.
+                The live plots. Two quantities against ONE clock so the bend in the temperature reads as a
+                response to the move in fan speed, with the step moment marked on the temperature side —
+                without the marker the curve is just a shape. Each plot carries its own Y axis in the user's
+                display units; exact current values are in the row below.
             -->
             <Border
                 Padding="14,12"
                 Background="{StaticResource CardSecondaryBackgroundBrush}"
                 CornerRadius="10">
                 <StackPanel Spacing="10">
-                    <Grid ColumnSpacing="12">
+                    <!--
+                      Two plots, one clock. Temperature and fan speed are different quantities in different
+                      units, and one shared plot has already failed twice here: a dual-axis ScalesYAt was
+                      silently ignored by the XAML wrapper (the second line clamped flat against the
+                      floor), and a normalized 0–1 axis fitted everything but showed no units at all. Side
+                      by side, each quantity gets its own auto-fitted axis labelled in the user's display
+                      units through the AxisTick family — the model pre-converts the series values, so
+                      labeler and data agree on display space. The blue line is MEASURED speed rather than
+                      commanded duty, so it exists from the first sample instead of appearing only once
+                      SubZero takes the fan.
+
+                      x:Load rather than Visibility on both: this dialog opens on the consent stage with
+                      the run section collapsed, and a chart realized inside a collapsed panel takes a
+                      zero-size measure it never recovers from — it stayed a black rectangle for the whole
+                      run. Deferred until the run starts and there is a visible place to measure into.
+                    -->
+                    <Grid ColumnSpacing="14" RowSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            FontSize="12"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="Temperature response" />
-                        <StackPanel
-                            Grid.Column="1"
-                            Orientation="Horizontal"
-                            Spacing="14">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Spacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <Border
                                     Width="12"
@@ -177,6 +578,55 @@
                                     Foreground="{StaticResource TextSecondaryBrush}"
                                     Text="Driving temp" />
                             </StackPanel>
+                            <lvc:CartesianChart
+                                x:Name="TemperatureChart"
+                                x:Load="{x:Bind ViewModel.HasRunStarted, Mode=OneWay}"
+                                Height="170"
+                                AutoUpdateEnabled="True"
+                                Background="Transparent"
+                                LegendPosition="Hidden"
+                                Sections="{x:Bind ViewModel.StepMarker, Mode=OneWay}"
+                                TooltipPosition="Hidden"
+                                ZoomMode="None">
+                                <lvc:CartesianChart.Series>
+                                    <lvc:SeriesCollection>
+                                        <lvc:XamlLineSeries
+                                            AnimationsSpeed="0"
+                                            Fill="{x:Null}"
+                                            GeometryFill="{x:Null}"
+                                            GeometryStroke="{x:Null}"
+                                            LineSmoothness="0.4"
+                                            Stroke="{x:Bind ViewModel.TemperaturePaint}"
+                                            Values="{x:Bind ViewModel.TemperatureHistory, Mode=OneWay}" />
+                                    </lvc:SeriesCollection>
+                                </lvc:CartesianChart.Series>
+                                <lvc:CartesianChart.XAxes>
+                                    <lvc:AxesCollection>
+                                        <lvc:XamlAxis
+                                            AnimationsSpeed="0"
+                                            LabelsPaint="{x:Null}"
+                                            Padding="{lvc:Padding Value='0,0'}"
+                                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                            ShowSeparatorLines="True"
+                                            TextSize="0" />
+                                    </lvc:AxesCollection>
+                                </lvc:CartesianChart.XAxes>
+                                <lvc:CartesianChart.YAxes>
+                                    <lvc:AxesCollection>
+                                        <lvc:XamlAxis
+                                            AnimationsSpeed="0"
+                                            Labeler="{x:Bind ViewModel.TemperatureAxisLabeler}"
+                                            LabelsPaint="{x:Bind ViewModel.AxisLabelsPaint}"
+                                            Padding="{lvc:Padding Value='0,0'}"
+                                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                            ShowSeparatorLines="True"
+                                            TextSize="9" />
+                                    </lvc:AxesCollection>
+                                </lvc:CartesianChart.YAxes>
+                            </lvc:CartesianChart>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Spacing="8">
                             <StackPanel Orientation="Horizontal" Spacing="6">
                                 <Border
                                     Width="12"
@@ -188,77 +638,188 @@
                                     VerticalAlignment="Center"
                                     FontSize="11"
                                     Foreground="{StaticResource TextSecondaryBrush}"
-                                    Text="Fan duty" />
+                                    Text="Fan speed" />
                             </StackPanel>
+                            <lvc:CartesianChart
+                                x:Name="SpeedChart"
+                                x:Load="{x:Bind ViewModel.HasRunStarted, Mode=OneWay}"
+                                Height="170"
+                                AutoUpdateEnabled="True"
+                                Background="Transparent"
+                                LegendPosition="Hidden"
+                                TooltipPosition="Hidden"
+                                ZoomMode="None">
+                                <lvc:CartesianChart.Series>
+                                    <lvc:SeriesCollection>
+                                        <lvc:XamlLineSeries
+                                            AnimationsSpeed="0"
+                                            Fill="{x:Null}"
+                                            GeometryFill="{x:Null}"
+                                            GeometryStroke="{x:Null}"
+                                            LineSmoothness="0"
+                                            Stroke="{x:Bind ViewModel.SpeedPaint}"
+                                            Values="{x:Bind ViewModel.SpeedHistory, Mode=OneWay}" />
+                                    </lvc:SeriesCollection>
+                                </lvc:CartesianChart.Series>
+                                <lvc:CartesianChart.XAxes>
+                                    <lvc:AxesCollection>
+                                        <lvc:XamlAxis
+                                            AnimationsSpeed="0"
+                                            LabelsPaint="{x:Null}"
+                                            Padding="{lvc:Padding Value='0,0'}"
+                                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                            ShowSeparatorLines="True"
+                                            TextSize="0" />
+                                    </lvc:AxesCollection>
+                                </lvc:CartesianChart.XAxes>
+                                <lvc:CartesianChart.YAxes>
+                                    <lvc:AxesCollection>
+                                        <lvc:XamlAxis
+                                            AnimationsSpeed="0"
+                                            Labeler="{x:Bind ViewModel.FanSpeedAxisLabeler}"
+                                            LabelsPaint="{x:Bind ViewModel.AxisLabelsPaint}"
+                                            Padding="{lvc:Padding Value='0,0'}"
+                                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                            ShowSeparatorLines="True"
+                                            TextSize="9" />
+                                    </lvc:AxesCollection>
+                                </lvc:CartesianChart.YAxes>
+                            </lvc:CartesianChart>
+                        </StackPanel>
+
+                        <!--
+                          The second row watches the LOAD rather than the response: the clock and busy share
+                          of whichever component this run heats, named by the same toggle that chose it. A
+                          run heading for "insufficient load" shows here as a near-idle usage line minutes
+                          before the failure screen says so.
+                        -->
+                        <StackPanel Grid.Row="1" Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border
+                                    Width="12"
+                                    Height="3"
+                                    VerticalAlignment="Center"
+                                    Background="#B48CFF"
+                                    CornerRadius="2" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="{x:Bind ViewModel.ClockPlotLabel, Mode=OneWay}" />
+                            </StackPanel>
+                            <lvc:CartesianChart
+                                x:Name="ClockChart"
+                                x:Load="{x:Bind ViewModel.HasRunStarted, Mode=OneWay}"
+                                Height="170"
+                                AutoUpdateEnabled="True"
+                                Background="Transparent"
+                                LegendPosition="Hidden"
+                                TooltipPosition="Hidden"
+                                ZoomMode="None">
+                                <lvc:CartesianChart.Series>
+                                    <lvc:SeriesCollection>
+                                        <lvc:XamlLineSeries
+                                            AnimationsSpeed="0"
+                                            Fill="{x:Null}"
+                                            GeometryFill="{x:Null}"
+                                            GeometryStroke="{x:Null}"
+                                            LineSmoothness="0.3"
+                                            Stroke="{x:Bind ViewModel.ClockPaint}"
+                                            Values="{x:Bind ViewModel.ClockHistory, Mode=OneWay}" />
+                                    </lvc:SeriesCollection>
+                                </lvc:CartesianChart.Series>
+                                <lvc:CartesianChart.XAxes>
+                                    <lvc:AxesCollection>
+                                        <lvc:XamlAxis
+                                            AnimationsSpeed="0"
+                                            LabelsPaint="{x:Null}"
+                                            Padding="{lvc:Padding Value='0,0'}"
+                                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                            ShowSeparatorLines="True"
+                                            TextSize="0" />
+                                    </lvc:AxesCollection>
+                                </lvc:CartesianChart.XAxes>
+                                <lvc:CartesianChart.YAxes>
+                                    <lvc:AxesCollection>
+                                        <lvc:XamlAxis
+                                            AnimationsSpeed="0"
+                                            Labeler="{x:Bind ViewModel.ClockAxisLabeler}"
+                                            LabelsPaint="{x:Bind ViewModel.AxisLabelsPaint}"
+                                            Padding="{lvc:Padding Value='0,0'}"
+                                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                            ShowSeparatorLines="True"
+                                            TextSize="9" />
+                                    </lvc:AxesCollection>
+                                </lvc:CartesianChart.YAxes>
+                            </lvc:CartesianChart>
+                        </StackPanel>
+
+                        <StackPanel
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Spacing="8">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Border
+                                    Width="12"
+                                    Height="3"
+                                    VerticalAlignment="Center"
+                                    Background="#50C878"
+                                    CornerRadius="2" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="{x:Bind ViewModel.UsagePlotLabel, Mode=OneWay}" />
+                            </StackPanel>
+                            <lvc:CartesianChart
+                                x:Name="UsageChart"
+                                x:Load="{x:Bind ViewModel.HasRunStarted, Mode=OneWay}"
+                                Height="170"
+                                AutoUpdateEnabled="True"
+                                Background="Transparent"
+                                LegendPosition="Hidden"
+                                TooltipPosition="Hidden"
+                                ZoomMode="None">
+                                <lvc:CartesianChart.Series>
+                                    <lvc:SeriesCollection>
+                                        <lvc:XamlLineSeries
+                                            AnimationsSpeed="0"
+                                            Fill="{x:Null}"
+                                            GeometryFill="{x:Null}"
+                                            GeometryStroke="{x:Null}"
+                                            LineSmoothness="0"
+                                            Stroke="{x:Bind ViewModel.UsagePaint}"
+                                            Values="{x:Bind ViewModel.UsageHistory, Mode=OneWay}" />
+                                    </lvc:SeriesCollection>
+                                </lvc:CartesianChart.Series>
+                                <lvc:CartesianChart.XAxes>
+                                    <lvc:AxesCollection>
+                                        <lvc:XamlAxis
+                                            AnimationsSpeed="0"
+                                            LabelsPaint="{x:Null}"
+                                            Padding="{lvc:Padding Value='0,0'}"
+                                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                            ShowSeparatorLines="True"
+                                            TextSize="0" />
+                                    </lvc:AxesCollection>
+                                </lvc:CartesianChart.XAxes>
+                                <lvc:CartesianChart.YAxes>
+                                    <lvc:AxesCollection>
+                                        <lvc:XamlAxis
+                                            AnimationsSpeed="0"
+                                            Labeler="{x:Bind ViewModel.UsageAxisLabeler}"
+                                            LabelsPaint="{x:Bind ViewModel.AxisLabelsPaint}"
+                                            Padding="{lvc:Padding Value='0,0'}"
+                                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                            ShowSeparatorLines="True"
+                                            TextSize="9" />
+                                    </lvc:AxesCollection>
+                                </lvc:CartesianChart.YAxes>
+                            </lvc:CartesianChart>
                         </StackPanel>
                     </Grid>
 
-                    <lvc:CartesianChart
-                        Height="180"
-                        AutoUpdateEnabled="True"
-                        Background="Transparent"
-                        LegendPosition="Hidden"
-                        Sections="{x:Bind ViewModel.StepMarker, Mode=OneWay}"
-                        TooltipPosition="Hidden"
-                        ZoomMode="None">
-                        <lvc:CartesianChart.Series>
-                            <lvc:SeriesCollection>
-                                <lvc:XamlLineSeries
-                                    AnimationsSpeed="0"
-                                    Fill="{x:Null}"
-                                    GeometryFill="{x:Null}"
-                                    GeometryStroke="{x:Null}"
-                                    LineSmoothness="0.4"
-                                    Stroke="{x:Bind ViewModel.TemperaturePaint}"
-                                    Values="{x:Bind ViewModel.TemperatureSeries, Mode=OneWay}" />
-
-                                <!--  Its own Y scale: duty is a percentage and temperature is not, and one
-                                      shared axis would flatten whichever range is smaller into a straight line.  -->
-                                <lvc:XamlLineSeries
-                                    AnimationsSpeed="0"
-                                    Fill="{x:Null}"
-                                    GeometryFill="{x:Null}"
-                                    GeometryStroke="{x:Null}"
-                                    LineSmoothness="0"
-                                    ScalesYAt="1"
-                                    Stroke="{x:Bind ViewModel.DutyPaint}"
-                                    Values="{x:Bind ViewModel.DutySeries, Mode=OneWay}" />
-                            </lvc:SeriesCollection>
-                        </lvc:CartesianChart.Series>
-                        <lvc:CartesianChart.XAxes>
-                            <lvc:AxesCollection>
-                                <lvc:XamlAxis
-                                    AnimationsSpeed="0"
-                                    LabelsPaint="{x:Null}"
-                                    Padding="{lvc:Padding Value='0,0'}"
-                                    SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
-                                    ShowSeparatorLines="True"
-                                    TextSize="0" />
-                            </lvc:AxesCollection>
-                        </lvc:CartesianChart.XAxes>
-                        <lvc:CartesianChart.YAxes>
-                            <lvc:AxesCollection>
-                                <lvc:XamlAxis
-                                    AnimationsSpeed="0"
-                                    LabelsPaint="{x:Null}"
-                                    Padding="{lvc:Padding Value='0,0'}"
-                                    SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
-                                    ShowSeparatorLines="True"
-                                    TextSize="0" />
-                                <lvc:XamlAxis
-                                    AnimationsSpeed="0"
-                                    IsVisible="False"
-                                    LabelsPaint="{x:Null}"
-                                    MaxLimit="100"
-                                    MinLimit="0"
-                                    Padding="{lvc:Padding Value='0,0'}"
-                                    ShowSeparatorLines="False"
-                                    TextSize="0" />
-                            </lvc:AxesCollection>
-                        </lvc:CartesianChart.YAxes>
-                    </lvc:CartesianChart>
-
-                    <!--  Exact values, since the plot deliberately has no axis labels.  -->
+                    <!--  Exact current values — the plots show trends, this row shows numbers.  -->
                     <controls:AutoWrapPanel HorizontalSpacing="22" VerticalSpacing="6">
                         <StackPanel Orientation="Horizontal" Spacing="7">
                             <TextBlock
@@ -286,7 +847,7 @@
                             <TextBlock
                                 FontSize="11.5"
                                 Foreground="{StaticResource TextSecondaryBrush}"
-                                Text="Package power" />
+                                Text="{x:Bind ViewModel.PowerLabel, Mode=OneWay}" />
                             <TextBlock
                                 FontSize="12.5"
                                 FontWeight="SemiBold"
@@ -359,20 +920,126 @@
                     VerticalAlignment="Center"
                     Foreground="{x:Bind ViewModel.OutcomeBrushKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
                     Kind="{x:Bind ViewModel.OutcomeIconKind, Mode=OneWay}" />
-                <TextBlock
-                    VerticalAlignment="Center"
-                    FontSize="16"
-                    FontWeight="SemiBold"
-                    Foreground="{StaticResource TextPrimaryBrush}"
-                    Text="{x:Bind ViewModel.OutcomeHeadline, Mode=OneWay}"
-                    TextWrapping="WrapWholeWords" />
+                <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.OutcomeHeadline, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.OutcomeSubtitle, Mode=OneWay}" />
+                </StackPanel>
             </StackPanel>
 
             <TextBlock
                 FontSize="13"
                 Foreground="{StaticResource TextSecondaryBrush}"
                 Text="{x:Bind ViewModel.OutcomeBody, Mode=OneWay}"
-                TextWrapping="WrapWholeWords" />
+                TextWrapping="WrapWholeWords"
+                Visibility="{x:Bind ViewModel.OutcomeBodyVisibility, Mode=OneWay}" />
+
+            <!--  The cause, in a severity-washed banner: what happened and why, never a generic error.  -->
+            <Border
+                Padding="16,13"
+                Background="{x:Bind ViewModel.BannerWashKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                BorderBrush="{x:Bind ViewModel.BannerBorderKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                BorderThickness="1"
+                CornerRadius="10"
+                Visibility="{x:Bind ViewModel.BannerVisibility, Mode=OneWay}">
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <material:MaterialIcon
+                        Width="20"
+                        Height="20"
+                        VerticalAlignment="Top"
+                        Foreground="{x:Bind ViewModel.BannerBrushKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                        Kind="{x:Bind ViewModel.BannerIconKind, Mode=OneWay}" />
+                    <StackPanel Grid.Column="1" Spacing="5">
+                        <TextBlock
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Foreground="{x:Bind ViewModel.BannerBrushKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                            Text="{x:Bind ViewModel.BannerTitle, Mode=OneWay}" />
+                        <TextBlock
+                            FontSize="13"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="{x:Bind ViewModel.BannerBody, Mode=OneWay}"
+                            TextWrapping="WrapWholeWords" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!--  WHAT WAS MEASURED — the failure's numbers as labelled rows, headline value first with the
+                  severity colour. This is the user's only guide to what to change before another run.  -->
+            <StackPanel Spacing="0" Visibility="{x:Bind ViewModel.MeasuredRowsVisibility, Mode=OneWay}">
+                <TextBlock
+                    Margin="0,0,0,6"
+                    FontSize="11.5"
+                    CharacterSpacing="60"
+                    Foreground="{StaticResource TextTertiaryBrush}"
+                    Text="{x:Bind ViewModel.MeasuredEyebrow, Mode=OneWay}" />
+                <ItemsRepeater ItemsSource="{x:Bind ViewModel.MeasuredRows, Mode=OneWay}">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Orientation="Vertical" Spacing="0" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="models:CalibrationMeasuredRow">
+                            <Border BorderBrush="{StaticResource CardSecondaryBackgroundBrush}" BorderThickness="0,0,0,1">
+                                <Grid Padding="4,12" ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <material:MaterialIcon
+                                        Width="15"
+                                        Height="15"
+                                        VerticalAlignment="Center"
+                                        Foreground="{StaticResource TextSecondaryBrush}"
+                                        Kind="{x:Bind IconKind}" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        FontSize="13"
+                                        Foreground="{StaticResource TextPrimaryBrush}"
+                                        Text="{x:Bind Label}" />
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        VerticalAlignment="Center"
+                                        FontSize="13.5"
+                                        FontWeight="SemiBold"
+                                        Foreground="{x:Bind ValueBrushKey, Converter={StaticResource ThemeBrushKey}}"
+                                        Text="{x:Bind Value}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </StackPanel>
+
+            <!--  One line of advice: what to change before spending another five minutes.  -->
+            <StackPanel
+                Orientation="Horizontal"
+                Spacing="10"
+                Visibility="{x:Bind ViewModel.AdviceVisibility, Mode=OneWay}">
+                <material:MaterialIcon
+                    Width="15"
+                    Height="15"
+                    VerticalAlignment="Top"
+                    Foreground="{StaticResource StatusInfoBrush}"
+                    Kind="LightbulbOnOutline" />
+                <TextBlock
+                    FontSize="12.5"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="{x:Bind ViewModel.AdviceText, Mode=OneWay}"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
 
             <!--  Measured values, on failures as well as successes: a failure that will not say how close it
                   got leaves the user nothing to change before spending another five minutes.  -->
@@ -417,8 +1084,11 @@
             </ItemsRepeater>
 
             <!--  Never left ambiguous: the run drives the fan to extremes, so whether it was handed back is
-                  the one fact a failure screen must always state.  -->
-            <StackPanel Orientation="Horizontal" Spacing="10">
+                  the one fact a failure screen must always state — as this line, or as a table row, once.  -->
+            <StackPanel
+                Orientation="Horizontal"
+                Spacing="10"
+                Visibility="{x:Bind ViewModel.RestoredLineVisibility, Mode=OneWay}">
                 <material:MaterialIcon
                     Width="15"
                     Height="15"
@@ -432,6 +1102,109 @@
                     Text="{x:Bind ViewModel.RestoredText, Mode=OneWay}"
                     TextWrapping="WrapWholeWords" />
             </StackPanel>
+        </StackPanel>
+            </Grid>
+        </ScrollViewer>
+
+        <!--
+            Footer. Cancel sits LEFT of the action and wears the app's red, the same treatment every other
+            cancel in this app has; the action is the accent button. Both are sized to their content rather
+            than stretched, which is what the dialog's own button row does.
+        -->
+        <StackPanel
+            Grid.Row="1"
+            HorizontalAlignment="Right"
+            Orientation="Horizontal"
+            Spacing="10">
+
+            <Button
+                Height="34"
+                MinWidth="96"
+                Padding="16,0"
+                Click="OnCancelClick"
+                CornerRadius="8"
+                Visibility="{x:Bind ViewModel.CancelVisibility, Mode=OneWay}">
+                <TextBlock FontSize="12.5" Text="{x:Bind ViewModel.CancelText, Mode=OneWay}" />
+                <Button.Resources>
+                    <SolidColorBrush x:Key="ButtonBackground" Color="#FFC42B1C" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFD33A2B" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FF9E2115" />
+                    <SolidColorBrush x:Key="ButtonForeground" Color="White" />
+                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White" />
+                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="White" />
+                </Button.Resources>
+            </Button>
+
+            <Button
+                Height="34"
+                MinWidth="96"
+                Padding="16,0"
+                Click="OnAcceptClick"
+                CornerRadius="8"
+                IsEnabled="{x:Bind ViewModel.CanAccept, Mode=OneWay}"
+                Visibility="{x:Bind ViewModel.AcceptVisibility, Mode=OneWay}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <material:MaterialIcon
+                        Width="14"
+                        Height="14"
+                        VerticalAlignment="Center"
+                        Kind="Play" />
+                    <TextBlock FontSize="12.5" Text="{x:Bind ViewModel.AcceptText, Mode=OneWay}" />
+                </StackPanel>
+
+                <!--
+                    The button's OWN resources, like every other coloured button here, rather than
+                    AccentButtonStyle. That style's setters read their brushes with ThemeResource, which
+                    resolves through the theme dictionaries — so overriding the accent keys at the root of
+                    App.xaml never reached it and the button stayed the system accent.
+                -->
+                <Button.Resources>
+                    <SolidColorBrush x:Key="ButtonBackground" Color="#FF0078D7" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FF1F8AE6" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FF0063B1" />
+                    <SolidColorBrush x:Key="ButtonBackgroundDisabled" Color="#FF2A2D2D" />
+                    <SolidColorBrush x:Key="ButtonForeground" Color="White" />
+                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White" />
+                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="White" />
+                    <SolidColorBrush x:Key="ButtonForegroundDisabled" Color="#59FFFFFF" />
+                </Button.Resources>
+            </Button>
+
+            <!--  The failure pair: a plain way out beside the accent retry, per the handoff's failure anatomy.  -->
+            <Button
+                Height="34"
+                MinWidth="96"
+                Padding="16,0"
+                Click="OnCancelClick"
+                CornerRadius="8"
+                Visibility="{x:Bind ViewModel.FailureCloseVisibility, Mode=OneWay}">
+                <TextBlock FontSize="12.5" Text="Close" />
+            </Button>
+
+            <Button
+                Height="34"
+                MinWidth="110"
+                Padding="16,0"
+                Click="OnRetryClick"
+                CornerRadius="8"
+                Visibility="{x:Bind ViewModel.RetryVisibility, Mode=OneWay}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <material:MaterialIcon
+                        Width="14"
+                        Height="14"
+                        VerticalAlignment="Center"
+                        Kind="Refresh" />
+                    <TextBlock FontSize="12.5" Text="{x:Bind ViewModel.RetryText, Mode=OneWay}" />
+                </StackPanel>
+                <Button.Resources>
+                    <SolidColorBrush x:Key="ButtonBackground" Color="#FF0078D7" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FF1F8AE6" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FF0063B1" />
+                    <SolidColorBrush x:Key="ButtonForeground" Color="White" />
+                    <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White" />
+                    <SolidColorBrush x:Key="ButtonForegroundPressed" Color="White" />
+                </Button.Resources>
+            </Button>
         </StackPanel>
     </Grid>
 </ContentDialog>

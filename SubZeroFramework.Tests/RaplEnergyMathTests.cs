@@ -21,6 +21,23 @@ public class RaplEnergyMathTests
         });
     }
 
+    /// <summary>
+    /// An AMD part registers its package zone under either spelling depending on the kernel.
+    /// </summary>
+    /// <remarks>
+    /// Matching only the Intel name left AMD machines with no package power on the kernels where it does
+    /// work — which on a Framework 16, an AMD laptop, is the machine this app exists for.
+    /// </remarks>
+    [Test]
+    public void IsPackageZoneName_AcceptsAmdZones()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(RaplEnergyMath.IsPackageZoneName("amd-rapl:0"), Is.True);
+            Assert.That(RaplEnergyMath.IsPackageZoneName("amd-rapl:0:0"), Is.False);
+        });
+    }
+
     [Test]
     public void IsPackageZoneName_RejectsNestedSubzones()
     {

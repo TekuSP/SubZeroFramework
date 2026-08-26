@@ -150,7 +150,20 @@
                     Orientation="Horizontal"
                     Spacing="9">
                     <Button Command="{x:Bind ViewModel.CancelDeleteCommand}" Content="Keep it" />
-                    <Button Command="{x:Bind ViewModel.ConfirmDeleteCommand}" Content="Delete" />
+
+                    <!--
+                        The app's destructive treatment: transparent fill, red edge, red label — the same one
+                        the uninstall button wears. Two identically styled buttons here would make the
+                        irreversible option exactly as easy to hit as the safe one.
+                    -->
+                    <Button
+                        Background="Transparent"
+                        BorderBrush="{StaticResource StatusErrorTextBrush}"
+                        BorderThickness="1"
+                        Command="{x:Bind ViewModel.ConfirmDeleteCommand}"
+                        Foreground="{StaticResource StatusErrorTextBrush}">
+                        <TextBlock Foreground="{StaticResource StatusErrorTextBrush}" Text="Delete" />
+                    </Button>
                 </StackPanel>
             </StackPanel>
         </Border>

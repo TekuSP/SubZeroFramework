@@ -82,6 +82,16 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
             () => HardwareInfoPollingIntervalMillisecondsText = FormatMilliseconds(PollingTiers.Tertiary.Default),
             () => IsConfigurationLoaded);
 
+        ResetPrimaryRetentionCommand = new RelayCommand(
+            () => PrimaryRetentionMinutesText = FormatMinutes(PollingTiers.Primary.DefaultRetention),
+            () => IsConfigurationLoaded);
+        ResetSecondaryRetentionCommand = new RelayCommand(
+            () => SecondaryRetentionMinutesText = FormatMinutes(PollingTiers.Secondary.DefaultRetention),
+            () => IsConfigurationLoaded);
+        ResetTertiaryRetentionCommand = new RelayCommand(
+            () => TertiaryRetentionMinutesText = FormatMinutes(PollingTiers.Tertiary.DefaultRetention),
+            () => IsConfigurationLoaded);
+
         ApplyServiceControlInfo(_serviceControlClient.GetInfo());
 
         frameworkStatusClient
@@ -310,6 +320,9 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
         ResetPrimaryPollingIntervalCommand.NotifyCanExecuteChanged();
         ResetSecondaryPollingIntervalCommand.NotifyCanExecuteChanged();
         ResetTertiaryPollingIntervalCommand.NotifyCanExecuteChanged();
+        ResetPrimaryRetentionCommand.NotifyCanExecuteChanged();
+        ResetSecondaryRetentionCommand.NotifyCanExecuteChanged();
+        ResetTertiaryRetentionCommand.NotifyCanExecuteChanged();
         ResetFanSettingsCommand.NotifyCanExecuteChanged();
         CanResetFanSettings = CanRunResetFanSettingsAction();
         CanUninstall = CanRunUninstallAction();
@@ -492,11 +505,49 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
 
     public string TertiaryPollingRangeHint => FormatRangeHint(PollingTiers.Tertiary);
 
+    // ----- Retention: how long each tier's samples are kept -----
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConfigurationValidationMessage))]
+    [NotifyPropertyChangedFor(nameof(HasConfigurationValidationError))]
+    [NotifyPropertyChangedFor(nameof(ConfigurationValidationVisibility))]
+    public partial string PrimaryRetentionMinutesText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConfigurationValidationMessage))]
+    [NotifyPropertyChangedFor(nameof(HasConfigurationValidationError))]
+    [NotifyPropertyChangedFor(nameof(ConfigurationValidationVisibility))]
+    public partial string SecondaryRetentionMinutesText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConfigurationValidationMessage))]
+    [NotifyPropertyChangedFor(nameof(HasConfigurationValidationError))]
+    [NotifyPropertyChangedFor(nameof(ConfigurationValidationVisibility))]
+    public partial string TertiaryRetentionMinutesText { get; set; } = string.Empty;
+
+    public string PrimaryRetentionRangeHint => FormatRetentionHint(PollingTiers.Primary);
+
+    public string SecondaryRetentionRangeHint => FormatRetentionHint(PollingTiers.Secondary);
+
+    public string TertiaryRetentionRangeHint => FormatRetentionHint(PollingTiers.Tertiary);
+
+    partial void OnPrimaryRetentionMinutesTextChanged(string value) => RefreshCommandStates();
+
+    partial void OnSecondaryRetentionMinutesTextChanged(string value) => RefreshCommandStates();
+
+    partial void OnTertiaryRetentionMinutesTextChanged(string value) => RefreshCommandStates();
+
     public IRelayCommand ResetPrimaryPollingIntervalCommand { get; }
 
     public IRelayCommand ResetSecondaryPollingIntervalCommand { get; }
 
     public IRelayCommand ResetTertiaryPollingIntervalCommand { get; }
+
+    public IRelayCommand ResetPrimaryRetentionCommand { get; }
+
+    public IRelayCommand ResetSecondaryRetentionCommand { get; }
+
+    public IRelayCommand ResetTertiaryRetentionCommand { get; }
 
     [ObservableProperty]
     public partial bool AllowFanControlCommandsDraft { get; set; }
@@ -554,6 +605,9 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
             return !string.Equals(TelemetryPollingIntervalMillisecondsText?.Trim(), currentTelemetryText, StringComparison.Ordinal)
                 || !string.Equals(SecondaryPollingIntervalMillisecondsText?.Trim(), currentSecondaryText, StringComparison.Ordinal)
                 || !string.Equals(HardwareInfoPollingIntervalMillisecondsText?.Trim(), currentHardwareInfoText, StringComparison.Ordinal)
+                || !string.Equals(PrimaryRetentionMinutesText?.Trim(), FormatMinutes(CurrentConfigurationSnapshot.PrimaryRetention), StringComparison.Ordinal)
+                || !string.Equals(SecondaryRetentionMinutesText?.Trim(), FormatMinutes(CurrentConfigurationSnapshot.SecondaryRetention), StringComparison.Ordinal)
+                || !string.Equals(TertiaryRetentionMinutesText?.Trim(), FormatMinutes(CurrentConfigurationSnapshot.TertiaryRetention), StringComparison.Ordinal)
                 || AllowFanControlCommandsDraft != CurrentConfigurationSnapshot.AllowFanControlCommands;
         }
     }
@@ -698,6 +752,9 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
         TelemetryPollingIntervalMillisecondsText = FormatMilliseconds(snapshot.PollingInterval);
         SecondaryPollingIntervalMillisecondsText = FormatMilliseconds(snapshot.SecondaryPollingInterval);
         HardwareInfoPollingIntervalMillisecondsText = FormatMilliseconds(snapshot.HardwareInfoPollingInterval);
+        PrimaryRetentionMinutesText = FormatMinutes(snapshot.PrimaryRetention);
+        SecondaryRetentionMinutesText = FormatMinutes(snapshot.SecondaryRetention);
+        TertiaryRetentionMinutesText = FormatMinutes(snapshot.TertiaryRetention);
         AllowFanControlCommandsDraft = snapshot.AllowFanControlCommands;
     }
 
@@ -793,11 +850,21 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
             return false;
         }
 
+        if (!TryParseRetention(PollingTiers.Primary, PrimaryRetentionMinutesText, "Primary", out var primaryRetention, out validationError)
+            || !TryParseRetention(PollingTiers.Secondary, SecondaryRetentionMinutesText, "Secondary", out var secondaryRetention, out validationError)
+            || !TryParseRetention(PollingTiers.Tertiary, TertiaryRetentionMinutesText, "Tertiary", out var tertiaryRetention, out validationError))
+        {
+            return false;
+        }
+
         request = new FrameworkServiceConfigurationApplyRequest
         {
             PollingInterval = primaryInterval,
             SecondaryPollingInterval = secondaryInterval,
             HardwareInfoPollingInterval = tertiaryInterval,
+            PrimaryRetention = primaryRetention,
+            SecondaryRetention = secondaryRetention,
+            TertiaryRetention = tertiaryRetention,
             AllowFanControlCommands = AllowFanControlCommandsDraft,
         };
 
@@ -830,6 +897,34 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
     private static string FormatRangeHint(PollingTier tier)
         => $"Default {FormatBound(tier.Default)} · allowed {FormatBound(tier.Minimum)}–{FormatBound(tier.Maximum)}";
 
+    /// <summary>Parses a retention box, in whole minutes, against its tier's bounds.</summary>
+    private static bool TryParseRetention(PollingTier tier, string? text, string label, out TimeSpan retention, out string validationError)
+    {
+        retention = TimeSpan.Zero;
+
+        if (!long.TryParse(text?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var minutes))
+        {
+            validationError = $"{label} retention must be a whole number of minutes.";
+            return false;
+        }
+
+        retention = TimeSpan.FromMinutes(minutes);
+
+        if (tier.ClampRetention(retention) != retention)
+        {
+            validationError =
+                $"{label} retention must be between {tier.MinimumRetention.TotalMinutes:0} and "
+                + $"{tier.MaximumRetention.TotalMinutes:0} minutes.";
+            return false;
+        }
+
+        validationError = string.Empty;
+        return true;
+    }
+
+    private static string FormatRetentionHint(PollingTier tier)
+        => $"Default {tier.DefaultRetentionMinutes} min · allowed {tier.MinimumRetention.TotalMinutes:0}–{tier.MaximumRetention.TotalMinutes:0} min";
+
     private static string FormatBound(TimeSpan interval)
         => interval < TimeSpan.FromSeconds(1)
             ? $"{interval.TotalMilliseconds:0} ms"
@@ -841,6 +936,9 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
 
     private static string FormatMilliseconds(TimeSpan timeSpan)
         => checked((long)Math.Round(timeSpan.TotalMilliseconds, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture);
+
+    private static string FormatMinutes(TimeSpan timeSpan)
+        => checked((long)Math.Round(timeSpan.TotalMinutes, MidpointRounding.AwayFromZero)).ToString(CultureInfo.InvariantCulture);
 
     public void Dispose()
     {

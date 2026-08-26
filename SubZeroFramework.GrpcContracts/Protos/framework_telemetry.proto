@@ -107,6 +107,11 @@ message ApplyServiceConfigurationRequest {
   int64 hardware_info_polling_interval_milliseconds = 2; // TERTIARY
   bool allow_fan_control_commands = 3;
   int64 secondary_polling_interval_milliseconds = 4;  // SECONDARY
+  // How long each tier's samples are kept for history. Zero means "unset" — an older client that does not
+  // send these must not be read as asking to retain nothing, so the service keeps what it already had.
+  int64 primary_retention_minutes = 5;
+  int64 secondary_retention_minutes = 6;
+  int64 tertiary_retention_minutes = 7;
 }
 
 message SaveServiceConfigurationRequest {
@@ -125,6 +130,9 @@ message FrameworkServiceConfigurationReply {
   bool allow_fan_control_commands = 3;
   string persistent_configuration_path = 4;
   int64 secondary_polling_interval_milliseconds = 5;  // SECONDARY
+  int64 primary_retention_minutes = 6;
+  int64 secondary_retention_minutes = 7;
+  int64 tertiary_retention_minutes = 8;
 }
 
 message ServiceConfigurationOperationReply {
@@ -198,6 +206,11 @@ message HardwareInfoCpuReply {
   bool vm_monitor_mode_extensions = 16;
   optional double percent_processor_time = 17;
   repeated HardwareInfoCpuCoreReply cpu_cores = 18;
+  // Processor package power. From the platform's RAPL package domain on both platforms — powercap sysfs on
+  // Linux, the Energy Meter counter set on Windows — so neither needs a kernel driver. Absent where the
+  // firmware exposes no energy meter, and on a multi-package machine, where a machine-wide reading cannot
+  // honestly be attributed to one socket.
+  optional double package_power_watts = 19;
 }
 
 message HardwareInfoCpuCoreReply {
@@ -497,6 +510,10 @@ message SetFanAdaptiveModeRequest {
   TemperatureAggregationModeValue driving_temperature_aggregation = 3;
   // Optional: when unset the fan keeps whatever Adaptive settings it already had.
   optional AdaptiveFanSettingsMessage settings = 4;
+  // When true, arm the loop live but do not persist (volatile preview) — the same contract as
+  // SetFanCustomCurveRequest.preview, and the reason previewing Adaptive is possible at all: without it the
+  // stage-preview-apply flow every other mode has ended, for this one, in an error bar.
+  bool preview = 5;
 }
 
 message SetFanAdaptiveSettingsRequest {
@@ -609,6 +626,11 @@ message RunFanCalibrationRequest {
   int32 fan_index = 1;
   // The sensors whose hottest reading the run measures against — the same ones Adaptive will hold.
   repeated int32 driving_sensor_indices = 2;
+  // What to heat: 1 = CPU, 2 = GPU, matching ThermalLoadTarget. Absent means the service decides from the
+  // fan's cooling role, which is what it did before this was askable — a fan whose role is known needs no
+  // help. Present when the user has chosen, because the role is a guess on hardware nobody has mapped, and
+  // heating the wrong component wastes a five-minute run that could never have measured anything.
+  optional int32 load_target = 3;
 }
 
 // One update from a running calibration. Carries the live readings as well as the step, so the client can
@@ -646,6 +668,21 @@ message FanCalibrationProgressReply {
   // which lags it and is scaled differently — so this is the only way a client can plot the step the
   // temperature curve is responding to.
   optional double duty_percent = 19;
+  // How far through the whole run this is, 0–1. Time-weighted by the schedule rather than derived from the
+  // step number: the steps are nothing like equal length, so counting them makes the bar lurch and then sit
+  // still for minutes. Computed by the runner and previously never sent, which left the bar at zero.
+  double overall_progress = 20;
+  // True when power_watts is a WHOLE-SYSTEM reading rather than the processor package. The package figure is
+  // not available on every platform, and the run falls back to system power so it can still measure — but
+  // presenting a 240 W adapter draw as "package power" is a different number wearing the wrong name.
+  bool power_is_system_wide = 21;
+  // The clock of the component the run is HEATING — CPU clock on a CPU-load run, GPU core clock on a
+  // GPU-load run. Which one it is needs no flag: the client chose the load target when it started the run.
+  optional double clock_megahertz = 22;
+  // Busy share of that same component, in canonical percent. Together with the clock this is what lets the
+  // live plots answer "did the load actually take": a run that never gets busy is visible minutes before it
+  // fails for an insufficient temperature swing.
+  optional double utilization_percent = 23;
 }
 
 // The stages of a run, in execution order. The ordering is physics, not presentation: identifying K requires
@@ -660,6 +697,12 @@ enum FanCalibrationStepValue {
   FAN_CALIBRATION_STEP_VALUE_FITTING_MODEL = 6;
   FAN_CALIBRATION_STEP_VALUE_VERIFYING_SPEED_TRACKING = 7;
   FAN_CALIBRATION_STEP_VALUE_COMPLETED = 8;
+  // Appended (wire values are forever) even though it EXECUTES before COMPLETED. Its absence was visible:
+  // the server mapped the sweep to NONE and the dialog showed "Step 0 of 8" for the whole phase.
+  FAN_CALIBRATION_STEP_VALUE_MEASURING_GAIN_CURVE = 9;
+  // Between attempts: heat off, every fan under firmware, waiting for the machine to cool before retrying
+  // with more sibling airflow. Not a numbered step — the client presents it as a pause, not progress.
+  FAN_CALIBRATION_STEP_VALUE_COOLING_DOWN = 10;
 }
 
 enum FanCalibrationFailureValue {

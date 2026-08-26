@@ -36,6 +36,13 @@ public sealed record FrameworkServiceOptions
     /// </remarks>
     public TimeSpan HardwareInfoPollingInterval { get; init; } = PollingTiers.Tertiary.Default;
 
+    /// <summary>How long each tier's samples are kept. Seeded from the same tier definitions as the intervals.</summary>
+    public TimeSpan PrimaryRetention { get; init; } = PollingTiers.Primary.DefaultRetention;
+
+    public TimeSpan SecondaryRetention { get; init; } = PollingTiers.Secondary.DefaultRetention;
+
+    public TimeSpan TertiaryRetention { get; init; } = PollingTiers.Tertiary.DefaultRetention;
+
     public bool AllowFanControlCommands { get; init; }
 
     public FanControlStateOptions[] FanControlStates { get; init; } = [];

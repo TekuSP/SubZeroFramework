@@ -34,12 +34,19 @@
                         Foreground="{StaticResource TextPrimaryBrush}"
                         Text="{x:Bind Value, Mode=OneWay}" />
 
+                    <!--  Link text follows the SYSTEM accent unless overridden in the element's own chain.  -->
                     <HyperlinkButton
                         Grid.Column="2"
                         Padding="8,4"
                         VerticalAlignment="Center"
                         NavigateUri="{x:Bind LinkUri}"
                         Visibility="{x:Bind LinkVisibility}">
+                        <HyperlinkButton.Resources>
+                            <SolidColorBrush x:Key="HyperlinkButtonForeground" Color="#FF8AB7E8" />
+                            <SolidColorBrush x:Key="HyperlinkButtonForegroundPointerOver" Color="#FFA9CBF0" />
+                            <SolidColorBrush x:Key="HyperlinkButtonForegroundPressed" Color="#FF6E9BCC" />
+                            <SolidColorBrush x:Key="HyperlinkButtonForegroundDisabled" Color="#FF71728C" />
+                        </HyperlinkButton.Resources>
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <material:MaterialIcon
                                 Width="14"

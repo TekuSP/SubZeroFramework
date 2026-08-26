@@ -157,7 +157,21 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
         L1CacheBytes = ToCacheBytes(Snapshot.L1CacheSizeKb);
         L2CacheBytes = ToCacheBytes(Snapshot.L2CacheSizeKb);
         L3CacheBytes = ToCacheBytes(Snapshot.L3CacheSizeKb);
+
+        // Live figures rather than inventory, so unlike the rest of this card they can legitimately be absent
+        // — a machine whose firmware exposes no energy meter reports no package power, and the tile shows the
+        // unknown dash rather than a zero that would read as an idle processor.
+        PackagePowerWatts = Snapshot.PackagePowerWatts;
+        PackageUsagePercent = Snapshot.EffectivePercentProcessorTime;
     }
+
+    /// <summary>Processor package power, canonical watts; null where the platform reports no energy meter.</summary>
+    [ObservableProperty]
+    public partial double? PackagePowerWatts { get; private set; }
+
+    /// <summary>Package-wide processor usage, 0–100; the same figure the per-core row averages to.</summary>
+    [ObservableProperty]
+    public partial double? PackageUsagePercent { get; private set; }
 
     private static double? ToCacheBytes(int kilobytes) => kilobytes > 0 ? kilobytes * 1024d : null;
 

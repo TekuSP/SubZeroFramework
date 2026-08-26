@@ -132,6 +132,11 @@ internal static class HardwareInfoGrpcMapper
             VmMonitorModeExtensions = cpu.VMMonitorModeExtensions,
         };
 
+        if (cpu.PackagePowerWatts is { } packagePowerWatts)
+        {
+            reply.PackagePowerWatts = packagePowerWatts;
+        }
+
         if (cpu.PercentProcessorTime is { } percentProcessorTime)
         {
             reply.PercentProcessorTime = percentProcessorTime;

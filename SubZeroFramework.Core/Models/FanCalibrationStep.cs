@@ -47,4 +47,14 @@ public enum FanCalibrationStep
 
     /// <summary>Finished, with a model stored.</summary>
     Completed = 9,
+
+    /// <summary>
+    /// Between attempts: heat off, every fan under firmware, waiting to cool before a retry.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately numbered PAST <see cref="Completed"/>, which keeps it out of the step count — the
+    /// ordinal-based "Step N of M" derivation counts the steps before Completed, and a pause is not a step.
+    /// Anything ordering steps numerically must treat it as unordered, not as "after finished".
+    /// </remarks>
+    CoolingDown = 10,
 }

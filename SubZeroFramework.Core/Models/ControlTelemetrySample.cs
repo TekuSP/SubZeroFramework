@@ -6,10 +6,10 @@ namespace SubZeroFramework.Models;
 /// The CPU-side signals the adaptive fan controller runs on, read once per primary-tier tick.
 /// </summary>
 /// <remarks>
-/// Every field is nullable because availability is per-signal, not per-platform: a Windows machine reports
-/// utilisation and the performance ratio but never package power, while a Linux machine without an
-/// <c>intel-rapl</c> powercap zone reports the first two and not the third. A consumer must degrade per
-/// signal rather than treating the whole sample as all-or-nothing.
+/// Every field is nullable because availability is per-signal, not per-machine: package power comes from a
+/// RAPL energy meter, which a Windows machine reads through PDH and a Linux machine through powercap sysfs,
+/// and either can be missing while utilisation and the performance ratio are both fine. A consumer must
+/// degrade per signal rather than treating the whole sample as all-or-nothing.
 /// </remarks>
 public sealed record ControlTelemetrySample
 {
@@ -30,9 +30,23 @@ public sealed record ControlTelemetrySample
     public double? CpuPerformanceRatio { get; init; }
 
     /// <summary>
-    /// CPU package power. Linux only — Windows exposes no package power to user mode without a kernel driver,
-    /// and the controller substitutes adapter power there rather than pretending this is available.
+    /// The clock the processor is actually running at, in megahertz.
     /// </summary>
+    /// <remarks>
+    /// Carried on the CONTROL sample so the displayed clock moves with the machine. The inventory tier also
+    /// reports a current clock, but it sweeps every thirty seconds by default and its source measures nothing
+    /// — a "current clock" that changes twice a minute reads as broken next to a live power figure.
+    /// </remarks>
+    public double? CpuClockMegahertz { get; init; }
+
+    /// <summary>
+    /// CPU package power, in watts.
+    /// </summary>
+    /// <remarks>
+    /// Available on both platforms from the processor's own RAPL package domain: powercap sysfs on Linux, the
+    /// Energy Meter counter set on Windows. Neither needs a kernel driver. Null where the firmware exposes no
+    /// energy meter, in which case the controller substitutes system power.
+    /// </remarks>
     public double? CpuPackagePowerWatts { get; init; }
 
     /// <summary>
@@ -54,6 +68,16 @@ public sealed record ControlTelemetrySample
     /// clock is cooling nobody needed, and that is only knowable by measuring speed alongside temperature.
     /// </remarks>
     public double? GpuCoreClockMegahertz { get; init; }
+
+    /// <summary>
+    /// The busiest graphics device's busy share, 0–1.
+    /// </summary>
+    /// <remarks>
+    /// Also not used for control; it exists so a GPU-load calibration can show the load actually TOOK, the
+    /// way <see cref="CpuUtilizationFraction"/> does for a CPU-load one. The busiest device rather than a
+    /// sum, because busy shares do not add and the loaded GPU is by definition the busiest one.
+    /// </remarks>
+    public double? GpuUtilizationFraction { get; init; }
 
     /// <summary>
     /// Total system draw, in watts, derived from the charger less battery charging.

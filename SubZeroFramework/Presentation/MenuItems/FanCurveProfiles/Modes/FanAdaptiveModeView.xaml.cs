@@ -121,42 +121,89 @@ public sealed partial class FanAdaptiveModeView : UserControl, INotifyPropertyCh
             return;
         }
 
+        // Offered with the fan's current sensors already ticked, so the common case is one click. The wizard
+        // is where they can be CHANGED, because a fan whose role was guessed wrong is exactly the fan whose
+        // sensors were guessed wrong too, and being told to go and fix it elsewhere first is a dead end.
         var model = new FanCalibrationDialogModel(
             fan.Snapshot.DisplayName,
             ViewModel.CoolingRole,
-            ViewModel.UnitFormattingService);
+            ViewModel.UnitFormattingService,
+            [.. ViewModel.AvailableSensors],
+            [.. ViewModel.DrivingSensorIndices]);
+
+        // Pushed in and then KEPT current: the dialog is open for as long as it takes to read, and unplugging
+        // the machine while reading it has to change the answer rather than leave a stale "ready to start".
+        void PushPowerState()
+        {
+            model.IsOnBattery = ViewModel.IsOnBattery;
+            model.BatteryChargePercent = ViewModel.BatteryChargePercent;
+            model.PowerReadyText = ViewModel.PowerReadyText;
+            model.PowerReadyBrushKey = ViewModel.PowerReadyBrushKey;
+            model.PowerReadyIconKind = ViewModel.PowerReadyIconKind;
+        }
+
+        void OnAdaptiveModelChanged(object? _, PropertyChangedEventArgs args)
+        {
+            if (string.IsNullOrEmpty(args.PropertyName) || args.PropertyName.StartsWith("Power", StringComparison.Ordinal)
+                || args.PropertyName == nameof(FanAdaptiveModeModel.IsOnBattery)
+                || args.PropertyName == nameof(FanAdaptiveModeModel.BatteryChargePercent))
+            {
+                PushPowerState();
+            }
+        }
+
+        PushPowerState();
+        ViewModel.PropertyChanged += OnAdaptiveModelChanged;
 
         using var dialog = new FanCalibrationDialog(model) { XamlRoot = XamlRoot };
 
-        // The dialog stays open across the whole run, so consent must not close it: the primary button is
-        // intercepted, the deferral held, and the same dialog re-used for the live run and the outcome.
-        dialog.PrimaryButtonClick += async (_, args) =>
+        // The dialog stays open across the whole run and becomes the progress view, so starting is an event
+        // rather than a closing button — nothing to veto and no deferral to hold.
+        dialog.StartRequested += async (_, _) =>
         {
-            if (model.Stage != FanCalibrationStage.Consent)
-            {
-                // The outcome's "Done" — let it close.
-                return;
-            }
-
-            args.Cancel = true;
-            var deferral = args.GetDeferral();
-
             try
             {
                 model.BeginRun();
 
                 var result = await ViewModel.StartCalibrationAsync(
                     fan.Snapshot.FanIndex,
-                    [.. ViewModel.DrivingSensorIndices],
+                    model.SelectedSensorIndices,
                     new Progress<FanCalibrationProgress>(model.Apply),
-                    dialog.CancellationToken);
+                    dialog.CancellationToken,
+                    model.LoadTarget);
 
                 model.Complete(result);
+
+                // The model the run produced describes the wizard's sensor set — remembered so "calibrate,
+                // then preview Adaptive" arms against what was actually measured, with nothing re-chosen.
+                if (result.Succeeded)
+                {
+                    ViewModel.RememberCalibratedSensors(fan.Snapshot.FanIndex, model.SelectedSensorIndices);
+                }
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+            catch (OperationCanceledException)
+            {
+                // Stopping is a normal way to end a run, and it MUST still complete the model.
+                //
+                // Two things go wrong otherwise. This is an async void handler, so an escaping exception
+                // takes the process with it. And the stage would stay Running, which is exactly the state
+                // the dialog's Closing handler vetoes — leaving a dialog that cannot be closed at all.
+                //
+                // The service restores the fan on its way out of a cancelled run, which is what the outcome
+                // screen then confirms.
+                model.Complete(new FanCalibrationRunResult
+                {
+                    FanIndex = fan.Snapshot.FanIndex,
+                    Succeeded = false,
+                    Failure = FanCalibrationFailure.Cancelled,
+                    FansRestored = true,
+                });
+            }
+            catch (Exception exception)
             {
                 // A failed CALL, as opposed to a failed run. Reported in the same place rather than thrown at
                 // a user who is looking at a progress bar.
+                System.Diagnostics.Debug.WriteLine($"The calibration call failed: {exception}");
                 model.Complete(new FanCalibrationRunResult
                 {
                     FanIndex = fan.Snapshot.FanIndex,
@@ -164,10 +211,6 @@ public sealed partial class FanAdaptiveModeView : UserControl, INotifyPropertyCh
                     Failure = FanCalibrationFailure.ClientDisconnected,
                     FansRestored = false,
                 });
-            }
-            finally
-            {
-                deferral.Complete();
             }
         };
 
@@ -185,6 +228,9 @@ public sealed partial class FanAdaptiveModeView : UserControl, INotifyPropertyCh
         }
         finally
         {
+            // The page outlives the dialog, so leaving this hooked would keep pushing into a model nothing
+            // is showing — and hold the dialog's model alive for as long as the page lives.
+            ViewModel.PropertyChanged -= OnAdaptiveModelChanged;
             _dialogOpen = false;
         }
     }

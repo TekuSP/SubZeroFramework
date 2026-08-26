@@ -11,6 +11,13 @@ public sealed record FrameworkServiceConfigurationSnapshot
     /// <summary>TERTIARY tier — see <see cref="PollingTiers.Tertiary"/>.</summary>
     public required TimeSpan HardwareInfoPollingInterval { get; init; }
 
+    /// <summary>How long each tier's samples are kept for history. See the apply request for why they pair.</summary>
+    public required TimeSpan PrimaryRetention { get; init; }
+
+    public required TimeSpan SecondaryRetention { get; init; }
+
+    public required TimeSpan TertiaryRetention { get; init; }
+
     public required bool AllowFanControlCommands { get; init; }
 
     public required string PersistentConfigurationPath { get; init; }

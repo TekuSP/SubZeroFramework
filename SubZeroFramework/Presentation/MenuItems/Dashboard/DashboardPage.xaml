@@ -122,13 +122,13 @@
                                         Width="13"
                                         Height="13"
                                         VerticalAlignment="Center"
-                                        Foreground="{StaticResource StatusWarningForegroundBrush}"
+                                        Foreground="{StaticResource StatusWarningBrush}"
                                         Kind="CircleEditOutline" />
                                     <TextBlock
                                         VerticalAlignment="Center"
                                         FontSize="11.5"
                                         FontWeight="SemiBold"
-                                        Foreground="{StaticResource StatusWarningForegroundBrush}"
+                                        Foreground="{StaticResource StatusWarningBrush}"
                                         Text="Modified" />
                                 </StackPanel>
                             </Border>
@@ -139,6 +139,15 @@
                             VerticalAlignment="Center"
                             Orientation="Horizontal"
                             Spacing="14">
+
+                            <!--  Both links: text follows the SYSTEM accent unless overridden in their own chain.  -->
+                            <StackPanel.Resources>
+                                <SolidColorBrush x:Key="HyperlinkButtonForeground" Color="#FF8AB7E8" />
+                                <SolidColorBrush x:Key="HyperlinkButtonForegroundPointerOver" Color="#FFA9CBF0" />
+                                <SolidColorBrush x:Key="HyperlinkButtonForegroundPressed" Color="#FF6E9BCC" />
+                                <SolidColorBrush x:Key="HyperlinkButtonForegroundDisabled" Color="#FF71728C" />
+                            </StackPanel.Resources>
+
                             <HyperlinkButton
                                 Padding="0"
                                 Click="OnSaveAsProfileClick"

@@ -336,11 +336,19 @@
                             VerticalAlignment="Center"
                             Foreground="{StaticResource TextSecondaryBrush}"
                             Text="{x:Bind ViewModel.PlottedSummary, Mode=OneWay}" />
+                        <!--  Link text follows the SYSTEM accent unless overridden in the element's own chain.  -->
                         <HyperlinkButton
                             Grid.Column="2"
                             VerticalAlignment="Center"
                             Command="{x:Bind ViewModel.ToggleSelectAllCommand, Mode=OneWay}"
-                            Content="{x:Bind ViewModel.SelectAllLabel, Mode=OneWay}" />
+                            Content="{x:Bind ViewModel.SelectAllLabel, Mode=OneWay}">
+                            <HyperlinkButton.Resources>
+                                <SolidColorBrush x:Key="HyperlinkButtonForeground" Color="#FF8AB7E8" />
+                                <SolidColorBrush x:Key="HyperlinkButtonForegroundPointerOver" Color="#FFA9CBF0" />
+                                <SolidColorBrush x:Key="HyperlinkButtonForegroundPressed" Color="#FF6E9BCC" />
+                                <SolidColorBrush x:Key="HyperlinkButtonForegroundDisabled" Color="#FF71728C" />
+                            </HyperlinkButton.Resources>
+                        </HyperlinkButton>
                     </Grid>
 
                     <GridView controls:ScrollHint.IsEnabled="True"

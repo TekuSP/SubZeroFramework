@@ -82,7 +82,9 @@ public sealed partial class FanProfileManageDialogModel : ObservableObject
 
     public ReadOnlyObservableCollection<FanProfileRowModel> Rows { get; }
 
-    public bool IsEmpty => _rows.Count == 0;
+    /// <summary>Stored rather than computed from the row count, so it notifies when the list is rebuilt.</summary>
+    [ObservableProperty]
+    public partial bool IsEmpty { get; private set; }
 
     /// <summary>Set while a delete is waiting to be confirmed; the row it names is the one at risk.</summary>
     [ObservableProperty]
@@ -167,6 +169,6 @@ public sealed partial class FanProfileManageDialogModel : ObservableObject
             _rows.Add(new FanProfileRowModel(this, profile, description) { IsDefault = profile.Id == defaultId });
         }
 
-        OnPropertyChanged(nameof(IsEmpty));
+        IsEmpty = _rows.Count == 0;
     }
 }

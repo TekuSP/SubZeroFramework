@@ -43,6 +43,72 @@ public sealed class FanCalibrationRunner : IDisposable
     public const double PreStepDutyPercent = 22d;
 
     /// <summary>
+    /// The fixed duty every fan NOT being calibrated holds for the whole driven phase.
+    /// </summary>
+    /// <remarks>
+    /// The identification needs everything except the measured fan's duty held still; ANY constant satisfies
+    /// that, and this one only picks the operating point. OFF, not merely low: the previous 10% sat in the
+    /// sputter band just under a typical stall point (~12%, ~730 RPM measured), where the fan does not hold
+    /// still at all — it stalls, gets kicked by the motor controller, spins, and stalls again, toggling the
+    /// plant's cooling mid-measurement. A fan at zero is CONSTANT zero airflow, which is genuinely held
+    /// still, and it hands the measured fan the whole airflow range. The machine runs hotter this way, and
+    /// the retry ladder plus the 95 °C ceiling abort are the backstops that make that acceptable.
+    /// </remarks>
+    public const double SiblingHoldDutyPercent = 0d;
+
+    /// <summary>
+    /// The lowest duty an ESCALATED sibling hold may take — the other side of the sputter band.
+    /// </summary>
+    /// <remarks>
+    /// A retry's first raise jumps here rather than stepping through 10% and 20%, both of which live around
+    /// the stall boundary where a fan sputters instead of holding. Comfortably above the measured ~12% stall
+    /// for the same reason the pre-step hold sits at 22%: the fan must be genuinely turning throughout.
+    /// </remarks>
+    public const double SiblingSpinFloorDutyPercent = 25d;
+
+    /// <summary>How close to the safety ceiling a measurement may get before it is retried, in °C.</summary>
+    /// <remarks>
+    /// <para>
+    /// Retry rather than abort: parking the siblings near-dead maximises the measured swing, but on a hot
+    /// chassis it can put a settle's own asymptote at the ceiling — a run that then ABORTED at 95 °C every
+    /// time, which one machine did. At this margin the attempt stops, the load is dropped, every fan runs
+    /// at full until the machine cools, and the measurement runs again with the siblings a step higher —
+    /// repeating until an attempt fits inside the margin. The run completes at the most aggressive sibling
+    /// duty this chassis can actually sustain, found instead of guessed.
+    /// </para>
+    /// <para>
+    /// Three degrees, not more: the silicon's own hard limit (Tctl on mobile Ryzen) sits near 100 °C, so
+    /// the 95 °C ceiling is already conservative — but the measurement rots before the hardware does. Idle
+    /// injection was measured on the reference machine from the high 80s with the fans pinned: busy
+    /// collapsing to 30-40% at full clocks. A trip line above ~92 °C would let the run hold an operating
+    /// point the CPU is already sabotaging.
+    /// </para>
+    /// </remarks>
+    public const double CeilingRetryMarginCelsius = 3d;
+
+    /// <summary>How much sibling duty each retry adds.</summary>
+    public const double SiblingRetryStepPercent = 10d;
+
+    /// <summary>
+    /// Where the retries stop and the ceiling abort takes over.
+    /// </summary>
+    /// <remarks>
+    /// Full, not partial. An artificial cap below full just converts "the siblings could have coped" into an
+    /// abort. If the swing left after heavy retries is too small to fit, the noise gate refuses it with a
+    /// message that says so — a better failure than 95 °C. Beyond full duty there is genuinely nothing left,
+    /// and once the siblings sit here the retry trigger disarms: the attempt runs on into the margin and
+    /// either completes there or meets the real abort.
+    /// </remarks>
+    public const double MaximumSiblingHoldDutyPercent = 100d;
+
+    /// <summary>How far below the ceiling the machine must cool, in °C, before a retry begins.</summary>
+    /// <remarks>
+    /// Well below the retry margin, so the next attempt starts from a genuinely cooled machine rather than
+    /// re-tripping on the residual heat of the last one.
+    /// </remarks>
+    public const double CooldownExitMarginCelsius = 15d;
+
+    /// <summary>
     /// Total spread, in °C, that a settle window may cover.
     /// </summary>
     /// <remarks>
@@ -130,11 +196,17 @@ public sealed class FanCalibrationRunner : IDisposable
     /// <param name="onProgress">Called for each update; must not throw.</param>
     /// <param name="cancellationToken">Cancels the run. The fan is restored regardless.</param>
     /// <returns>The identified model, or why it could not be produced.</returns>
+    /// <param name="requestedLoadTarget">
+    /// What the caller asked to heat, or <see cref="ThermalLoadTarget.None"/> to let the fan's cooling role
+    /// decide. A caller's choice wins: the role is inferred, and on hardware nobody has mapped it is a guess
+    /// — one that costs a five-minute run which could never have measured anything if it guesses wrong.
+    /// </param>
     public async Task<FanCalibrationRunResult> RunAsync(
         int fanIndex,
         IReadOnlyCollection<int> drivingSensorIndices,
         Func<FanCalibrationProgress, Task> onProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ThermalLoadTarget requestedLoadTarget = ThermalLoadTarget.None)
     {
         ArgumentNullException.ThrowIfNull(drivingSensorIndices);
         ArgumentNullException.ThrowIfNull(onProgress);
@@ -152,7 +224,16 @@ public sealed class FanCalibrationRunner : IDisposable
             throw new InvalidOperationException("A calibration is already running on this machine.");
         }
 
-        var session = new RunSession(fanIndex, drivingSensorIndices, onProgress, this);
+        // Every OTHER fan is listed too, because the run pins them. On this chassis the fans share the
+        // heatpipe assembly, and a sibling left under closed-loop control is a feedback loop wrapped around
+        // the measurement: load rises, it spins up; the measured fan steps to full and the temperature
+        // starts to fall, it spins DOWN — actively cancelling the very response being identified. Measured
+        // before this: a 2 °C swing on a machine that can produce far more. No extra claims are needed —
+        // the arbiter's one machine-wide claim answers IsCalibrating for every fan while a run is active,
+        // which is what keeps the curve worker's hands off the pinned siblings too.
+        List<int> siblingFanIndices = [.. _frameworkDataProvider.GetFanIndices().Where(index => index != fanIndex)];
+
+        var session = new RunSession(fanIndex, siblingFanIndices, drivingSensorIndices, onProgress, this, requestedLoadTarget);
 
         try
         {
@@ -167,11 +248,11 @@ public sealed class FanCalibrationRunner : IDisposable
             // 100% from the step — and leave the machine-wide claim held, which permanently stops the curve
             // worker touching that fan and blocks every future calibration. The restore is the promise this
             // class exists to keep, so it runs first and nothing can get in front of it.
-            await SafelyAsync(session.RestoreFanAsync, "restore the fan").ConfigureAwait(false);
+            await SafelyAsync(session.RestoreFansAsync, "restore the fans").ConfigureAwait(false);
             Safely(_loadGenerator.Stop, "stop CPU load");
             Safely(_gpuLoadGenerator.Stop, "stop GPU load");
 
-            // Released last, so nothing else can drive the fan until it is back under automatic control.
+            // Released last, so nothing else can drive the fans until they are back under automatic control.
             _arbiter.Release(fanIndex);
         }
     }
@@ -248,14 +329,66 @@ public sealed class FanCalibrationRunner : IDisposable
     /// <summary>One run's mutable state, so the runner itself stays re-entrant-safe by construction.</summary>
     private sealed class RunSession(
         int fanIndex,
+        IReadOnlyList<int> siblingFanIndices,
         IReadOnlyCollection<int> drivingSensorIndices,
         Func<FanCalibrationProgress, Task> onProgress,
-        FanCalibrationRunner owner)
+        FanCalibrationRunner owner,
+        ThermalLoadTarget requestedLoadTarget)
     {
         private readonly Stopwatch _elapsed = Stopwatch.StartNew();
         private readonly List<double> _powerSamples = [];
+
+        /// <summary>Whether the last power sample came from the system reading rather than the package.</summary>
+        private bool _powerIsSystemWide;
         private double _peakCelsius;
         private bool _fanWasDriven;
+
+        /// <summary>True once any sibling accepted its hold duty, so restore knows there is work either way.</summary>
+        private bool _siblingsWereDriven;
+
+        /// <summary>
+        /// The duty the siblings currently hold — the near-dead default until ceiling relief raises it.
+        /// </summary>
+        /// <remarks>
+        /// Only ever raised BETWEEN settles, never during the response recording: the recording is a fall
+        /// from a settled point already inside the ceiling margin, so it cannot need relief, and the fit's
+        /// premise that everything but the measured fan holds still stays intact.
+        /// </remarks>
+        private double _siblingHoldDutyPercent = SiblingHoldDutyPercent;
+
+        /// <summary>True only while a measurement attempt is running — the phases a ceiling retry can redo.</summary>
+        private bool _retryArmed;
+
+        /// <summary>Set when a sample tripped the retry margin, telling the attempt loop to go again.</summary>
+        private bool _ceilingRetryPending;
+
+        /// <summary>When the hottest reading first crossed the retry line, or null while it is below.</summary>
+        private TimeSpan? _retryHotSince;
+
+        /// <summary>
+        /// True while a ceiling-retry cooldown is waiting for the machine to cool with every fan at full.
+        /// </summary>
+        /// <remarks>
+        /// Suppresses the ceiling ABORT, and that is not a safety trade: the abort's remedy is to stop the
+        /// heat and give the machine its fans back, and cooldown has already gone further — heat off and
+        /// every fan at maximum. The sensor keeps climbing for seconds after a retry trips (heat already in
+        /// flight from die to sensor, load threads winding down), and a live abort here killed a real run at
+        /// 96 °C during its very first cooldown — before the sibling ever got its raise.
+        /// </remarks>
+        private bool _coolingDown;
+
+        /// <summary>The first completed minimum-spin walk, reused by every retry after it.</summary>
+        private MinimumSpinResult? _cachedMinimumSpin;
+
+        /// <summary>
+        /// The furthest the progress bar has reached, reported instead of the raw figure.
+        /// </summary>
+        /// <remarks>
+        /// A retry re-runs earlier steps, and the raw schedule position would walk the bar BACKWARD — which
+        /// reads as the run breaking. Held at its high-water mark, the bar simply pauses while the retry
+        /// catches back up.
+        /// </remarks>
+        private double _maxReportedProgress;
 
         /// <summary>Consecutive samples where no driving sensor reported. Reset by any successful reading.</summary>
         private int _blindSamples;
@@ -437,6 +570,13 @@ public sealed class FanCalibrationRunner : IDisposable
         /// </remarks>
         private ThermalLoadTarget ResolveLoadTarget()
         {
+            // An explicit request wins over everything below it. The role and the sensor-name reading are
+            // both inferences, and the user is looking at the machine.
+            if (requestedLoadTarget != ThermalLoadTarget.None)
+            {
+                return requestedLoadTarget;
+            }
+
             var role = owner._fanControlStateStore.GetState(fanIndex)?.CoolingRole ?? FanCoolingRole.Unknown;
 
             switch (role)
@@ -527,23 +667,186 @@ public sealed class FanCalibrationRunner : IDisposable
                 return Failed(fanIndex, FanCalibrationFailure.OnBattery, FanCalibrationStep.SettlingAtIdle, _elapsed.Elapsed, restored: true, peak: _peakCelsius);
             }
 
-            // 2 — minimum spin. Walked down rather than searched, because the interesting quantity is where
-            // the fan STOPS reliably turning, and that is only observable by going there.
-            var minimumSpin = await FindMinimumSpinAsync(cancellationToken).ConfigureAwait(false);
-            if (minimumSpin.Abort is { } spinAbort)
+            // 2+ — everything that drives fans, as many times as it takes. An attempt that gets within the
+            // retry margin of the ceiling is not a verdict about the machine, it is a verdict about the
+            // SIBLING duty the attempt ran with — so the load is dropped, every fan goes back to firmware
+            // control until the machine cools, and the attempt runs again with the siblings a step higher.
+            // The loop wraps the WHOLE driven region, minimum-spin walk included: the walk holds every fan
+            // near-dead on a machine that is never as idle as "idle" suggests, and leaving it outside the
+            // armed region is exactly how a real run cooked to 95 °C ninety seconds in, before the retry
+            // machinery was even listening. The loop is finite by construction: each pass raises the hold,
+            // and at full duty the trigger disarms.
+            while (true)
             {
-                return spinAbort;
+                _ceilingRetryPending = false;
+                _retryHotSince = null;
+                _retryArmed = true;
+
+                var attempt = await MeasureAndFitAsync(cancellationToken).ConfigureAwait(false);
+
+                _retryArmed = false;
+
+                if (!_ceilingRetryPending)
+                {
+                    return attempt;
+                }
+
+                // The first raise jumps clear across the sputter band to a duty the fan can actually hold;
+                // every raise after that steps normally. 10% or 20% would leave the sibling stalling and
+                // restarting mid-attempt — the exact noise pinning it exists to remove.
+                _siblingHoldDutyPercent = _siblingHoldDutyPercent < SiblingSpinFloorDutyPercent
+                    ? SiblingSpinFloorDutyPercent
+                    : Math.Min(MaximumSiblingHoldDutyPercent, _siblingHoldDutyPercent + SiblingRetryStepPercent);
+
+                owner._logger.LogInformation(
+                    "Calibration for fan {FanIndex}: cooling down, then retrying with the sibling hold raised to {Duty}%.",
+                    fanIndex,
+                    _siblingHoldDutyPercent);
+
+                if (await CoolDownAtFullFanAsync(cancellationToken).ConfigureAwait(false) is { } cooldownAbort)
+                {
+                    return cooldownAbort;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Drops the heat and runs EVERY fan at full until the machine has genuinely cooled.
+        /// </summary>
+        /// <remarks>
+        /// Full duty on every fan, not firmware auto. Auto was tried first and cooled with one fan while
+        /// the rest idled — the firmware has no idea a calibration wants the heat gone NOW, it only sees
+        /// temperatures it considers acceptable. Commanding all of them is deterministic, fastest, and safe:
+        /// the arbiter owns every fan for the whole run, so nothing fights the commands, and the run's
+        /// final restore covers every exit path out of this state. A cooldown that times out proceeds
+        /// anyway — the retry margin trips again if it must, and each trip raises the siblings, so a
+        /// machine that cannot cool converges on the honest abort instead of looping.
+        /// </remarks>
+        private async Task<FanCalibrationRunResult?> CoolDownAtFullFanAsync(CancellationToken cancellationToken)
+        {
+            owner._loadGenerator.Stop();
+            owner._gpuLoadGenerator.Stop();
+
+            _fanWasDriven = true;
+            await SetDutyAsync(100d, cancellationToken).ConfigureAwait(false);
+
+            foreach (var siblingFanIndex in siblingFanIndices)
+            {
+                try
+                {
+                    await owner._frameworkDataProvider.SetFanDutyAsync(siblingFanIndex, 100d, cancellationToken).ConfigureAwait(false);
+                    _siblingsWereDriven = true;
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    owner._logger.LogWarning(exception, "Could not run fan {SiblingFanIndex} at full for the cooldown; continuing.", siblingFanIndex);
+                }
             }
 
-            // 3 — load, and hold a low duty until the temperature stops climbing. The fit assumes the only
-            // thing that changes at the step is duty, so everything else has to be steady first.
+            var deadline = _elapsed.Elapsed + owner._timings.CooldownTimeout;
+            var peakDuringCooldown = double.MinValue;
+            _coolingDown = true;
+
+            try
+            {
+                while (_elapsed.Elapsed < deadline)
+                {
+                    // The retry trigger is disarmed here and the ceiling abort stands down (see
+                    // _coolingDown) — a still-hot machine, or the overshoot of the trip that got us here,
+                    // reads as a cooldown in progress. Cancellation, battery and telemetry staleness still
+                    // abort exactly as they do everywhere else.
+                    var sample = await SampleAsync(FanCalibrationStep.CoolingDown, cancellationToken).ConfigureAwait(false);
+                    if (sample.Abort is { } abort)
+                    {
+                        return abort;
+                    }
+
+                    if (ReadHottestSensor() is not { } hottest)
+                    {
+                        continue;
+                    }
+
+                    peakDuringCooldown = Math.Max(peakDuringCooldown, hottest.Celsius);
+
+                    if (hottest.Celsius <= SafetyCeilingCelsius - CooldownExitMarginCelsius)
+                    {
+                        break;
+                    }
+                }
+            }
+            finally
+            {
+                _coolingDown = false;
+            }
+
+            if (peakDuringCooldown > double.MinValue)
+            {
+                owner._logger.LogInformation(
+                    "Calibration for fan {FanIndex}: cooldown complete (peaked at {Peak:0.#} C).",
+                    fanIndex,
+                    peakDuringCooldown);
+            }
+
+            // The next attempt re-pins the siblings itself, at their raised hold, as its first act.
+            return null;
+        }
+
+        /// <summary>
+        /// One full measurement: warm, hold, step, record, fit, verify, sweep — everything a retry redoes.
+        /// </summary>
+        private async Task<FanCalibrationRunResult> MeasureAndFitAsync(CancellationToken cancellationToken)
+        {
+            // Cleared per attempt: watts sampled by an attempt that tripped the retry margin describe a
+            // machine running hotter, with less airflow, than the one the surviving attempt measured — and
+            // the average becomes the feed-forward gain.
+            _powerSamples.Clear();
+
+            // Every sibling is pinned before anything else is driven. A sibling left under firmware control
+            // is a feedback loop wrapped around the measurement: it spins up as the load heats the shared
+            // heatpipe and back down as the measured fan's step cools it, cancelling the very response the
+            // fit needs. Re-asserted at the top of every attempt so a retry runs at its RAISED hold.
+            await PinSiblingFansAsync(cancellationToken).ConfigureAwait(false);
+
+            // Minimum spin, walked down rather than searched, because the interesting quantity is where the
+            // fan STOPS reliably turning — only observable by going there. Cached across retries: the stall
+            // point does not depend on the sibling duty, and the walk costs a minute of near-dead fans on a
+            // machine the retry exists to protect, so a retry only repeats it when the first walk never got
+            // to finish.
+            if (_cachedMinimumSpin is not { } minimumSpin)
+            {
+                minimumSpin = await FindMinimumSpinAsync(cancellationToken).ConfigureAwait(false);
+                if (minimumSpin.Abort is { } spinAbort)
+                {
+                    return spinAbort;
+                }
+
+                _cachedMinimumSpin = minimumSpin;
+            }
+
+            // 3 — load, entered under FULL fan rather than at the low hold. The measured step still goes
+            // UPWARD and records the fall, because that direction is fail-safe — anything that dies
+            // mid-measurement leaves the fan at maximum, not pinned low on a hot machine. What changed is
+            // the approach: one unbroken climb from idle to the run's hottest point at the low hold was the
+            // longest, least-forgiving stretch of the whole run, and with the siblings now parked near-dead
+            // it rode straight at the ceiling. Split in two, the machine first settles at the COOL loaded
+            // point under maximum airflow, and the hold is then entered from nearby — a shorter climb that
+            // settles sooner, watched by the same ceiling guard throughout.
             _fanWasDriven = true;
-            await SetDutyAsync(PreStepDutyPercent, cancellationToken).ConfigureAwait(false);
+            await SetDutyAsync(100d, cancellationToken).ConfigureAwait(false);
 
             if (StartLoad() is { } loadFailure)
             {
                 return loadFailure;
             }
+
+            if (await SettleUnderLoadAsync(cancellationToken).ConfigureAwait(false) is { } warmAbort)
+            {
+                return warmAbort;
+            }
+
+            // Then down to the hold and steady there. The fit assumes the only thing that changes at the
+            // step is duty, so this asymptote has to be genuinely settled before the step fires.
+            await SetDutyAsync(PreStepDutyPercent, cancellationToken).ConfigureAwait(false);
 
             if (await SettleUnderLoadAsync(cancellationToken).ConfigureAwait(false) is { } loadAbort)
             {
@@ -625,8 +928,56 @@ public sealed class FanCalibrationRunner : IDisposable
         /// ones already reporting a failure, and letting it throw would replace a useful error with a
         /// meaningless one while ALSO leaving the fan overridden.
         /// </remarks>
-        public async Task RestoreFanAsync()
+        /// <summary>
+        /// Parks every fan this run is not measuring at a fixed duty, so nothing regulates against the test.
+        /// </summary>
+        /// <remarks>
+        /// Best-effort per fan: a sibling that refuses the command keeps its firmware control, which merely
+        /// degrades the measurement back to what it was — it must not abort a run the user consented to.
+        /// </remarks>
+        private async Task PinSiblingFansAsync(CancellationToken cancellationToken)
         {
+            foreach (var siblingFanIndex in siblingFanIndices)
+            {
+                try
+                {
+                    await owner._frameworkDataProvider.SetFanDutyAsync(siblingFanIndex, _siblingHoldDutyPercent, cancellationToken).ConfigureAwait(false);
+                    _siblingsWereDriven = true;
+                    owner._logger.LogInformation(
+                        "Pinned fan {SiblingFanIndex} at {Duty}% while fan {FanIndex} is calibrated.",
+                        siblingFanIndex,
+                        _siblingHoldDutyPercent,
+                        fanIndex);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    owner._logger.LogWarning(
+                        exception,
+                        "Could not pin fan {SiblingFanIndex} during calibration; it stays under firmware control and may soften the measured response.",
+                        siblingFanIndex);
+                }
+            }
+        }
+
+        public async Task RestoreFansAsync()
+        {
+            // Siblings first and unconditionally once any was pinned: they were commanded even on runs that
+            // never got as far as driving the measured fan.
+            if (_siblingsWereDriven)
+            {
+                foreach (var siblingFanIndex in siblingFanIndices)
+                {
+                    try
+                    {
+                        await owner._frameworkDataProvider.RestoreAutoFanControlAsync(siblingFanIndex, CancellationToken.None).ConfigureAwait(false);
+                    }
+                    catch (Exception exception)
+                    {
+                        owner._logger.LogError(exception, "Failed to restore fan {SiblingFanIndex} after calibration. The fan may still be overridden.", siblingFanIndex);
+                    }
+                }
+            }
+
             if (!_fanWasDriven)
             {
                 return;
@@ -761,15 +1112,66 @@ public sealed class FanCalibrationRunner : IDisposable
             {
                 _peakCelsius = Math.Max(_peakCelsius, hottest.Celsius);
 
-                if (hottest.Celsius >= SafetyCeilingCelsius)
+                // The retry trigger, BEFORE the abort and keyed on the same hottest-of-everything reading
+                // the abort uses — an earlier version watched only the driving temperature, and a
+                // non-driving sensor walked straight past it to 95 °C. Tripping here unwinds the whole
+                // attempt so it can be re-run with more sibling airflow after a cooldown; the abort result
+                // built here is a placeholder the attempt loop discards. Disarmed once the siblings have no
+                // headroom left, so a final attempt may run on into the margin — completing there beats
+                // aborting for wanting room that does not exist.
+                if (_retryArmed
+                    && siblingFanIndices.Count > 0
+                    && _siblingHoldDutyPercent < MaximumSiblingHoldDutyPercent)
                 {
+                    // Sub-ceiling heat must PERSIST before it costs a cooldown cycle — the reading flickers
+                    // ±2 °C, and a single spike used to burn minutes. The ceiling itself trips instantly:
+                    // a genuine runaway does not get to spend the persistence budget climbing.
+                    if (hottest.Celsius >= SafetyCeilingCelsius - CeilingRetryMarginCelsius)
+                    {
+                        _retryHotSince ??= takenAt;
+                    }
+                    else
+                    {
+                        _retryHotSince = null;
+                    }
+
+                    var sustainedPastTheLine = _retryHotSince is { } hotSince
+                        && takenAt - hotSince >= owner._timings.CeilingRetryPersistence;
+
+                    if (sustainedPastTheLine || hottest.Celsius >= SafetyCeilingCelsius)
+                    {
+                        _ceilingRetryPending = true;
+
+                        owner._logger.LogInformation(
+                            "Calibration for fan {FanIndex}: sensor {SensorName} at {Celsius:0.#} C ({Reason}); the attempt will be retried with more sibling airflow.",
+                            fanIndex,
+                            hottest.Name,
+                            hottest.Celsius,
+                            sustainedPastTheLine ? "sustained inside the retry margin" : "at the ceiling");
+
+                        return SampleResult.Aborted(Failed(fanIndex, FanCalibrationFailure.TemperatureCeiling, step, _elapsed.Elapsed, restored: true, peak: _peakCelsius));
+                    }
+                }
+
+                // The ceiling abort stands down during a cooldown — heat off with every fan at full EXCEEDS
+                // the abort's remedy, already applied, and the post-trip overshoot would otherwise kill the
+                // retry it exists to allow.
+                if (hottest.Celsius >= SafetyCeilingCelsius && !_coolingDown)
+                {
+                    // The context rides in the WARNING because warnings are all the default EventLog level
+                    // keeps — a bare abort line cost a whole diagnosis session once, when which phase died
+                    // and whether the retry was even armed had to be reconstructed from timestamps.
                     owner._logger.LogWarning(
-                        "Aborting calibration for fan {FanIndex}: sensor {SensorIndex} ({SensorName}) reached {Celsius:0.#} C, at or above the {Ceiling} C safety ceiling.",
+                        "Aborting calibration for fan {FanIndex}: sensor {SensorIndex} ({SensorName}) reached {Celsius:0.#} C, at or above the {Ceiling} C safety ceiling (step {Step}, retry armed: {RetryArmed}, siblings: {SiblingCount} at {SiblingDuty}%).",
                         fanIndex,
                         hottest.Index,
                         hottest.Name,
                         hottest.Celsius,
-                        SafetyCeilingCelsius);
+                        SafetyCeilingCelsius,
+                        step,
+                        _retryArmed,
+                        siblingFanIndices.Count,
+                        _siblingHoldDutyPercent);
 
                     return SampleResult.Aborted(Failed(fanIndex, FanCalibrationFailure.TemperatureCeiling, step, _elapsed.Elapsed, restored: true, peak: _peakCelsius));
                 }
@@ -804,9 +1206,16 @@ public sealed class FanCalibrationRunner : IDisposable
             // never got busy, and abort every single GPU calibration after minutes of heating — while the GPU
             // sat at full load the whole time. The same figure becomes the feed-forward gain, so reading the
             // wrong component would also make it duty-per-CPU-watt on a fan that cools neither.
-            var power = ResolveLoadTarget() == ThermalLoadTarget.Gpu
-                ? control.Sample.GpuPowerWatts ?? control.Sample.SystemPowerWatts
-                : control.Sample.CpuPackagePowerWatts ?? control.Sample.SystemPowerWatts;
+            var preferred = ResolveLoadTarget() == ThermalLoadTarget.Gpu
+                ? control.Sample.GpuPowerWatts
+                : control.Sample.CpuPackagePowerWatts;
+
+            var power = preferred ?? control.Sample.SystemPowerWatts;
+
+            // Whether the fallback was taken, so the readout can name what it is showing. A system reading is
+            // a legitimate substitute for measuring, and a badly mislabelled one when displayed: an adapter
+            // drawing 240 W says nothing about whether the processor got busy.
+            _powerIsSystemWide = preferred is null && control.Sample.SystemPowerWatts is not null;
 
             // Only the loaded steps count. Idle and minimum-spin readings would drag the average down, and
             // because feed-forward is derived as duty-per-watt, a too-low average produces a too-HIGH gain —
@@ -852,19 +1261,44 @@ public sealed class FanCalibrationRunner : IDisposable
 
             var elapsedInStep = _elapsed.Elapsed - _stepStartedAt;
 
+            // Held at its high-water mark: a ceiling retry re-runs earlier steps, and the raw schedule
+            // position would walk the bar BACKWARD — which reads as the run breaking. Held, it pauses
+            // instead while the retry catches back up. CoolingDown never feeds it — the pause is not a step,
+            // and its out-of-order enum value would read to the schedule as "past everything".
+            if (step != FanCalibrationStep.CoolingDown)
+            {
+                _maxReportedProgress = Math.Max(_maxReportedProgress, owner._schedule.ProgressAt(step, elapsedInStep));
+            }
+
+            // Read here rather than passed in, because reports also fire on step transitions where no fresh
+            // sample exists — and the cached read costs a volatile load. Clock and busy share are taken from
+            // the component this run HEATS, for the same reason power is: on a GPU-load run the processor
+            // sits idle, and its figures would show a machine that never got busy under a GPU at full load.
+            var control = owner._frameworkDataProvider.GetLatestControlTelemetry().Sample;
+            var isGpuLoad = ResolveLoadTarget() == ThermalLoadTarget.Gpu;
+
             try
             {
                 await onProgress(new FanCalibrationProgress
                 {
                     FanIndex = fanIndex,
                     Step = step,
-                    OverallProgress = owner._schedule.ProgressAt(step, elapsedInStep),
-                    EstimatedRemaining = owner._schedule.RemainingAt(step, elapsedInStep),
+                    OverallProgress = _maxReportedProgress,
+                    // None during a cooldown: the pause's length is the machine's to decide, and the
+                    // schedule would misread the out-of-order enum value as "almost done".
+                    EstimatedRemaining = step == FanCalibrationStep.CoolingDown
+                        ? null
+                        : owner._schedule.RemainingAt(step, elapsedInStep),
                     ElapsedSeconds = _elapsed.Elapsed.TotalSeconds,
                     TemperatureCelsius = temperature ?? ReadDrivingTemperature(),
                     DutyPercent = _commandedDutyPercent,
                     SpeedRpm = speed ?? ReadSpeedRpm(),
                     PackagePowerWatts = power,
+                    PowerIsSystemWide = _powerIsSystemWide,
+                    ClockMegahertz = isGpuLoad ? control.GpuCoreClockMegahertz : control.CpuClockMegahertz,
+                    UtilizationPercent = (isGpuLoad ? control.GpuUtilizationFraction : control.CpuUtilizationFraction) is { } busyFraction
+                        ? busyFraction * 100d
+                        : null,
                     IsStepMarker = stepMarker,
                 }).ConfigureAwait(false);
             }
@@ -1008,6 +1442,14 @@ public sealed class FanCalibrationRunner : IDisposable
             var deadline = start + owner._timings.LoadSettleTimeout;
             List<(TimeSpan At, double Celsius)> window = [];
 
+            // The settle range is judged on a short trailing mean, not the raw reading. The EC quantises to
+            // whole degrees and the driving value is a maximum over several sensors, so the raw trace jumps
+            // 1-2 °C both ways even at a genuinely settled operating point — against a 1.5 °C settle band
+            // that means the settle NEVER closes and every hold rides its full timeout. The mean's lag is
+            // harmless here (a settle decision is not a timing measurement), and the safety checks in
+            // SampleAsync keep reading raw. Local to this call on purpose: a new settle is a new plant.
+            Queue<double> recentCelsius = new();
+
             while (_elapsed.Elapsed < deadline)
             {
                 var sample = await SampleAsync(FanCalibrationStep.LoadingAndSettling, cancellationToken).ConfigureAwait(false);
@@ -1021,8 +1463,15 @@ public sealed class FanCalibrationRunner : IDisposable
                     continue;
                 }
 
+                recentCelsius.Enqueue(celsius);
+                while (recentCelsius.Count > 5)
+                {
+                    recentCelsius.Dequeue();
+                }
+
                 var now = sample.TakenAt;
-                window.Add((now, celsius));
+
+                window.Add((now, recentCelsius.Average()));
                 window.RemoveAll(sample => now - sample.At > owner._timings.SettleWindow);
 
                 // Never settle early. Load takes time to reach the die and longer to reach the sensor, and

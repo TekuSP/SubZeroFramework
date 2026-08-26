@@ -41,7 +41,11 @@ public sealed class SimulatedThermalPlant : StubFrameworkDataProvider, ICpuLoadG
     private readonly Lock _stateLock = new();
 
     private double _celsius = AmbientCelsius;
+    /// <summary>How many samples the runaway keeps climbing after the load stops — the in-flight heat.</summary>
+    private const int RunawayOvershootSamples = 4;
+
     private double _runawayCelsius = AmbientCelsius;
+    private int _runawayInertiaSamples;
     private double _dutyPercent;
     private int? _commandedRpm;
     private bool _cpuLoadOn;
@@ -63,6 +67,16 @@ public sealed class SimulatedThermalPlant : StubFrameworkDataProvider, ICpuLoadG
 
     /// <summary>How much hotter the machine runs with the load generator going.</summary>
     public double LoadRiseCelsius { get; init; } = 54d;
+
+    /// <summary>
+    /// Temperature rise above ambient while the calibration load is NOT running, in °C.
+    /// </summary>
+    /// <remarks>
+    /// Zero models a lab machine; a real one is never that idle — the app rendering its charts, the IDE,
+    /// the service itself all burn watts the run did not ask for. With the fans held near-dead through the
+    /// minimum-spin walk, that "idle" heat cooked a real machine to 95 °C ninety seconds into a run.
+    /// </remarks>
+    public double IdleRiseCelsius { get; init; }
 
     /// <summary>Package power reported while loaded — what the "is this machine busy enough" gate reads.</summary>
     public double LoadedWatts { get; init; } = 45d;
@@ -264,15 +278,25 @@ public sealed class SimulatedThermalPlant : StubFrameworkDataProvider, ICpuLoadG
         => (HeatedBy.HasFlag(ThermalLoadTarget.Cpu) && _cpuLoadOn)
             || (HeatedBy.HasFlag(ThermalLoadTarget.Gpu) && _gpuLoadOn);
 
+    /// <summary>
+    /// The one fan whose commands steer the simulated thermals. Commands to any other index are recorded by
+    /// the stub but move nothing — the plant models the MEASURED fan, and a calibration also pins the
+    /// machine's other fans, which must not overwrite the state under test.
+    /// </summary>
+    public int MeasuredFanIndex { get; init; }
+
     public override Task<FrameworkFanDutyCommandResult> SetFanDutyAsync(int fanIndex, double dutyPercent, CancellationToken cancellationToken = default)
     {
-        lock (_stateLock)
+        if (fanIndex == MeasuredFanIndex)
         {
-            _dutyPercent = dutyPercent;
+            lock (_stateLock)
+            {
+                _dutyPercent = dutyPercent;
 
-            // A duty command overrides any speed command, which is what makes the two mutually exclusive on
-            // real hardware too.
-            _commandedRpm = null;
+                // A duty command overrides any speed command, which is what makes the two mutually exclusive
+                // on real hardware too.
+                _commandedRpm = null;
+            }
         }
 
         return base.SetFanDutyAsync(fanIndex, dutyPercent, cancellationToken);
@@ -280,9 +304,12 @@ public sealed class SimulatedThermalPlant : StubFrameworkDataProvider, ICpuLoadG
 
     public override Task<FrameworkFanRpmCommandResult> SetFanRpmAsync(int fanIndex, int targetSpeedRpm, CancellationToken cancellationToken = default)
     {
-        lock (_stateLock)
+        if (fanIndex == MeasuredFanIndex)
         {
-            _commandedRpm = HonoursSpeedCommands ? targetSpeedRpm : null;
+            lock (_stateLock)
+            {
+                _commandedRpm = HonoursSpeedCommands ? targetSpeedRpm : null;
+            }
         }
 
         return base.SetFanRpmAsync(fanIndex, targetSpeedRpm, cancellationToken);
@@ -342,7 +369,7 @@ public sealed class SimulatedThermalPlant : StubFrameworkDataProvider, ICpuLoadG
 
             // First order toward the temperature this duty would eventually hold.
             var target = AmbientCelsius
-                + (IsHeated ? LoadRiseCelsius : 0d)
+                + (IsHeated ? LoadRiseCelsius : IdleRiseCelsius)
                 - (ProcessGainCelsiusPerPercent * duty);
 
             var share = Math.Clamp(elapsed.TotalSeconds / TimeConstant.TotalSeconds, 0d, 1d);
@@ -376,8 +403,23 @@ public sealed class SimulatedThermalPlant : StubFrameworkDataProvider, ICpuLoadG
             },
             DateTimeOffset.UtcNow);
 
-        // Climbs steadily from ambient and never comes down, because nothing this run controls cools it.
-        _runawayCelsius = Math.Min(120d, _runawayCelsius + 2d);
+        // Climbs steadily while the machine is heated and never comes down, because nothing this run
+        // controls cools it. Gated on the load so it cooks during the phases a real runaway cooks in —
+        // ungated it boiled during the idle minimum-spin walk, which no sensor on a genuinely idle machine
+        // does, and aborted runs before the phases under test were ever reached. The few samples of
+        // carry-on after the load stops are the overshoot a real sensor shows: heat already in flight from
+        // die to sensor arrives whether or not anything is still generating more — measured pushing a real
+        // run from its ~90 °C retry trip to 96 °C during the cooldown that followed.
+        if (IsHeated)
+        {
+            _runawayCelsius = Math.Min(120d, _runawayCelsius + 2d);
+            _runawayInertiaSamples = RunawayOvershootSamples;
+        }
+        else if (_runawayInertiaSamples > 0)
+        {
+            _runawayInertiaSamples--;
+            _runawayCelsius = Math.Min(120d, _runawayCelsius + 2d);
+        }
 
         ThermalSource.OnNext(CreateSnapshot(Math.Round(celsius), rpm));
 

@@ -55,7 +55,154 @@ public class FanCalibrationRunnerTests
         // Two of the plant's 80 ms time constants per sweep level, mirroring what production derives from a
         // real chassis — enough transient for the asymptote to be extrapolatable.
         GainCurveDwell = TimeSpan.FromMilliseconds(160),
+
+        // A few plant time constants, mirroring how production's cooldown spans a chassis's.
+        CooldownTimeout = TimeSpan.FromMilliseconds(400),
+
+        // Two sample intervals, mirroring production's five: long enough that a single tick cannot trip a
+        // retry, short enough that a sustained excursion still trips before reaching the ceiling.
+        CeilingRetryPersistence = TimeSpan.FromMilliseconds(10),
     };
+
+    [Test]
+    public async Task RunAsync_PinsEveryOtherFan_AndHandsThemBackAfterwards()
+    {
+        using var plant = new SimulatedThermalPlant();
+        using var harness = new Harness(plant);
+
+        // A second fan on the machine, exactly as discovery would report it. On the real chassis it shares
+        // the heatpipe with the fan under test, and left under firmware control it regulates AGAINST the
+        // measurement — spinning up as the load heats the assembly and down as the step cools it. A real run
+        // measured a 2 °C swing that way, a quarter of what the fit needs.
+        const int siblingIndex = FanIndex + 1;
+        plant.FanStateSource.AddOrUpdate(new FanStateSnapshot
+        {
+            FanIndex = siblingIndex,
+            DisplayName = "Sibling",
+            CoolingRole = FanCoolingRole.Cpu,
+            FanState = default,
+            ObservedAt = DateTimeOffset.UtcNow,
+            IsAvailable = true,
+        });
+
+        var result = await harness.RunAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True, "pinning the sibling must not break the run itself");
+            Assert.That(
+                plant.SetFanDutyCalls,
+                Does.Contain((siblingIndex, FanCalibrationRunner.SiblingHoldDutyPercent)),
+                "the sibling was never pinned, so its firmware loop was free to cancel the step response");
+            Assert.That(
+                plant.RestoreAutoCalls,
+                Does.Contain(siblingIndex),
+                "the sibling was left overridden after the run");
+        });
+    }
+
+    /// <summary>
+    /// A machine whose loaded hold rides the retry margin gets retried with more sibling airflow — and even
+    /// when that never helps, the run converges and completes rather than aborting or looping.
+    /// </summary>
+    /// <remarks>
+    /// The plant deliberately ignores sibling cooling entirely, which is the WORST case for the retry loop:
+    /// every attempt trips the margin again, the sibling hold must escalate all the way to full, and the
+    /// final attempt — trigger disarmed for want of headroom — has to run on into the margin and finish
+    /// there. A real chassis, where sibling airflow actually cools, converges in fewer passes.
+    /// </remarks>
+    [Test]
+    public async Task RunAsync_RetriesWithMoreSiblingAirflow_WhenTheHoldRidesTheCeilingMargin()
+    {
+        // Hold asymptote = ambient 40 + rise − gain×22 ≈ 93.5 °C: sustained past the 92 °C retry line long
+        // enough to outlast the persistence, below the 95 °C abort. The warm phase at full fan is unaffected.
+        using var plant = new SimulatedThermalPlant { LoadRiseCelsius = 62.7d };
+        using var harness = new Harness(plant);
+
+        const int siblingIndex = FanIndex + 1;
+        plant.FanStateSource.AddOrUpdate(new FanStateSnapshot
+        {
+            FanIndex = siblingIndex,
+            DisplayName = "Sibling",
+            CoolingRole = FanCoolingRole.Cpu,
+            FanState = default,
+            ObservedAt = DateTimeOffset.UtcNow,
+            IsAvailable = true,
+        });
+
+        var result = await harness.RunAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True, "with the trigger disarmed at full sibling duty, the final attempt must complete inside the margin");
+            Assert.That(
+                plant.SetFanDutyCalls,
+                Does.Contain((siblingIndex, FanCalibrationRunner.SiblingSpinFloorDutyPercent)),
+                "the first retry never raised the sibling hold");
+            Assert.That(
+                plant.SetFanDutyCalls,
+                Does.Contain((siblingIndex, FanCalibrationRunner.MaximumSiblingHoldDutyPercent)),
+                "the escalation never reached full duty, so the trigger could not have disarmed");
+            Assert.That(
+                plant.SetFanDutyCalls.Count(call => call == (siblingIndex, 100d)),
+                Is.GreaterThanOrEqualTo(2),
+                "cooldowns run EVERY fan at full — the sibling saw full duty only once, which is the final escalated pin, not a cooldown");
+            Assert.That(
+                plant.RestoreAutoCalls,
+                Does.Contain(siblingIndex),
+                "the sibling was never handed back at the end");
+        });
+    }
+
+    /// <summary>
+    /// The minimum-spin walk is inside the retry's protection, not in front of it.
+    /// </summary>
+    /// <remarks>
+    /// The regression this pins: the retry loop originally wrapped only the measurement, and the walk — a
+    /// minute of every fan held near-dead — ran before it, unprotected. On a machine that is never as idle
+    /// as "idle" suggests (the app's charts, the IDE, the service), that was enough to cook to the ceiling
+    /// ninety seconds into a real run, before the retry machinery was listening. The idle heat here is
+    /// strong enough that the walk can never finish — climbing through the retry margin during the walk's
+    /// first dwells on every attempt — so the proof is the ESCALATION: the siblings must be raised from
+    /// within the walk, all the way to full, before the honest abort ends it.
+    /// </remarks>
+    [Test]
+    public async Task RunAsync_RetriesFromTheMinimumSpinWalk_WhenIdleHeatRidesTheMargin()
+    {
+        // The idle asymptote (ambient 40 + 70) is far past the ceiling, but the plant's time constant keeps
+        // the SAMPLED temperature under 95 through the short idle settle; it crosses 90 during the walk.
+        using var plant = new SimulatedThermalPlant { IdleRiseCelsius = 70d };
+        using var harness = new Harness(plant);
+
+        const int siblingIndex = FanIndex + 1;
+        plant.FanStateSource.AddOrUpdate(new FanStateSnapshot
+        {
+            FanIndex = siblingIndex,
+            DisplayName = "Sibling",
+            CoolingRole = FanCoolingRole.Cpu,
+            FanState = default,
+            ObservedAt = DateTimeOffset.UtcNow,
+            IsAvailable = true,
+        });
+
+        var result = await harness.RunAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False, "an unsurvivably hot machine must still end in failure");
+            Assert.That(result.Failure, Is.EqualTo(FanCalibrationFailure.TemperatureCeiling));
+            Assert.That(
+                plant.SetFanDutyCalls,
+                Does.Contain((siblingIndex, FanCalibrationRunner.SiblingSpinFloorDutyPercent)),
+                "the walk crossed the margin but no retry raised the siblings — the walk is outside the armed region again");
+            Assert.That(
+                plant.SetFanDutyCalls,
+                Does.Contain((siblingIndex, FanCalibrationRunner.MaximumSiblingHoldDutyPercent)),
+                "escalation stopped early instead of running to full before the abort");
+        });
+
+        harness.AssertMachineWasHandedBack();
+    }
 
     [Test]
     public async Task RunAsync_RecoversThePlantAndStoresTheCalibration()
@@ -474,6 +621,49 @@ public class FanCalibrationRunnerTests
         {
             Assert.That(result.Succeeded, Is.False);
             Assert.That(result.Failure, Is.EqualTo(FanCalibrationFailure.TemperatureCeiling));
+        });
+
+        harness.AssertMachineWasHandedBack();
+    }
+
+    /// <summary>
+    /// A cooldown survives readings past the ceiling — that is the overshoot it exists to absorb.
+    /// </summary>
+    /// <remarks>
+    /// The regression this pins: a real run tripped the retry at ~90 °C, and the sensor kept climbing for a
+    /// few seconds afterwards — heat already in flight, load winding down — reaching 96 °C during the very
+    /// first cooldown, where a live ceiling abort killed the run before the sibling ever got its raise. With
+    /// a runaway sensor the readings NEVER leave the ceiling, so every cooldown here sits above 95 °C: the
+    /// escalation must still walk all the way to full sibling duty, and only the final, disarmed attempt may
+    /// meet the honest abort.
+    /// </remarks>
+    [Test]
+    public async Task RunAsync_CooldownSurvivesTheOvershoot_AndEscalationRunsItsCourse()
+    {
+        using var plant = new SimulatedThermalPlant { RunawaySensorIndex = 3 };
+        using var harness = new Harness(plant);
+
+        const int siblingIndex = FanIndex + 1;
+        plant.FanStateSource.AddOrUpdate(new FanStateSnapshot
+        {
+            FanIndex = siblingIndex,
+            DisplayName = "Sibling",
+            CoolingRole = FanCoolingRole.Cpu,
+            FanState = default,
+            ObservedAt = DateTimeOffset.UtcNow,
+            IsAvailable = true,
+        });
+
+        var result = await harness.RunAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.False, "a genuinely overheating machine must still end in failure");
+            Assert.That(result.Failure, Is.EqualTo(FanCalibrationFailure.TemperatureCeiling));
+            Assert.That(
+                plant.SetFanDutyCalls,
+                Does.Contain((siblingIndex, FanCalibrationRunner.MaximumSiblingHoldDutyPercent)),
+                "escalation died early — a ceiling reading during a cooldown aborted the retry it exists to allow");
         });
 
         harness.AssertMachineWasHandedBack();

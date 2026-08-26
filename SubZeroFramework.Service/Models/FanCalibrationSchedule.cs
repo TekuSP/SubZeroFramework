@@ -44,7 +44,11 @@ public sealed class FanCalibrationSchedule
 
             // The typical case, not the timeout: most machines settle well before the ceiling, and budgeting
             // the worst case would leave the bar crawling through a step that usually ends early.
-            [FanCalibrationStep.LoadingAndSettling] = timings.MinimumLoad + timings.SettleWindow + LoadRamp.DefaultDuration,
+            // TWO settle passes, because the load phase settles twice: once at the cool loaded point under
+            // full fan, then again at the low hold it descends to. The ramp happens only during the first.
+            [FanCalibrationStep.LoadingAndSettling] =
+                timings.MinimumLoad + timings.SettleWindow + LoadRamp.DefaultDuration
+                + timings.MinimumLoad + timings.SettleWindow,
             [FanCalibrationStep.SteppingFan] = TimeSpan.FromSeconds(1),
             [FanCalibrationStep.MeasuringResponse] = timings.Response,
             [FanCalibrationStep.FittingModel] = TimeSpan.FromSeconds(1),

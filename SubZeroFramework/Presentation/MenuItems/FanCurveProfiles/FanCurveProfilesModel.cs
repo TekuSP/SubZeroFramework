@@ -20,6 +20,8 @@ using LiveChartsCore;
 using LiveChartsCore.Defaults;
 
 using Material.Icons;
+
+using SubZeroFramework.Services.Control;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.SkiaSharpView.Painting.Effects;
@@ -101,6 +103,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         IFanHistoryStore historyStore,
         FanTelemetryHub hub,
         FanCoordinatorAccessor coordinatorAccessor,
+        IBatteryTelemetryClient batteryTelemetryClient,
+        IPowerDeliveryClient powerDeliveryClient,
         IUserUnitPreferencesClient userUnitPreferencesClient,
         IUnitFormattingService unitFormattingService,
         IDesktopNotificationService notificationService,
@@ -156,6 +160,22 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(status => LastStatus = status)
+            .DisposeWith(_subscriptions);
+
+        // Power state, because a calibration REFUSES to run on battery — the processor runs to different
+        // limits there, so the model would describe a machine that only exists while unplugged. Watching it
+        // here means the wizard can say so before a five-minute run rather than aborting part-way through.
+        batteryTelemetryClient
+            .WatchBatteries()
+            .Batch(TelemetryRateLimits.LiveReadout)
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(ApplyBatteryChanges)
+            .DisposeWith(_subscriptions);
+
+        powerDeliveryClient
+            .WatchPorts()
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(UpdateAdapterInput)
             .DisposeWith(_subscriptions);
 
         _fanCapabilityClient
@@ -997,8 +1017,26 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
                 // wrote the old curve back with activate: true, and then cleared the staged mode unapplied.
                 if (session.StagedMode is { } stagedMode)
                 {
-                    await _actuator.ActuateSimpleAsync(fanIndex, stagedMode, session.StagedManualDuty, preview: false, cancellationToken).ConfigureAwait(true);
-                    applied++;
+                    if (stagedMode == FanControlMode.Adaptive)
+                    {
+                        // Adaptive arms through its own sensor-carrying command, with the fan's OWN driving
+                        // sensors — the page's picker describes the selected fan, which this loop is not on.
+                        var armed = await ArmAdaptiveModeAsync(
+                            fanIndex,
+                            preview: false,
+                            sensorsOverride: [.. fan.ControlState?.DrivingSensorIndices ?? []],
+                            cancellationToken).ConfigureAwait(true);
+
+                        if (armed)
+                        {
+                            applied++;
+                        }
+                    }
+                    else
+                    {
+                        await _actuator.ActuateSimpleAsync(fanIndex, stagedMode, session.StagedManualDuty, preview: false, cancellationToken).ConfigureAwait(true);
+                        applied++;
+                    }
                 }
                 else if (session.DraftSnapshot is { } draft
                     && (session.WasCustomEditorOpen || fan.ControlState?.Mode == FanControlMode.CustomCurve))
@@ -1373,6 +1411,18 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
                 }
                 await _actuator.ActuateCurveAsync(fanIndex, restored, [.. previous.DrivingSensorIndices], previous.DrivingTemperatureAggregation, preview: false, previous.TreatMissingSensorsAsZero, cancellationToken).ConfigureAwait(true);
             }
+            else if (previous?.Mode == FanControlMode.Adaptive)
+            {
+                // A fan that WAS Adaptive goes back to Adaptive, with the sensors it held — collapsing it
+                // to Auto would silently end a closed loop the user had running before the test.
+                await _fanControlClient.SetAdaptiveModeAsync(
+                    fanIndex,
+                    [.. previous.DrivingSensorIndices],
+                    previous.DrivingTemperatureAggregation,
+                    settings: null,
+                    preview: false,
+                    cancellationToken).ConfigureAwait(true);
+            }
             else
             {
                 var restoreMode = previous?.Mode is FanControlMode.Manual or FanControlMode.Max ? previous.Mode : FanControlMode.Auto;
@@ -1588,45 +1638,98 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     /// </remarks>
     /// <param name="fanIndex">The fan.</param>
     /// <param name="cancellationToken">Cancels the call.</param>
-    internal async Task ArmAdaptiveModeAsync(int fanIndex, CancellationToken cancellationToken = default)
+    /// <param name="fanIndex">The fan to arm.</param>
+    /// <param name="preview">Arms live without persisting — the same volatile-preview contract as every other mode.</param>
+    /// <param name="sensorsOverride">
+    /// Sensors to arm with instead of the page's current picker selection. The picker describes the SELECTED
+    /// fan, so a caller arming some other fan (Apply all over staged fans) passes that fan's own sensors.
+    /// </param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>True when the fan is now (or is now previewing) Adaptive.</returns>
+    /// <summary>
+    /// The sensor sets successful calibrations ran against, per fan, for the life of the page.
+    /// </summary>
+    /// <remarks>
+    /// The model a run produced DESCRIBES these sensors — arming Adaptive against a different set would pair
+    /// a measured gain with temperatures it never measured. They become the arming fallback so "calibrate,
+    /// then preview Adaptive" works without re-choosing anything.
+    /// </remarks>
+    private readonly Dictionary<int, int[]> _calibratedSensorIndices = [];
+
+    /// <summary>Records the sensors a successful calibration measured, so arming can reuse them.</summary>
+    internal void RememberCalibratedSensors(int fanIndex, IReadOnlyCollection<int> sensorIndices)
+    {
+        if (sensorIndices.Count > 0)
+        {
+            _calibratedSensorIndices[fanIndex] = [.. sensorIndices];
+        }
+    }
+
+    internal async Task<bool> ArmAdaptiveModeAsync(
+        int fanIndex,
+        bool preview = false,
+        IReadOnlyCollection<int>? sensorsOverride = null,
+        CancellationToken cancellationToken = default)
     {
         if (!CanIssueFanCommands)
         {
             ReportFanControlBlocked();
-            return;
+            return false;
         }
 
-        var sensors = SensorSelection.SelectedIndices();
-        if (sensors.Length == 0)
+        // The sensors, from wherever the user actually chose them. The page's picker belongs to the curve
+        // editor and is empty for a fan that never had a curve — which is exactly the fan that was just
+        // CALIBRATED, whose wizard both preselected and measured a sensor set. Demanding the picker here
+        // told a user who had already chosen, twice, to go choose.
+        IReadOnlyCollection<int> sensors = sensorsOverride ?? SensorSelection.SelectedIndices();
+
+        if (sensors.Count == 0 && _calibratedSensorIndices.TryGetValue(fanIndex, out var calibratedSensors))
+        {
+            sensors = calibratedSensors;
+        }
+
+        if (sensors.Count == 0)
+        {
+            sensors = [.. _hub.GetFan(fanIndex)?.ControlState?.DrivingSensorIndices ?? []];
+        }
+
+        if (sensors.Count == 0)
         {
             ReportStatus(
                 "Pick at least one driving temperature sensor before switching to Adaptive.",
                 Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
-            return;
+            return false;
         }
 
         try
         {
             var settings = _stagedAdaptiveSettings.TryGetValue(fanIndex, out var staged) ? staged : null;
             var result = await _fanControlClient
-                .SetAdaptiveModeAsync(fanIndex, sensors, SelectedAggregation ?? TemperatureAggregationMode.Maximum, settings, cancellationToken)
+                .SetAdaptiveModeAsync(fanIndex, sensors, SelectedAggregation ?? TemperatureAggregationMode.Maximum, settings, preview, cancellationToken)
                 .ConfigureAwait(true);
 
-            if (result.Succeeded)
+            if (!result.Succeeded)
             {
-                // The settings travelled with the arm command, so a separate flush would be a redundant write.
+                ReportStatus(result.Message, Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
+                return false;
+            }
+
+            if (!preview)
+            {
+                // The settings travelled with the arm command, so a separate flush would be a redundant
+                // write. A PREVIEW keeps them staged on purpose: reverting it restores the fan's previous
+                // state, and dropping the stage here would throw the user's edits away with it.
                 _stagedAdaptiveSettings.Remove(fanIndex);
                 ReportStatus("Adaptive is now driving this fan.", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success);
             }
-            else
-            {
-                ReportStatus(result.Message, Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
-            }
+
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to arm Adaptive mode for fan {FanIndex}", fanIndex);
             ReportStatus($"Failed to switch to Adaptive: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+            return false;
         }
     }
 
@@ -1637,12 +1740,114 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     /// Deliberately thin: the dialog owns the presentation and the cancellation, the service owns the physical
     /// run and the promise to restore the fan. This exists only because the page holds the client.
     /// </remarks>
+    private readonly Dictionary<int, BatteryTelemetrySnapshot> _batterySnapshots = [];
+
+    /// <summary>
+    /// True when the machine is running from its batteries, by the SAME rules the service refuses on.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately mirrors <c>FanCalibrationRunner.IsOnBattery</c> rather than inventing a second reading.
+    /// A wizard that said "ready to start" and then watched the run abort for being on battery would be
+    /// worse than one that never offered — and any disagreement between the two would show up exactly there.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PowerReadyText))]
+    [NotifyPropertyChangedFor(nameof(PowerReadyBrushKey))]
+    [NotifyPropertyChangedFor(nameof(PowerReadyIconKind))]
+    public partial bool IsOnBattery { get; private set; }
+
+    /// <summary>The lowest pack's charge, canonical percent, for the wizard's blocked-on-battery readout.</summary>
+    [ObservableProperty]
+    public partial double? BatteryChargePercent { get; private set; }
+
+    /// <summary>Negotiated adapter input in watts, or null with nothing attached.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PowerReadyText))]
+    public partial double? AdapterInputWatts { get; private set; }
+
+    /// <summary>The banner above the wizard's start button: whether this machine can run a test right now.</summary>
+    public string PowerReadyText => IsOnBattery
+        ? "Running on battery — plug in before starting. Power limits behave differently on battery, so the test would measure a machine that only exists while unplugged."
+        : AdapterInputWatts is double watts
+            ? $"Running on AC power — {_unitFormattingService.FormatPowerWatts(watts, decimals: 0)} adapter connected. Ready to start."
+            : "Running on AC power. Ready to start.";
+
+    public string PowerReadyBrushKey => IsOnBattery ? "StatusWarningForegroundBrush" : "StatusSuccessBrush";
+
+    public MaterialIconKind PowerReadyIconKind => IsOnBattery
+        ? MaterialIconKind.BatteryAlertVariantOutline
+        : MaterialIconKind.PowerPlug;
+
+    private void ApplyBatteryChanges(IChangeSet<BatteryTelemetrySnapshot, int> set)
+    {
+        foreach (var change in set)
+        {
+            if (change.Reason == ChangeReason.Remove)
+            {
+                _batterySnapshots.Remove(change.Key);
+                continue;
+            }
+
+            _batterySnapshots[change.Key] = change.Current;
+        }
+
+        RefreshPowerState();
+    }
+
+    private void UpdateAdapterInput(IReadOnlyList<PowerDeliveryPortStatus> ports)
+    {
+        var activePort = ports.FirstOrDefault(static port => port.IsActivePort && port.HasContract);
+        var watts = activePort is null ? 0d : activePort.VoltageVolts * activePort.CurrentAmperes;
+
+        AdapterInputWatts = watts > 0d ? watts : null;
+    }
+
+    private void RefreshPowerState()
+    {
+        var batteries = _batterySnapshots.Values.Where(static battery => battery.IsAvailable).ToArray();
+
+        // The lowest of the packs, because that is the one a battery-powered run would exhaust first.
+        BatteryChargePercent = batteries
+            .Select(static battery => battery.ChargePercent)
+            .Where(static charge => charge is not null)
+            .Min();
+
+        if (batteries.Length == 0)
+        {
+            // A desktop, or telemetry that has not arrived. Neither is "on battery", and blocking the wizard
+            // on a machine that has no battery to be on would be absurd.
+            IsOnBattery = false;
+            return;
+        }
+
+        // AC attached settles it, whatever the batteries are doing. AcAndBattery happens under a load the
+        // adapter alone cannot carry — the charger IS attached, so this is not running on battery.
+        if (batteries.Any(static battery =>
+                battery.PowerSourceState is FrameworkPowerSourceState.AcOnly or FrameworkPowerSourceState.AcAndBattery))
+        {
+            IsOnBattery = false;
+            return;
+        }
+
+        if (batteries.Any(static battery => battery.PowerSourceState == FrameworkPowerSourceState.BatteryOnly))
+        {
+            IsOnBattery = true;
+            return;
+        }
+
+        // No usable power-source reading: fall back to the batteries themselves. Something actively draining
+        // with no charger reported is the definition of running on battery.
+        IsOnBattery = batteries.Any(static battery =>
+            battery.BatteryState is FrameworkBatteryState.Discharging or FrameworkBatteryState.Critical);
+    }
+
     internal Task<FanCalibrationRunResult> RunCalibrationAsync(
         int fanIndex,
         IReadOnlyCollection<int> drivingSensorIndices,
         IProgress<FanCalibrationProgress> progress,
-        CancellationToken cancellationToken)
-        => _fanControlClient.RunCalibrationAsync(fanIndex, drivingSensorIndices, progress, cancellationToken);
+        CancellationToken cancellationToken,
+        ThermalLoadTarget loadTarget = ThermalLoadTarget.None)
+        => _fanControlClient.RunCalibrationAsync(fanIndex, drivingSensorIndices, progress, cancellationToken, loadTarget);
 
     /// <summary>Discards what a fan learned from ordinary use. Immediate and destructive.</summary>
     internal async Task ForgetAdaptiveLearningAsync(int fanIndex, CancellationToken cancellationToken = default)

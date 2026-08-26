@@ -4,6 +4,7 @@ using SubZeroFramework.GrpcContracts;
 using SubZeroFramework.Models;
 using SubZeroFramework.Service.Models;
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Control;
 
 namespace SubZeroFramework.Service.Services;
 
@@ -438,21 +439,19 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         try
         {
             _logger.LogInformation(
-                "Received SetFanAdaptiveMode for fan {FanIndex} with {SensorCount} driving sensor(s).",
+                "Received SetFanAdaptiveMode for fan {FanIndex} with {SensorCount} driving sensor(s) (preview={Preview}).",
                 request.FanIndex,
-                request.DrivingSensorIndices.Count);
+                request.DrivingSensorIndices.Count,
+                request.Preview);
 
             _authorizationService.EnsureCommandAccess();
 
-            // Same guard as every other command that persists a fan's live state: during an open preview the
-            // in-memory state holds the uncommitted preview, so persisting would commit it and disarm the
-            // watchdog that exists to revert it.
-            if (_previewWatchdog.HasOpenHold(request.FanIndex))
-            {
-                throw new InvalidOperationException(
-                    $"Fan {request.FanIndex} has a live preview open. Apply or discard it before switching to Adaptive.");
-            }
-
+            // Deliberately NO open-hold guard, in either direction. A guard here once refused the
+            // PERSISTING arm while a preview hold was open — but stage → preview → apply always arrives
+            // with the hold open, so Apply threw, the commit that releases the hold never ran, and closing
+            // the hold reverted the fan to its captured pre-preview state: a user who applied Adaptive
+            // watched their fan land on Auto. The commit contract is the one every other mode follows:
+            // PersistFanControlStateAsync(preview: false) releases the hold, which IS the commit.
             var settings = request.Settings is null ? null : ToAdaptiveSettings(request.Settings);
 
             var result = _fanControlStateStore.SetAdaptiveMode(
@@ -473,7 +472,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
                 };
             }
 
-            await PersistFanControlStateAsync(request.FanIndex, preview: false, context.CancellationToken).ConfigureAwait(false);
+            await PersistFanControlStateAsync(request.FanIndex, request.Preview, context.CancellationToken).ConfigureAwait(false);
 
             return new FanCurveProfileOperationReply { FanIndex = request.FanIndex, Succeeded = true, Message = string.Empty };
         }
@@ -491,12 +490,8 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             _logger.LogInformation("Received SetFanAdaptiveSettings for fan {FanIndex}.", request.FanIndex);
             _authorizationService.EnsureCommandAccess();
 
-            if (_previewWatchdog.HasOpenHold(request.FanIndex))
-            {
-                throw new InvalidOperationException(
-                    $"Fan {request.FanIndex} has a live preview open. Apply or discard it before changing its Adaptive settings.");
-            }
-
+            // No open-hold guard, for the same reason SetFanAdaptiveMode has none: applying staged settings
+            // through an open preview IS the commit, and persisting releases the hold like every other mode.
             if (request.Settings is null)
             {
                 throw new ArgumentException("Adaptive settings are required.", nameof(request));
@@ -697,15 +692,40 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
 
         _logger.LogInformation("Starting calibration for fan {FanIndex} at a client's request.", fanIndex);
 
+        // Writing to a client that has gone throws InvalidOperationException("...the request is complete"),
+        // which the arbiter's catch below would then misreport as "another calibration is running" — a
+        // FailedPrecondition raised at the one moment there is nobody left to receive it. A cancelled run
+        // still RETURNS a result rather than throwing, so the final write is the likeliest to land on a dead
+        // stream, and the guard has to cover both writes rather than only that one.
+        async Task WriteIfLiveAsync(FanCalibrationProgressReply reply)
+        {
+            if (context.CancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            try
+            {
+                await responseStream.WriteAsync(reply).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException)
+            {
+                // The client went away between the check and the write. Nothing to report it to.
+            }
+        }
+
         try
         {
             var result = await _calibrationRunner.RunAsync(
                 fanIndex,
                 [.. request.DrivingSensorIndices],
-                progress => responseStream.WriteAsync(MapCalibrationProgress(progress)),
-                context.CancellationToken).ConfigureAwait(false);
+                progress => WriteIfLiveAsync(MapCalibrationProgress(progress)),
+                context.CancellationToken,
+                // Unset means "you decide", which is what the service did before the choice was askable.
+                request.HasLoadTarget ? (ThermalLoadTarget)request.LoadTarget : ThermalLoadTarget.None)
+                .ConfigureAwait(false);
 
-            await responseStream.WriteAsync(MapCalibrationResult(result)).ConfigureAwait(false);
+            await WriteIfLiveAsync(MapCalibrationResult(result)).ConfigureAwait(false);
         }
         catch (InvalidOperationException exception)
         {
@@ -775,6 +795,8 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             ElapsedSeconds = progress.ElapsedSeconds,
             IsStepMarker = progress.IsStepMarker,
             IsComplete = false,
+            OverallProgress = progress.OverallProgress,
+            PowerIsSystemWide = progress.PowerIsSystemWide,
         };
 
         if (progress.TemperatureCelsius is double celsius)
@@ -800,6 +822,16 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         if (progress.EstimatedRemaining is TimeSpan remaining)
         {
             reply.EstimatedRemainingMilliseconds = (long)remaining.TotalMilliseconds;
+        }
+
+        if (progress.ClockMegahertz is double clockMegahertz)
+        {
+            reply.ClockMegahertz = clockMegahertz;
+        }
+
+        if (progress.UtilizationPercent is double utilizationPercent)
+        {
+            reply.UtilizationPercent = utilizationPercent;
         }
 
         return reply;
@@ -854,6 +886,8 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         FanCalibrationStep.MeasuringResponse => FanCalibrationStepValue.MeasuringResponse,
         FanCalibrationStep.FittingModel => FanCalibrationStepValue.FittingModel,
         FanCalibrationStep.VerifyingSpeedTracking => FanCalibrationStepValue.VerifyingSpeedTracking,
+        FanCalibrationStep.MeasuringGainCurve => FanCalibrationStepValue.MeasuringGainCurve,
+        FanCalibrationStep.CoolingDown => FanCalibrationStepValue.CoolingDown,
         FanCalibrationStep.Completed => FanCalibrationStepValue.Completed,
         _ => FanCalibrationStepValue.None,
     };

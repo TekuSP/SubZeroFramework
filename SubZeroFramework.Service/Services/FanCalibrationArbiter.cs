@@ -75,11 +75,17 @@ public sealed class FanCalibrationArbiter
     }
 
     /// <summary>True while a calibration owns this fan, and nothing else may write to it.</summary>
+    /// <remarks>
+    /// True for EVERY fan while any run is active, not only the measured one. A run pins the fans it is not
+    /// measuring at a fixed duty — a sibling on the shared heatpipe left under closed-loop control regulates
+    /// against the step being identified — so for the life of the claim the run owns them all, and a worker
+    /// that wrote to any of them would be unpinning the run's controlled conditions.
+    /// </remarks>
     public bool IsCalibrating(int fanIndex)
     {
         lock (_claimLock)
         {
-            return _claimedFanIndex == fanIndex;
+            return _claimedFanIndex != NoFan;
         }
     }
 }

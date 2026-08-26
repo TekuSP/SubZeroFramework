@@ -59,6 +59,26 @@ public sealed record FanCalibrationTimings
     public TimeSpan TrackingSettle { get; init; } = TimeSpan.FromSeconds(10);
 
     /// <summary>
+    /// How long the hottest sensor must STAY past the retry line before a retry actually trips.
+    /// </summary>
+    /// <remarks>
+    /// The driving reading flickers ±2 °C — whole-degree quantisation on a maximum over several sensors —
+    /// and an instant trigger meant one noise spike cost a whole multi-minute cooldown cycle. Persistence
+    /// separates "the operating point is too hot" from "one sample twitched". It gates only the band below
+    /// the ceiling: a reading AT the ceiling trips immediately, because a genuine runaway must not get to
+    /// spend this budget climbing.
+    /// </remarks>
+    public TimeSpan CeilingRetryPersistence { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>The longest a ceiling retry waits for the machine to cool under firmware control.</summary>
+    /// <remarks>
+    /// A timeout, not a requirement — a cooldown that never reaches its exit temperature proceeds anyway,
+    /// and if the machine is still too hot the next attempt trips the retry margin again. The sibling duty
+    /// rises with every trip, so this converges rather than loops.
+    /// </remarks>
+    public TimeSpan CooldownTimeout { get; init; } = TimeSpan.FromMinutes(2);
+
+    /// <summary>
     /// How long to hold each level of the gain sweep.
     /// </summary>
     /// <remarks>

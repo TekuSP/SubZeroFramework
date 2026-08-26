@@ -261,6 +261,16 @@ public partial class App : Application
         Host.Services.GetRequiredService<IDesktopNotificationService>().Start();
         Host.Services.GetRequiredService<ThermalAlertMonitor>().Start();
         Host.Services.GetRequiredService<ServiceHealthNotifier>().Start();
+
+#if DEBUG
+        // Debug builds only: a route passed on the command line opens the app there — including the
+        // calibration wizard's individual states, which are otherwise minutes of hot test away. The type
+        // does not exist in RELEASE at all; see DebugDeepLink for the route grammar.
+        if (MainWindow is not null)
+        {
+            await DebugDeepLink.TryHandleAsync(MainWindow, Host.Services);
+        }
+#endif
     }
 
     private void Current_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)

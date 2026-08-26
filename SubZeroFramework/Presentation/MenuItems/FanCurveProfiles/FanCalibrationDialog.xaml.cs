@@ -68,4 +68,39 @@ public sealed partial class FanCalibrationDialog : ContentDialog, IDisposable
         args.Cancel = true;
         _cancellation.Cancel();
     }
+
+    /// <summary>
+    /// Raised when the user commits to the run. The dialog stays open and becomes the progress view.
+    /// </summary>
+    /// <remarks>
+    /// An event rather than a command on the model, because starting needs the service client and the page's
+    /// staging state — neither of which a dialog's view model has, nor should acquire just to relay them.
+    /// </remarks>
+    public event EventHandler? StartRequested;
+
+    private void OnAcceptClick(object sender, RoutedEventArgs e)
+    {
+        // Consent commits to the run; the outcome's Done is simply a way out.
+        if (ViewModel.Stage == FanCalibrationStage.Consent)
+        {
+            StartRequested?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        Hide();
+    }
+
+    // Cancelling and stopping are the same act — Hide runs OnClosing, which cancels the lease and, mid-run,
+    // holds the dialog open so the outcome can say the fan was handed back.
+    private void OnCancelClick(object sender, RoutedEventArgs e) => Hide();
+
+    // A failure screen's retry is consent already given: same event, same handler, a fresh run. The model's
+    // BeginRun clears the previous attempt's plots and progress on the way in.
+    private void OnRetryClick(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel.Stage == FanCalibrationStage.Outcome && !ViewModel.DidSucceed)
+        {
+            StartRequested?.Invoke(this, EventArgs.Empty);
+        }
+    }
 }

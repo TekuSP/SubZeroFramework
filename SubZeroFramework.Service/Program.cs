@@ -208,7 +208,14 @@ public static class Program
         // Singletons because a calibration is a machine-wide exclusive operation: the runner's one-at-a-time
         // gate only means anything if every caller shares the same instance, and two load generators would
         // heat the chassis while each measured as though it were the only one.
-        builder.Services.AddSingleton<CpuLoadGenerator>();
+        //
+        // Full target rather than the generator's polite 80% default: calibration is the only consumer, the
+        // dialog has already told the user hands-off, and heat is the signal — the temperature swing the fit
+        // needs scales with it, so a fifth of the load left on the table is a fifth of the swing. The
+        // governor still yields to load the user starts anyway.
+        builder.Services.AddSingleton(static services => new CpuLoadGenerator(
+            services.GetService<ISystemLoadProbe>(),
+            targetFraction: 1d));
         builder.Services.AddSingleton<ICpuLoadGenerator>(static services => services.GetRequiredService<CpuLoadGenerator>());
         builder.Services.AddSingleton<IlgpuGpuLoadGenerator>();
         builder.Services.AddSingleton<IGpuLoadGenerator>(static services => services.GetRequiredService<IlgpuGpuLoadGenerator>());

@@ -12,8 +12,20 @@ namespace SubZeroFramework.Models;
 public static class RaplEnergyMath
 {
     /// <summary>
-    /// True for a top-level package zone such as <c>intel-rapl:0</c>, false for a nested subzone such as
-    /// <c>intel-rapl:0:0</c>.
+    /// The powercap control types that expose a RAPL package zone.
+    /// </summary>
+    /// <remarks>
+    /// Both, because the name depends on which driver claimed the part. AMD systems have historically appeared
+    /// under <c>intel-rapl</c> — the powercap control type kept its original name when
+    /// <c>intel_rapl_common</c> grew AMD support — while newer kernels register <c>amd-rapl</c>. Matching only
+    /// the Intel spelling leaves an AMD machine with no package power on exactly the kernels where it does
+    /// work, which on a Framework 16 is most of them.
+    /// </remarks>
+    public static readonly string[] PackageZonePrefixes = ["intel-rapl:", "amd-rapl:"];
+
+    /// <summary>
+    /// True for a top-level package zone such as <c>intel-rapl:0</c> or <c>amd-rapl:0</c>, false for a nested
+    /// subzone such as <c>intel-rapl:0:0</c>.
     /// </summary>
     /// <remarks>
     /// The subzones are core / uncore / dram slices of the SAME package budget, so counting one as the package
@@ -21,7 +33,7 @@ public static class RaplEnergyMath
     /// </remarks>
     public static bool IsPackageZoneName(string zoneName)
         => !string.IsNullOrEmpty(zoneName)
-            && zoneName.StartsWith("intel-rapl:", StringComparison.Ordinal)
+            && PackageZonePrefixes.Any(prefix => zoneName.StartsWith(prefix, StringComparison.Ordinal))
             && zoneName.Count(character => character == ':') == 1;
 
     /// <summary>

@@ -184,6 +184,8 @@ public class FrameworkTelemetryWorkerTests
 
         public IObservable<IChangeSet<FanStateSnapshot, int>> ConnectFanStates() => Observable.Empty<IChangeSet<FanStateSnapshot, int>>();
 
+        public IReadOnlyList<int> GetFanIndices() => [];
+
         public IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> ConnectTelemetryChannels() => Observable.Empty<IChangeSet<TelemetryChannel, TelemetryChannelId>>();
 
         public IObservable<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>> ConnectCurrentTelemetryValues() => Observable.Empty<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>>();
@@ -213,6 +215,12 @@ public class FrameworkTelemetryWorkerTests
             LastSecondaryPollingInterval = pollingInterval;
             return true;
         }
+
+        public void SetRetention(TimeSpan primary, TimeSpan secondary, TimeSpan tertiary)
+        {
+        }
+
+        public IDisposable RequireGpuControlTelemetry() => System.Reactive.Disposables.Disposable.Empty;
 
         public bool SetHardwareInfoPolling(TimeSpan pollingInterval)
         {

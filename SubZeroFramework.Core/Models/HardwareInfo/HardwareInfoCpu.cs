@@ -21,7 +21,8 @@ public sealed record HardwareInfoCpu(
     bool VirtualizationFirmwareEnabled,
     bool VMMonitorModeExtensions,
     double? PercentProcessorTime,
-    ImmutableArray<HardwareInfoCpuCore> CpuCores)
+    ImmutableArray<HardwareInfoCpuCore> CpuCores,
+    double? PackagePowerWatts = null)
 {
     public bool HasCpuCoreDetails => CpuCores.Length > 0;
 

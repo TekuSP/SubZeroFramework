@@ -34,6 +34,9 @@ public sealed class WindowsAdlxGpuUtilizationReader : IComputeUtilizationReader
     private AdlxLibrary? _library;
     private bool _loadAttempted;
     private bool _loggedSampleFailure;
+
+    /// <summary>The devices the last successful read reported, so the sleep gate has keys to ask about.</summary>
+    private IReadOnlyList<ComputeDeviceIdentity> _lastSeenDevices = [];
     private bool _disposed;
 
     public WindowsAdlxGpuUtilizationReader(ILogger<WindowsAdlxGpuUtilizationReader> logger)
@@ -55,6 +58,14 @@ public sealed class WindowsAdlxGpuUtilizationReader : IComputeUtilizationReader
         lock (_syncLock)
         {
             if (_disposed || EnsureLibrary() is not { } library)
+            {
+                return [];
+            }
+
+            // Skip a suspended GPU entirely: an ADLX call against one wakes it, the same hazard the NVIDIA
+            // reader has. Gated on the keys the LAST read returned, because ADLX is what reports them — so
+            // the first read always proceeds and every read after it can be suppressed.
+            if (ComputeDeviceSleepGate.AreAllAsleep(_lastSeenDevices))
             {
                 return [];
             }
@@ -93,6 +104,15 @@ public sealed class WindowsAdlxGpuUtilizationReader : IComputeUtilizationReader
                         ThrottleReasons = null,
                     });
                 }
+
+                // Remembered so the next call can ask Windows whether these are still powered up, without
+                // going through ADLX to find out which devices exist.
+                _lastSeenDevices = [.. devices.Select(static device => new ComputeDeviceIdentity
+                {
+                    DeviceKey = device.DeviceKey,
+                    Kind = device.Kind,
+                    DisplayName = device.DisplayName,
+                })];
 
                 return devices;
             }

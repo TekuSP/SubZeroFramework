@@ -18,6 +18,15 @@
             Text="Package detail" />
 
         <deviceCapabilitiesControls:StatTilePanel>
+            <!--  Live, unlike the inventory around them: what the package is drawing and how busy it is.  -->
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="Flash"
+                Label="Package power"
+                Value="{x:Bind ViewModel.PackagePowerWatts, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=Power}" />
+            <deviceCapabilitiesControls:StatTileView
+                IconKind="ChartLine"
+                Label="Package usage"
+                Value="{x:Bind ViewModel.PackageUsagePercent, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=Ratio}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Speedometer"
                 Label="Current clock"

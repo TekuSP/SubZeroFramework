@@ -567,11 +567,11 @@
                                         Width="13"
                                         Height="13"
                                         VerticalAlignment="Top"
-                                        Foreground="{StaticResource StatusWarningForegroundBrush}"
+                                        Foreground="{StaticResource StatusWarningBrush}"
                                         Kind="AlertOutline" />
                                     <TextBlock
                                         FontSize="11.5"
-                                        Foreground="{StaticResource StatusWarningForegroundBrush}"
+                                        Foreground="{StaticResource StatusWarningBrush}"
                                         Text="{x:Bind Warning}"
                                         TextWrapping="WrapWholeWords" />
                                 </StackPanel>

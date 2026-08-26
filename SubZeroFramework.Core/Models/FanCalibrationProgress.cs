@@ -48,8 +48,29 @@ public sealed record FanCalibrationProgress
     /// <summary>Measured speed, which is what the tracking verdict is decided from.</summary>
     public double? SpeedRpm { get; init; }
 
+    /// <summary>
+    /// The clock of the component the run is heating — CPU on a CPU-load run, GPU core on a GPU-load one.
+    /// </summary>
+    /// <remarks>
+    /// Which component needs no field: the client chose the load target when it started the run.
+    /// </remarks>
+    public double? ClockMegahertz { get; init; }
+
+    /// <summary>Busy share of that same component, in canonical percent.</summary>
+    public double? UtilizationPercent { get; init; }
+
     /// <summary>The load the run is producing, for the "is this machine actually busy?" readout.</summary>
     public double? PackagePowerWatts { get; init; }
+
+    /// <summary>
+    /// True when <see cref="PackagePowerWatts"/> is a whole-system reading rather than the package.
+    /// </summary>
+    /// <remarks>
+    /// The package figure is unavailable on some platforms and the run falls back to system power so it can
+    /// still measure. Carrying WHICH it got means the UI can name it correctly instead of presenting an
+    /// adapter draw as processor power.
+    /// </remarks>
+    public bool PowerIsSystemWide { get; init; }
 
     /// <summary>Set on the update where the fan was stepped, so the plot can mark it.</summary>
     public bool IsStepMarker { get; init; }

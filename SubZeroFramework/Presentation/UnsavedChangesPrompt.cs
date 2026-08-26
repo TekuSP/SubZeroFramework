@@ -26,6 +26,8 @@ internal static class UnsavedChangesPrompt
             XamlRoot = xamlRoot,
         };
 
+        AccentDialogPalette.Apply(dialog);
+
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 }
