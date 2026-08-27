@@ -118,6 +118,7 @@
             <x:String x:Key="DeviceCapabilitiesMenuIcon">&#xE950;</x:String>
             <x:String x:Key="ModulesMenuIcon">ExpansionCardVariant</x:String>
             <x:String x:Key="WarningsMenuIcon">&#xE814;</x:String>
+            <x:String x:Key="UpdateMenuIcon">&#xE777;</x:String>
             <x:String x:Key="GithubMenuIcon">Github</x:String>
             <x:String x:Key="SettingsMenuIcon">&#xE713;</x:String>
 

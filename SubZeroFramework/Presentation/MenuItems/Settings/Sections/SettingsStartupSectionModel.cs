@@ -49,6 +49,7 @@ public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedCha
     private bool? _savedAutorunEnabled;
     private bool _savedThermalAlertsEnabled;
     private bool _savedStatusNotificationsEnabled;
+    private bool _savedAutomaticUpdateChecksEnabled;
     private double _savedThresholdCelsius;
 
     public SettingsStartupSectionModel(
@@ -122,6 +123,10 @@ public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedCha
     [ObservableProperty]
     public partial bool StatusNotificationsEnabled { get; set; }
 
+    /// <summary>Whether SubZero checks GitHub for a newer release. Silences only the AUTOMATIC check.</summary>
+    [ObservableProperty]
+    public partial bool AutomaticUpdateChecksEnabled { get; set; }
+
     [ObservableProperty]
     public partial bool AutorunIsOn { get; set; }
 
@@ -156,6 +161,8 @@ public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedCha
     partial void OnThermalAlertsEnabledChanged(bool value) => OnStagedEditChanged();
 
     partial void OnStatusNotificationsEnabledChanged(bool value) => OnStagedEditChanged();
+
+    partial void OnAutomaticUpdateChecksEnabledChanged(bool value) => OnStagedEditChanged();
 
     partial void OnAutorunIsOnChanged(bool value) => OnStagedEditChanged();
 
@@ -196,6 +203,7 @@ public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedCha
             || (_savedAutorunEnabled is bool savedAutorun && CanToggleAutorun && AutorunIsOn != savedAutorun)
             || ThermalAlertsEnabled != _savedThermalAlertsEnabled
             || StatusNotificationsEnabled != _savedStatusNotificationsEnabled
+            || AutomaticUpdateChecksEnabled != _savedAutomaticUpdateChecksEnabled
             || Math.Abs(_thresholdCelsius - _savedThresholdCelsius) >= ThresholdToleranceCelsius;
 
     private bool CanSaveOrCancel() => HasUnsavedChanges && !IsSaving;
@@ -230,6 +238,7 @@ public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedCha
 
             _clientSettings.ThermalAlertsEnabled = ThermalAlertsEnabled;
             _clientSettings.StatusNotificationsEnabled = StatusNotificationsEnabled;
+            _clientSettings.AutomaticUpdateChecksEnabled = AutomaticUpdateChecksEnabled;
             _clientSettings.ThermalAlertThresholdCelsius = _thresholdCelsius;
 
             StartupStatusMessage = failures.Count == 0 ? "Settings saved." : string.Join(" ", failures);
@@ -264,6 +273,7 @@ public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedCha
         StartWithSystemBoot = _savedStartWithSystemBoot = _startupRegistration.IsEnabled();
         ThermalAlertsEnabled = _savedThermalAlertsEnabled = _clientSettings.ThermalAlertsEnabled;
         StatusNotificationsEnabled = _savedStatusNotificationsEnabled = _clientSettings.StatusNotificationsEnabled;
+        AutomaticUpdateChecksEnabled = _savedAutomaticUpdateChecksEnabled = _clientSettings.AutomaticUpdateChecksEnabled;
         _thresholdCelsius = _savedThresholdCelsius = Math.Clamp(
             _clientSettings.ThermalAlertThresholdCelsius,
             ThermalAlertMonitor.MinimumThresholdCelsius,

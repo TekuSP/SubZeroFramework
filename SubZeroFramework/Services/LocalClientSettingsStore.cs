@@ -19,6 +19,16 @@ public interface ILocalClientSettingsStore
 
     /// <summary>Opt-in for service/fan-control status notifications (restart, install, curve applied, connection lost, …).</summary>
     bool StatusNotificationsEnabled { get; set; }
+
+    /// <summary>
+    /// Opt-out for the once-a-day GitHub release check and the notice it raises. On by default.
+    /// </summary>
+    /// <remarks>
+    /// Silences only the AUTOMATIC check. Pressing "Check for updates" is the user asking, and asking is
+    /// always honoured — this is the setting for someone deliberately staying on an older release, not a
+    /// master switch over their own button.
+    /// </remarks>
+    bool AutomaticUpdateChecksEnabled { get; set; }
 }
 
 public sealed class LocalClientSettingsStore : ILocalClientSettingsStore
@@ -53,6 +63,12 @@ public sealed class LocalClientSettingsStore : ILocalClientSettingsStore
     {
         get => _current.StatusNotificationsEnabled;
         set => Update(_current with { StatusNotificationsEnabled = value });
+    }
+
+    public bool AutomaticUpdateChecksEnabled
+    {
+        get => _current.AutomaticUpdateChecksEnabled;
+        set => Update(_current with { AutomaticUpdateChecksEnabled = value });
     }
 
     private void Update(StoredClientSettings settings)
@@ -100,6 +116,11 @@ public sealed class LocalClientSettingsStore : ILocalClientSettingsStore
         public double ThermalAlertThresholdCelsius { get; init; } = ThermalAlertMonitor.DefaultThresholdCelsius;
 
         public bool StatusNotificationsEnabled { get; init; }
+
+        // Defaults ON: the check is cheap, silent when it fails, and the notice is the only way a user
+        // learns a release exists. The initialiser is what makes the default hold for the settings files
+        // that already exist without this property.
+        public bool AutomaticUpdateChecksEnabled { get; init; } = true;
     }
 }
 

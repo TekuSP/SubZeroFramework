@@ -60,6 +60,14 @@
                     <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />
 
                     <controls:ToggleRowView
+                        Title="Check for updates"
+                        Margin="0,7"
+                        IconKind="Update"
+                        IsOn="{x:Bind ViewModel.AutomaticUpdateChecksEnabled, Mode=TwoWay}"
+                        Subtitle="Tell me when a newer SubZero is released" />
+                    <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />
+
+                    <controls:ToggleRowView
                         Title="Thermal alerts"
                         Margin="0,7"
                         IconKind="BellOutline"

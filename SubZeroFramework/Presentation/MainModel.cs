@@ -3,6 +3,7 @@ using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
 
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.WinUI;
 
 using Microsoft.UI.Dispatching;
 
@@ -35,6 +36,12 @@ public partial class MainModel : ObservableObject, IDisposable
             .ObserveOn(context)
             .Subscribe(SystemStatusChanged)
             .DisposeWith(_subscriptions);
+
+        // The startup update check is deliberately NOT started here. Uno hands nested regions their own
+        // view-model instance, so the object whose constructor runs is not necessarily the one the page
+        // binds to: a check started here updated an instance nothing was watching — the icon never tinted,
+        // while clicking the rail item (which goes through the BOUND instance) worked every time.
+        // MainPage starts it, on the instance it actually binds.
     }
 
     /// <summary>Last observed health, so redirects fire on a transition rather than on every emission.</summary>
@@ -82,6 +89,7 @@ public partial class MainModel : ObservableObject, IDisposable
         if (healthChanged && SelectedItem is NavigationViewItemBase bs2 && bs2.Tag?.ToString() == "WarningIssues")
         {
             navigator.NavigateRouteAsync(this, "/Main/Dashboard");
+            _ = ShowUpdateNoticeAsync(force: true);
         }
 
         //For now enable all capabilities
@@ -134,4 +142,229 @@ public partial class MainModel : ObservableObject, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWarningIssuesSelected))]
     public partial object? SelectedItem { get; set; }
+
+    private bool _startupUpdateCheckStarted;
+
+    /// <summary>
+    /// The shell has been navigated to — the first moment this view model is the one on screen.
+    /// </summary>
+    /// <remarks>
+    /// The NavigationView writes this back through a TwoWay binding once navigation settles, so it fires on
+    /// the instance the UI is actually bound to and only after the window is up. That is exactly what the
+    /// startup update check needs, and it needs no page-side lifecycle plumbing to get it.
+    /// </remarks>
+    partial void OnSelectedItemChanged(object? value)
+    {
+        if (_startupUpdateCheckStarted || value is null)
+        {
+            return;
+        }
+
+        _startupUpdateCheckStarted = true;
+        _ = ShowUpdateNoticeAsync(force: false);
+    }
+
+    /// <summary>
+    /// Handles the rail items that are ERRANDS rather than destinations.
+    /// </summary>
+    /// <remarks>
+    /// Check-for-updates is <c>SelectsOnInvoked="False"</c>, so it never becomes the selected item and
+    /// SelectionChanged never fires for it — which is the point. Handling it there instead meant navigating
+    /// to a region that does not exist and then going back, and that round trip is what blanked the content
+    /// area. ItemInvoked fires for selecting and non-selecting items alike.
+    /// </remarks>
+    /// <param name="sender">The rail.</param>
+    /// <param name="args">The invoked item.</param>
+    public void OnNavigationItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
+    {
+        if (string.Equals((args.InvokedItemContainer as NavigationViewItemBase)?.Tag?.ToString(), "CheckForUpdates", StringComparison.OrdinalIgnoreCase))
+        {
+            _ = ShowUpdateNoticeAsync(force: true);
+        }
+    }
+
+    /// <summary>
+    /// Opens the release page and closes the notice.
+    /// </summary>
+    /// <param name="sender">The notice.</param>
+    /// <param name="args">Unused.</param>
+    public void OnUpdateNoticeActionClick(TeachingTip sender, object args)
+    {
+        // Already validated as an https://github.com/TekuSP/SubZeroFramework/ URL by the client.
+        if (UpdateReleaseUrl is { Length: > 0 } url)
+        {
+            _ = Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+        }
+
+        IsUpdateNoticeOpen = false;
+    }
+
+    /// <summary>
+    /// Runs a check and opens the notice when it has something to say.
+    /// </summary>
+    /// <param name="force">True when the user pressed the rail button; false for the check at startup.</param>
+    private async Task ShowUpdateNoticeAsync(bool force)
+    {
+        try
+        {
+            // The check marshals its own bindable writes, so it runs off the UI thread and only its RESULT
+            // comes back — enqueuing the whole call would put an HTTP request on the UI thread for no reason.
+            var hasNotice = await CheckForUpdatesAsync(force, CancellationToken.None).ConfigureAwait(false);
+
+            // Opening is a property set, not a call into the tip: the TwoWay binding lets XAML do the open
+            // when the visual tree is ready for it. Still a bindable write, so still marshalled.
+            await dispatcherQueue.EnqueueAsync(() => IsUpdateNoticeOpen = hasNotice);
+        }
+        catch (Exception exception)
+        {
+            // Fire-and-forget: an unobserved exception here would take the app down, and an update check is
+            // the last thing that should be able to do that.
+            System.Diagnostics.Debug.WriteLine($"The update check failed: {exception}");
+        }
+    }
+
+    // ----- Update notification -----
+
+    /// <summary>Tint for the rail's update icon: amber while a newer release exists, otherwise inherited.</summary>
+    /// <remarks>
+    /// Assigned at runtime, never in a field initializer — a Brush built off the UI thread fails silently
+    /// and takes the whole DataContext down with it. Null means "leave the icon alone", which is what the
+    /// rail's other items get.
+    /// </remarks>
+    [ObservableProperty]
+    public partial Microsoft.UI.Xaml.Media.Brush? UpdateIconBrush { get; private set; }
+
+    /// <summary>Title for the update notice.</summary>
+    [ObservableProperty]
+    public partial string UpdateNoticeTitle { get; private set; } = string.Empty;
+
+    /// <summary>Body for the update notice.</summary>
+    [ObservableProperty]
+    public partial string UpdateNoticeBody { get; private set; } = string.Empty;
+
+    /// <summary>Label for the notice's action button, or null when there is nowhere to go.</summary>
+    /// <remarks>
+    /// Null rather than empty: TeachingTip shows the action button whenever the property carries a value, so
+    /// only a null actually takes the button away on an up-to-date result.
+    /// </remarks>
+    [ObservableProperty]
+    public partial string? UpdateNoticeActionText { get; private set; }
+
+    /// <summary>
+    /// Whether the update notice is showing. Bound TwoWay, so XAML owns the actual open.
+    /// </summary>
+    /// <remarks>
+    /// Setting <c>TeachingTip.IsOpen</c> from code-behind meant fighting the visual tree's readiness: too
+    /// early and the tip anchors to an element with no layout and never appears. Through a binding the
+    /// framework opens it when it can, and TwoWay means a light-dismiss writes false back here rather than
+    /// leaving this stuck true and the tip un-reopenable.
+    /// </remarks>
+    [ObservableProperty]
+    public partial bool IsUpdateNoticeOpen { get; set; }
+
+    /// <summary>The release page to open, already validated as a github.com URL by the client.</summary>
+    public string? UpdateReleaseUrl { get; private set; }
+
+
+    /// <summary>
+    /// Runs an update check and prepares the notice copy.
+    /// </summary>
+    /// <param name="force">True when the user pressed the rail button; false for the check at startup.</param>
+    /// <returns>True when there is something to show.</returns>
+    /// <remarks>
+    /// A forced check ALWAYS produces something to show, including "you are up to date" — a button that
+    /// answers silently reads as broken. The startup check only speaks when there is news.
+    /// </remarks>
+    public async Task<bool> CheckForUpdatesAsync(bool force, CancellationToken cancellationToken)
+    {
+        var coordinator = ServiceProvider.GetService<Services.Updates.IUpdateNotificationCoordinator>();
+        if (coordinator is null)
+        {
+            return false;
+        }
+
+        // ConfigureAwait(false): the fetch has no business holding the UI thread, and nothing below touches
+        // a bindable property until the single marshalled block at the end.
+        var availability = await coordinator.EvaluateAsync(force, cancellationToken).ConfigureAwait(false);
+
+        // Decided off the UI thread on purpose — these are plain strings, so only the ASSIGNMENT needs
+        // marshalling, not the reasoning. An empty title means "nothing to say", which is what a silent
+        // startup check produces.
+        var (title, body) = DescribeUpdateNotice(availability, force);
+
+        await dispatcherQueue.EnqueueAsync(() =>
+        {
+            // Every bindable write lives in here. [ObservableProperty] raises PropertyChanged synchronously,
+            // so assigning off the UI thread pushes a binding update onto the wrong thread — and the brush
+            // below is worse still: AppThemeBrushes reaches into Application.Current.Resources, and a Brush
+            // touched off-thread fails silently, taking the assignment with it.
+            //
+            // The amber tint tracks the FACT, not the notice: it stays after the notice is dismissed, and a
+            // check that comes back clean is what clears it.
+            //
+            // A BRUSH OF ITS OWN, not AppThemeBrushes.Get. That helper hands back the very SolidColorBrush
+            // instance App.xaml owns and shares with every {StaticResource StatusWarningBrush} in the app,
+            // cached in a static dictionary for the process lifetime. Null means "no news", and the icon's
+            // binding turns that into the rail's ordinary colour.
+            UpdateIconBrush = availability.IsUpdateAvailable
+                ? new SolidColorBrush(Themes.AppThemeBrushes.StatusWarningColor)
+                : new SolidColorBrush(Themes.AppThemeBrushes.TextSecondaryColor);
+
+            UpdateReleaseUrl = availability.ReleaseUrl;
+            UpdateNoticeActionText = availability.IsUpdateAvailable ? "See what's new" : null;
+
+            if (title.Length > 0)
+            {
+                UpdateNoticeTitle = title;
+                UpdateNoticeBody = body;
+            }
+        });
+
+        return title.Length > 0;
+    }
+
+    /// <summary>
+    /// The notice copy for an outcome, or empty strings when there is nothing to say.
+    /// </summary>
+    /// <param name="availability">What the check found.</param>
+    /// <param name="force">True when the user asked; a startup check stays silent unless there is news.</param>
+    /// <returns>The title and body, both empty when the notice should not appear.</returns>
+    /// <remarks>
+    /// Static and string-only so it can run anywhere: keeping the wording out of the marshalled block leaves
+    /// that block doing nothing but assigning, which is the part that genuinely needs the UI thread.
+    /// </remarks>
+    private static (string Title, string Body) DescribeUpdateNotice(Models.UpdateAvailability availability, bool force)
+    {
+        if (availability.IsUpdateAvailable)
+        {
+            return (
+                $"SubZero {availability.LatestVersion} is available",
+                availability.CurrentVersion is { } running
+                    ? $"You're on {running}. See what changed on GitHub."
+                    : "See what changed on GitHub.");
+        }
+
+        // No news, and nobody asked.
+        if (!force)
+        {
+            return (string.Empty, string.Empty);
+        }
+
+        if (availability.Status == Models.UpdateCheckStatus.UpToDate)
+        {
+            return (
+                "You're up to date",
+                availability.CurrentVersion is { } currentVersion
+                    ? $"SubZero {currentVersion} is the newest release."
+                    : "No newer release was found.");
+        }
+
+        // Unknown: the feed could not be read, or this build carries no version to compare. Saying "up to
+        // date" here would assert something the app has no evidence for.
+        return (
+            "Couldn't check for updates",
+            availability.CurrentVersion is null
+                ? "This build doesn't report its version, so there's nothing to compare against."
+                : "GitHub could not be reached. Check your connection and try again.");
+    }
 }

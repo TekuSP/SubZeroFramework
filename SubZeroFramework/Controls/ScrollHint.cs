@@ -113,8 +113,8 @@ public static class ScrollHint
 
         void Update()
         {
-            upChevron.Opacity = HasMoreAbove(scrollViewer) ? 1d : 0d;
-            downChevron.Opacity = HasMoreBelow(scrollViewer) ? 1d : 0d;
+            FadeTo(upChevron, HasMoreAbove(scrollViewer) ? 1d : 0d);
+            FadeTo(downChevron, HasMoreBelow(scrollViewer) ? 1d : 0d);
         }
 
         scrollViewer.ViewChanged += (_, _) => Update();
@@ -293,7 +293,44 @@ public static class ScrollHint
             Margin = alignment == VerticalAlignment.Top ? new Thickness(0, 8, 0, 0) : new Thickness(0, 0, 0, 8),
             IsHitTestVisible = false,
             Opacity = 0d,
-            OpacityTransition = new ScalarTransition { Duration = TimeSpan.FromMilliseconds(140) },
         };
+    }
+
+    /// <summary>How long a chevron takes to fade in or out.</summary>
+    private static readonly TimeSpan FadeDuration = TimeSpan.FromMilliseconds(140);
+
+    /// <summary>
+    /// Fades <paramref name="chevron"/> to <paramref name="opacity"/>.
+    /// </summary>
+    /// <param name="chevron">The chevron to fade.</param>
+    /// <param name="opacity">The opacity to end at.</param>
+    /// <remarks>
+    /// An explicit storyboard rather than <c>UIElement.OpacityTransition</c>: that property is a WinUI
+    /// implicit animation Uno does not implement (Uno0001), so the fade it was supposed to provide simply
+    /// did not happen on the Skia head — the chevrons snapped. A storyboard behaves the same on both.
+    /// EnableDependentAnimation is required because Opacity here is not composition-animated.
+    /// </remarks>
+    private static void FadeTo(UIElement chevron, double opacity)
+    {
+        // Re-running the same fade on every scroll event would restart it continuously and leave the
+        // chevron flickering; ViewChanged fires for the whole length of a scroll.
+        if (Math.Abs(chevron.Opacity - opacity) < 0.01d)
+        {
+            return;
+        }
+
+        var animation = new DoubleAnimation
+        {
+            To = opacity,
+            Duration = new Duration(FadeDuration),
+            EnableDependentAnimation = true,
+        };
+
+        Storyboard.SetTarget(animation, chevron);
+        Storyboard.SetTargetProperty(animation, "Opacity");
+
+        var storyboard = new Storyboard();
+        storyboard.Children.Add(animation);
+        storyboard.Begin();
     }
 }

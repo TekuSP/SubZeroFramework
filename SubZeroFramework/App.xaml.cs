@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
@@ -181,6 +182,46 @@ public partial class App : Application
 
                     // Client-only settings: launch behavior + alert opt-ins persist next to the display units.
                     services.AddSingleton<ILocalClientSettingsStore, LocalClientSettingsStore>();
+
+                    // Update notification. The cached verdict lives beside the other client-only state; the
+                    // HTTP client goes through the factory because it owns handler lifetime, and a
+                    // long-running app holding one socket handler would pin a stale DNS entry all session.
+                    services.AddSingleton<SubZeroFramework.Services.Updates.IUpdateCheckStateStore, UpdateCheckStateStore>();
+
+#if DEBUG
+                    // --fake-latest short-circuits the network so the notice can be reached without a
+                    // published release. Compiled out of RELEASE entirely; see DebugUpdateOverrides.
+                    if (DebugUpdateOverrides.HasFakeLatest)
+                    {
+                        services.AddSingleton<SubZeroFramework.Services.Updates.IUpdateCheckClient, DebugUpdateOverrides.FakeClient>();
+                    }
+                    else
+                    {
+                        services.AddHttpClient<SubZeroFramework.Services.Updates.IUpdateCheckClient, SubZeroFramework.Services.Updates.GitHubUpdateCheckClient>();
+                    }
+#else
+                    services.AddHttpClient<SubZeroFramework.Services.Updates.IUpdateCheckClient, SubZeroFramework.Services.Updates.GitHubUpdateCheckClient>();
+#endif
+                    services.AddSingleton<SubZeroFramework.Services.Updates.IUpdateNotificationCoordinator>(provider =>
+                        new SubZeroFramework.Services.Updates.UpdateNotificationCoordinator(
+                            provider.GetRequiredService<SubZeroFramework.Services.Updates.IUpdateCheckClient>(),
+                            provider.GetRequiredService<SubZeroFramework.Services.Updates.IUpdateCheckStateStore>(),
+
+                            // Read through a delegate, not captured: the user can toggle this in Settings
+                            // mid-session and the next check must see the new answer.
+                            () => provider.GetRequiredService<ILocalClientSettingsStore>().AutomaticUpdateChecksEnabled,
+#if DEBUG
+                            // --fake-version makes the app claim to be older, so the REAL GitHub call is
+                            // still exercised. Falls through to the true version when the flag is absent.
+                            DebugUpdateOverrides.FakeCurrentVersion
+                                ?? SubZeroFramework.Services.Updates.AppVersion.Parse(
+                                    typeof(App).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion),
+#else
+                            SubZeroFramework.Services.Updates.AppVersion.Parse(
+                                typeof(App).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion),
+#endif
+                            () => DateTimeOffset.UtcNow,
+                            provider.GetRequiredService<ILogger<SubZeroFramework.Services.Updates.UpdateNotificationCoordinator>>()));
                     services.AddSingleton<ILocalFanProfileStore, LocalFanProfileStore>();
                     // Cross-platform launch-at-sign-in via the AutoLaunch library (HKCU Run key /
                     // freedesktop autostart / LaunchAgent behind one API).
