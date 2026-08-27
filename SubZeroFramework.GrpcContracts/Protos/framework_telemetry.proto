@@ -617,6 +617,15 @@ message AdaptiveLearningMessage {
   int64 last_material_change_at_unix_time_milliseconds = 7;
   // Derived server-side so every client agrees on the wording; see AdaptiveConfidence.
   AdaptiveConfidenceValue confidence = 8;
+  // The identified gain over time, oldest first — one point per MATERIAL move, not per observation. This is
+  // the only place a chassis getting worse at moving heat is visible as a trend rather than as one number.
+  repeated AdaptiveGainSampleMessage gain_history = 9;
+}
+
+// One point on the identified-gain history.
+message AdaptiveGainSampleMessage {
+  int64 at_unix_time_milliseconds = 1;
+  double process_gain_celsius_per_percent = 2;
 }
 
 enum AdaptiveConfidenceValue {

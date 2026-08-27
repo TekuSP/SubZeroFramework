@@ -643,6 +643,14 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     LastUpdatedAt = state.AdaptiveLearning.LastUpdatedAt,
                     LastMaterialChangeAt = state.AdaptiveLearning.LastMaterialChangeAt,
                     ThermalLoadSource = state.AdaptiveLearning.ThermalLoadSource,
+                    GainHistory =
+                    [
+                        .. state.AdaptiveLearning.GainHistory.Select(static sample => new AdaptiveGainSampleOptions
+                        {
+                            At = sample.At,
+                            ProcessGainCelsiusPerPercent = sample.ProcessGainCelsiusPerPercent,
+                        }),
+                    ],
                 }
                 : null,
         };
@@ -964,6 +972,12 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     LastUpdatedAt = learning.LastUpdatedAt,
                     LastMaterialChangeAt = learning.LastMaterialChangeAt,
                     ThermalLoadSource = learning.ThermalLoadSource,
+                    GainHistory =
+                    [
+                        .. (learning.GainHistory ?? [])
+                            .OrderBy(static sample => sample.At)
+                            .Select(static sample => new AdaptiveGainSample(sample.At, sample.ProcessGainCelsiusPerPercent)),
+                    ],
                 }
                 : AdaptiveLearningState.None,
         };

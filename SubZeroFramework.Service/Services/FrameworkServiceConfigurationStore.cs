@@ -374,6 +374,23 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
                 learningNode["ThermalLoadSource"] = learning.ThermalLoadSource.ToString();
             }
 
+            // Drift only means something across restarts, so the history has to survive them. Bounded by the
+            // learner, and written only when there is something in it.
+            if (learning.GainHistory is { Length: > 0 } gainHistory)
+            {
+                var samples = new JsonArray();
+                foreach (var sample in gainHistory)
+                {
+                    samples.Add(new JsonObject
+                    {
+                        ["At"] = sample.At.ToString("O", CultureInfo.InvariantCulture),
+                        ["ProcessGainCelsiusPerPercent"] = sample.ProcessGainCelsiusPerPercent,
+                    });
+                }
+
+                learningNode["GainHistory"] = samples;
+            }
+
             node["AdaptiveLearning"] = learningNode;
         }
 

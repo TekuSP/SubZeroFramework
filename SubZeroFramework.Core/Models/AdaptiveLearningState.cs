@@ -1,4 +1,13 @@
+using System.Collections.Immutable;
+
 namespace SubZeroFramework.Models;
+
+/// <summary>
+/// One point on the identified-gain history: what K was, and when it became that.
+/// </summary>
+/// <param name="At">When the model moved to this value.</param>
+/// <param name="ProcessGainCelsiusPerPercent">The identified K, in °C per duty point.</param>
+public readonly record struct AdaptiveGainSample(DateTimeOffset At, double ProcessGainCelsiusPerPercent);
 
 /// <summary>
 /// What continuous operation has taught the controller about one fan SINCE its calibration run — the
@@ -110,6 +119,40 @@ public sealed record AdaptiveLearningState
     /// from <see cref="AdaptiveConfidence.Confident"/>.
     /// </remarks>
     public DateTimeOffset? LastMaterialChangeAt { get; init; }
+
+    /// <summary>
+    /// How many points of identified-gain history are kept.
+    /// </summary>
+    /// <remarks>
+    /// Bounded because this is persisted: the history lives in the configuration file, which is rewritten
+    /// whole on every fan command, so it cannot be allowed to grow without limit. Points are appended only
+    /// when the gain MOVES MATERIALLY rather than per observation, so this covers a long span of real
+    /// drift — dust accumulating, paste ageing — rather than a few minutes of estimator jitter.
+    /// </remarks>
+    public const int MaximumGainHistoryPoints = 48;
+
+    /// <summary>
+    /// The identified gain over time, oldest first — what cooling effectiveness has actually done.
+    /// </summary>
+    /// <remarks>
+    /// The one thing continuous operation produces that a single number cannot express. K falling steadily
+    /// over weeks is a chassis getting worse at moving heat, and the moment it starts is visible here and
+    /// nowhere else; <see cref="LastMaterialChangeAt"/> says only that something moved, not which way or by
+    /// how much.
+    /// </remarks>
+    public ImmutableArray<AdaptiveGainSample> GainHistory { get; init; } = [];
+
+    /// <summary>The same history with a new point appended, oldest dropped once full.</summary>
+    /// <param name="sample">The point to append.</param>
+    public ImmutableArray<AdaptiveGainSample> AppendGainSample(AdaptiveGainSample sample)
+    {
+        var history = GainHistory.IsDefault ? [] : GainHistory;
+        var trimmed = history.Length >= MaximumGainHistoryPoints
+            ? history.RemoveRange(0, history.Length - MaximumGainHistoryPoints + 1)
+            : history;
+
+        return trimmed.Add(sample);
+    }
 
     /// <summary>
     /// How well the controller knows this fan, as of <paramref name="now"/>.

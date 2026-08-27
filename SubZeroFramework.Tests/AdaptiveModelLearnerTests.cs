@@ -280,6 +280,104 @@ public class AdaptiveModelLearnerTests
         Assert.That(learner.EffectiveModel(Calibration()).ProcessGainCelsiusPerPercent, Is.EqualTo(gain));
     }
 
+    /// <summary>
+    /// The identified gain is recorded as a TREND, not just a latest value, and the trend shows which way a
+    /// chassis is going.
+    /// </summary>
+    /// <remarks>
+    /// This is the whole argument for keeping a history: "cooling per 1% fan is 0.18" says nothing about
+    /// whether the machine is healthy, while the same number falling steadily from 0.30 is a heatsink
+    /// filling with dust. The points are appended only on a MATERIAL move, so a fit that merely jitters must
+    /// not fill the bounded history and push the real drift off the end.
+    /// </remarks>
+    [Test]
+    public void GainHistory_RecordsTheDrift_WhenTheChassisGetsWorseAtMovingHeat()
+    {
+        var learner = Anchored();
+
+        // A healthy chassis first, so there is a baseline to drift away FROM.
+        var clock = RunVariedOperationFrom(learner, DateTimeOffset.UnixEpoch, TrueProcessGain);
+        var afterFirstFit = learner.State;
+
+        Assert.That(afterFirstFit.IdentifiedProcessGainCelsiusPerPercent, Is.Not.Null, "the fit never became separable, so there is nothing to trend");
+        Assert.That(afterFirstFit.GainHistory, Is.Not.Empty, "the first separable fit left no point, so a history can never open");
+
+        // The SAME machine, now moving heat markedly worse — dust, or paste that has dried out.
+        RunVariedOperationFrom(learner, clock, TrueProcessGain * 0.55d);
+        var history = learner.State.GainHistory;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(
+                history.Length,
+                Is.GreaterThan(afterFirstFit.GainHistory.Length),
+                "the plant changed and nothing was recorded — the drift is invisible");
+            // Against where phase 1 SETTLED, not against history[0]: the first published point is an early
+            // separable fit still climbing toward the true gain, so the opening value describes the
+            // estimator warming up rather than the chassis.
+            Assert.That(
+                history[^1].ProcessGainCelsiusPerPercent,
+                Is.LessThan(afterFirstFit.IdentifiedProcessGainCelsiusPerPercent!.Value),
+                "cooling got worse, so the trend must end below where it had settled");
+            Assert.That(history[^1].At, Is.GreaterThan(history[0].At), "the history is not ordered in time");
+            Assert.That(
+                history.Length,
+                Is.LessThanOrEqualTo(AdaptiveLearningState.MaximumGainHistoryPoints),
+                "the history is persisted, so it must stay bounded");
+        });
+    }
+
+    /// <summary>A full history drops its OLDEST point, so the newest drift is always the part kept.</summary>
+    [Test]
+    public void AppendGainSample_WhenFull_DropsTheOldestPoint()
+    {
+        var state = AdaptiveLearningState.None;
+        for (var i = 0; i < AdaptiveLearningState.MaximumGainHistoryPoints + 10; i++)
+        {
+            state = state with
+            {
+                GainHistory = state.AppendGainSample(new AdaptiveGainSample(DateTimeOffset.UnixEpoch.AddHours(i), i)),
+            };
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(state.GainHistory.Length, Is.EqualTo(AdaptiveLearningState.MaximumGainHistoryPoints));
+            Assert.That(state.GainHistory[^1].ProcessGainCelsiusPerPercent, Is.EqualTo(AdaptiveLearningState.MaximumGainHistoryPoints + 9d), "the newest point was not kept");
+            Assert.That(state.GainHistory[0].ProcessGainCelsiusPerPercent, Is.EqualTo(10d), "the oldest points were not the ones dropped");
+        });
+    }
+
+    /// <summary>As <see cref="RunVariedOperation"/>, but with a clock that actually advances.</summary>
+    private static DateTimeOffset RunVariedOperationFrom(AdaptiveModelLearner learner, DateTimeOffset start, double processGain)
+    {
+        (double Power, double Duty)[] points =
+        [
+            (18d, 22d), (32d, 38d), (45d, 52d), (58d, 66d), (26d, 30d), (51d, 60d),
+        ];
+
+        var secondsPerSample = (int)Math.Ceiling(
+            Math.Max(AdaptiveModelLearner.SteadyStateDwell.TotalSeconds, AdaptiveModelLearner.ObservationInterval.TotalSeconds)) + 1;
+
+        var clock = start;
+        for (var round = 0; round < 14; round++)
+        {
+            foreach (var (power, duty) in points)
+            {
+                for (var tick = 0; tick < secondsPerSample; tick++)
+                {
+                    clock = clock.AddSeconds(1);
+                    learner.Observe(
+                        Observation(power, duty, processGain: processGain),
+                        TimeSpan.FromSeconds(1),
+                        clock);
+                }
+            }
+        }
+
+        return clock;
+    }
+
     private static AdaptiveModelLearner Anchored(AdaptiveLearningState? state = null)
     {
         var learner = new AdaptiveModelLearner(state);

@@ -157,6 +157,24 @@ public sealed record AdaptiveLearningOptions
     /// different from the ones that produced it.
     /// </remarks>
     public ThermalLoadSource ThermalLoadSource { get; init; } = ThermalLoadSource.None;
+
+    /// <summary>
+    /// The identified gain over time, oldest first. Bounded by
+    /// <see cref="AdaptiveLearningState.MaximumGainHistoryPoints"/>.
+    /// </summary>
+    /// <remarks>
+    /// Persisted because drift is the whole point of it: a history that restarted with the service would only
+    /// ever show the last few hours, which is exactly the window in which a chassis does NOT change.
+    /// </remarks>
+    public AdaptiveGainSampleOptions[] GainHistory { get; init; } = [];
+}
+
+/// <summary>Persisted form of one <see cref="AdaptiveGainSample"/>.</summary>
+public sealed record AdaptiveGainSampleOptions
+{
+    public DateTimeOffset At { get; init; }
+
+    public double ProcessGainCelsiusPerPercent { get; init; }
 }
 
 public sealed record FanCurveProfileOptions

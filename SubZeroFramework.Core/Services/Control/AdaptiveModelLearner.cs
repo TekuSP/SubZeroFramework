@@ -226,9 +226,19 @@ public sealed class AdaptiveModelLearner
         }
 
         var identifiedGain = _estimator.ProcessGainCelsiusPerPercent;
+        var hasMovedMaterially = HasMovedMaterially(previousGain, identifiedGain);
+
+        // A point per MATERIAL move, not per observation: the estimator nudges K on almost every sample, so
+        // recording each one would fill a bounded, persisted history with jitter and push the real drift off
+        // the end. The first separable fit counts as a move (previousGain is null), so the history always
+        // opens with where the model started.
+        var gainHistory = hasMovedMaterially && identifiedGain is double movedGain
+            ? State.AppendGainSample(new AdaptiveGainSample(timestamp, movedGain))
+            : State.GainHistory;
 
         State = State with
         {
+            GainHistory = gainHistory,
             IdentifiedProcessGainCelsiusPerPercent = identifiedGain,
             IdentifiedCelsiusPerWatt = _estimator.CelsiusPerWatt,
             IdentifiedInterceptCelsius = _estimator.InterceptCelsius,
@@ -237,7 +247,7 @@ public sealed class AdaptiveModelLearner
             ThermalLoadSource = observation.ThermalLoadSource,
             ObservationCount = _estimator.ObservationCount,
             LastUpdatedAt = timestamp,
-            LastMaterialChangeAt = HasMovedMaterially(previousGain, identifiedGain)
+            LastMaterialChangeAt = hasMovedMaterially
                 ? timestamp
                 : State.LastMaterialChangeAt,
         };

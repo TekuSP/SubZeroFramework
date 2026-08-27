@@ -530,6 +530,15 @@ internal static class TelemetryGrpcMapper
                 },
             };
 
+            foreach (var sample in state.AdaptiveLearning.GainHistory)
+            {
+                learning.GainHistory.Add(new AdaptiveGainSampleMessage
+                {
+                    AtUnixTimeMilliseconds = sample.At.ToUnixTimeMilliseconds(),
+                    ProcessGainCelsiusPerPercent = sample.ProcessGainCelsiusPerPercent,
+                });
+            }
+
             if (state.AdaptiveLearning.IdentifiedProcessGainCelsiusPerPercent is double identifiedGain)
             {
                 learning.IdentifiedProcessGainCelsiusPerPercent = identifiedGain;

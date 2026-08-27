@@ -163,6 +163,57 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     [ObservableProperty]
     public partial IReadOnlyList<AdaptiveKnownFact> KnownFacts { get; private set; } = [];
 
+    // ----- Identified-gain drift -----
+    //
+    // The one thing continuous operation produces that no single number can express: whether this chassis is
+    // getting BETTER or WORSE at moving heat, and when it turned. Plotted against sample index rather than
+    // time — the points are spaced by when the model moved, not by the clock, so a time axis would compress
+    // months of stability into a sliver and stretch one busy afternoon across the width.
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GainHistoryVisibility))]
+    public partial ObservablePoint[] GainHistory { get; private set; } = [];
+
+    /// <summary>Hidden until there are two points, because one point is not a trend.</summary>
+    public Visibility GainHistoryVisibility => GainHistory.Length >= 2 ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>What the drift line says, in words — the chart is the evidence, this is the reading.</summary>
+    [ObservableProperty]
+    public partial string GainHistoryCaption { get; private set; } = string.Empty;
+
+    private void RefreshGainHistory(AdaptiveLearningState learning)
+    {
+        var history = learning.GainHistory;
+        if (history.IsDefaultOrEmpty || history.Length < 2)
+        {
+            GainHistory = [];
+            GainHistoryCaption = string.Empty;
+            return;
+        }
+
+        GainHistory = [.. history.Select((sample, index) => new ObservablePoint(index, sample.ProcessGainCelsiusPerPercent))];
+
+        var first = history[0].ProcessGainCelsiusPerPercent;
+        var latest = history[^1].ProcessGainCelsiusPerPercent;
+        var changeFraction = first > 0d ? (latest - first) / first : 0d;
+        var span = history[^1].At - history[0].At;
+        var over = DescribeSpan(span);
+
+        // Losing cooling is the finding worth surfacing; gaining it is reassurance. The threshold matches the
+        // learner's own idea of a material move, so the words cannot disagree with the line.
+        GainHistoryCaption = Math.Abs(changeFraction) < AdaptiveLearningState.MaterialChangeFraction
+            ? $"Steady over {over}."
+            : changeFraction < 0d
+                ? $"Cooling {Math.Abs(changeFraction) * 100d:0} % less effective over {over} — dust or ageing paste look like this."
+                : $"Cooling {changeFraction * 100d:0} % more effective over {over}.";
+    }
+
+    private static string DescribeSpan(TimeSpan span) => span.TotalDays >= 2d
+        ? $"{span.TotalDays:0} days"
+        : span.TotalHours >= 2d
+            ? $"{span.TotalHours:0} hours"
+            : "this session";
+
     /// <summary>Enabled only once there is something learned to discard.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ForgetLearningVisibility))]
@@ -171,19 +222,6 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     public Visibility ForgetLearningVisibility => HasLearnedAnything ? Visibility.Visible : Visibility.Collapsed;
 
     public IAsyncRelayCommand ForgetLearningCommand { get; }
-
-    /// <summary>
-    /// Whether to offer the hot test as a shortcut, inside the confidence card.
-    /// </summary>
-    /// <remarks>
-    /// Hidden once the fan is Confident: there is nothing left to accelerate, and continuing to offer a
-    /// four-minute test on a fan that already knows itself would suggest something is still missing.
-    /// </remarks>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CalibrationOfferVisibility))]
-    public partial bool IsCalibrationOfferVisible { get; private set; }
-
-    public Visibility CalibrationOfferVisibility => IsCalibrationOfferVisible ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>
     /// True when nothing at all is known about this fan, so Adaptive cannot run yet.
@@ -205,6 +243,9 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     /// <summary>Stroke for the live response preview.</summary>
     public SolidColorPaint ResponsePreviewPaint { get; } = new(new SKColor(0x00, 0x78, 0xD7)) { StrokeThickness = 2f };
+
+    /// <summary>Stroke for the identified-gain drift line.</summary>
+    public SolidColorPaint GainHistoryPaint { get; } = new(new SKColor(0x6C, 0xCB, 0x5F)) { StrokeThickness = 2f };
 
     /// <summary>Dashed stroke for the default-setting ghost it is compared against.</summary>
     public SolidColorPaint ResponsePreviewDefaultPaint { get; } = new(new SKColor(0x6E, 0x75, 0x7C))
@@ -986,9 +1027,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         var confidence = learning.ConfidenceAt(DateTimeOffset.UtcNow);
         List<AdaptiveKnownFact> facts = [];
 
-        // Offered while there is still something to accelerate, and withdrawn once the fan knows itself.
-        // Continuing to offer a four-minute test to a Confident fan would imply something is missing.
-        IsCalibrationOfferVisible = confidence != AdaptiveConfidence.Confident;
+        RefreshGainHistory(learning);
 
         switch (confidence)
         {
@@ -1015,9 +1054,9 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
                 ConfidenceChip = "Learning";
                 ConfidenceHeadline = "Still getting to know this fan";
                 ConfidenceBody =
-                    "Adaptive is running on safe defaults and watching how this machine behaves. It only "
-                    + "learns from settled, quiet moments, so this takes a while — the fan is doing its job "
-                    + "the whole time.";
+                    "Adaptive is running on what the test measured and watching how this machine behaves "
+                    + "from here. It only learns from settled, quiet moments, so this takes a while — the "
+                    + "fan is doing its job the whole time.";
                 break;
         }
 
@@ -1034,7 +1073,13 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         }
         else
         {
-            facts.Add(new AdaptiveKnownFact("Running on", "Safe defaults", MaterialIconKind.ShieldHalfFull));
+            // Nothing identified from live use YET — but this card is only reachable on a fan that has been
+            // calibrated, so what it is running on is that measurement, not a built-in guess. Saying "safe
+            // defaults" here told a user who had just sat through a four-minute hot test that it had been
+            // ignored.
+            facts.Add(state?.Calibration.IsMeasured == true
+                ? new AdaptiveKnownFact("Running on", "Its own measurement", MaterialIconKind.ShieldCheck)
+                : new AdaptiveKnownFact("Running on", "Safe defaults", MaterialIconKind.ShieldHalfFull));
         }
 
         if (state?.Calibration is { MinimumSpinRpm: > 0d } calibrated)

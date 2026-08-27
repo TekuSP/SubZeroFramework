@@ -437,16 +437,83 @@
                                             Text="{x:Bind Label}"
                                             TextTrimming="CharacterEllipsis" />
                                     </StackPanel>
+                                    <!--  Wraps rather than clipping: these values are not all short numbers —
+                                          the gain-curve fact is a whole phrase — and a fixed-width tile with
+                                          no wrapping cut it off mid-word. The uniform layout sizes each row
+                                          to its tallest tile, so a two-line value costs alignment nothing.  -->
                                     <TextBlock
                                         FontSize="15"
                                         FontWeight="SemiBold"
                                         Foreground="{StaticResource TextPrimaryBrush}"
-                                        Text="{x:Bind Value}" />
+                                        Text="{x:Bind Value}"
+                                        TextWrapping="WrapWholeWords" />
                                 </StackPanel>
                             </Border>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>
+
+                <!--
+                    Cooling effectiveness over time. The facts above are all "what is true now"; this is the
+                    only thing here that answers "which way is it going" — a chassis losing cooling to dust or
+                    ageing paste shows up as a downward line long before it shows up as a complaint. Drawn
+                    only once there are two points to join, because one point is not a trend.
+                -->
+                <StackPanel Spacing="6" Visibility="{x:Bind ViewModel.GainHistoryVisibility, Mode=OneWay}">
+                    <TextBlock
+                        FontSize="11.5"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="Cooling effectiveness over time" />
+                    <lvc:CartesianChart
+                        Height="72"
+                        AutoUpdateEnabled="True"
+                        Background="Transparent"
+                        LegendPosition="Hidden"
+                        TooltipPosition="Hidden"
+                        ZoomMode="None">
+                        <lvc:CartesianChart.Series>
+                            <lvc:SeriesCollection>
+                                <lvc:XamlLineSeries
+                                    AnimationsSpeed="0"
+                                    Fill="{x:Null}"
+                                    GeometryFill="{x:Null}"
+                                    GeometryStroke="{x:Null}"
+                                    LineSmoothness="0.4"
+                                    Stroke="{x:Bind ViewModel.GainHistoryPaint}"
+                                    Values="{x:Bind ViewModel.GainHistory, Mode=OneWay}" />
+                            </lvc:SeriesCollection>
+                        </lvc:CartesianChart.Series>
+                        <lvc:CartesianChart.XAxes>
+                            <lvc:AxesCollection>
+                                <lvc:XamlAxis
+                                    AnimationsSpeed="0"
+                                    LabelsPaint="{x:Null}"
+                                    Padding="{lvc:Padding Value='0,0'}"
+                                    ShowSeparatorLines="False"
+                                    TextSize="0" />
+                            </lvc:AxesCollection>
+                        </lvc:CartesianChart.XAxes>
+                        <lvc:CartesianChart.YAxes>
+                            <lvc:AxesCollection>
+                                <!--  Auto-fitted, unlike the response preview: the magnitude of K is not the
+                                      point here, the SHAPE is, and a fixed axis would flatten a real 20%
+                                      decline into a line that looks level.  -->
+                                <lvc:XamlAxis
+                                    AnimationsSpeed="0"
+                                    LabelsPaint="{x:Null}"
+                                    Padding="{lvc:Padding Value='0,0'}"
+                                    SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                                    ShowSeparatorLines="True"
+                                    TextSize="0" />
+                            </lvc:AxesCollection>
+                        </lvc:CartesianChart.YAxes>
+                    </lvc:CartesianChart>
+                    <TextBlock
+                        FontSize="11"
+                        Foreground="{StaticResource TextTertiaryBrush}"
+                        Text="{x:Bind ViewModel.GainHistoryCaption, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
 
                 <StackPanel
                     Orientation="Horizontal"
@@ -465,56 +532,6 @@
                         TextWrapping="WrapWholeWords" />
                 </StackPanel>
 
-                <!--
-                    The hot test offered as a shortcut, never as a requirement — and withdrawn entirely once
-                    the fan is confident, because there is nothing left to accelerate.
-                -->
-                <Border
-                    Margin="0,3,0,0"
-                    Padding="0,14,0,0"
-                    BorderBrush="{StaticResource CardBorderBrush}"
-                    BorderThickness="0,1,0,0"
-                    Visibility="{x:Bind ViewModel.CalibrationOfferVisibility, Mode=OneWay}">
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <material:MaterialIcon
-                            Width="16"
-                            Height="16"
-                            VerticalAlignment="Center"
-                            Foreground="{StaticResource BrandPrimaryBrush}"
-                            Kind="ClockFast" />
-                        <TextBlock
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            FontSize="12.5"
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Text="In a hurry? A 4-minute test would teach it everything at once."
-                            TextWrapping="WrapWholeWords" />
-                        <Button
-                            Grid.Column="2"
-                            Height="32"
-                            Padding="13,0"
-                            VerticalAlignment="Center"
-                            Command="{x:Bind ViewModel.RunCalibrationCommand, Mode=OneWay}"
-                            CornerRadius="8">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <material:MaterialIcon
-                                    Width="14"
-                                    Height="14"
-                                    VerticalAlignment="Center"
-                                    Kind="TuneVerticalVariant" />
-                                <TextBlock
-                                    VerticalAlignment="Center"
-                                    FontSize="12.5"
-                                    Text="Run the 4-minute test" />
-                            </StackPanel>
-                        </Button>
-                    </Grid>
-                </Border>
             </StackPanel>
         </Border>
 
@@ -971,10 +988,13 @@
                                 Height="15"
                                 VerticalAlignment="Center"
                                 Kind="ClockFast" />
+                            <!--  "again", because this editor is only reachable on a fan that has already
+                                  been through the test — here it is always a RE-calibration, and the one a
+                                  user reaches for after a repaste or when the drift line starts falling.  -->
                             <TextBlock
                                 VerticalAlignment="Center"
                                 FontSize="12.5"
-                                Text="4-minute learning test" />
+                                Text="Run the 4-minute test again" />
                         </StackPanel>
                     </Button>
 

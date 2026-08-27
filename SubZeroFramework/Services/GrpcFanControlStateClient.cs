@@ -293,6 +293,14 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
                 LastMaterialChangeAt = message.LastMaterialChangeAtUnixTimeMilliseconds > 0L
                     ? DateTimeOffset.FromUnixTimeMilliseconds(message.LastMaterialChangeAtUnixTimeMilliseconds)
                     : null,
+                GainHistory =
+                [
+                    .. message.GainHistory
+                        .Where(static sample => sample.AtUnixTimeMilliseconds > 0L)
+                        .Select(static sample => new AdaptiveGainSample(
+                            DateTimeOffset.FromUnixTimeMilliseconds(sample.AtUnixTimeMilliseconds),
+                            sample.ProcessGainCelsiusPerPercent)),
+                ],
             };
 
     private static FanCurveProfileSnapshot ParseCurveProfile(FanCurveProfileReply reply)
