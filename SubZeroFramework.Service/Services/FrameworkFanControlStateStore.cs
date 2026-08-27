@@ -665,6 +665,27 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                 IntegralGain = calibration.IntegralGain,
                 FeedForwardDutyPerWatt = calibration.FeedForwardDutyPerWatt,
                 TrackingMode = calibration.TrackingMode,
+                // The gain curve is read by the control loop, so dropping it here did not merely lose a
+                // readout — it silently downgraded gain scheduling to a single averaged K after any restart.
+                GainCurvePoints =
+                [
+                    .. calibration.GainCurve.Points.Select(static point => new FanGainCurvePointOptions
+                    {
+                        DutyPercent = point.DutyPercent,
+                        SettledCelsius = point.SettledCelsius,
+                    }),
+                ],
+                PerformanceResponse = calibration.PerformanceResponse == FanPerformanceResponse.None
+                    ? null
+                    : new FanPerformanceResponseOptions
+                    {
+                        LowDutyPercent = calibration.PerformanceResponse.LowDutyPercent,
+                        FullDutyPercent = calibration.PerformanceResponse.FullDutyPercent,
+                        CpuPerformanceRatioAtLowDuty = calibration.PerformanceResponse.CpuPerformanceRatioAtLowDuty,
+                        CpuPerformanceRatioAtFullDuty = calibration.PerformanceResponse.CpuPerformanceRatioAtFullDuty,
+                        GpuCoreClockAtLowDutyMegahertz = calibration.PerformanceResponse.GpuCoreClockAtLowDutyMegahertz,
+                        GpuCoreClockAtFullDutyMegahertz = calibration.PerformanceResponse.GpuCoreClockAtFullDutyMegahertz,
+                    },
             };
 
     private static FanCalibrationSnapshot ToCalibrationSnapshot(FanCalibrationOptions? options)
@@ -684,6 +705,28 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                 IntegralGain = options.IntegralGain,
                 FeedForwardDutyPerWatt = options.FeedForwardDutyPerWatt,
                 TrackingMode = options.TrackingMode,
+                GainCurve = options.GainCurvePoints is { Length: > 0 } points
+                    ? new FanGainCurve
+                    {
+                        Points =
+                        [
+                            .. points
+                                .OrderBy(static point => point.DutyPercent)
+                                .Select(static point => new FanGainPoint(point.DutyPercent, point.SettledCelsius)),
+                        ],
+                    }
+                    : FanGainCurve.None,
+                PerformanceResponse = options.PerformanceResponse is { } response
+                    ? new FanPerformanceResponse
+                    {
+                        LowDutyPercent = response.LowDutyPercent,
+                        FullDutyPercent = response.FullDutyPercent,
+                        CpuPerformanceRatioAtLowDuty = response.CpuPerformanceRatioAtLowDuty,
+                        CpuPerformanceRatioAtFullDuty = response.CpuPerformanceRatioAtFullDuty,
+                        GpuCoreClockAtLowDutyMegahertz = response.GpuCoreClockAtLowDutyMegahertz,
+                        GpuCoreClockAtFullDutyMegahertz = response.GpuCoreClockAtFullDutyMegahertz,
+                    }
+                    : FanPerformanceResponse.None,
             };
 
     /// <summary>

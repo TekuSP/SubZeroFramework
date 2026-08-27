@@ -43,6 +43,16 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     /// </remarks>
     private static readonly TimeSpan MaximumEvaluationGap = TimeSpan.FromSeconds(10);
 
+    /// <summary>How often refined learning is written to disk while the service runs.</summary>
+    /// <remarks>
+    /// Ongoing identification only ever lived in memory, so a machine that spent weeks refining its model
+    /// relearned from scratch after every restart — the exact opposite of what the learning state documents.
+    /// Rate-limited rather than written on every change because each write rewrites the whole configuration
+    /// file; anything still unsaved is flushed on shutdown, so the interval costs at most one interval's
+    /// refinement on a hard kill.
+    /// </remarks>
+    private static readonly TimeSpan LearningPersistInterval = TimeSpan.FromMinutes(5);
+
     // Instance-level so tests can drive evaluations without a real-time wait per assertion. Production
     // always uses the default; nothing but the test constructor overload passes anything else.
     private readonly TimeSpan _evaluationInterval;
@@ -56,6 +66,12 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     private readonly FrameworkFatalExitHandler _fatalExitHandler;
     private readonly ILogger<FrameworkFanCurveControlWorker> _logger;
     private readonly CancellationTokenRegistration _applicationStoppingRegistration;
+
+    // Fans whose learning has moved since it was last written. Concurrent because the flush runs from the
+    // evaluation loop while shutdown may drain it from another thread.
+    private readonly ConcurrentDictionary<int, byte> _fansWithUnsavedLearning = new();
+    private readonly FrameworkServiceConfigurationStore? _configurationStore;
+    private long _lastLearningFlushTimestamp;
 
     // Authoritative per-fan control state, mirrored from the state store.
     private readonly ConcurrentDictionary<int, FanControlStateSnapshot> _controlStates = new();
@@ -88,8 +104,12 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
         FrameworkFatalExitHandler fatalExitHandler,
         IHostApplicationLifetime applicationLifetime,
         ILogger<FrameworkFanCurveControlWorker> logger,
-        TimeSpan? evaluationInterval = null)
+        TimeSpan? evaluationInterval = null,
+        // Optional and LAST so the test constructor's positional evaluation interval keeps compiling; the
+        // container supplies the registered store in production.
+        FrameworkServiceConfigurationStore? configurationStore = null)
     {
+        _configurationStore = configurationStore;
         _frameworkDataProvider = frameworkDataProvider;
         _fanControlStateStore = fanControlStateStore;
         _authorizationService = authorizationService;
@@ -136,7 +156,68 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
         _subscriptions.Dispose();
+
+        // Whatever the loop refined since the last interval would otherwise die here.
+        await FlushLearningAsync(CancellationToken.None).ConfigureAwait(false);
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>Writes refined learning to disk, no more often than <see cref="LearningPersistInterval"/>.</summary>
+    private async Task FlushLearningIfDueAsync()
+    {
+        if (_fansWithUnsavedLearning.IsEmpty)
+        {
+            return;
+        }
+
+        var now = Stopwatch.GetTimestamp();
+        if (_lastLearningFlushTimestamp != 0
+            && Stopwatch.GetElapsedTime(_lastLearningFlushTimestamp, now) < LearningPersistInterval)
+        {
+            return;
+        }
+
+        _lastLearningFlushTimestamp = now;
+        await FlushLearningAsync(CancellationToken.None).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Writes every fan whose learning has moved, and forgets it only once the write succeeded.
+    /// </summary>
+    /// <remarks>
+    /// A failed write leaves the fan marked, so the next interval — or shutdown — tries again rather than
+    /// dropping the refinement on the floor.
+    /// </remarks>
+    private async Task FlushLearningAsync(CancellationToken cancellationToken)
+    {
+        if (_configurationStore is null || _fansWithUnsavedLearning.IsEmpty)
+        {
+            return;
+        }
+
+        foreach (var fanIndex in _fansWithUnsavedLearning.Keys.ToArray())
+        {
+            var options = _fanControlStateStore.BuildFanControlOptions(fanIndex);
+            if (options is null)
+            {
+                _fansWithUnsavedLearning.TryRemove(fanIndex, out _);
+                continue;
+            }
+
+            try
+            {
+                await _configurationStore.UpsertFanControlStateAsync(options, cancellationToken).ConfigureAwait(false);
+                _fansWithUnsavedLearning.TryRemove(fanIndex, out _);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Could not persist refined adaptive learning for fan {FanIndex}; it stays in memory and will be retried.",
+                    fanIndex);
+                return;
+            }
+        }
     }
 
     public override void Dispose()
@@ -333,6 +414,10 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
                 _logger.LogWarning(exception, "Failed to apply curve duty for fan {FanIndex}.", state.FanIndex);
             }
         }
+
+        // After the fans, never between them: a configuration write must not sit inside the loop that is
+        // writing duty to the EC.
+        await FlushLearningIfDueAsync().ConfigureAwait(false);
     }
 
     // Source-generated so the arguments are not boxed into an object[] before the level is checked. These
@@ -731,8 +816,12 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
             DateTimeOffset.UtcNow);
 
         // The learner moves rarely — at most once per steady-state observation interval — so this is cheap
-        // and only publishes when the gain actually changed.
-        _fanControlStateStore.RecordAdaptiveLearning(state.FanIndex, controller.LearningState);
+        // and only publishes when the gain actually changed. A change also owes the disk a write: without it
+        // everything identified while the service ran unattended died at the next restart.
+        if (_fanControlStateStore.RecordAdaptiveLearning(state.FanIndex, controller.LearningState))
+        {
+            _fansWithUnsavedLearning[state.FanIndex] = 0;
+        }
 
         if (!decision.IsDriven)
         {

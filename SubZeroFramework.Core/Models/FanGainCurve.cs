@@ -33,6 +33,16 @@ public sealed record FanGainCurve
     /// <summary>No curve was measured — an older calibration, or a run that could not complete the sweep.</summary>
     public static FanGainCurve None { get; } = new();
 
+    /// <summary>
+    /// The floor a scheduled gain is held to, as a fraction of the calibrated average.
+    /// </summary>
+    /// <remarks>
+    /// An eighth: cooling effectiveness across a fan's usable range varies by roughly three to five times
+    /// between its quietest and fastest points, so this sits well below any real measurement while still
+    /// catching a segment flattened by noise.
+    /// </remarks>
+    public const double MinimumScheduledGainFraction = 0.125d;
+
     /// <summary>The measured points, ordered by ascending duty.</summary>
     public ImmutableArray<FanGainPoint> Points { get; init; } = [];
 
@@ -89,7 +99,22 @@ public sealed record FanGainCurve
 
             // A segment where the temperature did not move is measurement noise, not a real zero gain, and
             // returning it would blow the tuning rule up.
-            return slope > 0d ? slope : fallbackGain;
+            if (slope <= 0d)
+            {
+                return fallbackGain;
+            }
+
+            // Nor is a NEARLY flat segment. The tuning rule divides by this (Kc = τ / (K·(λ+L))), so a
+            // segment flattened by a fraction of a degree of noise produces a near-zero K and, from it, a
+            // controller gain limited only by arithmetic — the fan hunting hard at exactly the duty where
+            // it is quiet enough to hear. Real nonlinearity across a fan's range stays comfortably inside
+            // this floor, so clamping costs nothing physical and removes the blow-up.
+            if (double.IsFinite(fallbackGain) && fallbackGain > 0d)
+            {
+                return Math.Max(slope, fallbackGain * MinimumScheduledGainFraction);
+            }
+
+            return slope;
         }
 
         return fallbackGain;

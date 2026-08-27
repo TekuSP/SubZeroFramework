@@ -228,21 +228,39 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     /// <summary>Every sensor the machine reports, for the wizard's picker.</summary>
     public ReadOnlyObservableCollection<SensorChipModel> AvailableSensors => Page.AvailableSensors;
 
+    // Mirrored from the page as STORED properties, assigned in RefreshPowerReadiness. As pass-through
+    // getters they never raised PropertyChanged on this object, so the wizard's power state was pushed once
+    // and then frozen — the blocked-on-battery screen never cleared when the charger went in.
+
     /// <summary>Whether a test could run right now, and what to say about it. Relayed from the page.</summary>
-    public bool IsOnBattery => Page.IsOnBattery;
+    [ObservableProperty]
+    public partial bool IsOnBattery { get; private set; }
 
     /// <summary>The lowest pack's charge, relayed for the wizard's blocked-on-battery readout.</summary>
-    public double? BatteryChargePercent => Page.BatteryChargePercent;
+    [ObservableProperty]
+    public partial double? BatteryChargePercent { get; private set; }
 
     /// <summary>Records the sensors a successful calibration measured, so arming Adaptive can reuse them.</summary>
     public void RememberCalibratedSensors(int fanIndex, IReadOnlyCollection<int> sensorIndices)
         => Page.RememberCalibratedSensors(fanIndex, sensorIndices);
 
-    public string PowerReadyText => Page.PowerReadyText;
+    [ObservableProperty]
+    public partial string PowerReadyText { get; private set; } = string.Empty;
 
-    public string PowerReadyBrushKey => Page.PowerReadyBrushKey;
+    [ObservableProperty]
+    public partial string PowerReadyBrushKey { get; private set; } = "TextSecondaryBrush";
 
-    public MaterialIconKind PowerReadyIconKind => Page.PowerReadyIconKind;
+    [ObservableProperty]
+    public partial MaterialIconKind PowerReadyIconKind { get; private set; } = MaterialIconKind.PowerPlug;
+
+    private void RefreshPowerReadiness()
+    {
+        IsOnBattery = Page.IsOnBattery;
+        BatteryChargePercent = Page.BatteryChargePercent;
+        PowerReadyText = Page.PowerReadyText;
+        PowerReadyBrushKey = Page.PowerReadyBrushKey;
+        PowerReadyIconKind = Page.PowerReadyIconKind;
+    }
 
     /// <summary>What this fan cools, which decides the component a learning test loads.</summary>
     [ObservableProperty]
@@ -316,8 +334,6 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     [NotifyPropertyChangedFor(nameof(SpeedChangeBarFraction))]
     [NotifyPropertyChangedFor(nameof(ResponsePreview))]
     [NotifyPropertyChangedFor(nameof(LambdaText))]
-    [NotifyPropertyChangedFor(nameof(ProportionalGainText))]
-    [NotifyPropertyChangedFor(nameof(IntegralTimeText))]
     public partial double ResponseDraftSeconds { get; set; } = AdaptivePidTuning.DefaultLambdaSeconds;
 
     /// <summary>
@@ -465,11 +481,23 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     /// <summary>λ itself, for the Advanced disclosure.</summary>
     public string LambdaText => $"{ResponseDraftSeconds:0.#} s";
 
+    // STORED, not computed: both read the selected fan's CALIBRATION as well as λ, and a calibration landing
+    // is not a λ change — so as computed getters declared only under ResponseDraftSeconds they never
+    // re-raised, and the Advanced disclosure kept showing "—" beside freshly measured numbers.
+
     /// <summary>The proportional gain the tuning rule derives at this λ.</summary>
-    public string ProportionalGainText => FormatGain(gains => gains.ProportionalGain);
+    [ObservableProperty]
+    public partial string ProportionalGainText { get; private set; } = "—";
 
     /// <summary>The integral time the tuning rule derives at this λ.</summary>
-    public string IntegralTimeText => FormatGain(gains => gains.IntegralTimeSeconds, "0.# s");
+    [ObservableProperty]
+    public partial string IntegralTimeText { get; private set; } = "—";
+
+    private void RefreshAdvancedGains()
+    {
+        ProportionalGainText = FormatGain(gains => gains.ProportionalGain);
+        IntegralTimeText = FormatGain(gains => gains.IntegralTimeSeconds, "0.# s");
+    }
 
     /// <summary>Above this, recovery is slow enough that the card says so.</summary>
     private const double SlowSettlingSeconds = 58d;
@@ -534,6 +562,17 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     [ObservableProperty]
     public partial double SafetyFloorDisplayMaximum { get; private set; }
 
+    /// <summary>
+    /// One duty point, expressed in the display ratio unit — the slider's step.
+    /// </summary>
+    /// <remarks>
+    /// The scale is converted but the step was left at WinUI's default of 1, which is only correct while the
+    /// ratio unit happens to be percent. Under a fraction preference the whole scale is 0–1, so a step of 1
+    /// gave the control exactly two reachable positions.
+    /// </remarks>
+    [ObservableProperty]
+    public partial double SafetyFloorDisplayStep { get; private set; } = 1d;
+
     /// <summary>Guards the display → canonical → display round trip from chasing its own tail.</summary>
     private bool _suppressUnitSync;
 
@@ -580,6 +619,11 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
             SafetyFloorDisplayMaximum = _unitFormattingService.ConvertRatio(AdaptiveFanSettings.MaximumSafetyFloorPercent);
             SafetyFloorDisplayValue = _unitFormattingService.ConvertRatio(SafetyFloorDraftPercent);
+
+            // One canonical duty point in display units. Zero would freeze the slider, so it falls back to
+            // the WinUI default if a unit ever converted a single point to nothing.
+            var step = _unitFormattingService.ConvertRatio(1d);
+            SafetyFloorDisplayStep = double.IsFinite(step) && step > 0d ? step : 1d;
         }
         finally
         {
@@ -611,7 +655,12 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         StageDraft();
     }
 
-    partial void OnResponseDraftSecondsChanged(double value) => StageDraft();
+    partial void OnResponseDraftSecondsChanged(double value)
+    {
+        // λ is the other input to both figures; the calibration side is picked up by RefreshDerivedState.
+        RefreshAdvancedGains();
+        StageDraft();
+    }
 
     partial void OnSafetyFloorDraftEnabledChanged(bool value) => StageDraft();
 
@@ -646,6 +695,13 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     protected override bool AffectsDerivedState(string propertyName) => propertyName switch
     {
         nameof(FanCurveProfilesModel.CanCommandFanMode) => true,
+        // The wizard's power readiness is mirrored from these, and the charger going in or out is exactly
+        // the change the blocked-on-battery screen has to notice.
+        nameof(FanCurveProfilesModel.IsOnBattery) => true,
+        nameof(FanCurveProfilesModel.BatteryChargePercent) => true,
+        nameof(FanCurveProfilesModel.PowerReadyText) => true,
+        nameof(FanCurveProfilesModel.PowerReadyBrushKey) => true,
+        nameof(FanCurveProfilesModel.PowerReadyIconKind) => true,
         _ => base.AffectsDerivedState(propertyName),
     };
 
@@ -653,7 +709,9 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     {
         base.RefreshDerivedState();
         FollowSelectedFan();
+        RefreshPowerReadiness();
         RefreshAdaptiveState();
+        RefreshAdvancedGains();
 
         // Also re-projects the sliders, which is how a change of display unit moves the whole scale rather
         // than just relabelling a Celsius one.
@@ -705,7 +763,15 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     /// The card outlives this body, and a card holding a handler into it would keep the whole editor alive
     /// for as long as the fan exists. Detach is not virtual, so the release hangs off Dispose.
     /// </remarks>
-    public override void Dispose()
+    /// <summary>
+    /// Releases the followed fan card as well as the coordinator.
+    /// </summary>
+    /// <remarks>
+    /// On Detach rather than only on Dispose: the view's Unloaded handler calls Detach, and nothing in the
+    /// app disposes a navigation-resolved mode model — so releasing here was the difference between one
+    /// handler per fan switch and one handler per fan switch for the life of the process.
+    /// </remarks>
+    public override void Detach()
     {
         if (_followedFan is not null)
         {
@@ -713,7 +779,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
             _followedFan = null;
         }
 
-        base.Dispose();
+        base.Detach();
     }
 
     /// <summary>The card currently subscribed to, so the handler can be swapped when the selection moves.</summary>
@@ -731,9 +797,11 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     private void RefreshSettingsDraft(AdaptiveFanSettings? settings)
     {
-        // Only adopt from the service while the user has nothing staged; otherwise a telemetry tick would
-        // overwrite a slider mid-drag.
-        if (settings is null || Page.HasStagedAdaptiveSettings)
+        // Only adopt from the service while THIS fan has nothing staged; otherwise a telemetry tick would
+        // overwrite a slider mid-drag. Deliberately per-fan: the page-wide check this used to make meant a
+        // staged edit on any fan froze the editor for every fan, so selecting another Adaptive fan kept the
+        // first fan's values on screen and the next nudge staged them against the wrong fan.
+        if (settings is null || SelectedFan is not { } fan || Page.HasStagedAdaptiveSettingsFor(fan.Snapshot.FanIndex))
         {
             return;
         }
@@ -758,7 +826,11 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         {
             IsControllerRunning = false;
             IsThrottleLatched = false;
-            LegendEntries = [];
+            if (LegendEntries.Count > 0)
+            {
+                LegendEntries = [];
+            }
+
             return;
         }
 
@@ -815,7 +887,11 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
             ProportionalIntegralShare = new GridLength(0, GridUnitType.Star);
             LeadShare = new GridLength(0, GridUnitType.Star);
             ThrottleShare = new GridLength(0, GridUnitType.Star);
-            LegendEntries = [];
+            if (LegendEntries.Count > 0)
+            {
+                LegendEntries = [];
+            }
+
             return;
         }
 
@@ -830,7 +906,24 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         AddLegendEntry(entries, "Trim", control.ProportionalIntegralDutyPercent, "BrandSecondaryBrush");
         AddLegendEntry(entries, "Rising", control.LeadDutyPercent, "StatusSuccessBrush");
         AddLegendEntry(entries, "Throttle escalation", control.ThrottleEscalationDutyPercent, "StatusWarningBrush");
-        LegendEntries = entries;
+        ReplaceIfChanged(entries, value => LegendEntries = value, LegendEntries);
+    }
+
+    /// <summary>
+    /// Assigns a rebuilt list only when its CONTENT differs from what is already there.
+    /// </summary>
+    /// <remarks>
+    /// These lists are rebuilt on every telemetry tick, and handing an ItemsRepeater a brand-new list makes
+    /// it tear down and re-create every row — several times a second, against the repo's live-update
+    /// stability rule, and visible as flicker and lost pointer state. The entries are records, so value
+    /// equality settles whether anything actually moved.
+    /// </remarks>
+    private static void ReplaceIfChanged<T>(IReadOnlyList<T> next, Action<IReadOnlyList<T>> assign, IReadOnlyList<T> current)
+    {
+        if (!current.SequenceEqual(next))
+        {
+            assign(next);
+        }
     }
 
     private void AddLegendEntry(List<AdaptiveTermLegendEntry> entries, string name, double dutyPercent, string brushKey)
@@ -946,7 +1039,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
         AddMeasuredFacts(state, facts);
 
-        KnownFacts = facts;
+        ReplaceIfChanged(facts, value => KnownFacts = value, KnownFacts);
     }
 
     /// <summary>

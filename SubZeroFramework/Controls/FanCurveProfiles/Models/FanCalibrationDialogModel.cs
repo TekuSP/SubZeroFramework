@@ -179,7 +179,7 @@ public enum FanCalibrationStage
 /// is open — progress, temperature, the step name — and computed properties on a view raise nothing, so the
 /// bindings would sit at their first value for the whole five minutes.
 /// </remarks>
-public sealed partial class FanCalibrationDialogModel : ObservableObject
+public sealed partial class FanCalibrationDialogModel : ObservableObject, IDisposable
 {
     private readonly IUnitFormattingService _unitFormattingService;
 
@@ -231,6 +231,23 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
 
         Sensors = new ReadOnlyObservableCollection<FanCalibrationSensorChoice>(_sensors);
         RefreshSensorSummary();
+    }
+
+    /// <summary>
+    /// Releases every sensor chip subscription this dialog created.
+    /// </summary>
+    /// <remarks>
+    /// Each choice attaches a handler to a PAGE-lifetime <see cref="SensorChipModel"/>, so without this every
+    /// open of the wizard permanently added one handler per sensor — the chips outlive the dialog, and the
+    /// dead choices kept being called for the life of the app.
+    /// </remarks>
+    public void Dispose()
+    {
+        foreach (var choice in _sensors)
+        {
+            choice.PropertyChanged -= OnSensorChoiceChanged;
+            choice.Dispose();
+        }
     }
 
     private readonly ObservableCollection<FanCalibrationSensorChoice> _sensors = [];
@@ -837,7 +854,7 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject
         // and pretending otherwise would plot a number nobody commanded.
         SpeedText = progress.SpeedRpm is double rpm
             ? progress.DutyPercent is double dutyPercent
-                ? $"{_unitFormattingService.FormatFanSpeed(rpm, decimals: 0)} · {dutyPercent:0}%"
+                ? $"{_unitFormattingService.FormatFanSpeed(rpm, decimals: 0)} · {_unitFormattingService.FormatRatio(dutyPercent, decimals: 0)}"
                 : _unitFormattingService.FormatFanSpeed(rpm, decimals: 0)
             : "—";
 

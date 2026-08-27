@@ -48,8 +48,15 @@ public abstract partial class FanModeModelBase : ObservableObject, IDisposable
         RefreshDerivedState();
     }
 
-    /// <summary>Unsubscribe from the coordinator. Called from the view's Unloaded handler.</summary>
-    public void Detach()
+    /// <summary>
+    /// Unsubscribe from the coordinator. Called from the view's Unloaded handler.
+    /// </summary>
+    /// <remarks>
+    /// Virtual because this — not <see cref="Dispose"/> — is the teardown the views actually call: a
+    /// navigation-resolved mode model is never disposed, so a derived body that subscribes to anything else
+    /// must release it here or leak it for the life of the app.
+    /// </remarks>
+    public virtual void Detach()
     {
         if (!_attached)
         {

@@ -557,6 +557,16 @@ message FanCalibrationMessage {
   // What the extra fan bought in sustained speed. Absent on calibrations from before this was measured, and
   // on machines that report no clock at all.
   optional FanPerformanceResponseMessage performance_response = 13;
+  // The measured cooling-per-duty curve, ordered by ascending duty. Empty on calibrations from before the
+  // sweep existed, and on runs whose sweep could not finish.
+  repeated FanGainCurvePointMessage gain_curve_points = 14;
+}
+
+// One measured operating point of the gain curve: the temperature a held duty settled at, under the run's
+// load. Three or more points make the curve usable for gain scheduling.
+message FanGainCurvePointMessage {
+  double duty_percent = 1;
+  double settled_celsius = 2;
 }
 
 // Sustained speed at a low fan duty against sustained speed at full duty, measured across the same step the

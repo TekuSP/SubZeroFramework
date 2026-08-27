@@ -878,6 +878,7 @@
                         IsEnabled="{x:Bind ViewModel.Page.CanCommandFanMode, Mode=OneWay}"
                         Maximum="{x:Bind ViewModel.SafetyFloorDisplayMaximum, Mode=OneWay}"
                         Minimum="0"
+                        StepFrequency="{x:Bind ViewModel.SafetyFloorDisplayStep, Mode=OneWay}"
                         Value="{x:Bind ViewModel.SafetyFloorDisplayValue, Mode=TwoWay}" />
                     <TextBlock
                         Grid.Column="1"

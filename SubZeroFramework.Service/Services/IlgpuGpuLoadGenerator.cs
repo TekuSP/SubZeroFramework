@@ -273,19 +273,28 @@ public sealed class IlgpuGpuLoadGenerator : IGpuLoadGenerator, IDisposable
 
         cancellation.Cancel();
 
+        var workersFinished = false;
         try
         {
             // Bounded. A GPU dispatch that will not return must not hang service shutdown — and unlike CPU
             // work, a wedged kernel cannot be interrupted, only waited out or abandoned.
-            Task.WaitAll(workers, TimeSpan.FromSeconds(10));
+            workersFinished = Task.WaitAll(workers, TimeSpan.FromSeconds(10));
         }
         catch (AggregateException)
         {
-            // Cancellation surfaces here; nothing to report.
+            // Cancellation surfaces here; nothing to report — and it means the workers DID finish.
+            workersFinished = true;
         }
         finally
         {
-            cancellation.Dispose();
+            // Only once nothing can still touch it. Disposing after a TIMEOUT hands an abandoned-but-running
+            // worker a disposed source, and its next CancellationToken.WaitHandle access throws
+            // ObjectDisposedException on a thread with no handler — which is a process kill, not a logged
+            // failure. An undisposed source on a wedged-kernel shutdown leaks one handle instead.
+            if (workersFinished)
+            {
+                cancellation.Dispose();
+            }
         }
     }
 

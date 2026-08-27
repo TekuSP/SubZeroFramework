@@ -20,6 +20,7 @@
     -->
     <ScrollViewer
         MaxHeight="620"
+        controls:ScrollHint.IsEnabled="True"
         HorizontalScrollMode="Disabled"
         VerticalScrollBarVisibility="Auto">
         <StackPanel

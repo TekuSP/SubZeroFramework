@@ -352,6 +352,9 @@ public sealed class FanCalibrationRunner : IDisposable
         /// <summary>True only while a measurement attempt is running — the phases a ceiling retry can redo.</summary>
         private bool _retryArmed;
 
+        /// <summary>True only while the settle at the low pre-step hold is running, not the warm one at full.</summary>
+        private bool _settlingAtLowDutyHold;
+
         /// <summary>Set when a sample tripped the retry margin, telling the attempt loop to go again.</summary>
         private bool _ceilingRetryPending;
 
@@ -413,9 +416,13 @@ public sealed class FanCalibrationRunner : IDisposable
         /// </remarks>
         private void RecordSpeed(FanCalibrationStep step, ControlTelemetrySample sample)
         {
+            // BOTH load settles report under LoadingAndSettling — the warm one at FULL duty and the hold one
+            // at the low pre-step duty — so filing on the step alone put full-duty samples into the low-duty
+            // bucket and understated the very difference this measurement exists to describe. The flag says
+            // which settle is running.
             var (cpuTarget, gpuTarget) = step switch
             {
-                FanCalibrationStep.LoadingAndSettling => (_cpuRatioAtLowDuty, _gpuClockAtLowDuty),
+                FanCalibrationStep.LoadingAndSettling when _settlingAtLowDutyHold => (_cpuRatioAtLowDuty, _gpuClockAtLowDuty),
                 FanCalibrationStep.MeasuringResponse => (_cpuRatioAtFullDuty, _gpuClockAtFullDuty),
                 _ => (null, null),
             };
@@ -684,9 +691,8 @@ public sealed class FanCalibrationRunner : IDisposable
                     return attempt;
                 }
 
-                // The first raise jumps clear across the sputter band to a duty the fan can actually hold;
-                // every raise after that steps normally. 10% or 20% would leave the sibling stalling and
-                // restarting mid-attempt — the exact noise pinning it exists to remove.
+                // A plain step. The hold already starts at 40% — clear of the sputter band around the ~12%
+                // stall — so no raise has to jump across it and every raise is the same size.
                 _siblingHoldDutyPercent = Math.Min(MaximumSiblingHoldDutyPercent, _siblingHoldDutyPercent + SiblingRetryStepPercent);
 
                 owner._logger.LogInformation(
@@ -844,6 +850,9 @@ public sealed class FanCalibrationRunner : IDisposable
                 return loadFailure;
             }
 
+            // The warm settle runs at FULL duty: its speed samples describe the full-duty operating point,
+            // not the low-duty one.
+            _settlingAtLowDutyHold = false;
             if (await SettleUnderLoadAsync(cancellationToken).ConfigureAwait(false) is { } warmAbort)
             {
                 return warmAbort;
@@ -853,6 +862,8 @@ public sealed class FanCalibrationRunner : IDisposable
             // step is duty, so this asymptote has to be genuinely settled before the step fires.
             await SetDutyAsync(PreStepDutyPercent, cancellationToken).ConfigureAwait(false);
 
+            // This one IS the low-duty operating point the comparison is measured against.
+            _settlingAtLowDutyHold = true;
             if (await SettleUnderLoadAsync(cancellationToken).ConfigureAwait(false) is { } loadAbort)
             {
                 return loadAbort;
@@ -896,7 +907,11 @@ public sealed class FanCalibrationRunner : IDisposable
 
             // 8 — how cooling varies across the duty range. Last, because it uses the τ from the fit to
             // extrapolate each level instead of waiting it out.
-            var gainCurve = await MeasureGainCurveAsync(fit, response.SettledCelsius, cancellationToken).ConfigureAwait(false);
+            var (gainCurve, gainCurveAbort) = await MeasureGainCurveAsync(fit, response.SettledCelsius, cancellationToken).ConfigureAwait(false);
+            if (gainCurveAbort is { } sweepAbort)
+            {
+                return sweepAbort;
+            }
 
             var calibration = BuildCalibration(fit, minimumSpin, response.MaximumRpm, averagePower, tracking, gainCurve);
 
@@ -1125,6 +1140,12 @@ public sealed class FanCalibrationRunner : IDisposable
                 // headroom left, so a final attempt may run on into the margin — completing there beats
                 // aborting for wanting room that does not exist.
                 if (_retryArmed
+                    // A cooldown is the machine already doing the only thing a retry would ask for — every
+                    // fan at full — so heat measured DURING one must not trip another. Without this the
+                    // walk flush, which runs inside the armed region, could abort the very attempt it was
+                    // added to protect, and the "trigger is disarmed here" comment in CoolDownAtFullFanAsync
+                    // was true only of the abort, never of this.
+                    && !_coolingDown
                     && siblingFanIndices.Count > 0
                     && _siblingHoldDutyPercent < MaximumSiblingHoldDutyPercent)
                 {
@@ -1537,14 +1558,14 @@ public sealed class FanCalibrationRunner : IDisposable
         /// falls back to the single averaged gain, which is what it used before this existed.
         /// </para>
         /// </remarks>
-        private async Task<FanGainCurve> MeasureGainCurveAsync(
+        private async Task<(FanGainCurve Curve, FanCalibrationRunResult? Abort)> MeasureGainCurveAsync(
             FopdtIdentificationResult fit,
             double? settledAtFullDuty,
             CancellationToken cancellationToken)
         {
             if (_settledAtLowDuty is not double lowSettled || settledAtFullDuty is not double fullSettled)
             {
-                return FanGainCurve.None;
+                return (FanGainCurve.None, null);
             }
 
             List<FanGainPoint> points =
@@ -1564,11 +1585,13 @@ public sealed class FanCalibrationRunner : IDisposable
                 await SetDutyAsync(duty, cancellationToken).ConfigureAwait(false);
 
                 var level = await RecordLevelAsync(dwell, cancellationToken).ConfigureAwait(false);
-                if (level.Abort is not null)
+                if (level.Abort is { } sweepAbort)
                 {
-                    // Whatever was gathered so far still describes the shape; an aborted sweep is not a
-                    // reason to discard the levels that did complete.
-                    break;
+                    // An abort is the run ENDING — a cancellation, a ceiling trip, a battery — not merely a
+                    // level that did not land. Swallowing it here let a stopped or overheating sweep fall
+                    // through to BuildCalibration and report the run as a success, storing a model the user
+                    // had just told the service to abandon. The levels gathered so far go with it.
+                    return (FanGainCurve.None, sweepAbort);
                 }
 
                 if (startCelsius is double from
@@ -1585,7 +1608,7 @@ public sealed class FanCalibrationRunner : IDisposable
                 fanIndex,
                 string.Join(", ", curve.Points.Select(static point => $"{point.DutyPercent:0}%={point.SettledCelsius:0.#}C")));
 
-            return curve;
+            return (curve, null);
         }
 
         /// <summary>Holds the current duty for a dwell, returning the transient it produced.</summary>

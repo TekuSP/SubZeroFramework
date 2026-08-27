@@ -223,6 +223,16 @@ public static class ScrollHint
                 border.Child = wrapper;
                 return true;
 
+            // UserControl derives from Control, NOT ContentControl, so it never matched the case above and
+            // the hint silently did nothing on every ScrollViewer sitting directly inside one — which is the
+            // shape of most of this app's section views.
+            case UserControl userControl when ReferenceEquals(userControl.Content, scrollViewer):
+                userControl.Content = null;
+                MoveLayoutProperties(scrollViewer, wrapper);
+                Fill();
+                userControl.Content = wrapper;
+                return true;
+
             default:
                 return false;
         }

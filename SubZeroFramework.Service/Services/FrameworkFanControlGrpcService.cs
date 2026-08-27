@@ -23,6 +23,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
     private readonly FanPreviewWatchdog _previewWatchdog;
     private readonly FanAdaptiveControlSignals _fanControlWorkerSignals;
     private readonly FanCalibrationRunner _calibrationRunner;
+    private readonly FanCalibrationArbiter _calibrationArbiter;
     private readonly IHostApplicationLifetime _applicationLifetime;
     private readonly ILogger<FrameworkFanControlGrpcService> _logger;
 
@@ -34,9 +35,11 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         FanPreviewWatchdog previewWatchdog,
         FanAdaptiveControlSignals fanControlWorkerSignals,
         FanCalibrationRunner calibrationRunner,
+        FanCalibrationArbiter calibrationArbiter,
         IHostApplicationLifetime applicationLifetime,
         ILogger<FrameworkFanControlGrpcService> logger)
     {
+        _calibrationArbiter = calibrationArbiter;
         _frameworkDataProvider = frameworkDataProvider;
         _authorizationService = authorizationService;
         _fanControlStateStore = fanControlStateStore;
@@ -54,6 +57,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         {
             _logger.LogInformation("Received SetFanRpm command for fan {FanIndex} with target {TargetSpeedRpm} RPM.", request.FanIndex, request.TargetSpeedRpm);
             _authorizationService.EnsureCommandAccess();
+            EnsureNotCalibrating(request.FanIndex);
             var result = await _frameworkDataProvider.SetFanRpmAsync(request.FanIndex, request.TargetSpeedRpm, context.CancellationToken).ConfigureAwait(false);
             _fanControlStateStore.MarkManual(request.FanIndex);
             await PersistFanControlStateAsync(request.FanIndex, preview: false, context.CancellationToken).ConfigureAwait(false);
@@ -82,6 +86,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         {
             _logger.LogInformation("Received SetFanDuty command for fan {FanIndex} with target duty {DutyPercent}% (preview={Preview}).", request.FanIndex, request.DutyPercent, request.Preview);
             _authorizationService.EnsureCommandAccess();
+            EnsureNotCalibrating(request.FanIndex);
             var result = await _frameworkDataProvider.SetFanDutyAsync(request.FanIndex, request.DutyPercent, context.CancellationToken).ConfigureAwait(false);
             _fanControlStateStore.MarkManual(request.FanIndex);
             _fanControlStateStore.RecordAppliedDuty(request.FanIndex, result.AppliedDutyPercent);
@@ -111,6 +116,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         {
             _logger.LogInformation("Received SetFanMax command for fan {FanIndex} (preview={Preview}).", request.FanIndex, request.Preview);
             _authorizationService.EnsureCommandAccess();
+            EnsureNotCalibrating(request.FanIndex);
             var result = await _frameworkDataProvider.SetFanDutyAsync(request.FanIndex, 100d, context.CancellationToken).ConfigureAwait(false);
             _fanControlStateStore.MarkMax(request.FanIndex);
             _fanControlStateStore.RecordAppliedDuty(request.FanIndex, result.AppliedDutyPercent);
@@ -140,6 +146,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         {
             _logger.LogInformation("Received SetFanCustomCurve command for fan {FanIndex} with {PointCount} points and {SensorCount} driving sensors (preview={Preview}).", request.FanIndex, request.CurvePoints.Count, request.DrivingSensorIndices.Count, request.Preview);
             _authorizationService.EnsureCommandAccess();
+            EnsureNotCalibrating(request.FanIndex);
 
             if (request.CurvePoints.Count < 2)
             {
@@ -228,6 +235,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         {
             _logger.LogInformation("Received RestoreAutoFanControl command for fan {FanIndex} (preview={Preview}).", request.FanIndex, request.Preview);
             _authorizationService.EnsureCommandAccess();
+            EnsureNotCalibrating(request.FanIndex);
             var result = await _frameworkDataProvider.RestoreAutoFanControlAsync(request.FanIndex, context.CancellationToken).ConfigureAwait(false);
             _fanControlStateStore.MarkAuto(request.FanIndex);
             await PersistFanControlStateAsync(request.FanIndex, request.Preview, context.CancellationToken).ConfigureAwait(false);
@@ -445,6 +453,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
                 request.Preview);
 
             _authorizationService.EnsureCommandAccess();
+            EnsureNotCalibrating(request.FanIndex);
 
             // Deliberately NO open-hold guard, in either direction. A guard here once refused the
             // PERSISTING arm while a preview hold was open — but stage → preview → apply always arrives
@@ -535,7 +544,19 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
     public override Task<FanCurveProfileOperationReply> ReleaseFanThrottleLatch(ReleaseFanThrottleLatchRequest request, ServerCallContext context)
     {
         _logger.LogInformation("Received ReleaseFanThrottleLatch for fan {FanIndex}.", request.FanIndex);
-        _authorizationService.EnsureCommandAccess();
+
+        // Mapped, not left to escape: EnsureCommandAccess throws InvalidOperationException, and outside a
+        // catch that reaches the client as StatusCode.Unknown — indistinguishable from a service crash —
+        // instead of the FailedPrecondition every other handler answers with.
+        try
+        {
+            _authorizationService.EnsureCommandAccess();
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Rejected ReleaseFanThrottleLatch for fan {FanIndex} because the service was not in a writable state.", request.FanIndex);
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
 
         // Nothing is persisted and no EC write happens here — the worker's controller simply drops its latch
         // on the next tick. That is also why there is no preview-hold guard: this touches no stored state.
@@ -617,6 +638,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         // fail-closed guarantee SECURITY.md makes. Checked up front so no hold is ever opened — and therefore
         // no revert is ever owed — while commands are disabled.
         _authorizationService.EnsureCommandAccess();
+        EnsureNotCalibrating(fanIndex);
 
         _logger.LogInformation("Opening preview hold for fan {FanIndex}.", fanIndex);
 
@@ -688,8 +710,17 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         var fanIndex = request.FanIndex;
 
         // Checked up front, like HoldFanPreview: a calibration writes duty to the EC directly, so it may not
-        // start while fan-control commands are disabled.
-        _authorizationService.EnsureCommandAccess();
+        // start while fan-control commands are disabled. Mapped rather than allowed to escape, so a refusal
+        // arrives as FailedPrecondition instead of an opaque Unknown.
+        try
+        {
+            _authorizationService.EnsureCommandAccess();
+        }
+        catch (InvalidOperationException exception)
+        {
+            _logger.LogWarning(exception, "Rejected a calibration for fan {FanIndex} because the service was not in a writable state.", fanIndex);
+            throw new RpcException(new Status(StatusCode.FailedPrecondition, exception.Message));
+        }
 
         if (_previewWatchdog.HasOpenHold(fanIndex))
         {
@@ -755,6 +786,14 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         finally
         {
             await RestoreAfterCalibrationAsync(fanIndex, captured).ConfigureAwait(false);
+
+            // The model the run just measured lived ONLY in memory: nothing on the calibration path wrote it
+            // to the configuration file. Because that file is watched with reloadOnChange, the next command
+            // on any other fan rewrote it and re-overlaid this fan with Calibration = None — silently
+            // discarding a multi-minute hot test and re-locking Adaptive behind "needs to learn this fan
+            // first". CancellationToken.None on purpose: a run the client abandoned must still keep what it
+            // learned, and this is a local file write with nothing left to cancel it for.
+            await PersistFanControlStateAsync(fanIndex, preview: false, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
@@ -1003,6 +1042,9 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             _logger.LogInformation("Received ResetFanControlToFactoryDefaults.");
             _authorizationService.EnsureCommandAccess();
 
+            // A wipe during a measurement would pull the run's pinned fans out from under it.
+            EnsureNotCalibrating(fanIndex: 0);
+
             // A hold closing after the reset would revert its fan to the captured pre-preview state,
             // resurrecting exactly what is being wiped. Drop every hold first — the reset returns the fan to
             // EC automatic control, which is a strictly safer end state than any revert target.
@@ -1101,6 +1143,26 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         + "Check write permissions on the service's configuration folder.";
 
     /// <summary>Returns false when the state took effect in memory but could not be written to disk.</summary>
+    /// <summary>
+    /// Refuses a command that would drive a fan while a calibration owns the machine.
+    /// </summary>
+    /// <remarks>
+    /// The arbiter's claim was enforced only against the curve worker, so a SECOND client could still write
+    /// duty, switch a mode, or reset to defaults in the middle of a measurement — unpinning the controlled
+    /// conditions the fit assumes and silently corrupting the identified model, which the run would then
+    /// store as if nothing had happened. The claim covers EVERY fan for the life of a run (a run pins the
+    /// fans it is not measuring), which is exactly the scope this needs.
+    /// </remarks>
+    private void EnsureNotCalibrating(int fanIndex)
+    {
+        if (_calibrationArbiter.IsCalibrating(fanIndex))
+        {
+            throw new RpcException(new Status(
+                StatusCode.FailedPrecondition,
+                "A fan calibration is running. Wait for it to finish, or stop it, before changing fan control."));
+        }
+    }
+
     private async Task<bool> PersistFanControlStateAsync(int fanIndex, bool preview, CancellationToken cancellationToken)
     {
         // A preview is volatile: the EC and the in-memory store reflect it (so live clients see it), but it

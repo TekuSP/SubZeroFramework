@@ -69,6 +69,44 @@ public sealed record FanCalibrationOptions
     public double FeedForwardDutyPerWatt { get; init; }
 
     public FanSpeedTrackingMode TrackingMode { get; init; } = FanSpeedTrackingMode.Duty;
+
+    /// <summary>
+    /// The measured gain curve's points, ordered by ascending duty.
+    /// </summary>
+    /// <remarks>
+    /// Persisted because the control loop READS it: without the curve, gain scheduling silently degrades to
+    /// one averaged K, which the SIMC rule divides by — so a restart quietly made the controller wrong at both
+    /// ends of the duty range, most aggressively at the quiet end where hunting is audible. Re-measuring it
+    /// costs another multi-minute hot test.
+    /// </remarks>
+    public FanGainCurvePointOptions[] GainCurvePoints { get; init; } = [];
+
+    /// <summary>What the extra fan speed actually bought, or null when the run did not record it.</summary>
+    public FanPerformanceResponseOptions? PerformanceResponse { get; init; }
+}
+
+/// <summary>Persisted form of one <see cref="FanGainPoint"/>.</summary>
+public sealed record FanGainCurvePointOptions
+{
+    public double DutyPercent { get; init; }
+
+    public double SettledCelsius { get; init; }
+}
+
+/// <summary>Persisted form of <see cref="FanPerformanceResponse"/>.</summary>
+public sealed record FanPerformanceResponseOptions
+{
+    public double LowDutyPercent { get; init; }
+
+    public double FullDutyPercent { get; init; }
+
+    public double? CpuPerformanceRatioAtLowDuty { get; init; }
+
+    public double? CpuPerformanceRatioAtFullDuty { get; init; }
+
+    public double? GpuCoreClockAtLowDutyMegahertz { get; init; }
+
+    public double? GpuCoreClockAtFullDutyMegahertz { get; init; }
 }
 
 /// <summary>Persisted form of <see cref="AdaptiveFanSettings"/>.</summary>

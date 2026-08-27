@@ -81,13 +81,15 @@ public sealed partial class LinuxProcControlTelemetryReader : IControlTelemetryR
         // Read ONCE and derive both figures from it. The ratio and the clock are the same measurement scaled
         // two ways, and reading it twice would walk every cpu* directory twice per tick to produce two
         // answers that could then disagree because the second sweep saw a different clock.
-        var currentKilohertz = ReadMeanCurrentKilohertz();
+        var (currentKilohertz, maxKilohertz) = ReadCurrentKilohertz();
 
         return new ControlTelemetrySample
         {
             CpuUtilizationFraction = aggregate,
             PerCoreUtilizationFraction = perCore,
-            CpuPerformanceRatio = ResolvePerformanceRatio(currentKilohertz),
+            // The RATIO comes from the fastest core, the reported CLOCK from the mean — see
+            // ResolveThrottleRatio for why the two cannot be the same figure here.
+            CpuPerformanceRatio = ResolveThrottleRatio(maxKilohertz),
             CpuClockMegahertz = currentKilohertz is { } kilohertz and > 0d ? kilohertz / 1000d : null,
             CpuPackagePowerWatts = ReadPackagePowerWatts(),
         };
@@ -223,21 +225,30 @@ public sealed partial class LinuxProcControlTelemetryReader : IControlTelemetryR
     }
 
     /// <summary>
-    /// Scales an already-read clock against the base clock. Null base or clock yields no ratio.
+    /// The throttle signal: the FASTEST core's clock against base.
     /// </summary>
     /// <remarks>
     /// Deliberately NOT clamped to 1, matching the Windows reader: values above 1 mean turbo, and collapsing
     /// them would erase the difference between "at rated speed" and "boosting hard".
     /// </remarks>
-    private double? ResolvePerformanceRatio(double? currentKilohertz)
+    /// <remarks>
+    /// And deliberately not the mean this reader reports as the clock. Windows measures
+    /// <c>% Processor Performance</c> only while a core is executing, so an idle machine reads near 1 there;
+    /// a mean over every core includes the idle ones, which cpufreq clocks right down, so the same idle
+    /// machine read far BELOW the 0.85 throttle line on Linux. That latched the throttle escalation at idle
+    /// and — because idle never recovers a mean — never released it, pinning the fan high forever.
+    /// The maximum restores the intended meaning: genuine thermal throttling holds EVERY core down, so the
+    /// fastest core falls with them, while one boosting core on an otherwise idle package keeps this at 1.
+    /// </remarks>
+    private double? ResolveThrottleRatio(double? maxKilohertz)
     {
-        if (currentKilohertz is not { } current)
+        if (maxKilohertz is not { } max)
         {
             return null;
         }
 
         return ResolveBaseFrequencyKilohertz() is { } baseKilohertz and > 0d
-            ? current / baseKilohertz
+            ? max / baseKilohertz
             : null;
     }
 
@@ -249,16 +260,26 @@ public sealed partial class LinuxProcControlTelemetryReader : IControlTelemetryR
     /// do for one thread; the mean says what the package is doing, which is the figure that corresponds to
     /// the heat the fan has to move.
     /// </remarks>
-    private double? ReadMeanCurrentKilohertz()
+    private double? ReadMeanCurrentKilohertz() => ReadCurrentKilohertz().Mean;
+
+    /// <summary>
+    /// The mean and the maximum of every core's current clock, in kilohertz.
+    /// </summary>
+    /// <remarks>
+    /// Both, because they answer different questions from one scan: the MEAN is what the package is doing
+    /// and corresponds to the heat the fan has to move, while the MAXIMUM is the one that means "held back".
+    /// </remarks>
+    private (double? Mean, double? Max) ReadCurrentKilohertz()
     {
         try
         {
             if (!Directory.Exists(CpuDeviceRoot))
             {
-                return null;
+                return (null, null);
             }
 
             double sum = 0;
+            var max = double.MinValue;
             var count = 0;
 
             foreach (var cpuDirectory in Directory.EnumerateDirectories(CpuDeviceRoot, "cpu*"))
@@ -267,11 +288,12 @@ public sealed partial class LinuxProcControlTelemetryReader : IControlTelemetryR
                 if (TryReadDouble(currentPath, out var currentKilohertz))
                 {
                     sum += currentKilohertz;
+                    max = Math.Max(max, currentKilohertz);
                     count++;
                 }
             }
 
-            return count > 0 ? sum / count : null;
+            return count > 0 ? (sum / count, max) : (null, null);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -281,7 +303,7 @@ public sealed partial class LinuxProcControlTelemetryReader : IControlTelemetryR
                 LogFrequencyFailure(exception, CpuDeviceRoot);
             }
 
-            return null;
+            return (null, null);
         }
     }
 

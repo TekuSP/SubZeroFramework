@@ -228,7 +228,7 @@ public sealed partial class FanControlExplainerModel
 
         StepResponse = curve;
         StepResponseCaption =
-            $"fan duty {model.MinimumSpinDutyPercent:0}% → 100% at t = 0 · settles "
+            $"fan duty {_units.FormatRatio(model.MinimumSpinDutyPercent, decimals: 0)} → {_units.FormatRatio(100d, decimals: 0)} at t = 0 · settles "
             + $"{_units.ConvertTemperatureDelta(drop):0.#} {_units.TemperatureUnitSuffix} lower"
             + (IsMeasured ? string.Empty : " · shipped defaults, not measured on this fan");
 
@@ -413,8 +413,8 @@ public sealed partial class FanControlExplainerModel
     private void BuildProvenance(FanCalibrationSnapshot model)
     {
         var floor = model.MinimumSpinRpm > 0d
-            ? $"{_units.FormatFanSpeed(model.MinimumSpinRpm, decimals: 0)} · {model.MinimumSpinDutyPercent:0}%"
-            : $"{model.MinimumSpinDutyPercent:0}%";
+            ? $"{_units.FormatFanSpeed(model.MinimumSpinRpm, decimals: 0)} · {_units.FormatRatio(model.MinimumSpinDutyPercent, decimals: 0)}"
+            : _units.FormatRatio(model.MinimumSpinDutyPercent, decimals: 0);
 
         Provenance =
         [

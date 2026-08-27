@@ -481,9 +481,12 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         // Mode first: the staged-edit checks below read it.
         SelectedFanMode = ShowCustomEditor ? FanControlMode.CustomCurve : _session.StagedMode ?? ServiceFanMode;
 
+        // Adaptive settings are staged PER FAN, so the selected fan's pill must ask about the selected fan.
+        // The page-wide check lit the pill on whichever fan happened to be selected while clearing it on the
+        // fan that actually held the edit.
         var selectedStaged = CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode
             || LinkSection.HasStagedLinks
-            || HasStagedAdaptiveSettings;
+            || (SelectedFan is { } selected && HasStagedAdaptiveSettingsFor(selected.Snapshot.FanIndex));
         var otherStagedCount = OtherStagedFanCount();
         var anyStaged = selectedStaged || otherStagedCount > 0;
         HasPendingFanWork = anyStaged || IsTesting;
@@ -1039,10 +1042,15 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
                             sensorsOverride: [.. fan.ControlState?.DrivingSensorIndices ?? []],
                             cancellationToken).ConfigureAwait(true);
 
-                        if (armed)
+                        // A refused arm must KEEP the stage: clearing it below would throw the user's staged
+                        // work away while the fan stayed where it was, and leave the footer counting a fan
+                        // that no longer has anything staged.
+                        if (!armed)
                         {
-                            applied++;
+                            continue;
                         }
+
+                        applied++;
                     }
                     else
                     {
@@ -1545,6 +1553,18 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     /// <summary>True while any fan has unapplied Adaptive settings.</summary>
     public bool HasStagedAdaptiveSettings => _stagedAdaptiveSettings.Count > 0;
 
+    /// <summary>
+    /// True while THIS fan has unapplied Adaptive settings.
+    /// </summary>
+    /// <remarks>
+    /// The editor must ask about the fan it is showing, not about the page. Gating the "adopt the service's
+    /// values" refresh on the page-wide <see cref="HasStagedAdaptiveSettings"/> meant that staging an edit on
+    /// one fan froze the editor for EVERY fan: selecting another Adaptive fan kept the first fan's target,
+    /// response and floor on screen, and the next nudge staged those values against the newly selected fan —
+    /// so Apply wrote one fan's holding temperature onto another.
+    /// </remarks>
+    public bool HasStagedAdaptiveSettingsFor(int fanIndex) => _stagedAdaptiveSettings.ContainsKey(fanIndex);
+
     /// <summary>Stages Adaptive settings for a fan, to be flushed on Apply.</summary>
     /// <param name="fanIndex">The fan.</param>
     /// <param name="settings">The staged values.</param>
@@ -1716,8 +1736,17 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         try
         {
             var settings = _stagedAdaptiveSettings.TryGetValue(fanIndex, out var staged) ? staged : null;
+
+            // The aggregation belongs to the fan being armed, not to the curve editor. SelectedAggregation
+            // describes the SELECTED fan's curve draft, so "Apply all" — which arms fans this page is not
+            // showing — used to overwrite each one's own aggregation with the selected fan's. Only fall back
+            // to the editor's value for the fan the editor is actually describing.
+            var aggregation = _hub.GetFan(fanIndex)?.ControlState?.DrivingTemperatureAggregation
+                ?? (fanIndex == SelectedFan?.Snapshot.FanIndex ? SelectedAggregation : null)
+                ?? TemperatureAggregationMode.Maximum;
+
             var result = await _fanControlClient
-                .SetAdaptiveModeAsync(fanIndex, sensors, SelectedAggregation ?? TemperatureAggregationMode.Maximum, settings, preview, cancellationToken)
+                .SetAdaptiveModeAsync(fanIndex, sensors, aggregation, settings, preview, cancellationToken)
                 .ConfigureAwait(true);
 
             if (!result.Succeeded)
@@ -2530,6 +2559,9 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     // Apply commits every staged change — the selected fan's and every other fan's parked staged work
     // ("Apply all"). Preview is optional: staged work can commit directly. A custom draft must be valid.
     private bool CanApplyStaged => HasSelectedFan && CanIssueFanCommands
+        // An unrunnable staged Adaptive can never be committed, previewing or not. Without this the
+        // IsTesting arm below re-enabled Apply during a live preview and the click became a silent no-op.
+        && (_session.StagedMode != FanControlMode.Adaptive || SelectedFanCanRunAdaptive)
         && (IsTesting
             || ((CurrentFanHasStagedEdits || IsCustomActivationStaged) && HasValidDraft)
             || HasStagedRunnableSimpleMode
@@ -2552,6 +2584,23 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         foreach (var (fanIndex, session) in _sessions)
         {
             if (fanIndex != selectedIndex && (session.DraftSnapshot is not null || session.StagedMode is not null))
+            {
+                count++;
+            }
+        }
+
+        // Staged Adaptive settings live outside the sessions, so a fan holding only those was invisible here
+        // — now that the selected fan's own pill is per-fan, they have to be counted or they vanish entirely.
+        foreach (var fanIndex in _stagedAdaptiveSettings.Keys)
+        {
+            if (fanIndex == selectedIndex)
+            {
+                continue;
+            }
+
+            // Counted only when the loop above did not already count this fan for a draft or staged mode.
+            if (!_sessions.TryGetValue(fanIndex, out var adaptiveSession)
+                || (adaptiveSession.DraftSnapshot is null && adaptiveSession.StagedMode is null))
             {
                 count++;
             }

@@ -504,10 +504,22 @@ public sealed class AdaptiveFanController
     /// </remarks>
     private double ApplySlewLimit(double dutyPercent, TimeSpan elapsed)
     {
-        if (_lastCommandedDutyPercent is not double previous || elapsed <= TimeSpan.Zero)
+        // No previous command: this is entry to Adaptive, and the demand is adopted verbatim so the fan does
+        // not spend the ramp under-cooling.
+        if (_lastCommandedDutyPercent is not double previous)
         {
             _lastCommandedDutyPercent = dutyPercent;
             return dutyPercent;
+        }
+
+        // Zero elapsed with a command already in hand is a RESUME — the worker zeroes the interval after a
+        // sleep, a stall, or fan control being re-enabled, precisely so a huge gap cannot be multiplied
+        // through the loop. Treating that as "first command" adopted the new demand verbatim and let the fan
+        // jump 0→100 in one step, defeating the rate limit on the very tick the zeroing existed to protect.
+        // Zero time permits zero movement; the next tick carries a real interval and the ramp resumes.
+        if (elapsed <= TimeSpan.Zero)
+        {
+            return previous;
         }
 
         var seconds = elapsed.TotalSeconds;

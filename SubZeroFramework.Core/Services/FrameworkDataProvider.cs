@@ -145,6 +145,27 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     private volatile int _latestGpuUtilizationPerMille = -1;
     private volatile int _latestSystemPowerMilliwatts = -1;
 
+    /// <summary>
+    /// When the GPU and system-power caches above were last written, as Stopwatch timestamps.
+    /// </summary>
+    /// <remarks>
+    /// The composed control sample is stamped with the PRIMARY tier's tick time, but these fields are
+    /// written on slower tiers — so a stalled GPU or power poll left a frozen value being folded into a
+    /// sample that looked brand new, sailing past the consumer's freshness guard and pinning feed-forward to
+    /// a reading that had stopped moving. Each cache now carries its own age and drops out when stale.
+    /// </remarks>
+    private long _latestGpuReadTimestamp;
+    private long _latestSystemPowerTimestamp;
+
+    /// <summary>
+    /// How old a folded-in cache may be before it is reported as absent.
+    /// </summary>
+    /// <remarks>
+    /// Generous against the tertiary tier's own interval so an ordinary slow poll does not blink the value
+    /// out, and far below the ten seconds the fan worker treats as a stalled sample.
+    /// </remarks>
+    private static readonly TimeSpan MaximumFoldedCacheAge = TimeSpan.FromSeconds(15);
+
     // The most recent PD read, held so the battery publish (which runs on its own cadence) can pair charger
     // draw with charging draw. Module inventory is read far less often than power, so the two never arrive
     // together.
@@ -1799,28 +1820,35 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     private double? ReadTotalGpuPowerWatts()
     {
         var milliwatts = _latestGpuPowerMilliwatts;
-        return milliwatts >= 0 ? milliwatts / 1000d : null;
+        return milliwatts >= 0 && IsFresh(_latestGpuReadTimestamp) ? milliwatts / 1000d : null;
+    }
+
+    /// <summary>Whether a cache written on a slower tier is recent enough to fold into a control sample.</summary>
+    private static bool IsFresh(long timestamp)
+    {
+        var taken = Volatile.Read(ref timestamp);
+        return taken != 0L && Stopwatch.GetElapsedTime(taken) <= MaximumFoldedCacheAge;
     }
 
     /// <summary>The fastest graphics core clock reported, or null when nothing reported one.</summary>
     private double? ReadGpuCoreClockMegahertz()
     {
         var megahertz = _latestGpuCoreClockMegahertz;
-        return megahertz > 0 ? megahertz : null;
+        return megahertz > 0 && IsFresh(_latestGpuReadTimestamp) ? megahertz : null;
     }
 
     /// <summary>The busiest GPU's busy share as 0–1, or null when nothing reported one.</summary>
     private double? ReadGpuUtilizationFraction()
     {
         var perMille = _latestGpuUtilizationPerMille;
-        return perMille >= 0 ? perMille / 1000d : null;
+        return perMille >= 0 && IsFresh(_latestGpuReadTimestamp) ? perMille / 1000d : null;
     }
 
     /// <summary>System draw derived from the charger, or null when running on battery.</summary>
     private double? ReadSystemPowerWatts()
     {
         var milliwatts = _latestSystemPowerMilliwatts;
-        return milliwatts >= 0 ? milliwatts / 1000d : null;
+        return milliwatts >= 0 && IsFresh(_latestSystemPowerTimestamp) ? milliwatts / 1000d : null;
     }
 
     /// <summary>
@@ -1871,6 +1899,7 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         _latestSystemPowerMilliwatts = sawAdapter
             ? ToMilliwatts(adapterWatts - TotalBatteryChargeWatts(powerSnapshot))
             : ToMilliwatts(TotalBatteryDischargeWatts(powerSnapshot));
+        Volatile.Write(ref _latestSystemPowerTimestamp, Stopwatch.GetTimestamp());
     }
 
     /// <summary>Power flowing INTO the batteries, in watts. Zero when nothing is charging.</summary>
@@ -2039,6 +2068,9 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         }
 
         _latestGpuPowerMilliwatts = sawGpuPower ? (int)Math.Round(gpuPowerWatts * 1000d) : -1;
+
+        // One stamp for the whole GPU read: power, clock and utilisation are all written by this pass.
+        Volatile.Write(ref _latestGpuReadTimestamp, Stopwatch.GetTimestamp());
 
         // The HIGHEST core clock rather than the sum: clocks do not add. This is the speed the busiest
         // graphics device is actually sustaining, which is what a calibration compares across fan duties to

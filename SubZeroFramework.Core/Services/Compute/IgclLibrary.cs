@@ -96,7 +96,8 @@ public sealed unsafe class IgclLibrary : IDisposable
 
         foreach (var candidate in WindowsCandidates)
         {
-            if (!NativeLibrary.TryLoad(candidate, out var handle))
+            // Trusted load, NOT a bare-name search: this runs as LocalSystem and a bare name ends at %PATH%.
+            if (!TrustedNativeLibrary.TryLoad(candidate, out var handle))
             {
                 continue;
             }

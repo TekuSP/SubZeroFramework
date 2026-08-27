@@ -146,6 +146,11 @@ public partial class DeviceCapabilitiesCpuPackageCardModel : ObservableObject
         {
             cpuCoreItem.RefreshUnitFormatting();
         }
+
+        // RefreshSnapshotDisplays reassigns CANONICAL values, which a unit change does not move — so without
+        // the broadcast the converter-bound tiles here stayed in the old unit while the composite text
+        // beside them updated.
+        OnPropertyChanged(propertyName: null);
     }
 
     // Projects the snapshot into CANONICAL values; formatting happens in the converter at render time. A

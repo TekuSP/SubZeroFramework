@@ -231,6 +231,10 @@ public sealed partial class FanAdaptiveModeView : UserControl, INotifyPropertyCh
             // The page outlives the dialog, so leaving this hooked would keep pushing into a model nothing
             // is showing — and hold the dialog's model alive for as long as the page lives.
             ViewModel.PropertyChanged -= OnAdaptiveModelChanged;
+
+            // Same reason, one level down: the model's sensor choices subscribe to page-lifetime sensor
+            // chips, so an undisposed model leaves one handler per sensor behind on every wizard open.
+            model.Dispose();
             _dialogOpen = false;
         }
     }

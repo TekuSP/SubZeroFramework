@@ -222,6 +222,17 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
                             ? message.PerformanceResponse.GpuCoreClockAtFullDutyMegahertz
                             : null,
                     },
+                GainCurve = message.GainCurvePoints.Count == 0
+                    ? FanGainCurve.None
+                    : new FanGainCurve
+                    {
+                        Points =
+                        [
+                            .. message.GainCurvePoints
+                                .OrderBy(static point => point.DutyPercent)
+                                .Select(static point => new FanGainPoint(point.DutyPercent, point.SettledCelsius)),
+                        ],
+                    },
                 TrackingMode = message.TrackingMode == FanSpeedTrackingModeValue.Cascade
                     ? FanSpeedTrackingMode.Cascade
                     : FanSpeedTrackingMode.Duty,

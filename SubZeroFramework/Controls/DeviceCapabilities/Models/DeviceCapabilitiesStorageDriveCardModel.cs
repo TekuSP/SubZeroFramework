@@ -101,6 +101,10 @@ public partial class DeviceCapabilitiesStorageDriveCardModel : ObservableObject
             ? $"{_unitFormattingService.FormatInformationBytes(Snapshot.UsedSpace)} used / "
                 + $"{_unitFormattingService.FormatInformationBytes(Snapshot.ClampedFreeSpace)} free"
             : "Unknown";
+
+        // The three canonical byte counts above do not move when the unit preference does, so the tiles bound
+        // to them through the converter need the "everything changed" broadcast or they keep the old unit.
+        OnPropertyChanged(propertyName: null);
     }
 
     private static string? FirstNonEmpty(params string?[] values) => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));

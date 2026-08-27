@@ -19,7 +19,10 @@ namespace SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 /// </remarks>
 public sealed partial class FanCalibrationDialog : ContentDialog, IDisposable
 {
-    private readonly CancellationTokenSource _cancellation = new();
+    // NOT readonly: each run gets its own lease. Stopping a test cancels this source, and a cancelled source
+    // stays cancelled forever — so reusing it made the outcome screen's "Start again" hand the next run a
+    // dead token, which aborted instantly and returned the user to the same cancelled screen, permanently.
+    private CancellationTokenSource _cancellation = new();
 
     public FanCalibrationDialog(FanCalibrationDialogModel viewModel)
     {
@@ -83,11 +86,30 @@ public sealed partial class FanCalibrationDialog : ContentDialog, IDisposable
         // Consent commits to the run; the outcome's Done is simply a way out.
         if (ViewModel.Stage == FanCalibrationStage.Consent)
         {
-            StartRequested?.Invoke(this, EventArgs.Empty);
+            RequestStart();
             return;
         }
 
         Hide();
+    }
+
+    /// <summary>
+    /// Hands the next run a live lease, then asks for it to start.
+    /// </summary>
+    /// <remarks>
+    /// Every start goes through here — first consent and every retry alike — because the caller reads
+    /// <see cref="CancellationToken"/> when it launches the run, so the fresh source has to be in place
+    /// BEFORE the event is raised.
+    /// </remarks>
+    private void RequestStart()
+    {
+        if (_cancellation.IsCancellationRequested)
+        {
+            _cancellation.Dispose();
+            _cancellation = new CancellationTokenSource();
+        }
+
+        StartRequested?.Invoke(this, EventArgs.Empty);
     }
 
     // Cancelling and stopping are the same act — Hide runs OnClosing, which cancels the lease and, mid-run,
@@ -100,7 +122,7 @@ public sealed partial class FanCalibrationDialog : ContentDialog, IDisposable
     {
         if (ViewModel.Stage == FanCalibrationStage.Outcome && !ViewModel.DidSucceed)
         {
-            StartRequested?.Invoke(this, EventArgs.Empty);
+            RequestStart();
         }
     }
 }

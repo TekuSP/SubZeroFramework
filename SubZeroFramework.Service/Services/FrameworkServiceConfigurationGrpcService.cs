@@ -162,6 +162,12 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
             PollingIntervalMilliseconds = checked((long)Math.Round(snapshot.PollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
             SecondaryPollingIntervalMilliseconds = checked((long)Math.Round(snapshot.SecondaryPollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
             HardwareInfoPollingIntervalMilliseconds = checked((long)Math.Round(snapshot.HardwareInfoPollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
+            // The proto has carried these since the retention feature landed, but nothing filled them — so
+            // every client read retention as 0, fell back to the tier defaults, and the settings page
+            // silently reverted whatever the user had just applied.
+            PrimaryRetentionMinutes = checked((long)Math.Round(snapshot.PrimaryRetention.TotalMinutes, MidpointRounding.AwayFromZero)),
+            SecondaryRetentionMinutes = checked((long)Math.Round(snapshot.SecondaryRetention.TotalMinutes, MidpointRounding.AwayFromZero)),
+            TertiaryRetentionMinutes = checked((long)Math.Round(snapshot.TertiaryRetention.TotalMinutes, MidpointRounding.AwayFromZero)),
             AllowFanControlCommands = snapshot.AllowFanControlCommands,
             PersistentConfigurationPath = snapshot.PersistentConfigurationPath,
         };

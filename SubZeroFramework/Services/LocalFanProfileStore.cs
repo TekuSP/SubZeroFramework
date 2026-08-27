@@ -280,7 +280,22 @@ public sealed partial class LocalFanProfileStore : ILocalFanProfileStore
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(ProfilesFilePath)!);
-            File.WriteAllText(ProfilesFilePath, JsonSerializer.Serialize(profiles, LocalFanProfileJsonContext.Default.StoredFanProfiles));
+
+            // Temp file plus replace, never a rewrite in place: WriteAllText truncates first, so an
+            // interruption between the truncate and the write (a crash, a power loss, a full disk) left a
+            // zero-length file — and a zero-length file deserialises to nothing, silently discarding EVERY
+            // saved profile on the next launch. The temp file is written whole and only then swapped in.
+            var temporaryPath = ProfilesFilePath + ".tmp";
+            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(profiles, LocalFanProfileJsonContext.Default.StoredFanProfiles));
+
+            if (File.Exists(ProfilesFilePath))
+            {
+                File.Replace(temporaryPath, ProfilesFilePath, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            }
+            else
+            {
+                File.Move(temporaryPath, ProfilesFilePath);
+            }
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {

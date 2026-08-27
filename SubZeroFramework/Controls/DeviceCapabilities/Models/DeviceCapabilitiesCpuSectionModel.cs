@@ -105,6 +105,11 @@ public sealed partial class DeviceCapabilitiesCpuSectionModel : ObservableObject
         if (string.IsNullOrEmpty(e.PropertyName))
         {
             RefreshDerivedState();
+
+            // Then pass the broadcast on. RefreshDerivedState only raises for values that MOVED, and a unit
+            // change moves none of them — the canonical numbers are identical, only their rendering differs.
+            // Converter-bound tiles therefore kept their old unit until something unrelated changed.
+            OnPropertyChanged(propertyName: null);
             return;
         }
 

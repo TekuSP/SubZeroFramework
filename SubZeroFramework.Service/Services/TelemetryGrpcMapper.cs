@@ -453,6 +453,16 @@ internal static class TelemetryGrpcMapper
             message.PerformanceResponse = MapPerformanceResponse(calibration.PerformanceResponse);
         }
 
+        // The measured curve never reached the app at all, so the UI fact describing it could never render.
+        foreach (var point in calibration.GainCurve.Points)
+        {
+            message.GainCurvePoints.Add(new FanGainCurvePointMessage
+            {
+                DutyPercent = point.DutyPercent,
+                SettledCelsius = point.SettledCelsius,
+            });
+        }
+
         return message;
     }
 

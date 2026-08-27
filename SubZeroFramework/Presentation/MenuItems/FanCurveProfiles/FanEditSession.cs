@@ -233,14 +233,20 @@ public sealed class FanEditSession
             _parent.IsTesting = false;
             ClearStagedSimpleMode();
 
+            // Adaptive has ALREADY reported its own outcome, and that outcome is not always plain success:
+            // the arm reports "armed, but could not be saved to disk" when the configuration write failed.
+            // Overwriting it with an unconditional success here is what hid that warning from the user.
+            if (mode == FanControlMode.Adaptive)
+            {
+                return;
+            }
+
             var scope = group.Count > 1 ? $"{fan.Snapshot.DisplayName} + {group.Count - 1} linked fan(s)" : fan.Snapshot.DisplayName;
             _parent.ReportStatus(
                 mode switch
                 {
                     FanControlMode.Manual => $"{scope} set to {_unitFormattingService.FormatRatio(StagedManualDuty, decimals: 0)} manual duty.",
                     FanControlMode.Max => $"{scope} set to Max ({_unitFormattingService.FormatRatio(100d, decimals: 0)}). Acoustics will be loud.",
-                    // The fan's own name, not the group scope: Adaptive deliberately arms this fan alone.
-                    FanControlMode.Adaptive => $"{fan.Snapshot.DisplayName} set to Adaptive — the loop is holding its target now.",
                     _ => $"{scope} restored to Auto.",
                 },
                 mode == FanControlMode.Max ? InfoBarSeverity.Warning : InfoBarSeverity.Success);

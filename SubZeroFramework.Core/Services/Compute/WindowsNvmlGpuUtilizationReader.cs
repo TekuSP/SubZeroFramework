@@ -138,9 +138,10 @@ public sealed partial class WindowsNvmlGpuUtilizationReader : IComputeUtilizatio
 
         // Waited on outside the lock, and bounded: an NVML call that has wedged must not hold up shutdown.
         // The library is freed only once nothing can still be calling into it.
+        var sampleFinished = true;
         try
         {
-            pending?.Wait(TimeSpan.FromSeconds(2));
+            sampleFinished = pending?.Wait(TimeSpan.FromSeconds(2)) ?? true;
         }
         catch (Exception exception)
         {
@@ -149,7 +150,19 @@ public sealed partial class WindowsNvmlGpuUtilizationReader : IComputeUtilizatio
 
         lock (_syncLock)
         {
-            _library?.Dispose();
+            // Freeing nvml.dll while a sample is STILL RUNNING unloads the module out from under native calls
+            // already in flight — an access violation that takes the whole service down, not an exception it
+            // could catch. A sampler that outlived the wait keeps the module: leaking it costs one handle
+            // until the process ends, which is the cheaper of the two failures by a wide margin.
+            if (sampleFinished)
+            {
+                _library?.Dispose();
+            }
+            else
+            {
+                _logger.LogWarning("An NVML sample was still running at shutdown; leaving nvml.dll loaded rather than freeing it beneath the call.");
+            }
+
             _library = null;
             _latest = [];
         }

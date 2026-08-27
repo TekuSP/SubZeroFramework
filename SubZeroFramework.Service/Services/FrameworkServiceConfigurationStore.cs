@@ -114,6 +114,12 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
                 PollingInterval = ReadTimeSpan(section, "PollingInterval", defaults.PollingInterval),
                 SecondaryPollingInterval = ReadTimeSpan(section, "SecondaryPollingInterval", defaults.SecondaryPollingInterval),
                 HardwareInfoPollingInterval = ReadTimeSpan(section, "HardwareInfoPollingInterval", defaults.HardwareInfoPollingInterval),
+                // Written by WriteAsync below; read here so a chosen retention actually comes back. Neither
+                // half existed, so a saved retention was accepted, clamped, applied live — and silently
+                // discarded at the next service start.
+                PrimaryRetention = ReadTimeSpan(section, "PrimaryRetention", defaults.PrimaryRetention),
+                SecondaryRetention = ReadTimeSpan(section, "SecondaryRetention", defaults.SecondaryRetention),
+                TertiaryRetention = ReadTimeSpan(section, "TertiaryRetention", defaults.TertiaryRetention),
                 AllowFanControlCommands = ReadBoolean(section, "AllowFanControlCommands", defaults.AllowFanControlCommands),
             };
         }, cancellationToken);
@@ -396,6 +402,56 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
             node["CalibratedAt"] = calibratedAt.ToString("O", CultureInfo.InvariantCulture);
         }
 
+        // The gain curve is what makes gain scheduling possible, and the control loop reads it — so it has to
+        // survive a restart or the loop silently falls back to one averaged gain.
+        if (calibration.GainCurvePoints is { Length: > 0 } gainCurvePoints)
+        {
+            var points = new JsonArray();
+            foreach (var point in gainCurvePoints)
+            {
+                points.Add(new JsonObject
+                {
+                    ["DutyPercent"] = point.DutyPercent,
+                    ["SettledCelsius"] = point.SettledCelsius,
+                });
+            }
+
+            node["GainCurvePoints"] = points;
+        }
+
+        if (calibration.PerformanceResponse is { } performanceResponse)
+        {
+            var responseNode = new JsonObject
+            {
+                ["LowDutyPercent"] = performanceResponse.LowDutyPercent,
+                ["FullDutyPercent"] = performanceResponse.FullDutyPercent,
+            };
+
+            // Each reading is written only when it was actually taken, so an absent one stays absent rather
+            // than coming back as a measured zero.
+            if (performanceResponse.CpuPerformanceRatioAtLowDuty is double cpuLow)
+            {
+                responseNode["CpuPerformanceRatioAtLowDuty"] = cpuLow;
+            }
+
+            if (performanceResponse.CpuPerformanceRatioAtFullDuty is double cpuFull)
+            {
+                responseNode["CpuPerformanceRatioAtFullDuty"] = cpuFull;
+            }
+
+            if (performanceResponse.GpuCoreClockAtLowDutyMegahertz is double gpuLow)
+            {
+                responseNode["GpuCoreClockAtLowDutyMegahertz"] = gpuLow;
+            }
+
+            if (performanceResponse.GpuCoreClockAtFullDutyMegahertz is double gpuFull)
+            {
+                responseNode["GpuCoreClockAtFullDutyMegahertz"] = gpuFull;
+            }
+
+            node["PerformanceResponse"] = responseNode;
+        }
+
         return node;
     }
 
@@ -466,6 +522,9 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
             frameworkServiceSection["PollingInterval"] = options.PollingInterval.ToString("c", CultureInfo.InvariantCulture);
             frameworkServiceSection["SecondaryPollingInterval"] = options.SecondaryPollingInterval.ToString("c", CultureInfo.InvariantCulture);
             frameworkServiceSection["HardwareInfoPollingInterval"] = options.HardwareInfoPollingInterval.ToString("c", CultureInfo.InvariantCulture);
+            frameworkServiceSection["PrimaryRetention"] = options.PrimaryRetention.ToString("c", CultureInfo.InvariantCulture);
+            frameworkServiceSection["SecondaryRetention"] = options.SecondaryRetention.ToString("c", CultureInfo.InvariantCulture);
+            frameworkServiceSection["TertiaryRetention"] = options.TertiaryRetention.ToString("c", CultureInfo.InvariantCulture);
             frameworkServiceSection["AllowFanControlCommands"] = options.AllowFanControlCommands;
             root["FrameworkService"] = frameworkServiceSection;
 

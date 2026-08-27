@@ -100,7 +100,8 @@ public sealed unsafe class AdlxLibrary : IDisposable
     {
         ArgumentNullException.ThrowIfNull(logger);
 
-        if (!NativeLibrary.TryLoad("amdadlx64.dll", out var handle))
+        // Trusted load, NOT a bare-name search: this runs as LocalSystem and a bare name ends at %PATH%.
+        if (!TrustedNativeLibrary.TryLoad("amdadlx64.dll", out var handle))
         {
             return null;
         }
