@@ -34,6 +34,11 @@ public sealed class FrameworkTelemetryWorker : BackgroundService
             _logger.LogWarning("Unable to configure the Framework polling interval.");
         }
 
+        if (!_frameworkDataProvider.SetSecondaryPolling(_options.SecondaryPollingInterval))
+        {
+            _logger.LogWarning("Unable to configure the secondary polling interval.");
+        }
+
         if (!_frameworkDataProvider.SetHardwareInfoPolling(_options.HardwareInfoPollingInterval))
         {
             _logger.LogWarning("Unable to configure the HardwareInfo polling interval.");

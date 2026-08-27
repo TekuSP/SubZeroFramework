@@ -38,7 +38,7 @@
             <deviceCapabilitiesControls:StatTileView
                 IconKind="SineWave"
                 Label="Refresh rate"
-                Value="{x:Bind ViewModel.Monitor.DisplayCurrentRefreshRate, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.Monitor.CurrentRefreshRateHertz, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=RefreshRate}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="FormatSize"
                 Label="Display density"

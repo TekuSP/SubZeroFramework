@@ -26,11 +26,11 @@
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Speedometer"
                 Label="Average clock"
-                Value="{x:Bind ViewModel.AverageClockSpeed, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.AverageClockSpeedMegahertz, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=ClockFrequency}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="SpeedometerMedium"
                 Label="Average max clock"
-                Value="{x:Bind ViewModel.AverageMaxClockSpeed, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.AverageMaxClockSpeedMegahertz, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=ClockFrequency}" />
         </deviceCapabilitiesControls:StatTilePanel>
     </StackPanel>
 </UserControl>

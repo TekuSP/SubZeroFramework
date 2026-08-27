@@ -16,6 +16,7 @@ using SubZeroFramework.Controls.Modules;
 using SubZeroFramework.Controls.Modules.Models;
 using SubZeroFramework.Models;
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Units;
 using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Presentation.MenuItems.Modules;
@@ -28,6 +29,7 @@ namespace SubZeroFramework.Presentation.MenuItems.Modules;
 /// </summary>
 public partial class ModulesModel : ObservableObject, IDisposable
 {
+    private readonly IUnitFormattingService _unitFormattingService;
     private readonly CompositeDisposable _subscriptions = [];
     private readonly Dictionary<int, ModuleSlotCardModel> _slotCardsByIndex = [];
     private readonly Dictionary<string, ModuleDeckCardModel> _deckCardsByKey = [];
@@ -46,8 +48,13 @@ public partial class ModulesModel : ObservableObject, IDisposable
         IPowerDeliveryClient powerDeliveryClient,
         IHardwareInfoClient hardwareInfoClient,
         SynchronizationContext synchronizationContext,
-        ModulesAccessor accessor)
+        ModulesAccessor accessor,
+        IUnitFormattingService unitFormattingService)
     {
+        // Passed to each slot card so the negotiated PD wattage follows the user's power-unit preference
+        // instead of being rendered as raw watts.
+        _unitFormattingService = unitFormattingService;
+
         // Publish this instance for the navigation-resolved layout body VMs (see ModulesAccessor).
         accessor.Current = this;
 
@@ -315,7 +322,7 @@ public partial class ModulesModel : ObservableObject, IDisposable
         {
             if (!_slotCardsByIndex.TryGetValue(slot.SlotIndex, out var card))
             {
-                card = new ModuleSlotCardModel(slot.SlotIndex);
+                card = new ModuleSlotCardModel(slot.SlotIndex, _unitFormattingService);
                 _slotCardsByIndex[slot.SlotIndex] = card;
             }
 
@@ -335,7 +342,7 @@ public partial class ModulesModel : ObservableObject, IDisposable
                 {
                     if (!_slotCardsByIndex.TryGetValue(nextSyntheticIndex, out var placeholder))
                     {
-                        placeholder = new ModuleSlotCardModel(nextSyntheticIndex, isUnreported: true);
+                        placeholder = new ModuleSlotCardModel(nextSyntheticIndex, _unitFormattingService, isUnreported: true);
                         _slotCardsByIndex[nextSyntheticIndex] = placeholder;
                     }
 

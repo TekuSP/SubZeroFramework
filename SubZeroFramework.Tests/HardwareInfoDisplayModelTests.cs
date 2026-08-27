@@ -35,7 +35,7 @@ public class HardwareInfoDisplayModelTests
         Assert.Multiple(() =>
         {
             Assert.That(monitor.DisplayCurrentResolution, Is.EqualTo("2,880 x 1,920"));
-            Assert.That(monitor.DisplayCurrentRefreshRate, Is.EqualTo("120 Hz"));
+            Assert.That(monitor.CurrentRefreshRateHertz, Is.EqualTo(120d));
         });
     }
 
@@ -139,7 +139,6 @@ public class HardwareInfoDisplayModelTests
         Assert.Multiple(() =>
         {
             Assert.That(adapter.HasKnownSpeed, Is.False);
-            Assert.That(adapter.DisplaySpeed, Is.EqualTo("Unknown"));
         });
     }
 }

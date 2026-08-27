@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     d:DesignHeight="160"
     d:DesignWidth="160"
@@ -61,13 +62,76 @@
                     VerticalAlignment="Bottom"
                     FontSize="15"
                     Foreground="{StaticResource TextSecondaryBrush}"
-                    Text="%" />
+                    Text="{x:Bind ChargeUnitText, Mode=OneWay}" />
             </StackPanel>
             <TextBlock
+                x:Name="ChargeCaption"
                 HorizontalAlignment="Center"
                 FontSize="12"
                 Foreground="{StaticResource TextSecondaryBrush}"
                 Text="charge" />
+            <!--  Opt-in status rows (StatusText / DetailText): when supplied they replace the static
+                  "charge" caption so the whole story lives inside the ring.  -->
+            <StackPanel
+                x:Name="StatusRow"
+                Margin="0,4,0,0"
+                HorizontalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="6"
+                Visibility="Collapsed">
+                <Ellipse
+                    x:Name="StatusDot"
+                    Width="7"
+                    Height="7"
+                    VerticalAlignment="Center"
+                    Fill="{StaticResource TextSecondaryBrush}" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="11.5"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{x:Bind StatusText, Mode=OneWay}" />
+            </StackPanel>
+            <TextBlock
+                x:Name="DetailLabel"
+                Margin="0,3,0,0"
+                HorizontalAlignment="Center"
+                FontSize="10.5"
+                Foreground="{StaticResource TextTertiaryBrush}"
+                Text="{x:Bind DetailText, Mode=OneWay}"
+                Visibility="Collapsed" />
         </StackPanel>
+
+        <!--  The arc leaves a 90° mouth at the bottom; the adapter badge sits in it so incoming power
+              reads as feeding the ring through its opening. Collapsed when BadgeText is empty.  -->
+        <Border
+            x:Name="Badge"
+            Height="22"
+            Padding="9,0"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Bottom"
+            Background="{StaticResource CardBackgroundBrush}"
+            BorderBrush="{StaticResource SurfaceOutlineBrush}"
+            BorderThickness="1"
+            CornerRadius="11"
+            Visibility="Collapsed">
+            <StackPanel
+                VerticalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="5">
+                <material:MaterialIcon
+                    Width="12"
+                    Height="12"
+                    VerticalAlignment="Center"
+                    Foreground="{StaticResource StatusWarningBrush}"
+                    Kind="Flash" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontSize="11.5"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{x:Bind BadgeText, Mode=OneWay}" />
+            </StackPanel>
+        </Border>
     </Grid>
 </UserControl>

@@ -40,6 +40,8 @@ public partial class SettingsUnitsSectionModel : ObservableObject, IUnsavedChang
     private const double FallbackVoltageVolts = 15.4d;
     private const double FallbackCurrentAmperes = 1.2d;
     private const double FallbackChargeAmpereHours = 3.5d;
+
+    private const double FallbackEnergyWattHours = 61d;
     private const double FallbackRatioPercent = 76d;
     private const double FallbackBitRateBitsPerSecond = 1_000_000_000d;
     private const double FallbackPowerWatts = 18d;
@@ -65,6 +67,8 @@ public partial class SettingsUnitsSectionModel : ObservableObject, IUnsavedChang
     private double? _sampleVoltageVolts;
     private double? _sampleCurrentAmperes;
     private double? _sampleChargeAmpereHours;
+
+    private double? _sampleEnergyWattHours;
     private double? _sampleRatioPercent;
     private double? _sampleBitRateBitsPerSecond;
     private double? _samplePowerWatts;
@@ -137,6 +141,9 @@ public partial class SettingsUnitsSectionModel : ObservableObject, IUnsavedChang
                 _sampleVoltageVolts = battery?.Voltage;
                 _sampleCurrentAmperes = battery?.Amperage is double amperage ? Math.Abs(amperage) : null;
                 _sampleChargeAmpereHours = battery?.RemainingCapacityAmpereHours;
+                _sampleEnergyWattHours = battery?.RemainingCapacityAmpereHours is double remainingAmpereHours && battery?.DesignVoltageVolts is double nominalVolts
+                    ? remainingAmpereHours * nominalVolts
+                    : null;
                 _sampleRatioPercent = battery?.ChargePercent;
                 _samplePowerWatts = battery?.Voltage is double volts && battery?.Amperage is double amps
                     ? Math.Abs(volts * amps)
@@ -313,6 +320,7 @@ public partial class SettingsUnitsSectionModel : ObservableObject, IUnsavedChang
                 UnitQuantityKind.Voltage => _unitFormattingService.FormatVoltage(_sampleVoltageVolts ?? FallbackVoltageVolts),
                 UnitQuantityKind.Current => _unitFormattingService.FormatCurrent(_sampleCurrentAmperes ?? FallbackCurrentAmperes),
                 UnitQuantityKind.ElectricChargeCapacity => _unitFormattingService.FormatChargeCapacity(_sampleChargeAmpereHours ?? FallbackChargeAmpereHours),
+                UnitQuantityKind.Energy => _unitFormattingService.FormatEnergyWattHours(_sampleEnergyWattHours ?? FallbackEnergyWattHours),
                 UnitQuantityKind.Ratio => _unitFormattingService.FormatRatio(_sampleRatioPercent ?? FallbackRatioPercent),
                 UnitQuantityKind.Length => _unitFormattingService.FormatLengthMillimeters(SampleLengthMillimeters),
                 UnitQuantityKind.Airflow => _unitFormattingService.FormatAirflowCfm(SampleAirflowCfm),

@@ -1,0 +1,117 @@
+<UserControl
+    x:Class="SubZeroFramework.Controls.DeviceCapabilities.ComputeVramCardView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <!--  The video-memory twin of ComputeUsageCardView: same geometry, same axes, so the pair reads as one
+          split panel rather than two unrelated charts. Kept as its own control rather than a mode on that
+          one because the header genuinely differs — this card carries a used/total sub-line the utilisation
+          card has no equivalent for.  -->
+    <Border
+        Height="170"
+        MinWidth="190"
+        Padding="12"
+        HorizontalAlignment="Stretch"
+        Background="{StaticResource CardMetricBackgroundBrush}"
+        CornerRadius="12">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <StackPanel Spacing="4">
+                <TextBlock
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="Video memory"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="NoWrap" />
+                <TextBlock
+                    FontSize="30"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="{x:Bind ViewModel.VramUtilizationPercent, Mode=OneWay, Converter={StaticResource UnitFormatDash}, ConverterParameter=Ratio}"
+                    TextWrapping="NoWrap" />
+
+                <!--  Composed in XAML rather than as one string in the view model, so each half goes through
+                      the InformationSize converter and follows the user's binary/decimal preference.  -->
+                <StackPanel Orientation="Horizontal" Spacing="4">
+                    <TextBlock
+                        FontSize="11"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.VramUsedBytes, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=InformationSize}" />
+                    <TextBlock
+                        FontSize="11"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="of"
+                        Visibility="{x:Bind ViewModel.HasVramTotal, Mode=OneWay}" />
+                    <TextBlock
+                        FontSize="11"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="{x:Bind ViewModel.VramTotalBytes, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=InformationSize}"
+                        Visibility="{x:Bind ViewModel.HasVramTotal, Mode=OneWay}" />
+                </StackPanel>
+            </StackPanel>
+
+            <!--  Shares the utilisation chart's X axis limits and Y maximum so the two stay aligned tick for
+                  tick; only the series and its stroke differ.  -->
+            <lvc:CartesianChart
+                Grid.Row="1"
+                Height="70"
+                Margin="-6,4,-8,-4"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Bottom"
+                AutoUpdateEnabled="True"
+                Background="Transparent"
+                LegendPosition="Hidden"
+                TooltipPosition="Hidden"
+                ZoomMode="None">
+                <lvc:CartesianChart.Series>
+                    <lvc:SeriesCollection>
+                        <lvc:XamlLineSeries
+                            AnimationsSpeed="0"
+                            Fill="{x:Null}"
+                            GeometryFill="{x:Null}"
+                            GeometryStroke="{x:Null}"
+                            Stroke="{x:Bind ViewModel.VramStrokePaint, Mode=OneWay}"
+                            Values="{x:Bind ViewModel.VramHistory, Mode=OneWay}" />
+                    </lvc:SeriesCollection>
+                </lvc:CartesianChart.Series>
+                <lvc:CartesianChart.XAxes>
+                    <lvc:AxesCollection>
+                        <lvc:XamlDateTimeAxis
+                            AnimationsSpeed="0"
+                            CustomSeparators="{x:Bind ViewModel.UsageSeparators, Mode=OneWay}"
+                            DateFormatter="{x:Bind ViewModel.LabelsFormatter, Mode=OneWay}"
+                            Interval="0:0:5"
+                            LabelsPaint="{x:Null}"
+                            Padding="{lvc:Padding Value='0,0'}"
+                            MaxLimit="{x:Bind ViewModel.UsageMaxLimit, Mode=OneWay}"
+                            MinLimit="{x:Bind ViewModel.UsageMinLimit, Mode=OneWay}"
+                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                            ShowSeparatorLines="True"
+                            TextSize="0" />
+                    </lvc:AxesCollection>
+                </lvc:CartesianChart.XAxes>
+                <lvc:CartesianChart.YAxes>
+                    <lvc:AxesCollection>
+                        <lvc:XamlAxis
+                            AnimationsSpeed="0"
+                            Labeler="{x:Bind ViewModel.UsageLabelFormatter, Mode=OneWay}"
+                            LabelsPaint="{x:Null}"
+                            Padding="{lvc:Padding Value='0,0'}"
+                            MaxLimit="{x:Bind ViewModel.UsageAxisMaxLimit, Mode=OneWay}"
+                            MinLimit="{x:Bind ViewModel.UsageAxisMinPercent, Mode=OneWay, Converter={StaticResource UnitValue}, ConverterParameter=Ratio}"
+                            SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
+                            ShowSeparatorLines="True"
+                            TextSize="0" />
+                    </lvc:AxesCollection>
+                </lvc:CartesianChart.YAxes>
+            </lvc:CartesianChart>
+        </Grid>
+    </Border>
+</UserControl>

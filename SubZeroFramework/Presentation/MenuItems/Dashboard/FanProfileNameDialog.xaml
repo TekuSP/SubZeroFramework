@@ -1,0 +1,73 @@
+<ContentDialog
+    x:Class="SubZeroFramework.Presentation.MenuItems.Dashboard.FanProfileNameDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Title="Save as profile"
+    CloseButtonText="Cancel"
+    CornerRadius="12"
+    DefaultButton="Primary"
+    IsPrimaryButtonEnabled="{x:Bind ViewModel.IsValid, Mode=OneWay}"
+    PrimaryButtonText="Save"
+    mc:Ignorable="d">
+
+    <!--
+        The primary button is styled with AccentButtonStyle, which reads the SYSTEM accent — so this is blue
+        only if the keys are overridden in the dialog's own lookup chain. Overriding them at application level
+        does not reach it.
+    -->
+    <ContentDialog.Resources>
+        <SolidColorBrush x:Key="AccentButtonBackground" Color="#FF0078D7" />
+        <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#FF1F8AE6" />
+        <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#FF0063B1" />
+        <SolidColorBrush x:Key="AccentButtonBackgroundDisabled" Color="#FF2A2D2D" />
+        <SolidColorBrush x:Key="AccentButtonBorderBrush" Color="#FF0078D7" />
+        <SolidColorBrush x:Key="AccentButtonForeground" Color="White" />
+        <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="White" />
+        <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="White" />
+        <SolidColorBrush x:Key="AccentButtonForegroundDisabled" Color="#59FFFFFF" />
+    </ContentDialog.Resources>
+
+    <StackPanel MinWidth="420" Spacing="14">
+        <TextBlock
+            FontSize="13"
+            Foreground="{StaticResource TextSecondaryBrush}"
+            Text="Saves what every fan is doing right now, so you can come back to it in one click."
+            TextWrapping="WrapWholeWords" />
+
+        <TextBox
+            x:Name="NameField"
+            Header="Name"
+            PlaceholderText="Quiet evenings"
+            Text="{x:Bind ViewModel.Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+
+        <TextBlock
+            FontSize="12"
+            Foreground="{StaticResource StatusErrorTextBrush}"
+            Text="{x:Bind ViewModel.ValidationMessage, Mode=OneWay}"
+            TextWrapping="WrapWholeWords"
+            Visibility="{x:Bind ViewModel.HasValidationMessage, Mode=OneWay}" />
+
+        <!--  What is actually being captured, which a dialog covering the page has otherwise hidden.  -->
+        <Border
+            Padding="14,12"
+            Background="{StaticResource CardSecondaryBackgroundBrush}"
+            CornerRadius="10">
+            <StackPanel Orientation="Horizontal" Spacing="11">
+                <material:MaterialIcon
+                    Width="15"
+                    Height="15"
+                    VerticalAlignment="Top"
+                    Foreground="{StaticResource TextTertiaryBrush}"
+                    Kind="Fan" />
+                <TextBlock
+                    FontSize="12"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="{x:Bind ViewModel.Summary}"
+                    TextWrapping="WrapWholeWords" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</ContentDialog>

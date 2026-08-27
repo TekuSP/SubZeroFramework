@@ -15,7 +15,7 @@
     mc:Ignorable="d">
 
     <Grid utu:SafeArea.Insets="VisibleBounds">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer controls:ScrollHint.IsEnabled="True" VerticalScrollBarVisibility="Auto">
             <StackPanel Padding="0,0,0,24" Spacing="18">
 
                 <!--  Title + history window selector  -->
@@ -336,14 +336,22 @@
                             VerticalAlignment="Center"
                             Foreground="{StaticResource TextSecondaryBrush}"
                             Text="{x:Bind ViewModel.PlottedSummary, Mode=OneWay}" />
+                        <!--  Link text follows the SYSTEM accent unless overridden in the element's own chain.  -->
                         <HyperlinkButton
                             Grid.Column="2"
                             VerticalAlignment="Center"
                             Command="{x:Bind ViewModel.ToggleSelectAllCommand, Mode=OneWay}"
-                            Content="{x:Bind ViewModel.SelectAllLabel, Mode=OneWay}" />
+                            Content="{x:Bind ViewModel.SelectAllLabel, Mode=OneWay}">
+                            <HyperlinkButton.Resources>
+                                <SolidColorBrush x:Key="HyperlinkButtonForeground" Color="#FF8AB7E8" />
+                                <SolidColorBrush x:Key="HyperlinkButtonForegroundPointerOver" Color="#FFA9CBF0" />
+                                <SolidColorBrush x:Key="HyperlinkButtonForegroundPressed" Color="#FF6E9BCC" />
+                                <SolidColorBrush x:Key="HyperlinkButtonForegroundDisabled" Color="#FF71728C" />
+                            </HyperlinkButton.Resources>
+                        </HyperlinkButton>
                     </Grid>
 
-                    <GridView
+                    <GridView controls:ScrollHint.IsEnabled="True"
                         IsItemClickEnabled="False"
                         ItemsSource="{x:Bind ViewModel.Sensors, Mode=OneWay}"
                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -417,7 +425,7 @@
                                                 FontSize="13"
                                                 FontWeight="SemiBold"
                                                 Foreground="{StaticResource TextPrimaryBrush}"
-                                                Text="{x:Bind TemperatureValueWithUnit, Mode=OneWay}" />
+                                                Text="{x:Bind DisplayTemperatureCelsius, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Temperature}" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

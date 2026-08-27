@@ -21,16 +21,9 @@ public sealed record HardwareInfoCpu(
     bool VirtualizationFirmwareEnabled,
     bool VMMonitorModeExtensions,
     double? PercentProcessorTime,
-    ImmutableArray<HardwareInfoCpuCore> CpuCores)
+    ImmutableArray<HardwareInfoCpuCore> CpuCores,
+    double? PackagePowerWatts = null)
 {
-    public string DisplayCurrentClockSpeed => CurrentClockSpeedMHz > 0
-        ? $"{CurrentClockSpeedMHz:N0} MHz"
-        : "Unknown";
-
-    public string DisplayMaxClockSpeed => MaxClockSpeedMHz > 0
-        ? $"{MaxClockSpeedMHz:N0} MHz"
-        : "Unknown";
-
     public bool HasCpuCoreDetails => CpuCores.Length > 0;
 
     public double? EffectivePercentProcessorTime => PercentProcessorTime

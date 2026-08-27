@@ -136,6 +136,7 @@ public sealed partial class FanDetailEditorView : UserControl, INotifyPropertyCh
             1 => await navigator.NavigateViewModelAsync<FanManualModeModel>(this),
             2 => await navigator.NavigateViewModelAsync<FanCustomCurveModel>(this),
             3 => await navigator.NavigateViewModelAsync<FanMaxModeModel>(this),
+            4 => await navigator.NavigateViewModelAsync<FanAdaptiveModeModel>(this),
             _ => await navigator.NavigateViewModelAsync<FanAutoModeModel>(this),
         };
     }

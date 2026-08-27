@@ -65,7 +65,11 @@ public sealed class GrpcFrameworkServiceConfigurationClient : IFrameworkServiceC
             new ApplyServiceConfigurationRequest
             {
                 PollingIntervalMilliseconds = checked((long)Math.Round(request.PollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
+                SecondaryPollingIntervalMilliseconds = checked((long)Math.Round(request.SecondaryPollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
                 HardwareInfoPollingIntervalMilliseconds = checked((long)Math.Round(request.HardwareInfoPollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
+                PrimaryRetentionMinutes = ToMinutes(request.PrimaryRetention),
+                SecondaryRetentionMinutes = ToMinutes(request.SecondaryRetention),
+                TertiaryRetentionMinutes = ToMinutes(request.TertiaryRetention),
                 AllowFanControlCommands = request.AllowFanControlCommands,
             },
             cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
@@ -175,9 +179,23 @@ public sealed class GrpcFrameworkServiceConfigurationClient : IFrameworkServiceC
         return new FrameworkServiceConfigurationSnapshot
         {
             PollingInterval = TimeSpan.FromMilliseconds(reply.PollingIntervalMilliseconds),
+            SecondaryPollingInterval = TimeSpan.FromMilliseconds(reply.SecondaryPollingIntervalMilliseconds),
             HardwareInfoPollingInterval = TimeSpan.FromMilliseconds(reply.HardwareInfoPollingIntervalMilliseconds),
+
+            // A service predating retention sends zero. Falling back to the tier defaults keeps the settings
+            // page showing a real number rather than a blank that reads as "nothing is retained".
+            PrimaryRetention = FromMinutesOrDefault(reply.PrimaryRetentionMinutes, PollingTiers.Primary.DefaultRetention),
+            SecondaryRetention = FromMinutesOrDefault(reply.SecondaryRetentionMinutes, PollingTiers.Secondary.DefaultRetention),
+            TertiaryRetention = FromMinutesOrDefault(reply.TertiaryRetentionMinutes, PollingTiers.Tertiary.DefaultRetention),
+
             AllowFanControlCommands = reply.AllowFanControlCommands,
             PersistentConfigurationPath = reply.PersistentConfigurationPath,
         };
     }
+
+    private static TimeSpan FromMinutesOrDefault(long minutes, TimeSpan fallback)
+        => minutes > 0 ? TimeSpan.FromMinutes(minutes) : fallback;
+
+    private static long ToMinutes(TimeSpan retention)
+        => checked((long)Math.Round(retention.TotalMinutes, MidpointRounding.AwayFromZero));
 }

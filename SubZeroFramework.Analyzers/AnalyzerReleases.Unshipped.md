@@ -15,3 +15,4 @@ SZF0010 | SubZeroFramework.Reactive | Warning | Disposable registry values must 
 SZF0011 | SubZeroFramework.Reactive | Warning | Removed disposable registry values must be disposed.
 SZF0012 | SubZeroFramework.Mvvm | Warning | Use ObservableProperty public partial properties instead of SetProperty.
 SZF0013 | SubZeroFramework.Reactive | Warning | Require a rate-limiting operator on subscriptions to high-frequency telemetry sources.
+SZF0014 | SubZeroFramework.Xaml | Warning | Do not bind a string property to an enum-typed XAML property.

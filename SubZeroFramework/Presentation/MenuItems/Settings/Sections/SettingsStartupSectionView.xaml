@@ -15,7 +15,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer controls:ScrollHint.IsEnabled="True" VerticalScrollBarVisibility="Auto">
             <StackPanel
                 Padding="24,4,24,24"
                 HorizontalAlignment="Stretch"
@@ -118,7 +118,7 @@
                             FontSize="15"
                             FontWeight="SemiBold"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="{x:Bind ViewModel.ThermalAlertThresholdDisplay, Mode=OneWay}"
+                            Text="{x:Bind ViewModel.ThermalAlertThresholdCelsius, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Temperature}"
                             TextAlignment="Right" />
                     </Grid>
                     <Border Height="1" Background="{StaticResource SurfaceOutlineBrush}" />

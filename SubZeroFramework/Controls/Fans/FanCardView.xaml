@@ -75,7 +75,7 @@
                     FontSize="36"
                     FontWeight="Bold"
                     Foreground="{StaticResource TextPrimaryBrush}"
-                    Text="{x:Bind ViewModel.FanSpeedValueDisplay, Mode=OneWay}" />
+                    Text="{x:Bind ViewModel.Snapshot.SpeedRpm, Mode=OneWay, Converter={StaticResource UnitFormatValue}, ConverterParameter=FanSpeed, FallbackValue=--}" />
                 <TextBlock
                     Margin="4,0,0,6"
                     VerticalAlignment="Bottom"
@@ -184,7 +184,7 @@
                             Padding="{lvc:Padding Value='0,0'}"
                             LabelsPaint="{x:Bind ViewModel.FanSpeedYAxisLabelsPaint, Mode=OneWay}"
                             MaxLimit="{x:Bind ViewModel.FanSpeedHistoryAxisMaxLimit, Mode=OneWay}"
-                            MinLimit="0"
+                            MinLimit="{x:Bind ViewModel.FanSpeedHistoryAxisMinRpm, Mode=OneWay, Converter={StaticResource UnitValue}, ConverterParameter=FanSpeed}"
                             SeparatorsPaint="{x:Bind ViewModel.FanSpeedYAxisSeparatorsPaint, Mode=OneWay}"
                             ShowSeparatorLines="True"
                             TextSize="8" />
@@ -193,7 +193,7 @@
                             Padding="{lvc:Padding Value='0,0'}"
                             LabelsPaint="{x:Bind ViewModel.DrivingTemperatureYAxisLabelsPaint, Mode=OneWay}"
                             MaxLimit="{x:Bind ViewModel.DrivingTemperatureHistoryAxisMaxLimit, Mode=OneWay}"
-                            MinLimit="0"
+                            MinLimit="{x:Bind ViewModel.DrivingTemperatureHistoryAxisMinCelsius, Mode=OneWay, Converter={StaticResource UnitValue}, ConverterParameter=Temperature}"
                             Position="End"
                             ShowSeparatorLines="False"
                             TextSize="8" />

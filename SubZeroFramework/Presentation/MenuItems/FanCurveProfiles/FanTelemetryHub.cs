@@ -78,7 +78,7 @@ public sealed class FanTelemetryHub
                 {
                     existing.ControlState = null;
                     existing.DrivingSensors = [];
-                    existing.DrivingTemperatureHistory = [];
+                    existing.DrivingTemperatureHistoryCelsius = [];
                 }
                 continue;
             }

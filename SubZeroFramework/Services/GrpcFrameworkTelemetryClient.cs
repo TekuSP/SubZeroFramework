@@ -364,6 +364,15 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             BatteryLastFullChargeCapacityAmpereHours = reply.HasBatteryLastFullChargeCapacityAmpereHours ? reply.BatteryLastFullChargeCapacityAmpereHours : null,
             BatteryDesignVoltageVolts = reply.HasBatteryDesignVoltageVolts ? reply.BatteryDesignVoltageVolts : null,
             BatteryCycleCount = reply.HasBatteryCycleCount ? reply.BatteryCycleCount : null,
+
+            ComputePowerWatts = reply.HasComputePowerWatts ? reply.ComputePowerWatts : null,
+            ComputeTemperatureCelsius = reply.HasComputeTemperatureCelsius ? reply.ComputeTemperatureCelsius : null,
+            ComputeCoreClockMegahertz = reply.HasComputeCoreClockMegahertz ? reply.ComputeCoreClockMegahertz : null,
+            ComputeMaxCoreClockMegahertz = reply.HasComputeMaxCoreClockMegahertz ? reply.ComputeMaxCoreClockMegahertz : null,
+            ComputeThrottleReasons = reply.HasComputeThrottleReasons ? (ComputeThrottleReasons)reply.ComputeThrottleReasons : null,
+            ComputeVramUsedBytes = reply.HasComputeVramUsedBytes ? reply.ComputeVramUsedBytes : null,
+            ComputeVramTotalBytes = reply.HasComputeVramTotalBytes ? reply.ComputeVramTotalBytes : null,
+
             IsAvailable = reply.IsAvailable,
         };
 

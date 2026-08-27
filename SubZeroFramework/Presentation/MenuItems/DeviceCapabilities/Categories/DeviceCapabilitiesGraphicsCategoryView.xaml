@@ -73,7 +73,7 @@
                                         FontSize="14"
                                         FontWeight="SemiBold"
                                         Foreground="{StaticResource TextPrimaryBrush}"
-                                        Text="{x:Bind UtilizationDisplay, Mode=OneWay}" />
+                                        Text="{x:Bind EffectiveUtilizationPercent, Mode=OneWay, Converter={StaticResource UnitFormatDash}, ConverterParameter=Ratio}" />
                                 </Grid>
                                 <ProgressBar
                                     Maximum="1"
@@ -83,6 +83,82 @@
                                     FontSize="11"
                                     Foreground="{StaticResource TextSecondaryBrush}"
                                     Text="{x:Bind KindLabel}" />
+
+                                <!--  Power, temperature, clock and throttle state, shown only for a device whose
+                                      source can measure them. The Windows GPU counter set reports none of this,
+                                      so on Windows this block appears for an NVIDIA GPU and stays hidden for
+                                      AMD/Intel adapters rather than showing a column of dashes.  -->
+                                <StackPanel Spacing="5" Visibility="{x:Bind ExtendedTelemetryVisibility, Mode=OneWay}">
+                                    <Border
+                                        Height="1"
+                                        Margin="0,2"
+                                        Background="{StaticResource CardBorderBrush}" />
+                                    <Grid ColumnSpacing="8" RowSpacing="3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock
+                                            FontSize="11"
+                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                            Text="Power" />
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            HorizontalAlignment="Right"
+                                            FontSize="11"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            Text="{x:Bind PowerWatts, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Power}" />
+
+                                        <TextBlock
+                                            Grid.Row="1"
+                                            FontSize="11"
+                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                            Text="Temperature" />
+                                        <TextBlock
+                                            Grid.Row="1"
+                                            Grid.Column="1"
+                                            HorizontalAlignment="Right"
+                                            FontSize="11"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            Text="{x:Bind TemperatureCelsius, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Temperature}" />
+
+                                        <TextBlock
+                                            Grid.Row="2"
+                                            FontSize="11"
+                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                            Text="Core clock" />
+                                        <TextBlock
+                                            Grid.Row="2"
+                                            Grid.Column="1"
+                                            HorizontalAlignment="Right"
+                                            FontSize="11"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            Text="{x:Bind CoreClockMegahertz, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=ClockFrequency}"
+                                            TextTrimming="CharacterEllipsis" />
+
+                                        <TextBlock
+                                            Grid.Row="3"
+                                            FontSize="11"
+                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                            Text="Clocked down by" />
+                                        <TextBlock
+                                            Grid.Row="3"
+                                            Grid.Column="1"
+                                            HorizontalAlignment="Right"
+                                            FontSize="11"
+                                            Foreground="{x:Bind ThrottleBrush, Mode=OneWay}"
+                                            Text="{x:Bind ThrottleDisplay, Mode=OneWay}"
+                                            TextTrimming="CharacterEllipsis"
+                                            TextWrapping="NoWrap" />
+                                    </Grid>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </DataTemplate>
@@ -171,7 +247,7 @@
                 </controls:InstancePickerView.ItemTemplate>
             </controls:InstancePickerView>
 
-            <ScrollViewer
+            <ScrollViewer controls:ScrollHint.IsEnabled="True"
                 Grid.Column="2"
                 Padding="0,0,12,0"
                 VerticalScrollBarVisibility="Auto">

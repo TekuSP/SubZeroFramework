@@ -20,7 +20,7 @@
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Speedometer"
                 Label="Current utilization"
-                Value="{x:Bind ViewModel.Device.UtilizationDisplay, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.Device.EffectiveUtilizationPercent, Mode=OneWay, Converter={StaticResource UnitFormatDash}, ConverterParameter=Ratio}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Chip"
                 Label="Device type"

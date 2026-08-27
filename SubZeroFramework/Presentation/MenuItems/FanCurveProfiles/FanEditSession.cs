@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml.Controls;
 
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Units;
 
 namespace SubZeroFramework.Presentation.MenuItems.FanCurveProfiles;
 
@@ -22,12 +23,14 @@ public sealed class FanEditSession
 
     private readonly FanCurveProfilesModel _parent;
     private readonly IFanControlActuator _actuator;
+    private readonly IUnitFormattingService _unitFormattingService;
     private readonly ILogger _logger;
 
-    public FanEditSession(FanCurveProfilesModel parent, IFanControlActuator actuator, ILogger logger)
+    public FanEditSession(FanCurveProfilesModel parent, IFanControlActuator actuator, IUnitFormattingService unitFormattingService, ILogger logger)
     {
         _parent = parent;
         _actuator = actuator;
+        _unitFormattingService = unitFormattingService;
         _logger = logger;
     }
 
@@ -139,6 +142,10 @@ public sealed class FanEditSession
         if (fan is null || StagedMode is not { } mode) return;
         if (!_parent.CanIssueFanCommands) { _parent.ReportFanControlBlocked(); return; }
 
+        // An Adaptive the service would refuse (never measured, nothing learned) cannot be previewed —
+        // the command is greyed for this state; this guard keeps any other path honest too.
+        if (mode == FanControlMode.Adaptive && !_parent.SelectedFanCanRunAdaptive) return;
+
         var group = _parent.ActuationGroup(fan.Snapshot.FanIndex);
         PreTestState = fan.ControlState;
         // Open the safety hold on the whole linked group before actuating so the service captures each fan's
@@ -148,12 +155,28 @@ public sealed class FanEditSession
 
         try
         {
-            foreach (var fanIndex in group)
+            if (mode == FanControlMode.Adaptive)
             {
-                await _actuator.ActuateSimpleAsync(fanIndex, mode, StagedManualDuty, preview: true, cancellationToken).ConfigureAwait(true);
+                // Adaptive previews like every other mode, but arms through its own sensor-carrying command
+                // — the simple actuation path cannot express it and throws on purpose. Deliberately NOT the
+                // linked group: two fans in different positions have different thermal models and cannot
+                // share one closed loop. The staged settings stay staged; only Apply persists anything.
+                if (!await _parent.ArmAdaptiveModeAsync(fan.Snapshot.FanIndex, preview: true, cancellationToken: cancellationToken).ConfigureAwait(true))
+                {
+                    _parent.IsTesting = false;
+                    PreTestState = null;
+                    return;
+                }
+            }
+            else
+            {
+                foreach (var fanIndex in group)
+                {
+                    await _actuator.ActuateSimpleAsync(fanIndex, mode, StagedManualDuty, preview: true, cancellationToken).ConfigureAwait(true);
+                }
             }
 
-            var detail = mode == FanControlMode.Manual ? $" at {StagedManualDuty:0}% duty" : string.Empty;
+            var detail = mode == FanControlMode.Manual ? $" at {_unitFormattingService.FormatRatio(StagedManualDuty, decimals: 0)} duty" : string.Empty;
             var scope = group.Count > 1 ? $"{fan.Snapshot.DisplayName} + {group.Count - 1} linked fan(s)" : fan.Snapshot.DisplayName;
             _parent.ReportStatus(
                 $"Previewing {DescribeSimpleMode(mode)}{detail} on {scope}. Apply to keep it, or Revert to restore.",
@@ -175,13 +198,34 @@ public sealed class FanEditSession
         if (fan is null || StagedMode is not { } mode) return;
         if (!_parent.CanIssueFanCommands) { _parent.ReportFanControlBlocked(); return; }
 
+        // An Adaptive the service would refuse never reaches the wire. Returning here (without clearing
+        // the stage) also keeps "Apply all" from torpedoing OTHER fans' staged work on the rejected arm —
+        // the caller continues past this method to flush links, settings, and the other fans.
+        if (mode == FanControlMode.Adaptive && !_parent.SelectedFanCanRunAdaptive) return;
+
         try
         {
             // Persist the mode to the whole linked group so linked fans apply together.
             var group = _parent.ActuationGroup(fan.Snapshot.FanIndex);
-            foreach (var fanIndex in group)
+
+            if (mode == FanControlMode.Adaptive)
             {
-                await _actuator.ActuateSimpleAsync(fanIndex, mode, StagedManualDuty, preview: false, cancellationToken).ConfigureAwait(true);
+                // Arming Adaptive is not a simple actuation: it carries the driving sensors the loop holds,
+                // so it goes through its own command. Deliberately NOT applied to the linked group — two fans
+                // in different positions have different thermal models and cannot share one closed loop.
+                // A failed arm ENDS the apply: clearing the stage and reporting the mode switch anyway once
+                // let a rejected arm read as success while the fan quietly stayed where it was.
+                if (!await _parent.ArmAdaptiveModeAsync(fan.Snapshot.FanIndex, cancellationToken: cancellationToken).ConfigureAwait(true))
+                {
+                    return;
+                }
+            }
+            else
+            {
+                foreach (var fanIndex in group)
+                {
+                    await _actuator.ActuateSimpleAsync(fanIndex, mode, StagedManualDuty, preview: false, cancellationToken).ConfigureAwait(true);
+                }
             }
 
             PreTestState = null;
@@ -189,12 +233,20 @@ public sealed class FanEditSession
             _parent.IsTesting = false;
             ClearStagedSimpleMode();
 
+            // Adaptive has ALREADY reported its own outcome, and that outcome is not always plain success:
+            // the arm reports "armed, but could not be saved to disk" when the configuration write failed.
+            // Overwriting it with an unconditional success here is what hid that warning from the user.
+            if (mode == FanControlMode.Adaptive)
+            {
+                return;
+            }
+
             var scope = group.Count > 1 ? $"{fan.Snapshot.DisplayName} + {group.Count - 1} linked fan(s)" : fan.Snapshot.DisplayName;
             _parent.ReportStatus(
                 mode switch
                 {
-                    FanControlMode.Manual => $"{scope} set to {StagedManualDuty:0}% manual duty.",
-                    FanControlMode.Max => $"{scope} set to Max (100%). Acoustics will be loud.",
+                    FanControlMode.Manual => $"{scope} set to {_unitFormattingService.FormatRatio(StagedManualDuty, decimals: 0)} manual duty.",
+                    FanControlMode.Max => $"{scope} set to Max ({_unitFormattingService.FormatRatio(100d, decimals: 0)}). Acoustics will be loud.",
                     _ => $"{scope} restored to Auto.",
                 },
                 mode == FanControlMode.Max ? InfoBarSeverity.Warning : InfoBarSeverity.Success);
@@ -210,6 +262,7 @@ public sealed class FanEditSession
     {
         FanControlMode.Manual => "Manual",
         FanControlMode.Max => "Max",
+        FanControlMode.Adaptive => "Adaptive",
         _ => "Auto",
     };
 }

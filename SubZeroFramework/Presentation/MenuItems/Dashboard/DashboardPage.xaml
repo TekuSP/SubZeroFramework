@@ -2,6 +2,7 @@
     x:Class="SubZeroFramework.Presentation.MenuItems.Dashboard.DashboardPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:dashboardControls="using:SubZeroFramework.Controls.Dashboard"
     xmlns:dashboardModels="using:SubZeroFramework.Controls.Dashboard.Models"
@@ -16,8 +17,8 @@
     mc:Ignorable="d">
 
     <Page.Resources>
-        <!--  Preset card wrapped in a Button; Tag carries the model for the Click handler.  -->
-        <DataTemplate x:Key="CoolingPresetTemplate" x:DataType="dashboardModels:CoolingPresetCardModel">
+        <!--  Profile card wrapped in a Button; Tag carries the model for the Click handler.  -->
+        <DataTemplate x:Key="FanProfileTemplate" x:DataType="dashboardModels:FanProfileCardModel">
             <Button
                 Padding="0"
                 HorizontalAlignment="Stretch"
@@ -25,10 +26,10 @@
                 VerticalContentAlignment="Stretch"
                 Background="Transparent"
                 BorderThickness="0"
-                Click="OnPresetClick"
+                Click="OnProfileClick"
                 CornerRadius="12"
                 Tag="{x:Bind}">
-                <dashboardControls:CoolingPresetCardView Model="{x:Bind}" />
+                <dashboardControls:FanProfileCardView Model="{x:Bind}" />
             </Button>
         </DataTemplate>
 
@@ -64,50 +65,148 @@
                     FontSize="12"
                     FontWeight="SemiBold"
                     Foreground="{x:Bind TemperatureBrush, Mode=OneWay}"
-                    Text="{x:Bind TemperatureValueDisplay, Mode=OneWay}" />
+                    Text="{x:Bind DisplayTemperatureCelsius, Mode=OneWay, Converter={StaticResource UnitFormatValue}, ConverterParameter=Temperature}" />
             </Grid>
         </DataTemplate>
     </Page.Resources>
 
     <Grid utu:SafeArea.Insets="VisibleBounds">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer controls:ScrollHint.IsEnabled="True" VerticalScrollBarVisibility="Auto">
             <StackPanel Padding="15,0,15,24" Spacing="16">
 
                 <!--
-                    Cooling profile presets: not supported yet — the whole section renders grayed and inert
-                    (feature-flagged off in the model too, so nothing actuates or derives selection).
-                -->
-                <StackPanel
-                    IsHitTestVisible="False"
-                    Opacity="0.4"
-                    Spacing="16">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <material:MaterialIcon
-                            Width="18"
-                            Height="18"
-                            VerticalAlignment="Center"
-                            Foreground="{StaticResource StatusInfoBrush}"
-                            Kind="Tune" />
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            FontSize="20"
-                            FontWeight="SemiBold"
-                            Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="Cooling profile" />
-                        <TextBlock
-                            VerticalAlignment="Center"
-                            FontSize="12.5"
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Text="{x:Bind ViewModel.CoolingProfileSubtitle, Mode=OneWay}" />
-                    </StackPanel>
+                    Saved fan setups. Applying one switches every fan at once; which one reads as active is
+                    derived from the live control states rather than remembered, so it survives a restart and
+                    stops being claimed the moment a fan is changed by hand.
 
-                    <ItemsControl ItemTemplate="{StaticResource CoolingPresetTemplate}" ItemsSource="{x:Bind ViewModel.CoolingPresets, Mode=OneWay}">
+                    Collapsed entirely while the feature is off rather than greyed: with seeding off there are
+                    no cards to grey, and a heading over an empty space reads as broken. See
+                    DashboardModel.ProfilesEnabled.
+                -->
+                <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.AreProfilesAvailable, Mode=OneWay}">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <controls:AutoWrapPanel HorizontalSpacing="10" VerticalSpacing="6">
+                            <material:MaterialIcon
+                                Width="18"
+                                Height="18"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource StatusInfoBrush}"
+                                Kind="AccountCogOutline" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="20"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextPrimaryBrush}"
+                                Text="Profiles" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="saved fan setups — applying one switches every fan at once" />
+
+                            <!--  The prompt to save: without it, tuning a fan just blanks the row.  -->
+                            <Border
+                                Height="24"
+                                Padding="11,0"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource CardSecondaryBackgroundBrush}"
+                                CornerRadius="12"
+                                Visibility="{x:Bind ViewModel.IsModified, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <material:MaterialIcon
+                                        Width="13"
+                                        Height="13"
+                                        VerticalAlignment="Center"
+                                        Foreground="{StaticResource StatusWarningBrush}"
+                                        Kind="CircleEditOutline" />
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="11.5"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource StatusWarningBrush}"
+                                        Text="Modified" />
+                                </StackPanel>
+                            </Border>
+                        </controls:AutoWrapPanel>
+
+                        <StackPanel
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="14">
+
+                            <!--  Both links: text follows the SYSTEM accent unless overridden in their own chain.  -->
+                            <StackPanel.Resources>
+                                <SolidColorBrush x:Key="HyperlinkButtonForeground" Color="#FF8AB7E8" />
+                                <SolidColorBrush x:Key="HyperlinkButtonForegroundPointerOver" Color="#FFA9CBF0" />
+                                <SolidColorBrush x:Key="HyperlinkButtonForegroundPressed" Color="#FF6E9BCC" />
+                                <SolidColorBrush x:Key="HyperlinkButtonForegroundDisabled" Color="#FF71728C" />
+                            </StackPanel.Resources>
+
+                            <HyperlinkButton
+                                Padding="0"
+                                Click="OnSaveAsProfileClick"
+                                Visibility="{x:Bind ViewModel.IsModified, Mode=OneWay}">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <material:MaterialIcon
+                                        Width="14"
+                                        Height="14"
+                                        VerticalAlignment="Center"
+                                        Kind="ContentSaveOutline" />
+                                    <TextBlock FontSize="12" Text="Save as profile" />
+                                </StackPanel>
+                            </HyperlinkButton>
+
+                            <HyperlinkButton Padding="0" Click="OnManageProfilesClick">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <material:MaterialIcon
+                                        Width="14"
+                                        Height="14"
+                                        VerticalAlignment="Center"
+                                        Kind="PencilOutline" />
+                                    <TextBlock FontSize="12" Text="Manage profiles" />
+                                </StackPanel>
+                            </HyperlinkButton>
+                        </StackPanel>
+                    </Grid>
+
+                    <ItemsControl ItemTemplate="{StaticResource FanProfileTemplate}" ItemsSource="{x:Bind ViewModel.Profiles, Mode=OneWay}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <deviceCapControls:StatTilePanel MaxColumns="5" MinTileWidth="200" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
+
+                    <!--  Saves what the fans are doing right now, which is the only way to make one.  -->
+                    <Button
+                        Height="52"
+                        Padding="18,0"
+                        HorizontalAlignment="Left"
+                        Background="Transparent"
+                        BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                        BorderThickness="1"
+                        Click="OnSaveAsProfileClick"
+                        CornerRadius="12">
+                        <StackPanel Orientation="Horizontal" Spacing="9">
+                            <material:MaterialIcon
+                                Width="16"
+                                Height="16"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Kind="Plus" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="New profile" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
 
                 <!--  Fans (read-only live overview)  -->
@@ -145,7 +244,7 @@
                             FontSize="14"
                             FontWeight="SemiBold"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="{x:Bind ViewModel.AverageFanSpeedDisplay, Mode=OneWay}" />
+                            Text="{x:Bind ViewModel.AverageFanSpeedRpm, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=FanSpeed}" />
                     </StackPanel>
                 </Grid>
 
@@ -161,11 +260,12 @@
                     </ItemsControl.ItemsPanel>
                 </ItemsControl>
 
-                <!--  Thermal snapshot | Power  -->
+                <!--  Thermal snapshot | Power. The Power card wraps a fixed 160px ring, so it gets a
+                      fixed column and the sensor bars take every remaining pixel.  -->
                 <Grid ColumnSpacing="14">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="3*" />
-                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="240" />
                     </Grid.ColumnDefinitions>
 
                     <Border
@@ -213,7 +313,7 @@
                                         FontSize="15"
                                         FontWeight="SemiBold"
                                         Foreground="{StaticResource StatusSuccessBrush}"
-                                        Text="{x:Bind ViewModel.DrivingTemperatureDisplay, Mode=OneWay}" />
+                                        Text="{x:Bind ViewModel.DrivingTemperatureCelsius, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Temperature}" />
                                 </StackPanel>
                             </Grid>
 
@@ -267,71 +367,24 @@
                                     Text="Power" />
                             </StackPanel>
 
-                            <Grid
+                            <!--  The whole power story lives inside the ring: charge figure, state dot +
+                                  text, and the time-to-full fine print in the centre; the adapter wattage
+                                  as a pill seated in the arc's bottom mouth, so incoming power reads as
+                                  feeding the ring through its opening.  -->
+                            <powerControls:BatteryChargeRingView
                                 Grid.Row="1"
+                                Width="160"
+                                Height="160"
+                                HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
-                                ColumnSpacing="18">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
-                                </Grid.ColumnDefinitions>
-                                <powerControls:BatteryChargeRingView
-                                    Width="160"
-                                    Height="160"
-                                    ChargeFraction="{x:Bind ViewModel.BatteryChargeFraction, Mode=OneWay}"
-                                    ChargeText="{x:Bind ViewModel.BatteryChargeText, Mode=OneWay}"
-                                    IsAnimating="{x:Bind ViewModel.IsBatteryCharging, Mode=OneWay}" />
-                                <StackPanel
-                                    Grid.Column="1"
-                                    VerticalAlignment="Center"
-                                    Spacing="8">
-                                    <StackPanel Orientation="Horizontal" Spacing="7">
-                                        <Ellipse
-                                            Width="8"
-                                            Height="8"
-                                            VerticalAlignment="Center"
-                                            Fill="{StaticResource StatusSuccessBrush}" />
-                                        <TextBlock
-                                            VerticalAlignment="Center"
-                                            FontSize="13.5"
-                                            FontWeight="SemiBold"
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind ViewModel.ChargingStateText, Mode=OneWay}" />
-                                    </StackPanel>
-                                    <Grid ColumnSpacing="10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock
-                                            FontSize="12.5"
-                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                            Text="Adapter" />
-                                        <TextBlock
-                                            Grid.Column="1"
-                                            FontSize="12.5"
-                                            FontWeight="SemiBold"
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind ViewModel.AdapterWattsDisplay, Mode=OneWay}" />
-                                    </Grid>
-                                    <Grid ColumnSpacing="10">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="Auto" />
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock
-                                            FontSize="12.5"
-                                            Foreground="{StaticResource TextSecondaryBrush}"
-                                            Text="Full in" />
-                                        <TextBlock
-                                            Grid.Column="1"
-                                            FontSize="12.5"
-                                            FontWeight="SemiBold"
-                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                            Text="{x:Bind ViewModel.FullInDisplay, Mode=OneWay}" />
-                                    </Grid>
-                                </StackPanel>
-                            </Grid>
+                                BadgeText="{x:Bind ViewModel.AdapterBadgeText, Mode=OneWay}"
+                                ChargeFraction="{x:Bind ViewModel.BatteryChargeFraction, Mode=OneWay}"
+                                ChargeText="{x:Bind ViewModel.BatteryChargePercent, Mode=OneWay, Converter={StaticResource UnitFormatValue}, ConverterParameter=Ratio, FallbackValue=--}"
+                                ChargeUnitText="{x:Bind ViewModel.BatteryChargeUnitSuffix, Mode=OneWay}"
+                                DetailText="{x:Bind ViewModel.FullInDetailText, Mode=OneWay}"
+                                IsAnimating="{x:Bind ViewModel.IsBatteryCharging, Mode=OneWay}"
+                                StatusDotBrush="{x:Bind ViewModel.ChargeStatusDotBrush, Mode=OneWay}"
+                                StatusText="{x:Bind ViewModel.ChargingStateText, Mode=OneWay}" />
                         </Grid>
                     </Border>
                 </Grid>

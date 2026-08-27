@@ -141,7 +141,8 @@ build_deb() { # $1 = package name, $2 = summary, $3 = stage function, $4 = with_
   #                render, which is far worse than failing at install.
   # libvulkan and dbus are Recommends, not Depends — Skia falls back to GL without Vulkan, and the
   # notification service degrades to log-only without a session bus.
-  local depends recommends
+  local depends recommends suggests
+  suggests=""
   if [[ "${with_service}" == "yes" ]]; then
     depends="libc6, libgcc-s1, libudev1, lshw, libicu76 | libicu74 | libicu72 | libicu71 | libicu70 | libicu67"
     # Deliberately NOT depending on xrandr (x11-xserver-utils). Hardware.Info's display/GPU enumeration
@@ -152,6 +153,15 @@ build_deb() { # $1 = package name, $2 = summary, $3 = stage function, $4 = with_
     # server needed), works from the root service, and backs the memory/storage inventory in Device
     # Capabilities. Without it those panes are empty (first field report: issue #51).
     recommends=""
+
+    # NVIDIA telemetry only. The service dlopens libnvidia-ml.so.1 at runtime and degrades cleanly when it
+    # is absent, so this is a Suggests rather than a Depends — a machine with no NVIDIA hardware must not be
+    # made to pull a driver stack.
+    #
+    # AMD and Intel deliberately get NO entry: both are read from sysfs exposed by the in-kernel amdgpu and
+    # i915/xe drivers, so there is no userspace library to depend on. Naming a package for them would imply
+    # a requirement that does not exist.
+    suggests="nvidia-driver | libnvidia-ml1"
   else
     # The UI is a pure gRPC client with no local hardware fallback, so it is useless without the
     # service. Pinned to the exact version: both are built from one CI run against one gRPC contract,
@@ -174,6 +184,10 @@ EOF
 
   if [[ -n "${recommends}" ]]; then
     echo "Recommends: ${recommends}" >> "${root}/DEBIAN/control"
+  fi
+
+  if [[ -n "${suggests}" ]]; then
+    echo "Suggests: ${suggests}" >> "${root}/DEBIAN/control"
   fi
 
   cat >> "${root}/DEBIAN/control" <<EOF
@@ -237,6 +251,10 @@ build_rpm() { # $1 = package name, $2 = summary, $3 = stage function, $4 = with_
 Requires: systemd-libs
 Requires: lshw
 Requires: libicu
+# NVIDIA telemetry only, and weak: libnvidia-ml.so.1 is dlopened at runtime and its absence costs NVIDIA
+# readings rather than the service. AMD and Intel need nothing here — both come from sysfs exposed by the
+# in-kernel amdgpu and i915/xe drivers, so there is no userspace library to require.
+Suggests: nvidia-driver-cuda-libs
 EOF
 )
   else
@@ -411,7 +429,11 @@ license=('MIT')
 # No glibc version bound: CI builds on Ubuntu runners whose glibc is OLDER than Arch's, so the
 # binaries are more portable than the build host, not less.
 depends=('glibc' 'gcc-libs' 'systemd-libs' 'fontconfig' 'icu' 'libx11' 'libxext' 'libxfixes' 'libxi' 'libxrandr' 'libglvnd' 'lshw')
-optdepends=('vulkan-icd-loader: GPU-accelerated rendering')
+# nvidia-utils only. It ships libnvidia-ml.so.1, which the service dlopens for NVIDIA GPU telemetry and
+# does without cleanly when absent. AMD and Intel are deliberately not listed: their readings come from
+# sysfs exposed by the in-kernel amdgpu and i915/xe drivers, so there is no package to install for them.
+optdepends=('vulkan-icd-loader: GPU-accelerated rendering'
+            'nvidia-utils: NVIDIA GPU power, clock and utilisation telemetry')
 options=('!strip' 'staticlibs')
 install=subzeroframework.install
 source=("${tar_name}")

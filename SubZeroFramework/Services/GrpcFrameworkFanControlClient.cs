@@ -1,6 +1,7 @@
 using Grpc.Core;
 
 using SubZeroFramework.GrpcContracts;
+using SubZeroFramework.Services.Control;
 
 namespace SubZeroFramework.Services;
 
@@ -233,23 +234,78 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         return MapProfileReply(reply);
     }
 
-    public async Task<FrameworkFanUsageModifierCommandResult> SetUsageModifierAsync(int fanIndex, double? cpuUsageModifierStrength, CancellationToken cancellationToken = default)
+    public async Task<FrameworkFanCurveProfileCommandResult> SetAdaptiveModeAsync(
+        int fanIndex,
+        IReadOnlyCollection<int> drivingSensorIndices,
+        TemperatureAggregationMode aggregation,
+        AdaptiveFanSettings? settings,
+        bool preview = false,
+        CancellationToken cancellationToken = default)
     {
+        ArgumentNullException.ThrowIfNull(drivingSensorIndices);
+
         using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
-        var reply = await _client.SetFanUsageModifierAsync(new SetFanUsageModifierRequest
+        var request = new SetFanAdaptiveModeRequest
         {
             FanIndex = fanIndex,
-            // NaN is the wire encoding for "disabled".
-            CpuUsageModifierStrength = cpuUsageModifierStrength ?? double.NaN,
-        }, cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
-
-        return new FrameworkFanUsageModifierCommandResult
-        {
-            FanIndex = reply.FanIndex,
-            Succeeded = reply.Succeeded,
-            Message = reply.Message ?? string.Empty,
+            DrivingTemperatureAggregation = MapAggregationMode(aggregation),
+            Preview = preview,
         };
+
+        request.DrivingSensorIndices.AddRange(drivingSensorIndices);
+
+        if (settings is not null)
+        {
+            request.Settings = ToMessage(settings);
+        }
+
+        var reply = await _client.SetFanAdaptiveModeAsync(request, cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+        return MapProfileReply(reply);
     }
+
+    public async Task<FrameworkFanCurveProfileCommandResult> SetAdaptiveSettingsAsync(
+        int fanIndex,
+        AdaptiveFanSettings settings,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.SetFanAdaptiveSettingsAsync(
+            new SetFanAdaptiveSettingsRequest { FanIndex = fanIndex, Settings = ToMessage(settings) },
+            cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+
+        return MapProfileReply(reply);
+    }
+
+    public async Task<FrameworkFanCurveProfileCommandResult> ReleaseThrottleLatchAsync(int fanIndex, CancellationToken cancellationToken = default)
+    {
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.ReleaseFanThrottleLatchAsync(
+            new ReleaseFanThrottleLatchRequest { FanIndex = fanIndex },
+            cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+
+        return MapProfileReply(reply);
+    }
+
+    public async Task<FrameworkFanCurveProfileCommandResult> ForgetAdaptiveLearningAsync(int fanIndex, CancellationToken cancellationToken = default)
+    {
+        using var timeoutSource = _channelFactory.CreateTimeoutCancellationSource(cancellationToken);
+        var reply = await _client.ForgetFanAdaptiveLearningAsync(
+            new ForgetFanAdaptiveLearningRequest { FanIndex = fanIndex },
+            cancellationToken: timeoutSource.Token).ResponseAsync.ConfigureAwait(false);
+
+        return MapProfileReply(reply);
+    }
+
+    private static AdaptiveFanSettingsMessage ToMessage(AdaptiveFanSettings settings)
+        => new()
+        {
+            TargetTemperatureCelsius = settings.TargetTemperatureCelsius,
+            SafetyFloorEnabled = settings.SafetyFloorEnabled,
+            SafetyFloorPercent = settings.SafetyFloorPercent,
+            LambdaSeconds = settings.LambdaSeconds,
+        };
 
     public async Task<FrameworkFanControlResetCommandResult> ResetFanControlToFactoryDefaultsAsync(CancellationToken cancellationToken = default)
     {
@@ -283,6 +339,163 @@ public sealed class GrpcFrameworkFanControlClient : IFrameworkFanControlClient
         // Keep draining (and dispose the call) in the background until the token is cancelled.
         _ = DrainPreviewHoldAsync(call, cancellationToken);
     }
+
+    public async Task<FanCalibrationRunResult> RunCalibrationAsync(
+        int fanIndex,
+        IReadOnlyCollection<int> drivingSensorIndices,
+        IProgress<FanCalibrationProgress>? progress,
+        CancellationToken cancellationToken,
+        ThermalLoadTarget loadTarget = ThermalLoadTarget.None)
+    {
+        ArgumentNullException.ThrowIfNull(drivingSensorIndices);
+
+        var request = new RunFanCalibrationRequest { FanIndex = fanIndex };
+        request.DrivingSensorIndices.AddRange(drivingSensorIndices);
+
+        // Left unset when nothing was chosen, so the service falls back to the cooling role rather than
+        // being told to heat "None" — which it would honour, and then measure nothing.
+        if (loadTarget != ThermalLoadTarget.None)
+        {
+            request.LoadTarget = (int)loadTarget;
+        }
+
+        // Deliberately NOT wrapped in the unary timeout source. A calibration runs for minutes by design, and
+        // the shared deadline would kill it mid-test — leaving the service to abort a run the user was
+        // watching succeed.
+        using var call = _client.RunFanCalibration(request, cancellationToken: cancellationToken);
+
+        FanCalibrationProgressReply? final = null;
+
+        try
+        {
+            while (await call.ResponseStream.MoveNext(cancellationToken).ConfigureAwait(false))
+            {
+                var reply = call.ResponseStream.Current;
+
+                if (reply.IsComplete)
+                {
+                    final = reply;
+                    continue;
+                }
+
+                progress?.Report(ParseCalibrationProgress(reply));
+            }
+        }
+        catch (RpcException exception) when (
+            exception.StatusCode == StatusCode.Cancelled && cancellationToken.IsCancellationRequested)
+        {
+            // Cancelling the call does NOT make MoveNext return false — it makes it THROW. Letting that
+            // propagate is exactly the bug this guards: the caller's generic handler reported "lost contact
+            // with the service" for a button the user had just pressed. Swallowed so the token check below
+            // names the event truthfully.
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The same event surfaced as the BCL type — which of the two a cancelled read throws varies
+            // with where in the await the cancellation lands.
+        }
+
+        if (final is null)
+        {
+            // Stopping deliberately ends the stream without a final message: cancelling the call aborts the
+            // HTTP/2 stream outright, so the service could not deliver one even though it writes it. That is
+            // not the same event as the connection dropping.
+            //
+            // The fan IS restored here: the service's handler observes the cancellation and its own finally
+            // hands the fan back, listener or no listener.
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return new FanCalibrationRunResult
+                {
+                    FanIndex = fanIndex,
+                    Succeeded = false,
+                    Failure = FanCalibrationFailure.Cancelled,
+                    FansRestored = true,
+                };
+            }
+
+            // The stream ended without the final message — the service died, or the connection dropped. The
+            // run is over either way, and the one thing the caller must not be told is that the fan was put
+            // back, because nothing here observed that happening.
+            return new FanCalibrationRunResult
+            {
+                FanIndex = fanIndex,
+                Succeeded = false,
+                Failure = FanCalibrationFailure.ClientDisconnected,
+                FansRestored = false,
+            };
+        }
+
+        return ParseCalibrationResult(final);
+    }
+
+    private static FanCalibrationProgress ParseCalibrationProgress(FanCalibrationProgressReply reply) => new()
+    {
+        FanIndex = reply.FanIndex,
+        Step = ParseCalibrationStep(reply.Step),
+        ElapsedSeconds = reply.ElapsedSeconds,
+
+        // Has-checks rather than raw reads: proto3 optionals default to 0, and "0 C" plotted as a reading
+        // where the truth is "no reading" would draw a cliff that never happened.
+        TemperatureCelsius = reply.HasTemperatureCelsius ? reply.TemperatureCelsius : null,
+        DutyPercent = reply.HasDutyPercent ? reply.DutyPercent : null,
+        SpeedRpm = reply.HasSpeedRpm ? reply.SpeedRpm : null,
+        PackagePowerWatts = reply.HasPackagePowerWatts ? reply.PackagePowerWatts : null,
+        ClockMegahertz = reply.HasClockMegahertz ? reply.ClockMegahertz : null,
+        UtilizationPercent = reply.HasUtilizationPercent ? reply.UtilizationPercent : null,
+        EstimatedRemaining = reply.HasEstimatedRemainingMilliseconds
+            ? TimeSpan.FromMilliseconds(reply.EstimatedRemainingMilliseconds)
+            : null,
+        IsStepMarker = reply.IsStepMarker,
+
+        // Not optional, so a plain read: the runner always computes it, and 0 at the very start is the
+        // truthful value rather than a missing one. Never parsed before, which is why the bar stayed empty
+        // for the whole run.
+        OverallProgress = reply.OverallProgress,
+        PowerIsSystemWide = reply.PowerIsSystemWide,
+    };
+
+    private static FanCalibrationRunResult ParseCalibrationResult(FanCalibrationProgressReply reply) => new()
+    {
+        FanIndex = reply.FanIndex,
+        Succeeded = reply.Succeeded,
+        Calibration = reply.Calibration is null ? null : GrpcFanControlStateClient.ParseCalibration(reply.Calibration),
+        Failure = ParseCalibrationFailure(reply.Failure),
+        StoppedAt = ParseCalibrationStep(reply.Step),
+        AveragePackagePowerWatts = reply.HasAveragePackagePowerWatts ? reply.AveragePackagePowerWatts : null,
+        TemperatureSwingCelsius = reply.HasTemperatureSwingCelsius ? reply.TemperatureSwingCelsius : null,
+        PeakTemperatureCelsius = reply.HasPeakTemperatureCelsius ? reply.PeakTemperatureCelsius : null,
+        Duration = TimeSpan.FromMilliseconds(reply.DurationMilliseconds),
+        FansRestored = reply.FansRestored,
+    };
+
+    private static FanCalibrationStep ParseCalibrationStep(FanCalibrationStepValue step) => step switch
+    {
+        FanCalibrationStepValue.SettlingAtIdle => FanCalibrationStep.SettlingAtIdle,
+        FanCalibrationStepValue.FindingMinimumSpin => FanCalibrationStep.FindingMinimumSpin,
+        FanCalibrationStepValue.LoadingAndSettling => FanCalibrationStep.LoadingAndSettling,
+        FanCalibrationStepValue.SteppingFan => FanCalibrationStep.SteppingFan,
+        FanCalibrationStepValue.MeasuringResponse => FanCalibrationStep.MeasuringResponse,
+        FanCalibrationStepValue.FittingModel => FanCalibrationStep.FittingModel,
+        FanCalibrationStepValue.VerifyingSpeedTracking => FanCalibrationStep.VerifyingSpeedTracking,
+        FanCalibrationStepValue.MeasuringGainCurve => FanCalibrationStep.MeasuringGainCurve,
+        FanCalibrationStepValue.CoolingDown => FanCalibrationStep.CoolingDown,
+        FanCalibrationStepValue.Completed => FanCalibrationStep.Completed,
+        _ => FanCalibrationStep.None,
+    };
+
+    private static FanCalibrationFailure ParseCalibrationFailure(FanCalibrationFailureValue failure) => failure switch
+    {
+        FanCalibrationFailureValue.InsufficientLoad => FanCalibrationFailure.InsufficientLoad,
+        FanCalibrationFailureValue.InsufficientTemperatureSwing => FanCalibrationFailure.InsufficientTemperatureSwing,
+        FanCalibrationFailureValue.TemperatureCeiling => FanCalibrationFailure.TemperatureCeiling,
+        FanCalibrationFailureValue.Cancelled => FanCalibrationFailure.Cancelled,
+        FanCalibrationFailureValue.ClientDisconnected => FanCalibrationFailure.ClientDisconnected,
+        FanCalibrationFailureValue.InsufficientData => FanCalibrationFailure.InsufficientData,
+        FanCalibrationFailureValue.OnBattery => FanCalibrationFailure.OnBattery,
+        FanCalibrationFailureValue.GpuLoadUnavailable => FanCalibrationFailure.GpuLoadUnavailable,
+        _ => FanCalibrationFailure.None,
+    };
 
     private static async Task DrainPreviewHoldAsync(Grpc.Core.AsyncServerStreamingCall<HoldFanPreviewReply> call, CancellationToken cancellationToken)
     {

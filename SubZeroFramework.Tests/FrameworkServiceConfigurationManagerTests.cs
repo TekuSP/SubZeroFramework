@@ -18,6 +18,80 @@ namespace SubZeroFramework.Tests;
 [TestFixture]
 public class FrameworkServiceConfigurationManagerTests
 {
+    /// <summary>
+    /// Retention reaches the provider, and an unset value leaves that tier alone.
+    /// </summary>
+    /// <remarks>
+    /// The "leave it alone" half is the one that matters. Zero on the wire means an older client did not send
+    /// retention at all, and reading that as a request to retain nothing would have such a client silently
+    /// wipe every tier's history the first time it applied an unrelated interval change.
+    /// </remarks>
+    [Test]
+    public async Task ApplyAsync_PushesRetentionToTheProvider_AndLeavesUnsetTiersAlone()
+    {
+        var filePath = CreateTemporaryPath();
+
+        try
+        {
+            var (manager, provider, _, _) = CreateManager(filePath);
+            using var _manager = manager;
+
+            var applied = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
+            {
+                PollingInterval = TimeSpan.FromMilliseconds(250),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
+                PrimaryRetention = TimeSpan.FromMinutes(7),
+                AllowFanControlCommands = true,
+            });
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(applied.Succeeded, Is.True);
+                Assert.That(applied.Configuration.PrimaryRetention, Is.EqualTo(TimeSpan.FromMinutes(7)));
+
+                // Not sent, so they keep the tier defaults rather than collapsing to zero.
+                Assert.That(applied.Configuration.SecondaryRetention, Is.EqualTo(PollingTiers.Secondary.DefaultRetention));
+                Assert.That(applied.Configuration.TertiaryRetention, Is.EqualTo(PollingTiers.Tertiary.DefaultRetention));
+
+                Assert.That(provider.LastRetention, Is.Not.Null);
+                Assert.That(provider.LastRetention!.Value.Primary, Is.EqualTo(TimeSpan.FromMinutes(7)));
+            });
+        }
+        finally
+        {
+            DeleteTemporaryPath(filePath);
+        }
+    }
+
+    /// <summary>A retention outside the tier's range is clamped in, exactly as an interval is.</summary>
+    [Test]
+    public async Task ApplyAsync_ClampsRetentionIntoTheTierRange()
+    {
+        var filePath = CreateTemporaryPath();
+
+        try
+        {
+            var (manager, _, _, _) = CreateManager(filePath);
+            using var _manager = manager;
+
+            var applied = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
+            {
+                PollingInterval = TimeSpan.FromMilliseconds(250),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
+                PrimaryRetention = TimeSpan.FromDays(1),
+                AllowFanControlCommands = true,
+            });
+
+            Assert.That(applied.Configuration.PrimaryRetention, Is.EqualTo(PollingTiers.Primary.MaximumRetention));
+        }
+        finally
+        {
+            DeleteTemporaryPath(filePath);
+        }
+    }
+
     [Test]
     public async Task ApplyAsync_WhenRequestIsValid_AppliesRuntimeConfigurationWithoutPersisting()
     {
@@ -31,7 +105,8 @@ public class FrameworkServiceConfigurationManagerTests
             var result = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(250),
-                HardwareInfoPollingInterval = TimeSpan.FromSeconds(2),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
                 AllowFanControlCommands = true,
             });
 
@@ -39,14 +114,14 @@ public class FrameworkServiceConfigurationManagerTests
             {
                 Assert.That(result.Succeeded, Is.True);
                 Assert.That(result.Configuration.PollingInterval, Is.EqualTo(TimeSpan.FromMilliseconds(250)));
-                Assert.That(result.Configuration.HardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(2)));
+                Assert.That(result.Configuration.HardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(30)));
                 Assert.That(result.Configuration.AllowFanControlCommands, Is.True);
                 Assert.That(provider.StopPollingCalls, Is.EqualTo(1));
                 Assert.That(provider.StopHardwareInfoPollingCalls, Is.EqualTo(1));
                 Assert.That(provider.SetPollingCalls, Is.EqualTo(1));
                 Assert.That(provider.LastPollingInterval, Is.EqualTo(TimeSpan.FromMilliseconds(250)));
                 Assert.That(provider.SetHardwareInfoPollingCalls, Is.EqualTo(1));
-                Assert.That(provider.LastHardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(2)));
+                Assert.That(provider.LastHardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(30)));
                 Assert.That(provider.StartPollingCalls, Is.EqualTo(1));
                 Assert.That(provider.StartHardwareInfoPollingCalls, Is.EqualTo(1));
                 Assert.That(provider.RefreshCalls, Is.EqualTo(1));
@@ -73,7 +148,8 @@ public class FrameworkServiceConfigurationManagerTests
             var result = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.Zero,
-                HardwareInfoPollingInterval = TimeSpan.FromSeconds(1),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
                 AllowFanControlCommands = false,
             });
 
@@ -109,7 +185,8 @@ public class FrameworkServiceConfigurationManagerTests
             var result = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(250),
-                HardwareInfoPollingInterval = TimeSpan.FromSeconds(2),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
                 AllowFanControlCommands = true,
             });
 
@@ -143,7 +220,8 @@ public class FrameworkServiceConfigurationManagerTests
             var apply = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(250),
-                HardwareInfoPollingInterval = TimeSpan.FromSeconds(2),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
                 AllowFanControlCommands = true,
             });
             Assert.That(apply.Succeeded, Is.True);
@@ -200,7 +278,8 @@ public class FrameworkServiceConfigurationManagerTests
             var apply = await manager.ApplyAsync(new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(250),
-                HardwareInfoPollingInterval = TimeSpan.FromSeconds(2),
+                SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+                HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
                 AllowFanControlCommands = true,
             });
             Assert.That(apply.Succeeded, Is.True);
@@ -213,7 +292,7 @@ public class FrameworkServiceConfigurationManagerTests
             {
                 Assert.That(loadResult.Succeeded, Is.True);
                 Assert.That(loadResult.Configuration.PollingInterval, Is.EqualTo(TimeSpan.FromMilliseconds(250)));
-                Assert.That(loadResult.Configuration.HardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(2)));
+                Assert.That(loadResult.Configuration.HardwareInfoPollingInterval, Is.EqualTo(TimeSpan.FromSeconds(30)));
                 Assert.That(loadResult.Configuration.AllowFanControlCommands, Is.True);
                 Assert.That(provider.SetPollingCalls, Is.GreaterThanOrEqualTo(2));
             });
@@ -232,7 +311,8 @@ public class FrameworkServiceConfigurationManagerTests
         var options = new FrameworkServiceOptions
         {
             PollingInterval = TimeSpan.FromMilliseconds(150),
-            HardwareInfoPollingInterval = TimeSpan.FromSeconds(1),
+            SecondaryPollingInterval = TimeSpan.FromSeconds(1),
+            HardwareInfoPollingInterval = TimeSpan.FromSeconds(30),
             AllowFanControlCommands = false,
         };
         var optionsMonitor = new TestOptionsMonitor<FrameworkServiceOptions>(options);
@@ -267,6 +347,8 @@ public class FrameworkServiceConfigurationManagerTests
 
         public int SetPollingCalls { get; private set; }
 
+        public int SetSecondaryPollingCalls { get; private set; }
+
         public int SetHardwareInfoPollingCalls { get; private set; }
 
         public int StartPollingCalls { get; private set; }
@@ -282,6 +364,8 @@ public class FrameworkServiceConfigurationManagerTests
         public int? FailSetPollingOnCallNumber { get; init; }
 
         public TimeSpan? LastPollingInterval { get; private set; }
+
+        public TimeSpan? LastSecondaryPollingInterval { get; private set; }
 
         public TimeSpan? LastHardwareInfoPollingInterval { get; private set; }
 
@@ -327,6 +411,8 @@ public class FrameworkServiceConfigurationManagerTests
 
         public IObservable<IChangeSet<FanStateSnapshot, int>> ConnectFanStates() => Observable.Empty<IChangeSet<FanStateSnapshot, int>>();
 
+        public IReadOnlyList<int> GetFanIndices() => [];
+
         public IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> ConnectTelemetryChannels() => Observable.Empty<IChangeSet<TelemetryChannel, TelemetryChannelId>>();
 
         public IObservable<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>> ConnectCurrentTelemetryValues() => Observable.Empty<IChangeSet<CurrentTelemetryValue, TelemetryChannelId>>();
@@ -356,12 +442,29 @@ public class FrameworkServiceConfigurationManagerTests
             return true;
         }
 
+        public bool SetSecondaryPolling(TimeSpan pollingInterval)
+        {
+            SetSecondaryPollingCalls++;
+            LastSecondaryPollingInterval = pollingInterval;
+            return true;
+        }
+
+        /// <summary>Recorded so a test can assert what retention an apply actually pushed to the provider.</summary>
+        public (TimeSpan Primary, TimeSpan Secondary, TimeSpan Tertiary)? LastRetention { get; private set; }
+
+        public void SetRetention(TimeSpan primary, TimeSpan secondary, TimeSpan tertiary)
+            => LastRetention = (primary, secondary, tertiary);
+
+        public IDisposable RequireGpuControlTelemetry() => System.Reactive.Disposables.Disposable.Empty;
+
         public bool SetHardwareInfoPolling(TimeSpan pollingInterval)
         {
             SetHardwareInfoPollingCalls++;
             LastHardwareInfoPollingInterval = pollingInterval;
             return true;
         }
+
+        public ObservedControlTelemetry GetLatestControlTelemetry() => ObservedControlTelemetry.None;
 
         public bool StartPolling()
         {

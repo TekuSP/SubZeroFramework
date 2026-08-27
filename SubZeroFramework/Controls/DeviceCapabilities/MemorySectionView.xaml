@@ -22,23 +22,23 @@
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Database"
                 Label="Total capacity"
-                Value="{x:Bind ViewModel.MemoryTotalCapacity, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.MemoryTotalCapacityBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Database"
                 Label="Physical total"
-                Value="{x:Bind ViewModel.TotalPhysicalMemory, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.TotalPhysicalMemoryBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="DatabaseCheck"
                 Label="Physical available"
-                Value="{x:Bind ViewModel.AvailablePhysicalMemory, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.AvailablePhysicalMemoryBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="SwapHorizontal"
                 Label="Swap / page total"
-                Value="{x:Bind ViewModel.TotalPageFileMemory, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.TotalPageFileMemoryBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="SwapHorizontal"
                 Label="Swap / page free"
-                Value="{x:Bind ViewModel.AvailablePageFileMemory, Mode=OneWay}" />
+                Value="{x:Bind ViewModel.AvailablePageFileMemoryBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}" />
         </deviceCapabilitiesControls:StatTilePanel>
 
         <TextBlock

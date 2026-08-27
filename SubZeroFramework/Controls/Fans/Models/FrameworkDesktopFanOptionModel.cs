@@ -80,13 +80,7 @@ public partial class FrameworkDesktopFanOptionModel : ObservableObject
     public partial string FanDimensionsDisplay { get; private set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string MaximumAirflowDisplay { get; private set; } = string.Empty;
-
-    [ObservableProperty]
     public partial string AcousticNoiseDisplay { get; private set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string MaximumFanSpeedDisplay { get; private set; } = string.Empty;
 
     public void UpdateFrom(FrameworkDesktopFanOption option)
     {
@@ -106,9 +100,11 @@ public partial class FrameworkDesktopFanOptionModel : ObservableObject
     public void RefreshUnitFormatting()
     {
         FanDimensionsDisplay = $"{_unitFormattingService.FormatLengthMillimeters(WidthMillimeters)} × {_unitFormattingService.FormatLengthMillimeters(HeightMillimeters)} × {_unitFormattingService.FormatLengthMillimeters(ThicknessMillimeters)}";
-        MaximumAirflowDisplay = _unitFormattingService.FormatAirflowCfm(MaximumAirflowCfm, decimals: 1);
         AcousticNoiseDisplay = BuildAcousticNoiseDisplay();
-        MaximumFanSpeedDisplay = _unitFormattingService.FormatFanSpeed(MaximumFanSpeedRpm);
+
+        // MaximumAirflowCfm and MaximumFanSpeedRpm are canonical single quantities — UnitFormatConverter
+        // formats them; the null-named raise re-runs their bindings.
+        OnPropertyChanged(propertyName: null);
     }
 
     private string BuildAcousticNoiseDisplay()

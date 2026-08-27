@@ -32,7 +32,7 @@
                     FontSize="30"
                     FontWeight="SemiBold"
                     Foreground="{x:Bind ViewModel.UsageBrush, Mode=OneWay}"
-                    Text="{x:Bind ViewModel.UtilizationDisplay, Mode=OneWay}"
+                    Text="{x:Bind ViewModel.EffectiveUtilizationPercent, Mode=OneWay, Converter={StaticResource UnitFormatDash}, ConverterParameter=Ratio}"
                     TextWrapping="NoWrap" />
             </StackPanel>
 
@@ -82,7 +82,7 @@
                             LabelsPaint="{x:Null}"
                             Padding="{lvc:Padding Value='0,0'}"
                             MaxLimit="{x:Bind ViewModel.UsageAxisMaxLimit, Mode=OneWay}"
-                            MinLimit="0"
+                            MinLimit="{x:Bind ViewModel.UsageAxisMinPercent, Mode=OneWay, Converter={StaticResource UnitValue}, ConverterParameter=Ratio}"
                             SeparatorsPaint="{lvc:SolidColorPaint Color={StaticResource ChartSeparatorColor}}"
                             ShowSeparatorLines="True"
                             TextSize="0" />

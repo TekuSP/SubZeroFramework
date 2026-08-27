@@ -28,6 +28,7 @@ public partial class FanCardModel : ObservableObject
     {
         _unitFormattingService = unitFormattingService;
         FanSpeedLabelFormatter = CreateFanSpeedLabelFormatter();
+        DrivingTemperatureLabelFormatter = CreateDrivingTemperatureLabelFormatter();
         FanSpeedUnitSuffix = unitFormattingService.FanSpeedUnitSuffix;
     }
 
@@ -120,9 +121,23 @@ public partial class FanCardModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(StatusIcon))]
     public partial FanStateSnapshot? FanState { get; set; }
 
+    /// <summary>
+    /// Recent fan speeds in CANONICAL RPM — the source of truth the page assigns. Everything else derived
+    /// from history (the chart series, the header sparkline, the average/peak statistics, the axis headroom)
+    /// is computed from this, so a display-unit change re-derives them all rather than reinterpreting numbers
+    /// whose unit had silently changed underneath.
+    /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RevPerSecondHistory))]
-    public partial DateTimePoint[] FanSpeedHistory { get; set; } = [];
+    public partial DateTimePoint[] FanSpeedHistoryRpm { get; set; } = [];
+
+    /// <summary>
+    /// The same history CONVERTED to the user's fan-speed unit, for the chart. A LiveCharts series plots the
+    /// numbers it is given against an axis in the same space, so this one collection genuinely has to live in
+    /// display units — unlike a text readout, which a converter can format at render time.
+    /// </summary>
+    [ObservableProperty]
+    public partial DateTimePoint[] FanSpeedHistory { get; private set; } = [];
 
     [ObservableProperty]
     public partial double[] Separators { get; set; } = [];
@@ -159,14 +174,92 @@ public partial class FanCardModel : ObservableObject
     [ObservableProperty]
     public partial Visibility OverrideStateVisibility { get; set; } = Visibility.Collapsed;
 
+    /// <summary>
+    /// Driving temperatures in CANONICAL Celsius — the source of truth the page assigns, mirroring
+    /// FanSpeedHistoryRpm. The chart series and the header sparkline are both derived from it, so a
+    /// display-unit change re-derives them instead of reinterpreting numbers whose unit had changed.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TemperatureSparkline))]
+    public partial DateTimePoint[] DrivingTemperatureHistoryCelsius { get; set; } = [];
+
+    /// <summary>
+    /// The same history CONVERTED for the chart. A LiveCharts series plots against an axis in its own space,
+    /// so this one collection has to live in display units — and the axis limits and labeler below match it.
+    /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DrivingTemperatureHistoryAxisMaxLimit))]
-    [NotifyPropertyChangedFor(nameof(TemperatureSparkline))]
-    public partial DateTimePoint[] DrivingTemperatureHistory { get; set; } = [];
+    public partial DateTimePoint[] DrivingTemperatureHistory { get; private set; } = [];
+
+    partial void OnDrivingTemperatureHistoryCelsiusChanged(DateTimePoint[] value) => RefreshDrivingTemperatureDisplays();
+
+    /// <summary>Re-derives the display-space temperature series from the canonical one.</summary>
+    private void RefreshDrivingTemperatureDisplays()
+    {
+        var converted = new DateTimePoint[DrivingTemperatureHistoryCelsius.Length];
+        for (var index = 0; index < DrivingTemperatureHistoryCelsius.Length; index++)
+        {
+            var point = DrivingTemperatureHistoryCelsius[index];
+            converted[index] = new DateTimePoint(
+                point.DateTime,
+                point.Value is double celsius ? _unitFormattingService.ConvertTemperature(celsius) : null);
+        }
+
+        DrivingTemperatureHistory = converted;
+    }
 
     public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
 
-    public Func<double, string> DrivingTemperatureLabelFormatter => _unitFormattingService.FormatTemperatureAxisLabel;
+    /// <summary>
+    /// Formats an ALREADY-CONVERTED axis value. Deliberately not FormatTemperatureAxisLabel, which expects
+    /// canonical Celsius and would convert a second time — the classic display-space-series-plus-converting-
+    /// labeler bug. Stored so a unit change rebinds it; see CreateDrivingTemperatureLabelFormatter.
+    /// </summary>
+    [ObservableProperty]
+    public partial Func<double, string> DrivingTemperatureLabelFormatter { get; private set; }
+
+    /// <summary>
+    /// The temperature axis floor, in display units.
+    /// </summary>
+    /// <remarks>
+    /// NOT a hardcoded 0, which is the trap this axis fell into: zero is unit-invariant for a fan speed
+    /// (0 RPM = 0 rev/s) but not for a temperature — 0 °C is 32 °F and 273 K, so a literal 0 against a
+    /// Fahrenheit series wastes the lower half of the chart, and against a Kelvin series squashes every
+    /// reading into the top fifth of it.
+    /// </remarks>
+    public double DrivingTemperatureHistoryAxisMinCelsius => 0d;
+
+    /// <summary>
+    /// The fan-speed axis floor, in display units.
+    /// </summary>
+    /// <remarks>
+    /// Converted rather than written as a literal 0 even though every fan-speed unit shares an origin
+    /// (0 RPM = 0 rev/s = 0 rad/s), so nothing here depends on someone re-deriving that each time. The
+    /// judgement call about which zeros are safe is what let the temperature axis ship broken.
+    /// </remarks>
+    public double FanSpeedHistoryAxisMinRpm => 0d;
+
+    // ----- Header sparkline scale -----
+
+    /// <summary>
+    /// Floor of the shared header sparkline axis.
+    /// </summary>
+    /// <remarks>
+    /// This axis is deliberately UNITLESS. It carries two different quantities — rev/s and canonical
+    /// Celsius — purely so they sit on one comparable scale, so there is no unit to convert it into. Both
+    /// series feeding it are canonical-derived for the same reason.
+    /// </remarks>
+    public double HeaderSparklineAxisMinLimit => 0d;
+
+    /// <summary>
+    /// Ceiling of the shared header sparkline axis.
+    /// </summary>
+    /// <remarks>
+    /// FIXED on purpose: rev/s tops out near 117 at 7,000 RPM and canonical temperature at ~100, so 120
+    /// covers every realistic peak. Letting it auto-range made the sparkline zoom in and out on every poll
+    /// as the running maximum wobbled.
+    /// </remarks>
+    public double HeaderSparklineAxisMaxLimit => 120d;
 
     public double DrivingTemperatureHistoryAxisMaxLimit
     {
@@ -207,9 +300,6 @@ public partial class FanCardModel : ObservableObject
     public partial double[] FanSpeedRemainingGaugeValues { get; private set; } = [0d];
 
     [ObservableProperty]
-    public partial string FanSpeedValueDisplay { get; private set; } = "--";
-
-    [ObservableProperty]
     public partial string FanSpeedUnitSuffix { get; private set; } = string.Empty;
 
     [ObservableProperty]
@@ -225,7 +315,7 @@ public partial class FanCardModel : ObservableObject
     public string SlotLabel => $"Slot {Snapshot.FanIndex}";
 
     public string RowSpeedDisplay => Snapshot.SpeedRpm > 0
-        ? $"{FanSpeedValueDisplay} {FanSpeedUnitSuffix}"
+        ? $"{_unitFormattingService.FormatFanSpeedValue(Snapshot.SpeedRpm)} {FanSpeedUnitSuffix}"
         : "Stopped";
 
     public string RowSubLine
@@ -237,7 +327,7 @@ public partial class FanCardModel : ObservableObject
                 return "no rotation";
             }
 
-            return Snapshot.SpeedRpm > 0 ? $"⌀ {FanSpeedValueDisplay}" : string.Empty;
+            return Snapshot.SpeedRpm > 0 ? $"⌀ {_unitFormattingService.FormatFanSpeedValue(Snapshot.SpeedRpm)}" : string.Empty;
         }
     }
 
@@ -384,33 +474,42 @@ public partial class FanCardModel : ObservableObject
                 FanControlMode.CustomCurve =>
                     $"Custom curve · driven by {state.DrivingSensorIndices.Length} sensor{(state.DrivingSensorIndices.Length == 1 ? string.Empty : "s")}",
                 FanControlMode.Manual => state.LastDutyPercent is double duty
-                    ? $"Fixed {duty:0}% duty"
+                    ? $"Fixed {_unitFormattingService.FormatRatio(duty, decimals: 0)} duty"
                     : "Manual duty",
                 FanControlMode.Max => "Commanded to full speed",
+                FanControlMode.Adaptive =>
+                    $"Adaptive · holding {_unitFormattingService.FormatTemperature(state.AdaptiveSettings.TargetTemperatureCelsius, decimals: 0)}",
                 _ => "Controller policy",
             };
         }
     }
 
     // Header sparkline series plotted against sample index (not time) on a single shared scale, so the line
-    // always spreads across the width and updates every poll. rev/s = RPM ÷ 60 keeps it numerically close to °C.
+    // always spreads across the width and updates every poll. rev/s = RPM ÷ 60 keeps it numerically close to
+    // °C — which only holds off the CANONICAL history; off the converted one the divisor would be wrong for
+    // every fan-speed unit except RPM.
     public double[] RevPerSecondHistory =>
-        [.. FanSpeedHistory.Where(static p => p.Value.HasValue).Select(static p => p.Value!.Value / 60d)];
+        [.. FanSpeedHistoryRpm.Where(static p => p.Value.HasValue).Select(static p => p.Value!.Value / 60d)];
 
+    // From the CANONICAL series, because it shares a fixed 0-120 axis with RevPerSecondHistory purely so the
+    // two lines sit on one comparable scale. In Fahrenheit a display-space temperature would run to ~212 and
+    // leave the window entirely; in Kelvin it never enters it.
     public double[] TemperatureSparkline =>
-        [.. DrivingTemperatureHistory.Where(static p => p.Value.HasValue).Select(static p => p.Value!.Value)];
+        [.. DrivingTemperatureHistoryCelsius.Where(static p => p.Value.HasValue).Select(static p => p.Value!.Value)];
+
+    // History statistics in CANONICAL RPM, formatted by UnitFormatConverter (value-only — the unit is drawn
+    // beside them from FanSpeedUnitSuffix). Computed over the canonical history so the average (or peak) is
+    // of the real speeds rather than of already-rounded display numbers.
+    [ObservableProperty]
+    public partial double? OneMinuteAverageRpm { get; private set; }
 
     [ObservableProperty]
-    public partial string OneMinuteAverageDisplay { get; private set; } = "--";
+    public partial double? PeakRpm { get; private set; }
 
-    [ObservableProperty]
-    public partial string PeakDisplay { get; private set; } = "--";
-
-    private string FormatHistoryStatistic(Func<IEnumerable<double>, double> selector)
+    private double ComputeHistoryStatistic(Func<IEnumerable<double>, double> selector)
     {
-        var values = FanSpeedHistory.Where(static p => p.Value.HasValue).Select(static p => p.Value!.Value).ToArray();
-        var converted = values.Length > 0 ? selector(values) : _unitFormattingService.ConvertFanSpeed(Snapshot.SpeedRpm);
-        return converted.ToString("N0", CultureInfo.CurrentCulture);
+        var values = FanSpeedHistoryRpm.Where(static p => p.Value.HasValue).Select(static p => p.Value!.Value).ToArray();
+        return values.Length > 0 ? selector(values) : Snapshot.SpeedRpm;
     }
 
     // Fading sparkline strokes for the header history (old → transparent, now → opaque).
@@ -444,7 +543,14 @@ public partial class FanCardModel : ObservableObject
     {
         UpdateControlStatePresentation();
         FanSpeedLabelFormatter = CreateFanSpeedLabelFormatter();
+        DrivingTemperatureLabelFormatter = CreateDrivingTemperatureLabelFormatter();
         RefreshFanSpeedDisplays();
+        RefreshDrivingTemperatureDisplays();
+
+        // The canonical readings on this card are formatted by UnitFormatConverter at render time, so they
+        // only need their bindings to run again — that is what the null property name asks for. It is also
+        // what tells the dashboard's quick-control wrapper to rebuild its own composite text.
+        OnPropertyChanged(propertyName: null);
     }
 
     // Reassigns the fan-speed gauge/axis/value/stat displays from the current snapshot, capability, history,
@@ -456,26 +562,46 @@ public partial class FanCardModel : ObservableObject
             return;
         }
 
+        // The chart series is the only collection that lives in display units, so it is re-derived from the
+        // canonical history here — on a unit change as well as on new data.
+        var convertedHistory = new DateTimePoint[FanSpeedHistoryRpm.Length];
+        for (var index = 0; index < FanSpeedHistoryRpm.Length; index++)
+        {
+            var point = FanSpeedHistoryRpm[index];
+            convertedHistory[index] = new DateTimePoint(
+                point.DateTime,
+                point.Value is double rpm ? _unitFormattingService.ConvertFanSpeed(rpm) : null);
+        }
+
+        FanSpeedHistory = convertedHistory;
+
         MaximumFanSpeedAxisLimit = _unitFormattingService.ConvertFanSpeed(MaximumFanSpeedRpm);
         var speed = Math.Clamp(_unitFormattingService.ConvertFanSpeed(Snapshot.SpeedRpm), 0d, MaximumFanSpeedAxisLimit);
         FanSpeedGaugeValues = [speed];
         FanSpeedRemainingGaugeValues = [Math.Max(0d, MaximumFanSpeedAxisLimit - speed)];
-        FanSpeedValueDisplay = _unitFormattingService.FormatFanSpeedValue(Snapshot.SpeedRpm);
         FanSpeedUnitSuffix = _unitFormattingService.FanSpeedUnitSuffix;
         FanSpeedHistoryAxisMaxLimit = Math.Max(MaximumFanSpeedAxisLimit, GetMaximumObservedFanSpeed()) * FanSpeedHistoryAxisHeadroomMultiplier;
-        OneMinuteAverageDisplay = FormatHistoryStatistic(static values => values.Average());
-        PeakDisplay = FormatHistoryStatistic(static values => values.Max());
+        OneMinuteAverageRpm = ComputeHistoryStatistic(static values => values.Average());
+        PeakRpm = ComputeHistoryStatistic(static values => values.Max());
     }
 
     // Fresh closure per call so the assignment never no-ops (delegates over the same method/target compare
     // equal); capturing a local gives each a new target, so PropertyChanged fires and the axis rebinds.
     private Func<double, string> CreateFanSpeedLabelFormatter()
     {
+        // Formats an ALREADY-CONVERTED axis value: FanSpeedHistory and both fan-speed axis limits live in
+        // display units, so FormatFanSpeedAxisLabel — which converts from RPM — would scale them twice.
         var unitFormattingService = _unitFormattingService;
-        return value => unitFormattingService.FormatFanSpeedAxisLabel(value);
+        return value => unitFormattingService.FormatFanSpeedAxisTick(value);
     }
 
-    partial void OnFanSpeedHistoryChanged(DateTimePoint[] value)
+    private Func<double, string> CreateDrivingTemperatureLabelFormatter()
+    {
+        var unitFormattingService = _unitFormattingService;
+        return value => unitFormattingService.FormatTemperatureAxisTick(value);
+    }
+
+    partial void OnFanSpeedHistoryRpmChanged(DateTimePoint[] value)
     {
         Separators = GetSeparators();
         RefreshFanSpeedDisplays();
@@ -512,19 +638,20 @@ public partial class FanCardModel : ObservableObject
             PresentationDefaults.RecentTelemetrySeparatorStep);
     }
 
+    /// <summary>Highest speed seen (live or in history), in the user's fan-speed unit — it bounds a display-space axis.</summary>
     private double GetMaximumObservedFanSpeed()
     {
-        var maximum = Snapshot is null ? 0d : _unitFormattingService.ConvertFanSpeed(Snapshot.SpeedRpm);
+        var maximumRpm = Snapshot?.SpeedRpm ?? 0d;
 
-        foreach (var point in FanSpeedHistory)
+        foreach (var point in FanSpeedHistoryRpm)
         {
             if (point.Value is double value)
             {
-                maximum = Math.Max(maximum, value);
+                maximumRpm = Math.Max(maximumRpm, value);
             }
         }
 
-        return maximum;
+        return _unitFormattingService.ConvertFanSpeed(maximumRpm);
     }
 
     private void UpdateCapabilityPresentation()
@@ -549,6 +676,7 @@ public partial class FanCardModel : ObservableObject
             FanControlMode.Manual => "Manual",
             FanControlMode.CustomCurve => "Curve",
             FanControlMode.Max => "Max",
+            FanControlMode.Adaptive => "Adaptive",
             _ => "Auto",
         };
 
@@ -559,7 +687,8 @@ public partial class FanCardModel : ObservableObject
             return;
         }
 
-        if (ControlState.Mode != FanControlMode.CustomCurve)
+        // Adaptive drives by sensors exactly as a curve does, so its aggregated temperature shows too.
+        if (ControlState.Mode is not (FanControlMode.CustomCurve or FanControlMode.Adaptive))
         {
             DrivingTemperature = _unitFormattingService.FormatTemperature(null);
             UpdateOverrideStatePresentation();

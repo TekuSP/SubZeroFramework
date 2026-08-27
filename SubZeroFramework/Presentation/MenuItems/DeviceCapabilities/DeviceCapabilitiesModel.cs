@@ -86,8 +86,6 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         nameof(ConnectedNetworkAdapterCount),
         nameof(ConnectedNetworkAdapterCountDisplay),
         nameof(ConnectedNetworkAdapterBrush),
-        nameof(FastestLinkDisplay),
-        nameof(FastestLinkBrush),
         nameof(SystemProfileOs),
         nameof(SystemProfileVendor),
         nameof(SystemProfileModel),
@@ -163,6 +161,16 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                 {
                     removedCard.IsAvailable = false;
                     removedCard.UtilizationPercent = null;
+
+                    // Cleared alongside utilization. A dGPU that has powered down must not keep showing the
+                    // power, temperature and throttle state it had on the way out — that reads as live.
+                    removedCard.PowerWatts = null;
+                    removedCard.TemperatureCelsius = null;
+                    removedCard.CoreClockMegahertz = null;
+                    removedCard.MaxCoreClockMegahertz = null;
+                    removedCard.ThrottleReasons = null;
+                    removedCard.VramUsedBytes = null;
+                    removedCard.VramTotalBytes = null;
                 }
 
                 continue;
@@ -197,11 +205,37 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
                     .Concat()
                     .Subscribe(_ => { })
                     .DisposeWith(_subscriptions);
+
+                // Video memory is its own retained channel, so it charts from service history exactly like
+                // utilisation — no client-side accumulation, and a freshly opened page shows the last window
+                // rather than filling in from empty. A device that publishes no VRAM channel simply never
+                // emits here, which leaves the chart hidden.
+                _telemetryClient
+                    .WatchTelemetrySeries(
+                        change.Key with { Metric = TelemetryMetric.VramUtilizationPercent },
+                        PresentationDefaults.RecentTelemetryHistoryWindow)
+                    .Batch(TelemetryRateLimits.History)
+                    .ToCollection()
+                    .Sample(PresentationDefaults.HistoryProjectionInterval)
+                    .Select(points => Observable.FromAsync(() => ApplyComputeVramHistoryAsync(seriesCard, points)))
+                    .Concat()
+                    .Subscribe(_ => { })
+                    .DisposeWith(_subscriptions);
             }
 
             card.DisplayName = value.DisplayName;
             card.IsAvailable = value.IsAvailable;
             card.UtilizationPercent = value.NumericValue;
+
+            // Extended telemetry rides the same channel as utilization, so it is applied in the same place and
+            // can never show a power from one tick beside a clock from another.
+            card.PowerWatts = value.ComputePowerWatts;
+            card.TemperatureCelsius = value.ComputeTemperatureCelsius;
+            card.CoreClockMegahertz = value.ComputeCoreClockMegahertz;
+            card.MaxCoreClockMegahertz = value.ComputeMaxCoreClockMegahertz;
+            card.ThrottleReasons = value.ComputeThrottleReasons;
+            card.VramUsedBytes = value.ComputeVramUsedBytes;
+            card.VramTotalBytes = value.ComputeVramTotalBytes;
         }
 
         NpuUsageVisibility = _npuUsageCards.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -245,6 +279,27 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         var (minLimit, maxLimit, separators) = BuildUsageHistoryAxis(history);
 
         return _dispatcherQueue.EnqueueAsync(() => card.UpdateHistory(history, minLimit, maxLimit, separators));
+    }
+
+    /// <summary>
+    /// Projects one compute device's retained video-memory series into its card's second sparkline.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately the same shape as <see cref="ApplyComputeUsageHistoryAsync"/> — same off-thread
+    /// projection, same ratio conversion — because the two charts sit side by side and any difference in how
+    /// they are built would show up as a visual mismatch between them. The X axis is NOT rebuilt here: both
+    /// charts share the utilisation series' time axis so they stay aligned tick for tick.
+    /// </remarks>
+    private Task ApplyComputeVramHistoryAsync(ComputeDeviceUsageCardModel card, IReadOnlyCollection<TelemetryPoint> points)
+    {
+        var history = points
+            .OrderBy(point => point.ObservedAt)
+            .Select(point => new DateTimePoint(
+                point.ObservedAt.LocalDateTime,
+                _unitFormattingService.ConvertRatio(Math.Clamp(point.NumericValue, 0d, 100d))))
+            .ToArray();
+
+        return _dispatcherQueue.EnqueueAsync(() => card.UpdateVramHistory(history));
     }
 
     // GPU utilization renders on the adapter's detail card. The PDH identity (SetupAPI device description) and
@@ -438,14 +493,13 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     public int TotalLogicalProcessorCount => Snapshot?.Runtime.Cpus.Sum(cpu => cpu.LogicalProcessors) ?? 0;
 
+    // Canonical megahertz, formatted by UnitFormatConverter at render time; null when no CPU reported yet
+    // (rendered "Unknown" by the UnitFormatUnknown instance).
     [ObservableProperty]
-    public partial string AverageClockSpeed { get; private set; } = "Unknown";
+    public partial double? AverageClockSpeedMegahertz { get; private set; }
 
     [ObservableProperty]
-    public partial string AverageMaxClockSpeed { get; private set; } = "Unknown";
-
-    [ObservableProperty]
-    public partial string AverageCpuUsageDisplay { get; private set; } = "Unknown";
+    public partial double? AverageMaxClockSpeedMegahertz { get; private set; }
 
     public int GraphicsAdapterCount => Snapshot?.Runtime.VideoControllers.Length ?? 0;
 
@@ -480,14 +534,16 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         }
     }
 
+    // Canonical bytes across all drives, formatted by UnitFormatConverter (InformationSize); null when no
+    // drives reported yet.
     [ObservableProperty]
-    public partial string TotalStorageCapacity { get; private set; } = "Unknown";
+    public partial ulong? TotalStorageCapacityBytes { get; private set; }
 
     [ObservableProperty]
-    public partial string TotalStorageUsedSpace { get; private set; } = "Unknown";
+    public partial ulong? TotalStorageUsedSpaceBytes { get; private set; }
 
     [ObservableProperty]
-    public partial string TotalStorageFreeSpace { get; private set; } = "Unknown";
+    public partial ulong? TotalStorageFreeSpaceBytes { get; private set; }
 
     public double TotalStorageUsagePercent
     {
@@ -536,25 +592,18 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         ? AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor)
         : AppThemeBrushes.Get("TextPrimaryBrush", AppThemeBrushes.StatusWarningColor);
 
-    /// <summary>Fastest reported link speed across adapters ("1.2 Gbps"), for the mockup's summary tile.</summary>
-    public string FastestLinkDisplay
-    {
-        get
-        {
-            var fastest = Snapshot?.Inventory.NetworkAdapters
-                .Where(adapter => adapter.HasKnownSpeed
-                    && !DeviceCapabilitiesNetworkAdapterCardModel.IsTunnelAdapter(adapter))
-                .Select(adapter => (double)adapter.Speed)
-                .DefaultIfEmpty(0d)
-                .Max() ?? 0d;
+    /// <summary>
+    /// Fastest reported link speed across adapters (canonical bits per second, formatted by
+    /// UnitFormatConverter), for the mockup's summary tile. Null when no adapter reports a speed. Stored;
+    /// assigned by <see cref="RefreshUnitFormattedDisplays"/> from the snapshot.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FastestLinkBrush))]
+    public partial double? FastestLinkBitsPerSecond { get; private set; }
 
-            return fastest > 0d ? _unitFormattingService.FormatBitRateBitsPerSecond(fastest) : "Unknown";
-        }
-    }
-
-    public Brush FastestLinkBrush => FastestLinkDisplay == "Unknown"
-        ? AppThemeBrushes.Get("TextPrimaryBrush", AppThemeBrushes.StatusWarningColor)
-        : AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor);
+    public Brush FastestLinkBrush => FastestLinkBitsPerSecond is > 0d
+        ? AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor)
+        : AppThemeBrushes.Get("TextPrimaryBrush", AppThemeBrushes.StatusWarningColor);
 
     /// <summary>Coarse connectivity flag for the Network category's Internet tile; refreshed with each
     /// HardwareInfo snapshot (HardwareInfo itself carries no internet flag).</summary>
@@ -594,14 +643,16 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
 
     public int MemoryModuleCount => Snapshot?.Inventory.MemoryModules.Length ?? 0;
 
+    // Canonical bytes, formatted by UnitFormatConverter (InformationSize); null when the platform has not
+    // reported the figure.
     [ObservableProperty]
-    public partial string MemoryTotalCapacity { get; private set; } = "Unknown";
+    public partial ulong? MemoryTotalCapacityBytes { get; private set; }
 
     [ObservableProperty]
-    public partial string TotalPhysicalMemory { get; private set; } = "Unknown";
+    public partial ulong? TotalPhysicalMemoryBytes { get; private set; }
 
     [ObservableProperty]
-    public partial string AvailablePhysicalMemory { get; private set; } = "Unknown";
+    public partial ulong? AvailablePhysicalMemoryBytes { get; private set; }
 
     public double PhysicalMemoryUsagePercent => Snapshot?.Runtime.MemoryStatus is { TotalPhysical: > 0 } memoryStatus
         ? Math.Clamp((memoryStatus.TotalPhysical - Math.Min(memoryStatus.AvailablePhysical, memoryStatus.TotalPhysical)) * 100d / memoryStatus.TotalPhysical, 0d, 100d)
@@ -630,16 +681,10 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         : Visibility.Collapsed;
 
     [ObservableProperty]
-    public partial string TotalPageFileMemory { get; private set; } = "Unknown";
+    public partial ulong? TotalPageFileMemoryBytes { get; private set; }
 
     [ObservableProperty]
-    public partial string AvailablePageFileMemory { get; private set; } = "Unknown";
-
-    [ObservableProperty]
-    public partial string TotalVirtualMemory { get; private set; } = "Unknown";
-
-    [ObservableProperty]
-    public partial string AvailableVirtualMemory { get; private set; } = "Unknown";
+    public partial ulong? AvailablePageFileMemoryBytes { get; private set; }
 
     [ObservableProperty]
     public partial DateTimePoint[] CpuUsageHistory { get; set; } = [];
@@ -683,55 +728,45 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
     // ObserveOn the UI synchronization context).
     private void RefreshUnitFormattedDisplays()
     {
-        AverageClockSpeed = Snapshot?.Runtime.Cpus.Length > 0
-            ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.Runtime.Cpus.Average(cpu => cpu.CurrentClockSpeedMHz))
-            : "Unknown";
-        AverageMaxClockSpeed = Snapshot?.Runtime.Cpus.Length > 0
-            ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.Runtime.Cpus.Average(cpu => cpu.MaxClockSpeedMHz))
+        // Canonical aggregates — the converter formats them at render time, so a unit change only needs the
+        // bindings to run again (the null-name raise at the end of RefreshUnitFormattingAsync).
+        AverageClockSpeedMegahertz = Snapshot?.Runtime.Cpus.Length > 0
+            ? Snapshot.Runtime.Cpus.Average(cpu => cpu.CurrentClockSpeedMHz)
+            : null;
+        AverageMaxClockSpeedMegahertz = Snapshot?.Runtime.Cpus.Length > 0
+            ? Snapshot.Runtime.Cpus.Average(cpu => cpu.MaxClockSpeedMHz)
+            : null;
+
+        TotalStorageCapacityBytes = Snapshot?.Inventory.Drives.Length > 0
+            ? Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.Size)
+            : null;
+        TotalStorageUsedSpaceBytes = Snapshot?.Inventory.Drives.Length > 0
+            ? Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.UsedSpace)
+            : null;
+        TotalStorageFreeSpaceBytes = Snapshot?.Inventory.Drives.Length > 0
+            ? Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.ClampedFreeSpace)
+            : null;
+        TotalStorageUsageSummary = TotalStorageUsedSpaceBytes is ulong usedBytes && TotalStorageFreeSpaceBytes is ulong freeBytes
+            ? $"{FormatBytes(usedBytes)} used / {FormatBytes(freeBytes)} free"
             : "Unknown";
 
-        var averageUsage = GetAverageCpuUsagePercent(Snapshot);
-        AverageCpuUsageDisplay = averageUsage is double usageValue
-            ? _unitFormattingService.FormatRatio(Math.Clamp(usageValue, 0d, 100d), decimals: 1)
-            : "Unknown";
+        FastestLinkBitsPerSecond = Snapshot?.Inventory.NetworkAdapters
+            .Where(adapter => adapter.HasKnownSpeed
+                && !DeviceCapabilitiesNetworkAdapterCardModel.IsTunnelAdapter(adapter))
+            .Select(adapter => (double?)adapter.Speed)
+            .DefaultIfEmpty(null)
+            .Max();
 
-        TotalStorageCapacity = Snapshot?.Inventory.Drives.Length > 0
-            ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.Size))
-            : "Unknown";
-        TotalStorageUsedSpace = Snapshot?.Inventory.Drives.Length > 0
-            ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.UsedSpace))
-            : "Unknown";
-        TotalStorageFreeSpace = Snapshot?.Inventory.Drives.Length > 0
-            ? FormatBytes(Snapshot.Inventory.Drives.Aggregate(0UL, (total, drive) => total + drive.ClampedFreeSpace))
-            : "Unknown";
-        TotalStorageUsageSummary = Snapshot?.Inventory.Drives.Length > 0
-            ? $"{TotalStorageUsedSpace} used / {TotalStorageFreeSpace} free"
-            : "Unknown";
-
-        MemoryTotalCapacity = Snapshot?.Inventory.MemoryModules.Length > 0
-            ? FormatBytes((ulong)Snapshot.Inventory.MemoryModules.Sum(module => (long)module.CapacityBytes))
-            : "Unknown";
-        TotalPhysicalMemory = Snapshot?.Runtime.MemoryStatus is null
-            ? "Unknown"
-            : FormatBytes(Snapshot.Runtime.MemoryStatus.TotalPhysical);
-        AvailablePhysicalMemory = Snapshot?.Runtime.MemoryStatus is null
-            ? "Unknown"
-            : FormatBytes(Snapshot.Runtime.MemoryStatus.AvailablePhysical);
+        MemoryTotalCapacityBytes = Snapshot?.Inventory.MemoryModules.Length > 0
+            ? (ulong)Snapshot.Inventory.MemoryModules.Sum(module => (long)module.CapacityBytes)
+            : null;
+        TotalPhysicalMemoryBytes = Snapshot?.Runtime.MemoryStatus?.TotalPhysical;
+        AvailablePhysicalMemoryBytes = Snapshot?.Runtime.MemoryStatus?.AvailablePhysical;
         PhysicalMemoryUsageDisplay = Snapshot?.Runtime.MemoryStatus is { TotalPhysical: > 0 } physicalMemory
             ? $"{_unitFormattingService.FormatRatio(PhysicalMemoryUsagePercent, decimals: 0)} used ({FormatBytes(physicalMemory.TotalPhysical - Math.Min(physicalMemory.AvailablePhysical, physicalMemory.TotalPhysical))} / {FormatBytes(physicalMemory.TotalPhysical)})"
             : "Unknown";
-        TotalPageFileMemory = Snapshot?.Runtime.MemoryStatus is null
-            ? "Unknown"
-            : FormatBytes(Snapshot.Runtime.MemoryStatus.TotalPageFile);
-        AvailablePageFileMemory = Snapshot?.Runtime.MemoryStatus is null
-            ? "Unknown"
-            : FormatBytes(Snapshot.Runtime.MemoryStatus.AvailablePageFile);
-        TotalVirtualMemory = Snapshot?.Runtime.MemoryStatus is null
-            ? "Unknown"
-            : FormatBytes(Snapshot.Runtime.MemoryStatus.TotalVirtual);
-        AvailableVirtualMemory = Snapshot?.Runtime.MemoryStatus is null
-            ? "Unknown"
-            : FormatBytes(Snapshot.Runtime.MemoryStatus.AvailableVirtual);
+        TotalPageFileMemoryBytes = Snapshot?.Runtime.MemoryStatus?.TotalPageFile;
+        AvailablePageFileMemoryBytes = Snapshot?.Runtime.MemoryStatus?.AvailablePageFile;
     }
 
     public Visibility CoolingHardwareVisibility => FanAdvancedInfo is null
@@ -1558,6 +1593,11 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
             FanAdvancedInfo?.RefreshUnitFormatting();
 
             RefreshUnitFormattedDisplays();
+
+            // The canonical readings on this page are formatted by UnitFormatConverter at render time, so
+            // they only need their bindings to run again — that is what the null property name asks for. It
+            // is also what tells the section slices (CPU, memory, …) to re-mirror. See UnitFormatConverter.
+            OnPropertyChanged(propertyName: null);
         });
 
         await RefreshCpuVisualsAsync();
@@ -1740,7 +1780,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         {
             card.DetailLines.Add(new DeviceCapabilitiesTileLineModel(
                 MaterialIconKind.HeartPulse,
-                $"{Math.Min(lastFull / design * 100d, 100d):0.0}% health",
+                $"{_unitFormattingService.FormatRatio(Math.Min(lastFull / design * 100d, 100d), decimals: 1)} health",
                 AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor)));
         }
 

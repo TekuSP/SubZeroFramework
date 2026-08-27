@@ -19,6 +19,21 @@
                 <ResourceDictionary Source="/MaterialIcons/Themes/Generic.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
+            <!--
+                NOTE ON THE SYSTEM ACCENT.
+
+                AccentButtonStyle, ToggleButton and HyperlinkButton read their brushes from the Windows accent
+                colour, so on a machine whose accent is red every confirm button, checked toggle and link in
+                this app came out red. The obvious remedy — overriding AccentButton*/ToggleButton*/Hyperlink*
+                here — does NOT work, neither at the root of this dictionary nor inside a ThemeDictionaries
+                entry: the same keys take effect when placed on the element or its container and do nothing
+                when placed at application level. Both forms were tried against the same control.
+
+                So the override lives with the control instead: Button.Resources for a coloured button (see
+                FanListView's Apply/Revert pair), Border.Resources around a segmented toggle, and
+                AccentDialogPalette for a ContentDialog's own primary button.
+            -->
+
             <!--  App main fonts  -->
 
             <FontFamily x:Key="MontserratFont">ms-appx:///Assets/Fonts/Montserrat-Light.ttf#Montserrat</FontFamily>
@@ -26,6 +41,7 @@
             <!--  App main color scheme  -->
 
             <SolidColorBrush x:Key="BrandPrimaryBrush" Color="#0078D7" />
+
             <SolidColorBrush x:Key="BrandSecondaryBrush" Color="#D7D8FF" />
             <SolidColorBrush x:Key="BrandBackgroundBrush" Color="#545454" />
             <SolidColorBrush x:Key="BrandHoverBrush" Color="#15191B" />
@@ -46,6 +62,9 @@
 
             <SolidColorBrush x:Key="TextPrimaryBrush" Color="#fffffa" />
             <SolidColorBrush x:Key="TextSecondaryBrush" Color="#D7D8FF" />
+            <!--  The design system's third text tier, for captions and axis labels.  -->
+            <SolidColorBrush x:Key="TextTertiaryBrush" Color="#8d8ea3" />
+
 
             <SolidColorBrush x:Key="StatusSuccessBrush" Color="#6ccb5f" />
             <SolidColorBrush x:Key="StatusSuccessForegroundBrush" Color="#000000" />
@@ -60,6 +79,16 @@
 
             <SolidColorBrush x:Key="StatusInfoBrush" Color="#8AB7E8" />
             <SolidColorBrush x:Key="StatusInfoForegroundBrush" Color="#000000" />
+
+            <!--
+                Translucent status washes for banner backgrounds, from the design handoff: success 14%,
+                warning 16%, danger 16% over the card. Distinct from the solid Status*Brush fills — a wash
+                keeps body text on TextSecondaryBrush legible inside the banner.
+            -->
+            <SolidColorBrush x:Key="StatusSuccessWashBrush" Color="#246CCB5F" />
+            <SolidColorBrush x:Key="StatusWarningWashBrush" Color="#29C5994E" />
+            <SolidColorBrush x:Key="StatusDangerWashBrush" Color="#29D9706A" />
+
 
             <!--
                 Stat tiles (Device Capabilities) reuse the existing theme: icons/cool values StatusInfoBrush,

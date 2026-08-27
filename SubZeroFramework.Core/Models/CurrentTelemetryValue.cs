@@ -44,6 +44,43 @@ public sealed record CurrentTelemetryValue
 
     public uint? BatteryCycleCount { get; init; }
 
+    // ----- Compute (GPU / NPU) extended telemetry -----
+    // Carried on the device's utilization channel rather than as sibling channels, which is the same shape
+    // the battery fields use. One channel per device keeps the reading atomic: power, temperature and clock
+    // are all measured in the same NVML call, and splitting them across channels would let the UI show a
+    // power from one tick beside a clock from another.
+    //
+    // Every field is null on a device whose source cannot report it — PDH exposes no power, temperature or
+    // clock at all, so on Windows these are populated only for the NVIDIA GPU.
+
+    /// <summary>Board power draw.</summary>
+    public double? ComputePowerWatts { get; init; }
+
+    /// <summary>Die temperature.</summary>
+    public double? ComputeTemperatureCelsius { get; init; }
+
+    /// <summary>Current core (shader) clock.</summary>
+    public double? ComputeCoreClockMegahertz { get; init; }
+
+    /// <summary>The device's maximum core clock — the denominator that makes the current clock meaningful.</summary>
+    public double? ComputeMaxCoreClockMegahertz { get; init; }
+
+    /// <summary>Video memory in use, in bytes.</summary>
+    public double? ComputeVramUsedBytes { get; init; }
+
+    /// <summary>Total video memory, in bytes.</summary>
+    public double? ComputeVramTotalBytes { get; init; }
+
+    /// <summary>
+    /// Why the device is clocked below its rating, or null when the source could not say.
+    /// </summary>
+    /// <remarks>
+    /// Null and <see cref="ComputeThrottleReasons.None"/> are different answers: None means the source replied
+    /// and nothing is holding the clocks back, null means the question could not be asked.
+    /// </remarks>
+    public ComputeThrottleReasons? ComputeThrottleReasons { get; init; }
+
+
     public bool IsAvailable { get; init; }
 
     public string DisplayValue => NumericValue is double numericValue

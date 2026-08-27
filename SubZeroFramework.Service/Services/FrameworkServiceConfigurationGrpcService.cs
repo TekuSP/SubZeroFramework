@@ -99,8 +99,9 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
     public override async Task<ServiceConfigurationOperationReply> ApplyServiceConfiguration(ApplyServiceConfigurationRequest request, ServerCallContext context)
     {
         _logger.LogInformation(
-            "Received ApplyServiceConfiguration request. PollingIntervalMilliseconds={PollingIntervalMilliseconds}, HardwareInfoPollingIntervalMilliseconds={HardwareInfoPollingIntervalMilliseconds}, AllowFanControlCommands={AllowFanControlCommands}.",
+            "Received ApplyServiceConfiguration request. PollingIntervalMilliseconds={PollingIntervalMilliseconds}, SecondaryPollingIntervalMilliseconds={SecondaryPollingIntervalMilliseconds}, HardwareInfoPollingIntervalMilliseconds={HardwareInfoPollingIntervalMilliseconds}, AllowFanControlCommands={AllowFanControlCommands}.",
             request.PollingIntervalMilliseconds,
+            request.SecondaryPollingIntervalMilliseconds,
             request.HardwareInfoPollingIntervalMilliseconds,
             request.AllowFanControlCommands);
 
@@ -108,7 +109,14 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
             new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = TimeSpan.FromMilliseconds(request.PollingIntervalMilliseconds),
+                SecondaryPollingInterval = TimeSpan.FromMilliseconds(request.SecondaryPollingIntervalMilliseconds),
                 HardwareInfoPollingInterval = TimeSpan.FromMilliseconds(request.HardwareInfoPollingIntervalMilliseconds),
+
+                // Zero from an older client means "not sent", which the manager reads as "keep what you have".
+                PrimaryRetention = TimeSpan.FromMinutes(request.PrimaryRetentionMinutes),
+                SecondaryRetention = TimeSpan.FromMinutes(request.SecondaryRetentionMinutes),
+                TertiaryRetention = TimeSpan.FromMinutes(request.TertiaryRetentionMinutes),
+
                 AllowFanControlCommands = request.AllowFanControlCommands,
             },
             context.CancellationToken).ConfigureAwait(false);
@@ -152,7 +160,14 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
         return new FrameworkServiceConfigurationReply
         {
             PollingIntervalMilliseconds = checked((long)Math.Round(snapshot.PollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
+            SecondaryPollingIntervalMilliseconds = checked((long)Math.Round(snapshot.SecondaryPollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
             HardwareInfoPollingIntervalMilliseconds = checked((long)Math.Round(snapshot.HardwareInfoPollingInterval.TotalMilliseconds, MidpointRounding.AwayFromZero)),
+            // The proto has carried these since the retention feature landed, but nothing filled them — so
+            // every client read retention as 0, fell back to the tier defaults, and the settings page
+            // silently reverted whatever the user had just applied.
+            PrimaryRetentionMinutes = checked((long)Math.Round(snapshot.PrimaryRetention.TotalMinutes, MidpointRounding.AwayFromZero)),
+            SecondaryRetentionMinutes = checked((long)Math.Round(snapshot.SecondaryRetention.TotalMinutes, MidpointRounding.AwayFromZero)),
+            TertiaryRetentionMinutes = checked((long)Math.Round(snapshot.TertiaryRetention.TotalMinutes, MidpointRounding.AwayFromZero)),
             AllowFanControlCommands = snapshot.AllowFanControlCommands,
             PersistentConfigurationPath = snapshot.PersistentConfigurationPath,
         };

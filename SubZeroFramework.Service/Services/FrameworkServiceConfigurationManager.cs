@@ -37,7 +37,9 @@ public sealed class FrameworkServiceConfigurationManager : IDisposable
         _authorizationService = authorizationService;
         _store = store;
         _logger = logger;
-        _currentOptions = optionsMonitor.CurrentValue;
+        // Clamped on the way in too: appsettings.json is hand-editable, and an out-of-range interval there
+        // would otherwise be reported to every client while the provider quietly ran at a bound.
+        _currentOptions = ClampPollingTiers(optionsMonitor.CurrentValue);
         _snapshotSubject = new BehaviorSubject<FrameworkServiceConfigurationSnapshot>(CreateSnapshot(_currentOptions));
     }
 
@@ -52,7 +54,11 @@ public sealed class FrameworkServiceConfigurationManager : IDisposable
         return new FrameworkServiceConfigurationSnapshot
         {
             PollingInterval = options.PollingInterval,
+            SecondaryPollingInterval = options.SecondaryPollingInterval,
             HardwareInfoPollingInterval = options.HardwareInfoPollingInterval,
+            PrimaryRetention = options.PrimaryRetention,
+            SecondaryRetention = options.SecondaryRetention,
+            TertiaryRetention = options.TertiaryRetention,
             AllowFanControlCommands = options.AllowFanControlCommands,
             PersistentConfigurationPath = _store.PersistentConfigurationPath,
         };
@@ -78,9 +84,22 @@ public sealed class FrameworkServiceConfigurationManager : IDisposable
             var updatedOptions = previousOptions with
             {
                 PollingInterval = request.PollingInterval,
+                SecondaryPollingInterval = request.SecondaryPollingInterval,
                 HardwareInfoPollingInterval = request.HardwareInfoPollingInterval,
+
+                // Zero means the caller did not send one — an older client, or a persisted overlay written
+                // before retention existed. Keeping the current value there is what stops such a client
+                // silently reducing every tier's history to nothing.
+                PrimaryRetention = request.PrimaryRetention > TimeSpan.Zero ? request.PrimaryRetention : previousOptions.PrimaryRetention,
+                SecondaryRetention = request.SecondaryRetention > TimeSpan.Zero ? request.SecondaryRetention : previousOptions.SecondaryRetention,
+                TertiaryRetention = request.TertiaryRetention > TimeSpan.Zero ? request.TertiaryRetention : previousOptions.TertiaryRetention,
+
                 AllowFanControlCommands = request.AllowFanControlCommands,
             };
+
+            // Clamp before the equality check below, so a request that only differs outside the supported
+            // range is correctly recognised as "already matches" instead of applying on every press.
+            updatedOptions = ClampPollingTiers(updatedOptions);
 
             if (updatedOptions == previousOptions)
             {
@@ -98,8 +117,9 @@ public sealed class FrameworkServiceConfigurationManager : IDisposable
             try
             {
                 _logger.LogInformation(
-                    "Applying service configuration. PollingInterval={PollingInterval}, HardwareInfoPollingInterval={HardwareInfoPollingInterval}, AllowFanControlCommands={AllowFanControlCommands}.",
+                    "Applying service configuration. PollingInterval={PollingInterval}, SecondaryPollingInterval={SecondaryPollingInterval}, HardwareInfoPollingInterval={HardwareInfoPollingInterval}, AllowFanControlCommands={AllowFanControlCommands}.",
                     updatedOptions.PollingInterval,
+                    updatedOptions.SecondaryPollingInterval,
                     updatedOptions.HardwareInfoPollingInterval,
                     updatedOptions.AllowFanControlCommands);
 
@@ -194,10 +214,18 @@ public sealed class FrameworkServiceConfigurationManager : IDisposable
                 };
             }
 
+            // A persisted overlay can predate the tier ranges, or have been hand-edited. Clamp it in rather
+            // than refusing to load — the snapshot then reports the interval the provider is really using.
+            loaded = ClampPollingTiers(loaded);
+
             var request = new FrameworkServiceConfigurationApplyRequest
             {
                 PollingInterval = loaded.PollingInterval,
+                SecondaryPollingInterval = loaded.SecondaryPollingInterval,
                 HardwareInfoPollingInterval = loaded.HardwareInfoPollingInterval,
+                PrimaryRetention = loaded.PrimaryRetention,
+                SecondaryRetention = loaded.SecondaryRetention,
+                TertiaryRetention = loaded.TertiaryRetention,
                 AllowFanControlCommands = loaded.AllowFanControlCommands,
             };
 
@@ -314,6 +342,20 @@ public sealed class FrameworkServiceConfigurationManager : IDisposable
             throw new InvalidOperationException("Unable to configure the Framework polling interval while applying the updated service configuration.");
         }
 
+        // No loop to stop for this: retention is a property of the retained streams, and shrinking one trims
+        // what it holds there and then.
+        _frameworkDataProvider.SetRetention(
+            options.PrimaryRetention,
+            options.SecondaryRetention,
+            options.TertiaryRetention);
+
+        // No loop to stop first: the secondary tier gates work inside the primary loop, so the next primary
+        // tick simply compares against the new interval.
+        if (!_frameworkDataProvider.SetSecondaryPolling(options.SecondaryPollingInterval))
+        {
+            throw new InvalidOperationException("Unable to configure the secondary polling interval while applying the updated service configuration.");
+        }
+
         if (!_frameworkDataProvider.SetHardwareInfoPolling(options.HardwareInfoPollingInterval))
         {
             throw new InvalidOperationException("Unable to configure the HardwareInfo polling interval while applying the updated service configuration.");
@@ -355,17 +397,48 @@ public sealed class FrameworkServiceConfigurationManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Pulls each interval into its tier's supported range, so the stored options match what the provider
+    /// will actually run.
+    /// </summary>
+    /// <remarks>
+    /// The provider clamps out-of-range intervals rather than refusing to start, which is the right call for
+    /// a hand-edited config file. But without clamping HERE too, the manager would keep the requested value
+    /// and hand it back in the snapshot — so the settings page would display 500 ms while the tertiary tier
+    /// actually ran at its 5 s floor. Rejecting instead is not an option on this path: it would make an
+    /// existing persisted overlay containing an out-of-range interval permanently unloadable. The settings
+    /// page validates strictly BEFORE sending, so a user who typed the value still gets told.
+    /// </remarks>
+    private static FrameworkServiceOptions ClampPollingTiers(FrameworkServiceOptions options)
+        => options with
+        {
+            PollingInterval = PollingTiers.Primary.Clamp(options.PollingInterval),
+            SecondaryPollingInterval = PollingTiers.Secondary.Clamp(options.SecondaryPollingInterval),
+            HardwareInfoPollingInterval = PollingTiers.Tertiary.Clamp(options.HardwareInfoPollingInterval),
+            PrimaryRetention = PollingTiers.Primary.ClampRetention(options.PrimaryRetention),
+            SecondaryRetention = PollingTiers.Secondary.ClampRetention(options.SecondaryRetention),
+            TertiaryRetention = PollingTiers.Tertiary.ClampRetention(options.TertiaryRetention),
+        };
+
     private static bool TryValidate(FrameworkServiceConfigurationApplyRequest request, out string validationError)
     {
+        // A sanity floor only — the per-tier ranges are enforced by clamping (see ClampPollingTiers), not by
+        // rejection, so that an old persisted overlay still loads.
         if (request.PollingInterval <= TimeSpan.Zero)
         {
-            validationError = "Telemetry polling interval must be greater than zero milliseconds.";
+            validationError = "Primary polling interval must be greater than zero milliseconds.";
+            return true;
+        }
+
+        if (request.SecondaryPollingInterval <= TimeSpan.Zero)
+        {
+            validationError = "Secondary polling interval must be greater than zero milliseconds.";
             return true;
         }
 
         if (request.HardwareInfoPollingInterval <= TimeSpan.Zero)
         {
-            validationError = "Hardware info polling interval must be greater than zero milliseconds.";
+            validationError = "Tertiary polling interval must be greater than zero milliseconds.";
             return true;
         }
 

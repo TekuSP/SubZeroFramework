@@ -2,6 +2,7 @@ using DynamicData;
 
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Globalization;
 using System.Reflection;
 using System.Reactive.Concurrency;
 using System.Reactive.Disposables;
@@ -17,6 +18,7 @@ using Hardware.Info;
 using HardwareMonitor = Hardware.Info.Monitor;
 using HardwareVideoController = Hardware.Info.VideoController;
 using SubZeroFramework.Services.Compute;
+using SubZeroFramework.Services.Control;
 using SubZeroFramework.Services.Linux;
 using UnitsNet;
 
@@ -51,14 +53,33 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     private static readonly TimeSpan ModuleInventoryReadInterval = TimeSpan.FromSeconds(2);
     private DateTimeOffset _lastModuleInventoryReadAt = DateTimeOffset.MinValue;
 
+    // SECONDARY tier — data the UI shows live but the fan controller does not act on, so it runs on its own
+    // calmer cadence inside the primary loop rather than on every primary tick. Currently GPU/NPU utilization,
+    // measured at ~1.7 ms per collect on Windows.
+    //
+    // The point is not the cost at today's primary interval — it is that the cost used to SCALE with it.
+    // Adaptive fan control wants the primary tier as fast as it can afford, and without this split every
+    // step in that direction would have multiplied the GPU sampling cost too, for numbers the UI redraws
+    // about once a second regardless. Decoupling them is what makes the primary interval safe to lower.
+    private static readonly TimeSpan DefaultSecondaryPollingInterval = TimeSpan.FromSeconds(1);
+    private TimeSpan _secondaryPollingInterval = DefaultSecondaryPollingInterval;
+
+    // A DEADLINE, not a "last ran at". Re-arming from when the tier last ran would push the next run out by
+    // however long that run took, so the tier would drift slower than its configured interval — and the drift
+    // would be worst on the ticks that cost the most, which are exactly the ones worth sampling on time.
+    private DateTimeOffset _nextSecondaryTierAt = DateTimeOffset.MinValue;
+
     // STATIC hardware inventory (RAM modules, drives, motherboard, BIOS, network adapters, OS identity)
     // refreshes on its own slow cadence, NOT every hardware-info poll. On Linux, Hardware.Info implements
     // the memory and drive lists by spawning `lshw` — a full device-tree probe costing hundreds of ms of
     // CPU per run — and the poll default is 1 s, which meant TWO lshw probes per second, forever. A user
     // saw exactly that as constant CPU spikes in btop (follow-up to issue #51: before lshw was a package
     // dependency the spawns failed instantly, which hid the cost). This data does not change second to
-    // second; ten minutes still catches USB drives and network changes. Only genuinely dynamic values
-    // (CPU usage — the fan-boost input — and memory free/used) stay on the fast poll.
+    // second; ten minutes still catches USB drives and network changes.
+    //
+    // The Hardware.Info poll is now the TERTIARY tier in full: nothing on it is read faster than that loop's
+    // own interval. CPU usage used to be the exception that kept it fast, and it is no longer read from
+    // Hardware.Info at all — see IControlTelemetryReader, which the primary loop samples directly.
     private readonly IComputeUtilizationReader _computeUtilizationReader;
 
     // Graphics adapters and displays for platforms Hardware.Info cannot enumerate (see the Linux branch in
@@ -81,6 +102,9 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     private readonly Dictionary<string, int> _computeChannelIndexes = [];
 
     private bool _computeUtilizationFailureLogged;
+    private bool _controlTelemetryFailureLogged;
+    private bool _primaryOverrunLogged;
+    private bool _tertiaryOverrunLogged;
 
     private static readonly TimeSpan StaticInventoryRefreshInterval = TimeSpan.FromMinutes(10);
     private DateTimeOffset _lastStaticInventoryRefreshAt = DateTimeOffset.MinValue;
@@ -104,6 +128,48 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     };
     private readonly IHardwareInfo _hardwareInfo;
     private readonly IHardwareInfoLogNoiseBuffer _hardwareInfoNoiseBuffer;
+    private readonly IControlTelemetryReader _controlTelemetryReader;
+
+    // The most recent primary-tier CPU reading. Held here rather than inside the hardware-info snapshot
+    // because the two now live on different tiers: this is refreshed every primary tick (~150 ms) for fan
+    // control, while the snapshot that carries it to the UI is rebuilt on the tertiary tier.
+    private ObservedControlTelemetry _latestControlTelemetry = ObservedControlTelemetry.None;
+
+    // Feed-forward inputs, cached at the points these subsystems already publish rather than re-read on the
+    // primary tier — polling a GPU driver or the EC a second time per tick to learn something just measured
+    // would be pure waste. Both are volatile: written on their own tier, read on the primary one.
+    private volatile int _latestGpuPowerMilliwatts = -1;
+    private volatile int _latestGpuCoreClockMegahertz = -1;
+
+    /// <summary>Busiest GPU's utilization in tenths of a percent, or -1 when nothing reported one.</summary>
+    private volatile int _latestGpuUtilizationPerMille = -1;
+    private volatile int _latestSystemPowerMilliwatts = -1;
+
+    /// <summary>
+    /// When the GPU and system-power caches above were last written, as Stopwatch timestamps.
+    /// </summary>
+    /// <remarks>
+    /// The composed control sample is stamped with the PRIMARY tier's tick time, but these fields are
+    /// written on slower tiers — so a stalled GPU or power poll left a frozen value being folded into a
+    /// sample that looked brand new, sailing past the consumer's freshness guard and pinning feed-forward to
+    /// a reading that had stopped moving. Each cache now carries its own age and drops out when stale.
+    /// </remarks>
+    private long _latestGpuReadTimestamp;
+    private long _latestSystemPowerTimestamp;
+
+    /// <summary>
+    /// How old a folded-in cache may be before it is reported as absent.
+    /// </summary>
+    /// <remarks>
+    /// Generous against the tertiary tier's own interval so an ordinary slow poll does not blink the value
+    /// out, and far below the ten seconds the fan worker treats as a stalled sample.
+    /// </remarks>
+    private static readonly TimeSpan MaximumFoldedCacheAge = TimeSpan.FromSeconds(15);
+
+    // The most recent PD read, held so the battery publish (which runs on its own cadence) can pair charger
+    // draw with charging draw. Module inventory is read far less often than power, so the two never arrive
+    // together.
+    private PowerDeliverySnapshot? _latestPowerDeliverySnapshot;
     private IFrameworkEcConnection? _connection;
     private TimeSpan? _pollingInterval;
     private TimeSpan? _hardwareInfoPollingInterval;
@@ -139,7 +205,8 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         IGraphicsInventoryReader? graphicsInventoryReader = null,
         IComputeDeviceIdentityResolver? computeDeviceIdentityResolver = null,
         IDriveInventoryReader? driveInventoryReader = null,
-        IMemoryInventoryReader? memoryInventoryReader = null)
+        IMemoryInventoryReader? memoryInventoryReader = null,
+        IControlTelemetryReader? controlTelemetryReader = null)
     {
         _frameworkSystem = frameworkSystem;
         _hardwareInfo = hardwareInfo;
@@ -160,6 +227,9 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         _driveInventoryReader = driveInventoryReader ?? UnavailableDriveInventoryReader.Instance;
         // And for memory modules, whose Linux list is both wrong (it keeps lshw's container node) and sparse.
         _memoryInventoryReader = memoryInventoryReader ?? UnavailableMemoryInventoryReader.Instance;
+        // The CPU signals fan control runs on. Optional like the rest: a machine that cannot serve them simply
+        // leaves the controller without feed-forward rather than failing to poll at all.
+        _controlTelemetryReader = controlTelemetryReader ?? UnavailableControlTelemetryReader.Instance;
         SystemStatus = _systemStatus;
         FlashSnapshots = _flashSnapshots;
         FanCapabilitiesSnapshots = _fanCapabilitiesSnapshots;
@@ -268,6 +338,9 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     public IObservable<IChangeSet<FanStateSnapshot, int>> ConnectFanStates()
         => _fanStates.Connect();
 
+    public IReadOnlyList<int> GetFanIndices()
+        => [.. _fanStates.Keys];
+
     public IObservable<IChangeSet<TelemetryChannel, TelemetryChannelId>> ConnectTelemetryChannels()
         => _telemetryChannels.Connect();
 
@@ -318,6 +391,8 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             throw new ArgumentOutOfRangeException(nameof(pollingInterval), "Polling interval cannot be negative.");
         }
 
+        var clamped = ClampTierInterval(pollingInterval, PollingTiers.Primary);
+
         lock (_syncLock)
         {
             if (_isPolling)
@@ -325,7 +400,101 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 return false;
             }
 
-            _pollingInterval = pollingInterval;
+            _pollingInterval = clamped;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Holds a tier interval inside a workable range, logging once when a configured value is moved.
+    /// </summary>
+    /// <remarks>
+    /// These are settable from a config file and, for two of the three, over the local socket, so the bounds
+    /// are what stops a typo from turning into a symptom nobody connects back to it: a primary interval of a
+    /// millisecond would spin the EC read as fast as the hardware allows, and one of an hour would leave fan
+    /// control acting on temperatures from another workload entirely.
+    ///
+    /// Clamping rather than rejecting, because refusing to start over a bad interval is a worse outcome than
+    /// running at a sane one — but never silently, or the setting would appear to apply and then not.
+    /// </remarks>
+    private TimeSpan ClampTierInterval(TimeSpan requested, PollingTier tier)
+    {
+        var clamped = tier.Clamp(requested);
+
+        if (clamped != requested)
+        {
+            _logger.LogWarning(
+                "The {TierName} polling interval of {Requested} is outside the supported range {Minimum} to {Maximum} and has been clamped to {Clamped}.",
+                tier.Name,
+                requested,
+                tier.Minimum,
+                tier.Maximum,
+                clamped);
+        }
+
+        return clamped;
+    }
+
+    /// <summary>
+    /// Sets how long each tier's retained history is kept.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Applied live, with no restart: each stream's retention window is settable and shrinking one trims what
+    /// it already holds. Streams are grouped by the tier that PUBLISHES them, because that is what decides
+    /// how dense the history is — the EC streams at the primary interval, the inventory streams at the
+    /// tertiary one.
+    /// </para>
+    /// <para>
+    /// A non-positive value leaves that tier alone rather than emptying it, so a caller that only knows about
+    /// some of the tiers cannot silently discard the others' history.
+    /// </para>
+    /// </remarks>
+    public void SetRetention(TimeSpan primary, TimeSpan secondary, TimeSpan tertiary)
+    {
+        ThrowIfDisposed();
+
+        if (primary > TimeSpan.Zero)
+        {
+            _systemStatus.RetentionWindow = primary;
+            _flashSnapshots.RetentionWindow = primary;
+            _fanCapabilitiesSnapshots.RetentionWindow = primary;
+            _powerSnapshots.RetentionWindow = primary;
+            _thermalSnapshots.RetentionWindow = primary;
+        }
+
+        if (secondary > TimeSpan.Zero)
+        {
+            _powerDeliverySnapshots.RetentionWindow = secondary;
+        }
+
+        if (tertiary > TimeSpan.Zero)
+        {
+            _moduleInventorySnapshots.RetentionWindow = tertiary;
+            _hardwareInfoSnapshots.RetentionWindow = tertiary;
+        }
+    }
+
+    /// <summary>
+    /// Sets the SECONDARY tier interval. Unlike the other two this gates work INSIDE the primary loop rather
+    /// than driving a loop of its own, so it can be changed while polling is running — there is no task to
+    /// restart, and the next primary tick simply compares against the new interval.
+    /// </summary>
+    public bool SetSecondaryPolling(TimeSpan pollingInterval)
+    {
+        ThrowIfDisposed();
+
+        if (pollingInterval < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pollingInterval), nameof(pollingInterval));
+        }
+
+        var clamped = ClampTierInterval(pollingInterval, PollingTiers.Secondary);
+
+        lock (_syncLock)
+        {
+            _secondaryPollingInterval = clamped;
         }
 
         return true;
@@ -340,6 +509,8 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             throw new ArgumentOutOfRangeException(nameof(pollingInterval), nameof(pollingInterval));
         }
 
+        var clamped = ClampTierInterval(pollingInterval, PollingTiers.Tertiary);
+
         lock (_syncLock)
         {
             if (_isHardwareInfoPolling)
@@ -347,7 +518,7 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 return false;
             }
 
-            _hardwareInfoPollingInterval = pollingInterval;
+            _hardwareInfoPollingInterval = clamped;
         }
 
         return true;
@@ -561,16 +732,9 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
 
         try
         {
-            // FAST tier — every hardware-info poll (default 1 s). Only what genuinely changes at that
-            // rate: CPU usage (drives the fan CPU-boost modifier) and memory free/used (cheap reads,
-            // /proc/meminfo on Linux). Skipped Refresh* calls leave Hardware.Info's previous lists in
-            // place, so the snapshot below always builds from complete (cached) inventory.
-            using (var cpuCapture = _hardwareInfoNoiseBuffer.BeginCapture())
-            {
-                _hardwareInfo.RefreshCPUList(true, 500, true);
-                cpuCapture.SetDataPresent(_hardwareInfo.CpuList?.Count > 0);
-            }
-
+            // Memory free/used is a genuinely cheap read (/proc/meminfo on Linux, a struct fill on Windows),
+            // so it refreshes on every poll of this loop. Skipped Refresh* calls leave Hardware.Info's
+            // previous lists in place, so the snapshot below always builds from complete (cached) inventory.
             _hardwareInfo.RefreshMemoryStatus();
 
             // SLOW tier — static inventory, at StaticInventoryRefreshInterval (see the field for the
@@ -601,6 +765,18 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 {
                     TryProbe("refresh the drive list", _hardwareInfo.RefreshDriveList);
                 }
+                // CPU INVENTORY only — name, core counts, caches, rated clocks. These are static, so this
+                // belongs on the slow tier; it was only ever on the fast one because it doubled as the usage
+                // read. includePercentProcessorTime is deliberately FALSE: passing true makes Hardware.Info
+                // sample, sleep a blocking 500 ms, and sample again, which is what made a poll cost ~600 ms.
+                // Usage now comes from IControlTelemetryReader on the primary tier and is merged into the
+                // snapshot below.
+                TryProbe("refresh the CPU list", () =>
+                {
+                    using var cpuCapture = _hardwareInfoNoiseBuffer.BeginCapture();
+                    _hardwareInfo.RefreshCPUList(includePercentProcessorTime: false);
+                    cpuCapture.SetDataPresent(_hardwareInfo.CpuList?.Count > 0);
+                });
                 TryProbe("refresh the motherboard list", _hardwareInfo.RefreshMotherboardList);
                 TryProbe("refresh the BIOS list", _hardwareInfo.RefreshBIOSList);
                 TryProbe("refresh the computer system list", _hardwareInfo.RefreshComputerSystemList);
@@ -847,18 +1023,42 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         {
             if (_hardwareInfo.CpuList is { Count: > 0 })
             {
+                // Usage no longer comes from Hardware.Info — the CPU list is refreshed with measurement off,
+                // so its percentages are all zero. It is merged in here from the primary tier instead.
+                //
+                // Only for a SINGLE-package machine, which every Framework product is. Control telemetry is
+                // machine-wide, and there is no honest way to split a machine-wide figure across sockets:
+                // attributing all of it to each would double count, and splitting it evenly would invent
+                // detail nobody measured. On a hypothetical multi-package machine the usage fields stay null,
+                // which the model already treats as "unknown" and the UI omits — rather than showing zero,
+                // which would read as a genuinely idle processor.
+                var controlSample = _latestControlTelemetry.Sample;
+                var isSinglePackage = _hardwareInfo.CpuList.Count == 1;
+                var aggregateUsagePercent = isSinglePackage && controlSample.CpuUtilizationFraction is { } aggregateFraction
+                    ? Math.Clamp(aggregateFraction * 100d, 0d, 100d)
+                    : (double?)null;
+                var perCoreUsageFraction = isSinglePackage
+                    ? controlSample.PerCoreUtilizationFraction
+                    : [];
+
+                // Package power rides the same single-package rule for the same reason: the reading is
+                // machine-wide, so on a multi-package machine there is no honest way to attribute it.
+                var packagePowerWatts = isSinglePackage ? controlSample.CpuPackagePowerWatts : null;
+
                 cpus = _hardwareInfo.CpuList
                     .Select(cpu =>
                     {
                         // WMI enumerates cores in string order ("0", "1", "10", "11", … "2") — sort numerically.
-                        var mappedCpuCores = cpu.CpuCoreList
+                        // The control reader already orders its per-core readings the same way (group, then
+                        // processor), so the two line up positionally once this sort has run.
+                        var coreNames = cpu.CpuCoreList
                             .Where(core => !string.IsNullOrWhiteSpace(core.Name))
-                            .Select(core => new HardwareInfoCpuCore(
-                                Name: core.Name,
-                                PercentProcessorTime: Math.Clamp((double)core.PercentProcessorTime, 0d, 100d)))
-                            .OrderBy(core => ParseCpuCoreOrdinal(core.Name))
-                            .ThenBy(core => core.Name, StringComparer.Ordinal)
+                            .Select(core => core.Name)
+                            .OrderBy(ParseCpuCoreOrdinal)
+                            .ThenBy(name => name, StringComparer.Ordinal)
                             .ToImmutableArray();
+
+                        var mappedCpuCores = BuildCpuCores(coreNames, perCoreUsageFraction);
 
                         return new HardwareInfoCpu(
                             Name: cpu.Name ?? cpu.Caption,
@@ -877,10 +1077,9 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                             SecondLevelAddressTranslationExtensions: cpu.SecondLevelAddressTranslationExtensions,
                             VirtualizationFirmwareEnabled: cpu.VirtualizationFirmwareEnabled,
                             VMMonitorModeExtensions: cpu.VMMonitorModeExtensions,
-                            PercentProcessorTime: mappedCpuCores.Length > 0 || cpu.PercentProcessorTime > 0
-                                ? Math.Clamp((double)cpu.PercentProcessorTime, 0d, 100d)
-                                : null,
-                            CpuCores: mappedCpuCores);
+                            PercentProcessorTime: aggregateUsagePercent,
+                            CpuCores: mappedCpuCores,
+                            PackagePowerWatts: packagePowerWatts);
                     })
                     .ToImmutableArray();
             }
@@ -1005,13 +1204,14 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         {
             while (!cancellationToken.IsCancellationRequested)
             {
+                var tickStartedAt = Stopwatch.GetTimestamp();
+
                 try
                 {
-                    var startedAt = Stopwatch.GetTimestamp();
                     var snapshot = ReadHardwareInfoSnapshot();
                     PublishHardwareInfoSnapshot(snapshot, snapshot.ObservedAt);
                     LogHardwareInfoPollCompleted(
-                        Stopwatch.GetElapsedTime(startedAt).TotalMilliseconds,
+                        Stopwatch.GetElapsedTime(tickStartedAt).TotalMilliseconds,
                         snapshot.IsAvailable,
                         snapshot.LastError ?? "none");
                 }
@@ -1030,7 +1230,9 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                     break;
                 }
 
-                await Task.Delay(pollingInterval.Value, cancellationToken).ConfigureAwait(false);
+                var elapsed = Stopwatch.GetElapsedTime(tickStartedAt);
+                ReportTierOverrunIfNeeded("tertiary", pollingInterval.Value, elapsed, ref _tertiaryOverrunLogged);
+                await Task.Delay(PollingSchedule.ComputeDelay(pollingInterval.Value, elapsed), cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -1132,14 +1334,43 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             }
 #pragma warning restore FD0001
 
-            _powerDeliverySnapshots.Publish(BuildPowerDeliverySnapshot(moduleInventory!, expansionBay), observedAt);
+            var powerDeliverySnapshot = BuildPowerDeliverySnapshot(moduleInventory!, expansionBay);
+            _latestPowerDeliverySnapshot = powerDeliverySnapshot;
+
+            _powerDeliverySnapshots.Publish(powerDeliverySnapshot, observedAt);
             _moduleInventorySnapshots.Publish(BuildModuleInventorySnapshot(moduleInventory!, expansionBay), observedAt);
             successfulReads += 1;
         }
 
-        // Independent of the EC: GPU/NPU load comes from the OS, so it is published even when an EC read
-        // above failed. Cheap enough for the fast tier (measured ~1.7 ms on Windows).
-        PublishComputeUtilization(observedAt);
+        // PRIMARY tier — the CPU signals fan control runs on, refreshed every tick because the whole point of
+        // them is to see a load spike before the temperature sensor does. Cheap by construction: cumulative
+        // counters differenced in place, never a sleep (measured ~1.5-2.9 ms per tick on Windows, against the
+        // ~600 ms the Hardware.Info read it replaces used to cost).
+        SampleControlTelemetry(observedAt);
+
+        // GPU/NPU telemetry, on whichever cadence is actually needed — and on NEITHER when nobody is asking.
+        //
+        // Two different consumers want two different things from one expensive device query. Adaptive needs
+        // GPU power for its feed-forward, which is worthless stale: it exists to react to power before the
+        // temperature moves, and reading it on the secondary tier meant a GPU fan anticipated heat from a
+        // number up to a minute old. The charts want per-device utilisation, and are happy on the calm tier.
+        //
+        // So the query runs at the PRIMARY cadence when a GPU-cooled fan is being driven adaptively, and the
+        // display channels are still only published on the secondary deadline. When neither is wanted it does
+        // not run at all — this is a discrete GPU, and polling it holds it out of its idle power state, so
+        // "nobody is looking" has to mean "do not touch it" rather than "read it anyway and discard".
+        var secondaryDue = observedAt >= _nextSecondaryTierAt;
+        var controlNeedsGpu = Volatile.Read(ref _gpuControlDemand) > 0;
+
+        if (secondaryDue)
+        {
+            _nextSecondaryTierAt = PollingSchedule.NextDeadline(_nextSecondaryTierAt, GetSecondaryPollingInterval(), observedAt);
+        }
+
+        if (secondaryDue || controlNeedsGpu)
+        {
+            SampleComputeDevices(observedAt, publishChannels: secondaryDue);
+        }
 
         if (TryReadSnapshot(connection.GetThermalSnapshot, "thermal", ref snapshotError, out var thermalSnapshot))
         {
@@ -1541,12 +1772,264 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     }
 
     /// <summary>
-    /// Publishes one utilization channel per GPU / NPU the reader can see. Runs on the FAST tier: the Windows
-    /// PDH reader costs ~1.7 ms per collect (measured), which is affordable at 1 s. Devices are published
-    /// individually — never blended — and a device the reader stops seeing goes unavailable rather than
-    /// freezing at its last value.
+    /// Pairs a CPU's core names with the per-core usage the primary tier measured.
     /// </summary>
-    private void PublishComputeUtilization(DateTimeOffset observedAt)
+    /// <remarks>
+    /// Returns an EMPTY list when there is no per-core reading. <see cref="HardwareInfoCpuCore"/> cannot
+    /// express "unknown" — its percentage is not nullable — so emitting names with zeroes would render as a
+    /// genuinely idle core rather than an unmeasured one. An empty list is what the model already reads as
+    /// no data.
+    ///
+    /// When the two counts disagree the MEASURED list wins and names are generated from the index: the reader
+    /// enumerated the logical processors this instant, while Hardware.Info's list can be a full tertiary
+    /// interval old and may not have been refreshed since a core was parked or hot-added.
+    /// </remarks>
+    private static ImmutableArray<HardwareInfoCpuCore> BuildCpuCores(
+        ImmutableArray<string> coreNames,
+        ImmutableArray<double> perCoreUsageFraction)
+    {
+        if (perCoreUsageFraction.IsDefaultOrEmpty)
+        {
+            return [];
+        }
+
+        var cores = ImmutableArray.CreateBuilder<HardwareInfoCpuCore>(perCoreUsageFraction.Length);
+        for (var index = 0; index < perCoreUsageFraction.Length; index++)
+        {
+            cores.Add(new HardwareInfoCpuCore(
+                Name: index < coreNames.Length ? coreNames[index] : index.ToString(CultureInfo.InvariantCulture),
+                PercentProcessorTime: Math.Clamp(perCoreUsageFraction[index] * 100d, 0d, 100d)));
+        }
+
+        return cores.MoveToImmutable();
+    }
+
+    /// <summary>
+    /// Reads the CPU signals the adaptive fan controller runs on and caches the result for
+    /// <see cref="GetLatestControlTelemetry"/>.
+    /// </summary>
+    /// <remarks>
+    /// Runs on the PRIMARY tier — every telemetry tick — because anticipating a load spike before the sensor
+    /// moves is the entire reason these signals exist; sampling them slowly would defeat the purpose.
+    ///
+    /// A failure here must never stop a telemetry tick, so the previous sample is replaced with an empty one
+    /// rather than left in place: a stale utilisation figure held indefinitely would read as a live one, and
+    /// the controller would act on a number that stopped being true minutes ago.
+    /// </remarks>
+    /// <summary>Total GPU power across every graphics device, or null when nothing reported it.</summary>
+    private double? ReadTotalGpuPowerWatts()
+    {
+        var milliwatts = _latestGpuPowerMilliwatts;
+        return milliwatts >= 0 && IsFresh(_latestGpuReadTimestamp) ? milliwatts / 1000d : null;
+    }
+
+    /// <summary>Whether a cache written on a slower tier is recent enough to fold into a control sample.</summary>
+    private static bool IsFresh(long timestamp)
+    {
+        var taken = Volatile.Read(ref timestamp);
+        return taken != 0L && Stopwatch.GetElapsedTime(taken) <= MaximumFoldedCacheAge;
+    }
+
+    /// <summary>The fastest graphics core clock reported, or null when nothing reported one.</summary>
+    private double? ReadGpuCoreClockMegahertz()
+    {
+        var megahertz = _latestGpuCoreClockMegahertz;
+        return megahertz > 0 && IsFresh(_latestGpuReadTimestamp) ? megahertz : null;
+    }
+
+    /// <summary>The busiest GPU's busy share as 0–1, or null when nothing reported one.</summary>
+    private double? ReadGpuUtilizationFraction()
+    {
+        var perMille = _latestGpuUtilizationPerMille;
+        return perMille >= 0 && IsFresh(_latestGpuReadTimestamp) ? perMille / 1000d : null;
+    }
+
+    /// <summary>System draw derived from the charger, or null when running on battery.</summary>
+    private double? ReadSystemPowerWatts()
+    {
+        var milliwatts = _latestSystemPowerMilliwatts;
+        return milliwatts >= 0 && IsFresh(_latestSystemPowerTimestamp) ? milliwatts / 1000d : null;
+    }
+
+    /// <summary>
+    /// Caches total system draw — the same physical quantity whichever way the machine is powered.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// On AC that is charger draw LESS whatever is going into the battery. The subtraction matters: charging
+    /// can pull 60 W that becomes chemistry rather than heat in the fan's zone, so treating raw adapter draw
+    /// as load would have the fans spin hardest on a cold machine that was simply plugged in — the opposite
+    /// of what the user expects, and worst on a laptop just opened at a desk.
+    /// </para>
+    /// <para>
+    /// On battery it is the discharge rate, which measures exactly the same thing from the other side. Without
+    /// this half a Windows laptop has NO usable feed-forward signal off the charger — no package power, no
+    /// adapter — so a mostly-portable machine would never gather the evidence to identify its own model and
+    /// would run on conservative defaults forever.
+    /// </para>
+    /// <para>
+    /// One caveat worth knowing: on AC, charging also warms the pack and the charging circuitry inside the
+    /// chassis, and that heat is real but is deliberately NOT in this figure. It leaves a small systematic
+    /// difference between the AC and battery couplings, which the identified intercept partly absorbs. If it
+    /// ever proves to matter, the fix is a per-supply coefficient, not abandoning the subtraction.
+    /// </para>
+    /// </remarks>
+    private void CacheSystemPower(FrameworkPowerSnapshot powerSnapshot, PowerDeliverySnapshot powerDelivery)
+    {
+        var adapterWatts = 0d;
+        var sawAdapter = false;
+
+        foreach (var port in powerDelivery.Ports)
+        {
+            // Only a port actually sinking power is an input; a port powering a peripheral is a load we are
+            // not trying to anticipate.
+            if (!port.IsPresent || !port.HasPowerDeliveryContract)
+            {
+                continue;
+            }
+
+            var watts = port.VoltageVolts * port.CurrentAmperes;
+            if (double.IsFinite(watts) && watts > 0d)
+            {
+                adapterWatts += watts;
+                sawAdapter = true;
+            }
+        }
+
+        _latestSystemPowerMilliwatts = sawAdapter
+            ? ToMilliwatts(adapterWatts - TotalBatteryChargeWatts(powerSnapshot))
+            : ToMilliwatts(TotalBatteryDischargeWatts(powerSnapshot));
+        Volatile.Write(ref _latestSystemPowerTimestamp, Stopwatch.GetTimestamp());
+    }
+
+    /// <summary>Power flowing INTO the batteries, in watts. Zero when nothing is charging.</summary>
+    private static double TotalBatteryChargeWatts(FrameworkPowerSnapshot powerSnapshot)
+        => SumBatteryWatts(powerSnapshot, FrameworkBatteryState.Charging);
+
+    /// <summary>Power flowing OUT of the batteries, in watts — system draw when off the charger.</summary>
+    private static double TotalBatteryDischargeWatts(FrameworkPowerSnapshot powerSnapshot)
+        => SumBatteryWatts(powerSnapshot, FrameworkBatteryState.Discharging);
+
+    private static double SumBatteryWatts(FrameworkPowerSnapshot powerSnapshot, FrameworkBatteryState state)
+    {
+        var total = 0d;
+
+        foreach (var battery in powerSnapshot.ReportedBatteries)
+        {
+            if (battery.BatteryState != state)
+            {
+                continue;
+            }
+
+            // PresentRate is reported as a magnitude; the state is what carries the direction.
+            var watts = battery.PresentVoltage.Volts * Math.Abs(battery.PresentRate.Amperes);
+            if (double.IsFinite(watts) && watts > 0d)
+            {
+                total += watts;
+            }
+        }
+
+        return total;
+    }
+
+    private static int ToMilliwatts(double watts)
+        => double.IsFinite(watts) && watts > 0d ? (int)Math.Round(watts * 1000d) : -1;
+
+    private void SampleControlTelemetry(DateTimeOffset observedAt)
+    {
+        if (!_controlTelemetryReader.IsAvailable)
+        {
+            return;
+        }
+
+        try
+        {
+            // The reader knows CPU signals only. Adapter and GPU power come from subsystems this provider is
+            // already polling, so they are folded in here rather than pushed into the reader abstraction —
+            // which would force every platform reader to learn about chargers and graphics drivers.
+            var sample = _controlTelemetryReader.Sample() with
+            {
+                GpuPowerWatts = ReadTotalGpuPowerWatts(),
+                GpuCoreClockMegahertz = ReadGpuCoreClockMegahertz(),
+                GpuUtilizationFraction = ReadGpuUtilizationFraction(),
+                SystemPowerWatts = ReadSystemPowerWatts(),
+            };
+
+            _latestControlTelemetry = new ObservedControlTelemetry(sample, observedAt);
+        }
+        catch (Exception exception)
+        {
+            _latestControlTelemetry = ObservedControlTelemetry.None;
+
+            if (!_controlTelemetryFailureLogged)
+            {
+                _controlTelemetryFailureLogged = true;
+                _logger.LogWarning(exception, "Unable to read CPU control telemetry; adaptive fan control will run without CPU signals.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// The most recent primary-tier CPU reading, with the time it was taken. Consumers that drive fan control
+    /// read this rather than the hardware-info snapshot, which is rebuilt on the tertiary tier and would be up
+    /// to that interval old.
+    /// </summary>
+    public ObservedControlTelemetry GetLatestControlTelemetry() => _latestControlTelemetry;
+
+    private TimeSpan GetSecondaryPollingInterval()
+    {
+        lock (_syncLock)
+        {
+            return _secondaryPollingInterval;
+        }
+    }
+
+    /// <summary>
+    /// Publishes one utilization channel per GPU / NPU the reader can see. Runs on the SECONDARY tier — this
+    /// is display data, and the Windows PDH reader costs ~1.7 ms per collect (measured), which is affordable
+    /// once a second and wasteful at the primary tick rate. Devices are published individually — never
+    /// blended — and a device the reader stops seeing goes unavailable rather than freezing at its last value.
+    /// </summary>
+    /// <summary>
+    /// How many callers currently need GPU power on the control cadence. Zero means the device is left alone.
+    /// </summary>
+    /// <remarks>
+    /// A count rather than a flag: two adaptive GPU fans, or a fan plus a running calibration, each want it,
+    /// and the last one to finish is the one that may let the device go back to sleep.
+    /// </remarks>
+    private int _gpuControlDemand;
+
+    /// <inheritdoc />
+    public IDisposable RequireGpuControlTelemetry()
+    {
+        ThrowIfDisposed();
+
+        Interlocked.Increment(ref _gpuControlDemand);
+        return new GpuControlDemandLease(this);
+    }
+
+    /// <summary>Releases one caller's claim; the device stops being polled when the last one goes.</summary>
+    private sealed class GpuControlDemandLease(FrameworkDataProvider owner) : IDisposable
+    {
+        private int _released;
+
+        public void Dispose()
+        {
+            // Guarded, because disposing a lease twice would drop the count below the number of real holders
+            // and stop polling for whoever is still using it.
+            if (Interlocked.Exchange(ref _released, 1) == 0)
+            {
+                Interlocked.Decrement(ref owner._gpuControlDemand);
+            }
+        }
+    }
+
+    /// <param name="publishChannels">
+    /// False when this read exists only to refresh the control figures. The per-device channels are the
+    /// secondary tier's output, and republishing them at the primary cadence would push history into the
+    /// charts far faster than the user asked them to move.
+    /// </param>
+    private void SampleComputeDevices(DateTimeOffset observedAt, bool publishChannels)
     {
         if (!_computeUtilizationReader.IsAvailable)
         {
@@ -1570,6 +2053,64 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             return;
         }
 
+        // Every GPU's power, summed: a Framework 16 with the graphics module has two, and the fan is cooling
+        // the chassis both sit in. NPUs are excluded — they are a rounding error thermally and reporting them
+        // as GPU load would bias the model on machines that have one.
+        var gpuPowerWatts = 0d;
+        var sawGpuPower = false;
+        foreach (var candidate in devices)
+        {
+            if (candidate.Kind != ComputeDeviceKind.Npu && candidate.PowerWatts is double watts && double.IsFinite(watts) && watts >= 0d)
+            {
+                gpuPowerWatts += watts;
+                sawGpuPower = true;
+            }
+        }
+
+        _latestGpuPowerMilliwatts = sawGpuPower ? (int)Math.Round(gpuPowerWatts * 1000d) : -1;
+
+        // One stamp for the whole GPU read: power, clock and utilisation are all written by this pass.
+        Volatile.Write(ref _latestGpuReadTimestamp, Stopwatch.GetTimestamp());
+
+        // The HIGHEST core clock rather than the sum: clocks do not add. This is the speed the busiest
+        // graphics device is actually sustaining, which is what a calibration compares across fan duties to
+        // answer "what does more fan buy?".
+        var fastestClock = -1;
+        foreach (var candidate in devices)
+        {
+            if (candidate.Kind != ComputeDeviceKind.Npu
+                && candidate.CoreClockMegahertz is double megahertz
+                && double.IsFinite(megahertz)
+                && megahertz > 0d)
+            {
+                fastestClock = Math.Max(fastestClock, (int)Math.Round(megahertz));
+            }
+        }
+
+        _latestGpuCoreClockMegahertz = fastestClock;
+
+        // The BUSIEST device, not a sum — busy shares do not add, and during a GPU-load calibration the
+        // loaded device is by definition the busiest one. Tenths of a percent so the volatile stays an int.
+        var busiestPerMille = -1;
+        foreach (var candidate in devices)
+        {
+            if (candidate.Kind != ComputeDeviceKind.Npu
+                && double.IsFinite(candidate.UtilizationPercent)
+                && candidate.UtilizationPercent >= 0d)
+            {
+                busiestPerMille = Math.Max(busiestPerMille, (int)Math.Round(candidate.UtilizationPercent * 10d));
+            }
+        }
+
+        _latestGpuUtilizationPerMille = busiestPerMille;
+
+        // The control figures are extracted above and are always refreshed. Everything below is the display
+        // side — per-device channels and their history — which belongs to the secondary tier alone.
+        if (!publishChannels)
+        {
+            return;
+        }
+
         var observedGpuChannels = new HashSet<TelemetryChannelId>();
         var observedNpuChannels = new HashSet<TelemetryChannelId>();
 
@@ -1587,14 +2128,37 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 Index: index,
                 Metric: TelemetryMetric.UtilizationPercent);
 
-            (entityKind == TelemetryEntityKind.Npu ? observedNpuChannels : observedGpuChannels).Add(channelId);
+            var observedChannels = entityKind == TelemetryEntityKind.Npu ? observedNpuChannels : observedGpuChannels;
+            observedChannels.Add(channelId);
 
             PublishNumericTelemetry(
                 channelId: channelId,
                 displayName: device.DisplayName,
                 unitSymbol: "%",
                 observedAt: observedAt,
-                numericValue: device.UtilizationPercent);
+                numericValue: device.UtilizationPercent,
+                computeDevice: device);
+
+            // Video memory as its OWN channel, so the service retains its history the same way it retains
+            // every other series and the UI can chart it without accumulating anything client-side.
+            //
+            // Published only when the device reports both halves. A device that has no dedicated video
+            // memory (an integrated GPU sharing system RAM) gets no channel at all rather than a zero that
+            // would chart as "0% used" — and because the channel is then absent from the observed set,
+            // SetChannelsAvailability marks it unavailable and the card hides the chart.
+            if (device.VramUtilizationPercent is { } vramPercent)
+            {
+                var vramChannelId = channelId with { Metric = TelemetryMetric.VramUtilizationPercent };
+                observedChannels.Add(vramChannelId);
+
+                PublishNumericTelemetry(
+                    channelId: vramChannelId,
+                    displayName: device.DisplayName,
+                    unitSymbol: "%",
+                    observedAt: observedAt,
+                    numericValue: vramPercent,
+                    computeDevice: device);
+            }
         }
 
         SetChannelsAvailability(TelemetryArea.Compute, TelemetryEntityKind.Gpu, observedGpuChannels, observedAt);
@@ -1741,6 +2305,11 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             {
                 FanIndex = fanIndex,
                 DisplayName = displayName,
+
+                // What it cools, not where it sits — the two differ on a Framework 16, where the right fan
+                // is over the GPU. Resolved from the same EC slot role as the display name so they cannot
+                // disagree.
+                CoolingRole = FrameworkFanNameDisplay.ToRole(fanSnapshot.Name),
                 FanState = fanSnapshot.FanState,
                 ObservedAt = observedAt,
                 IsAvailable = true,
@@ -2009,6 +2578,12 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
 
     private void PublishPowerTelemetryCore(FrameworkPowerSnapshot powerSnapshot, DateTimeOffset observedAt)
     {
+        // Refresh the feed-forward load figure here, where charger draw and battery draw are both in hand.
+        if (_latestPowerDeliverySnapshot is { } powerDelivery)
+        {
+            CacheSystemPower(powerSnapshot, powerDelivery);
+        }
+
         var observedBatteryChannels = new HashSet<TelemetryChannelId>();
         var batteryIndex = 0;
 
@@ -2113,7 +2688,8 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         double? batteryDesignCapacityAmpereHours = null,
         double? batteryLastFullChargeCapacityAmpereHours = null,
         double? batteryDesignVoltageVolts = null,
-        uint? batteryCycleCount = null)
+        uint? batteryCycleCount = null,
+        ComputeDeviceUtilization? computeDevice = null)
     {
         _lastTelemetryObservedAt = observedAt;
         UpsertChannel(channelId, displayName, unitSymbol, observedAt, isAvailable: true);
@@ -2138,6 +2714,17 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             BatteryLastFullChargeCapacityAmpereHours = batteryLastFullChargeCapacityAmpereHours,
             BatteryDesignVoltageVolts = batteryDesignVoltageVolts,
             BatteryCycleCount = batteryCycleCount,
+
+            // Taken from the device record rather than as five more parameters: they are measured together in
+            // one source call, and passing them as a unit is what keeps them from being split across ticks.
+            ComputePowerWatts = computeDevice?.PowerWatts,
+            ComputeTemperatureCelsius = computeDevice?.TemperatureCelsius,
+            ComputeCoreClockMegahertz = computeDevice?.CoreClockMegahertz,
+            ComputeMaxCoreClockMegahertz = computeDevice?.MaxCoreClockMegahertz,
+            ComputeVramUsedBytes = computeDevice?.VramUsedBytes,
+            ComputeVramTotalBytes = computeDevice?.VramTotalBytes,
+            ComputeThrottleReasons = computeDevice?.ThrottleReasons,
+
             IsAvailable = true,
         };
 
@@ -2431,6 +3018,10 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         {
             while (!cancellationToken.IsCancellationRequested)
             {
+                // Timed around the WORK, so the sleep below can give back only the unused remainder of the
+                // interval. Sleeping the whole interval regardless would make the real period interval+work.
+                var tickStartedAt = Stopwatch.GetTimestamp();
+
                 try
                 {
                     await RefreshAsync(cancellationToken).ConfigureAwait(false);
@@ -2450,7 +3041,9 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                     break;
                 }
 
-                await Task.Delay(pollingInterval.Value, cancellationToken).ConfigureAwait(false);
+                var elapsed = Stopwatch.GetElapsedTime(tickStartedAt);
+                ReportTierOverrunIfNeeded("primary", pollingInterval.Value, elapsed, ref _primaryOverrunLogged);
+                await Task.Delay(PollingSchedule.ComputeDelay(pollingInterval.Value, elapsed), cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -2468,6 +3061,30 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 _pollingCancellation = null;
             }
         }
+    }
+
+
+    /// <summary>
+    /// Warns once when a tier cannot finish its work inside its own interval.
+    /// </summary>
+    /// <remarks>
+    /// A tier in this state runs flat out with no idle time, which is worth saying plainly: the symptom
+    /// otherwise is just "the interval setting does not seem to do anything", because the loop is already
+    /// going as fast as the work allows and shortening the interval changes nothing.
+    /// </remarks>
+    private void ReportTierOverrunIfNeeded(string tierName, TimeSpan interval, TimeSpan elapsed, ref bool alreadyLogged)
+    {
+        if (elapsed <= interval || alreadyLogged)
+        {
+            return;
+        }
+
+        alreadyLogged = true;
+        _logger.LogWarning(
+            "The {TierName} polling tier took {ElapsedMs:F0} ms, longer than its {IntervalMs:F0} ms interval, so it is running without idle time. Ticks are not skipped or queued; the next one starts immediately.",
+            tierName,
+            elapsed.TotalMilliseconds,
+            interval.TotalMilliseconds);
     }
 
     private void ThrowIfDisposed()

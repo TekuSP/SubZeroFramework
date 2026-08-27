@@ -16,6 +16,8 @@ public interface IUnitFormattingService
 
     string ChargeCapacityUnitSuffix { get; }
 
+    string EnergyUnitSuffix { get; }
+
     string RatioUnitSuffix { get; }
 
     string LengthUnitSuffix { get; }
@@ -37,7 +39,42 @@ public interface IUnitFormattingService
     /// <summary>Converts a value in the user's chosen temperature unit back to canonical Celsius (the inverse of <see cref="ConvertTemperature"/>).</summary>
     double ConvertTemperatureToCelsius(double displayValue);
 
-    string FormatTemperatureAxisLabel(double celsiusValue);
+    /// <summary>
+    /// Converts a temperature DIFFERENCE — an axis step, a band width, a tolerance — to the user's unit.
+    /// </summary>
+    /// <remarks>
+    /// Not the same as <see cref="ConvertTemperature"/>, and the difference is a real bug generator: that one
+    /// carries the scale's offset, so it turns a 10 °C step into 50 °F instead of the correct 18 °F. Every
+    /// other quantity here scales without an offset, which is why only temperature needs this.
+    /// </remarks>
+    double ConvertTemperatureDelta(double celsiusDelta);
+
+    // ----- Axis TICK formatters -----
+    //
+    // Every chart in this app plots a series that has ALREADY been converted to the user's unit, so its axis
+    // ticks arrive in display units too and a Labeler must format them WITHOUT converting again. There was
+    // once a parallel Format*AxisLabel family taking canonical values; it was deleted because every chart
+    // here is display-space, so the only way to reach for it was by mistake — and doing so was invisible on
+    // the default unit and silently wrong on any other. Add a sibling here for a new quantity rather than
+    // reintroducing a converting labeler.
+
+    /// <summary>Formats a temperature axis tick that is ALREADY in the user's unit.</summary>
+    string FormatTemperatureAxisTick(double displayValue);
+
+    /// <summary>Formats a fan-speed axis tick that is ALREADY in the user's unit.</summary>
+    string FormatFanSpeedAxisTick(double displayValue);
+
+    /// <summary>Formats a ratio axis tick that is ALREADY in the user's unit.</summary>
+    string FormatRatioAxisTick(double displayValue);
+
+    /// <summary>Formats a clock-frequency axis tick that is ALREADY in the user's unit.</summary>
+    string FormatClockFrequencyAxisTick(double displayValue);
+
+    /// <summary>Formats a voltage axis tick that is ALREADY in the user's unit.</summary>
+    string FormatVoltageAxisTick(double displayValue);
+
+    /// <summary>Formats a current axis tick that is ALREADY in the user's unit.</summary>
+    string FormatCurrentAxisTick(double displayValue);
 
     string FormatFanSpeed(double? rpm, string unavailableDisplay = "--", int decimals = -1);
 
@@ -45,23 +82,17 @@ public interface IUnitFormattingService
 
     double ConvertFanSpeed(double rpm);
 
-    string FormatFanSpeedAxisLabel(double rpmValue);
-
     string FormatClockFrequencyMegahertz(double? megahertz, string unavailableDisplay = "--", int decimals = -1);
 
     string FormatClockFrequencyValueMegahertz(double? megahertz, string unavailableDisplay = "--", int decimals = -1);
 
     double ConvertClockFrequencyMegahertz(double megahertz);
 
-    string FormatClockFrequencyAxisLabel(double megahertzValue);
-
     string FormatRefreshRateHertz(double? hertz, string unavailableDisplay = "--", int decimals = -1);
 
     string FormatRefreshRateValueHertz(double? hertz, string unavailableDisplay = "--", int decimals = -1);
 
     double ConvertRefreshRateHertz(double hertz);
-
-    string FormatRefreshRateAxisLabel(double hertzValue);
 
     string FormatInformationBytes(ulong bytes, bool treatZeroAsUnknown = false, string unavailableDisplay = "Unknown");
 
@@ -73,15 +104,11 @@ public interface IUnitFormattingService
 
     double ConvertVoltage(double volts);
 
-    string FormatVoltageAxisLabel(double voltsValue);
-
     string FormatCurrent(double? amperes, string unavailableDisplay = "--", int decimals = -1);
 
     string FormatCurrentValue(double? amperes, string unavailableDisplay = "--", int decimals = -1);
 
     double ConvertCurrent(double amperes);
-
-    string FormatCurrentAxisLabel(double amperesValue);
 
     string FormatChargeCapacity(double? ampereHours, string unavailableDisplay = "--", int decimals = -1);
 
@@ -89,7 +116,11 @@ public interface IUnitFormattingService
 
     double ConvertChargeCapacity(double ampereHours);
 
-    string FormatChargeCapacityAxisLabel(double ampereHoursValue);
+    string FormatEnergyWattHours(double? wattHours, string unavailableDisplay = "--", int decimals = -1);
+
+    string FormatEnergyValueWattHours(double? wattHours, string unavailableDisplay = "--", int decimals = -1);
+
+    double ConvertEnergyWattHours(double wattHours);
 
     string FormatRatio(double? percent, string unavailableDisplay = "--", int decimals = -1);
 
@@ -97,7 +128,8 @@ public interface IUnitFormattingService
 
     double ConvertRatio(double percent);
 
-    string FormatRatioAxisLabel(double percentValue);
+    /// <summary>Converts a value in the user's chosen ratio unit back to canonical percent (the inverse of <see cref="ConvertRatio"/>).</summary>
+    double ConvertRatioToPercent(double displayValue);
 
     string FormatLengthMillimeters(double? millimeters, string unavailableDisplay = "--", int decimals = -1);
 

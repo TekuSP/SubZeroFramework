@@ -11,12 +11,15 @@ using FrameworkDotnet.Enums;
 
 using Material.Icons;
 
+using Microsoft.UI.Xaml.Media;
+
 using SubZeroFramework.Controls.Dashboard.Models;
 using SubZeroFramework.Controls.Fans.Models;
 using SubZeroFramework.Controls.Thermal.Models;
 using SubZeroFramework.Models;
 using SubZeroFramework.Services.Units;
 using SubZeroFramework.Services;
+using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 
@@ -31,6 +34,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private readonly CompositeDisposable _subscriptions = [];
     private readonly ObservableCollection<FanQuickControlModel> _quickFans = [];
     private readonly ObservableCollection<ThermalSensorModel> _thermalSensors = [];
+    private readonly ObservableCollection<FanProfileCardModel> _profiles = [];
     private readonly Dictionary<int, FanCardModel> _fanCardsByIndex = [];
     private readonly Dictionary<int, FanQuickControlModel> _quickFansByIndex = [];
     private readonly Dictionary<int, FanCapabilityState> _fanCapabilities = [];
@@ -42,6 +46,8 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private readonly SynchronizationContext _synchronizationContext;
     private readonly IUnitFormattingService _unitFormattingService;
     private readonly IFanControlActuator _fanControlActuator;
+    private readonly IFrameworkFanControlClient _fanControlClient;
+    private readonly ILocalFanProfileStore _profileStore;
 
     public DashboardModel(
         IStringLocalizer localizer,
@@ -57,15 +63,29 @@ public partial class DashboardModel : ObservableObject, IDisposable
         IUserUnitPreferencesClient userUnitPreferencesClient,
         IUnitFormattingService unitFormattingService,
         IFanControlActuator fanControlActuator,
+        IFrameworkFanControlClient fanControlClient,
+        ILocalFanProfileStore profileStore,
         IPowerDeliveryClient powerDeliveryClient,
         SynchronizationContext synchronizationContext)
     {
         _unitFormattingService = unitFormattingService;
         _fanControlActuator = fanControlActuator;
+        _fanControlClient = fanControlClient;
+        _profileStore = profileStore;
         _synchronizationContext = synchronizationContext;
 
         QuickFans = new ReadOnlyObservableCollection<FanQuickControlModel>(_quickFans);
         ThermalSensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_thermalSensors);
+        Profiles = new ReadOnlyObservableCollection<FanProfileCardModel>(_profiles);
+
+        if (ProfilesEnabled)
+        {
+            // The store is edited from dialogs this page owns, so following it rather than re-reading after
+            // each command keeps one path for "the list changed" whether the change came from here or from a
+            // restart.
+            _profileStore.Changed += OnProfileStoreChanged;
+            RefreshProfiles();
+        }
 
         frameworkStatusClient
             .WatchStatus()
@@ -137,7 +157,14 @@ public partial class DashboardModel : ObservableObject, IDisposable
                     }
                 }
 
-                RecomputePresetSelection();
+                if (ProfilesEnabled)
+                {
+                    // Seeded from the fans the service actually reports, so a machine with three fans does
+                    // not get profiles describing four. Only ever on an empty list; see SeedIfEmpty.
+                    _profileStore.SeedIfEmpty([.. _fanControlStates.Keys]);
+
+                    RecomputeProfileSelection();
+                }
             })
             .DisposeWith(_subscriptions);
 
@@ -197,7 +224,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
                         _fanCardsByIndex[change.Key] = fan;
 
-                        var quickFan = new FanQuickControlModel(fan);
+                        var quickFan = new FanQuickControlModel(fan, _unitFormattingService);
                         _quickFansByIndex[change.Key] = quickFan;
                         InsertSorted(_quickFans, quickFan, model => model.FanIndex);
                         continue;
@@ -332,82 +359,236 @@ public partial class DashboardModel : ObservableObject, IDisposable
         UpdateAverageFanSpeed();
         UpdateThermalSummary();
         UpdatePowerSummary();
+        RefreshAdapterBadge();
+        BatteryChargeUnitSuffix = _unitFormattingService.RatioUnitSuffix;
+
+        // The canonical readings on this page are formatted by UnitFormatConverter at render time, so they
+        // only need their bindings to run again — that is what the null property name asks for. See
+        // UnitFormatConverter.
+        OnPropertyChanged(propertyName: null);
     }
 
-    // ----- Cooling profile presets (one preset applied to every fan; selection derived from live states) -----
+    // ----- Saved fan profiles (one profile applied to every fan; selection derived from live states) -----
 
-    /// <summary>Pre-release feature flag: cooling profiles are not supported yet, so the section renders
-    /// grayed and inert (no selection derivation, no actuation). Flip when profiles ship.</summary>
-    private static readonly bool CoolingProfilesEnabled = false;
+    /// <summary>
+    /// Pre-release feature flag: profiles are built but not switched on yet. Flip to ship them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Off means <b>entirely</b> off, not merely un-clickable: nothing seeds, nothing is written to disk, and
+    /// the section does not render. A greyed-out section would be worse than none, because with seeding off
+    /// there are no cards to grey — it would draw a heading over an empty space and read as broken rather
+    /// than as unfinished.
+    /// </para>
+    /// <para>
+    /// Not a <c>const</c>: that makes every guarded branch unreachable code and buries the feature under
+    /// compiler warnings the moment it is turned off.
+    /// </para>
+    /// </remarks>
+    private static readonly bool ProfilesEnabled = false;
 
-    public IReadOnlyList<CoolingPresetCardModel> CoolingPresets { get; } =
-    [
-        new(CoolingPresetKind.Silent, "Silent", "Quietest — fans idle when cool", MaterialIconKind.VolumeLow),
-        new(CoolingPresetKind.Balanced, "Balanced", "Steady 45% baseline airflow", MaterialIconKind.ScaleBalance),
-        new(CoolingPresetKind.Performance, "Performance", "Cooler — higher baseline", MaterialIconKind.SpeedometerMedium),
-        new(CoolingPresetKind.Turbo, "Turbo", "Max airflow, loudest", MaterialIconKind.Speedometer),
-        new(CoolingPresetKind.Custom, "Custom", "Per-fan settings you tuned", MaterialIconKind.TuneVariant),
-    ];
+    /// <summary>Whether the Profiles section renders at all. See <see cref="ProfilesEnabled"/>.</summary>
+    public bool AreProfilesAvailable => ProfilesEnabled;
 
-    private const double BalancedDutyPercent = 45d;
-    private const double PerformanceDutyPercent = 65d;
-
+    /// <summary>Average speed across available fans, canonical RPM; null until a fan reports. Formatted by UnitFormatConverter.</summary>
     [ObservableProperty]
-    public partial string AverageFanSpeedDisplay { get; set; } = "--";
-
-    [ObservableProperty]
-    public partial string CoolingProfileSubtitle { get; set; } = "Coming soon";
+    public partial double? AverageFanSpeedRpm { get; set; }
 
     [ObservableProperty]
     public partial bool IsFanControlEnabled { get; set; }
 
-    partial void OnLastStatusChanged(FrameworkSystemStatus? value)
-    {
-        IsFanControlEnabled = value?.IsGrpcActive == true && value.IsFanControlEnabled;
-    }
+    /// <summary>
+    /// True when the fans are not doing what any saved profile asks for.
+    /// </summary>
+    /// <remarks>
+    /// The prompt to save. Without it, tuning a fan silently deselects every card and the row just goes blank
+    /// — which reads as the profiles having stopped working rather than as the user having moved past them.
+    /// </remarks>
+    [ObservableProperty]
+    public partial bool IsModified { get; set; }
 
-    public async Task ApplyPresetAsync(CoolingPresetKind kind)
+    /// <summary>The profile the fans currently match, or null when none does.</summary>
+    [ObservableProperty]
+    public partial string? ActiveProfileName { get; set; }
+
+    public ReadOnlyObservableCollection<FanProfileCardModel> Profiles { get; }
+
+    /// <summary>
+    /// Reports which fans a profile could not be applied to.
+    /// </summary>
+    /// <remarks>
+    /// Empty on success. Applying is a batch of independent commands and any one of them can legitimately
+    /// fail — arming Adaptive on a fan with no driving sensors is the common case — so the caller is told
+    /// exactly which fans were left alone rather than being given a single pass-or-fail.
+    /// </remarks>
+    public async Task<IReadOnlyList<string>> ApplyProfileAsync(FanProfile profile)
     {
-        if (!CoolingProfilesEnabled || !IsFanControlEnabled || kind == CoolingPresetKind.Custom)
+        ArgumentNullException.ThrowIfNull(profile);
+
+        if (!ProfilesEnabled)
         {
-            // Custom is an indicator of per-fan tuned state, not an actuatable preset.
-            return;
+            return [];
         }
 
-        foreach (var fanIndex in _fanCardsByIndex.Keys.OrderBy(index => index).ToArray())
+        if (!IsFanControlEnabled)
         {
-            var (mode, duty) = kind switch
+            return ["Fan control is not available right now."];
+        }
+
+        List<string> failures = [];
+
+        // In fan order, so a machine where several fans share a heatsink ramps predictably rather than in
+        // whatever order the profile happened to be written.
+        foreach (var entry in profile.Fans.OrderBy(static entry => entry.FanIndex))
+        {
+            if (!_fanControlStates.TryGetValue(entry.FanIndex, out var state) || !state.IsAvailable)
             {
-                CoolingPresetKind.Silent => (FanControlMode.Auto, 0d),
-                CoolingPresetKind.Balanced => (FanControlMode.Manual, BalancedDutyPercent),
-                CoolingPresetKind.Performance => (FanControlMode.Manual, PerformanceDutyPercent),
-                _ => (FanControlMode.Max, 100d),
-            };
+                // Not a failure worth reporting: a profile written while a module was attached should apply
+                // cleanly to the fans that remain rather than complaining about the ones that left.
+                continue;
+            }
 
-            await _fanControlActuator.ActuateSimpleAsync(fanIndex, mode, duty, preview: false).ConfigureAwait(false);
+            var failure = await ApplyEntryAsync(entry, state).ConfigureAwait(false);
+            if (failure is not null)
+            {
+                failures.Add($"{state.DisplayName}: {failure}");
+            }
+        }
+
+        return failures;
+    }
+
+    private async Task<string?> ApplyEntryAsync(FanProfileEntry entry, FanControlStateSnapshot state)
+    {
+        try
+        {
+            switch (entry.Mode)
+            {
+                case FanControlMode.Adaptive:
+                    // The profile carries the TARGET, and the fan keeps its own driving sensors. Sensor
+                    // choice is a property of the hardware — which sensors this fan actually cools — not of
+                    // the mood the user is in, and a profile overwriting it would silently undo work done on
+                    // the Fan Control page.
+                    var armed = await _fanControlClient.SetAdaptiveModeAsync(
+                        entry.FanIndex,
+                        [.. state.DrivingSensorIndices],
+                        state.DrivingTemperatureAggregation,
+                        state.AdaptiveSettings with { TargetTemperatureCelsius = entry.AdaptiveTargetCelsius })
+                        .ConfigureAwait(false);
+
+                    return armed.Succeeded ? null : armed.Message ?? "could not switch to Adaptive";
+
+                case FanControlMode.CustomCurve:
+                    var curve = await _fanControlClient
+                        .SetActiveCurveProfileAsync(entry.FanIndex, entry.CurveSlot)
+                        .ConfigureAwait(false);
+
+                    return curve.Succeeded ? null : curve.Message ?? "could not switch to its saved curve";
+
+                default:
+                    await _fanControlActuator
+                        .ActuateSimpleAsync(entry.FanIndex, entry.Mode, entry.DutyPercent, preview: false)
+                        .ConfigureAwait(false);
+
+                    return null;
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // One fan refusing must not abandon the rest of the profile half-applied.
+            return exception.Message;
         }
     }
 
-    /// <summary>Selection is derived from the live control states so it reflects reality across restarts.</summary>
-    private void RecomputePresetSelection()
+    /// <summary>Captures what every fan is doing right now as a new profile.</summary>
+    public FanProfile CaptureCurrentSetup(string name) => new()
     {
-        if (!CoolingProfilesEnabled)
+        Id = Guid.NewGuid().ToString("N"),
+        Name = name,
+        Fans =
+        [
+            .. _fanControlStates.Values
+                .Where(static state => state.IsAvailable)
+                .OrderBy(static state => state.FanIndex)
+                .Select(static state => new FanProfileEntry
+                {
+                    FanIndex = state.FanIndex,
+                    Mode = state.Mode,
+
+                    // Every mode's settings are captured, not just the active one's, so re-saving a profile
+                    // after switching one fan to Auto does not throw away the duty it had before.
+                    DutyPercent = state.LastDutyPercent ?? 0d,
+                    CurveSlot = state.ActiveCurveSlot,
+                    AdaptiveTargetCelsius = state.AdaptiveSettings.TargetTemperatureCelsius,
+                }),
+        ],
+    };
+
+    /// <summary>Formatting for the profile dialogs, so their summaries obey the user's chosen units too.</summary>
+    public IUnitFormattingService UnitFormattingService => _unitFormattingService;
+
+    public void SaveProfile(FanProfile profile) => _profileStore.Save(profile);
+
+    /// <summary>
+    /// Builds the model behind the manage dialog.
+    /// </summary>
+    /// <remarks>
+    /// Constructed here rather than in the page because it needs the store, and handing a page a service just
+    /// so it can hand it straight back to a dialog is a dependency the page has no other use for.
+    /// </remarks>
+    public FanProfileManageDialogModel CreateManageProfilesModel()
+        => new(_profileStore, _unitFormattingService);
+
+    /// <summary>Rebuilds the card list from the store, preserving which one reads as active.</summary>
+    private void RefreshProfiles()
+    {
+        _profiles.Clear();
+
+        foreach (var profile in _profileStore.Profiles)
         {
-            return;
+            _profiles.Add(new FanProfileCardModel(profile, _unitFormattingService));
         }
 
-        var states = _fanControlStates.Values;
-        CoolingPresetKind? selected = states.Count == 0
-            ? null
-            : states.All(state => state.Mode == FanControlMode.Auto) ? CoolingPresetKind.Silent
-            : states.All(state => state.Mode == FanControlMode.Max) ? CoolingPresetKind.Turbo
-            : states.All(state => state.Mode == FanControlMode.Manual && Math.Abs((state.LastDutyPercent ?? -1) - BalancedDutyPercent) < 1d) ? CoolingPresetKind.Balanced
-            : states.All(state => state.Mode == FanControlMode.Manual && Math.Abs((state.LastDutyPercent ?? -1) - PerformanceDutyPercent) < 1d) ? CoolingPresetKind.Performance
-            : CoolingPresetKind.Custom;
+        RecomputeProfileSelection();
+    }
 
-        foreach (var preset in CoolingPresets)
+    /// <summary>
+    /// Selection is derived from the live control states, so it reflects reality across restarts.
+    /// </summary>
+    /// <remarks>
+    /// Nothing stores "the active profile". A stored flag would keep claiming a profile was in effect after
+    /// the user changed a fan by hand, which is precisely the moment the claim stops being true.
+    /// </remarks>
+    private void RecomputeProfileSelection()
+    {
+        var defaultId = _profileStore.DefaultProfileId;
+        FanProfileCardModel? active = null;
+
+        foreach (var card in _profiles)
         {
-            preset.IsSelected = preset.Kind == selected;
+            card.IsDefault = card.Id == defaultId;
+
+            // First match wins. Two profiles CAN describe the same state — "all fans Auto" saved twice under
+            // different names — and lighting up both would suggest the app is confused rather than that the
+            // user saved a duplicate.
+            var matches = active is null && card.Profile.Matches(_fanControlStates);
+            card.IsSelected = matches;
+
+            if (matches)
+            {
+                active = card;
+            }
+        }
+
+        ActiveProfileName = active?.Name;
+
+        // Only once fans have actually reported. Before that, "no profile matches" is true but meaningless,
+        // and showing Modified on a page that has not finished loading is just noise.
+        IsModified = _fanControlStates.Count > 0 && active is null;
+
+        foreach (var fan in _quickFans)
+        {
+            fan.ActiveProfileName = ActiveProfileName;
         }
     }
 
@@ -418,13 +599,14 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .Select(fan => fan.Snapshot.SpeedRpm)
             .ToArray();
 
-        AverageFanSpeedDisplay = speeds.Length == 0 ? "--" : _unitFormattingService.FormatFanSpeed(speeds.Average());
+        AverageFanSpeedRpm = speeds.Length == 0 ? null : speeds.Average();
     }
 
     // ----- Thermal snapshot summary -----
 
+    /// <summary>Hottest available sensor, canonical Celsius; null until one reports. Formatted by UnitFormatConverter.</summary>
     [ObservableProperty]
-    public partial string DrivingTemperatureDisplay { get; set; } = "--";
+    public partial double? DrivingTemperatureCelsius { get; set; }
 
     private void UpdateThermalSummary()
     {
@@ -433,7 +615,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
             .Select(snapshot => snapshot.TemperatureCelsius)
             .Max();
 
-        DrivingTemperatureDisplay = _unitFormattingService.FormatTemperature(maxCelsius);
+        DrivingTemperatureCelsius = maxCelsius;
     }
 
     // ----- Power summary -----
@@ -441,8 +623,13 @@ public partial class DashboardModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial double BatteryChargeFraction { get; set; }
 
+    /// <summary>Charge in canonical percent for the ring centre, formatted (value-only) by UnitFormatConverter.</summary>
     [ObservableProperty]
-    public partial string BatteryChargeText { get; set; } = "--";
+    public partial double? BatteryChargePercent { get; set; }
+
+    /// <summary>The unit the ring draws beside the figure — "%" only under the percent preference.</summary>
+    [ObservableProperty]
+    public partial string BatteryChargeUnitSuffix { get; set; } = "%";
 
     [ObservableProperty]
     public partial bool IsBatteryCharging { get; set; }
@@ -450,11 +637,23 @@ public partial class DashboardModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ChargingStateText { get; set; } = "Waiting for battery";
 
+    /// <summary>State colour for the dot beside <see cref="ChargingStateText"/> inside the ring — green
+    /// charging, amber discharging, neutral otherwise. Assigned at runtime on the UI thread (never in a
+    /// field initializer) like the Power page's state brushes.</summary>
     [ObservableProperty]
-    public partial string AdapterWattsDisplay { get; set; } = "—";
+    public partial Brush? ChargeStatusDotBrush { get; set; }
 
+    /// <summary>Negotiated adapter input, canonical watts; null when no adapter is attached.</summary>
     [ObservableProperty]
-    public partial string FullInDisplay { get; set; } = "—";
+    public partial double? AdapterInputWatts { get; set; }
+
+    /// <summary>Adapter figure for the pill in the ring's bottom mouth ("240 W"); empty hides the pill.</summary>
+    [ObservableProperty]
+    public partial string AdapterBadgeText { get; set; } = string.Empty;
+
+    /// <summary>Fine print under the state line ("full in ~21 min"); empty when there is no estimate.</summary>
+    [ObservableProperty]
+    public partial string FullInDetailText { get; set; } = string.Empty;
 
     private void UpdatePowerSummary()
     {
@@ -463,16 +662,16 @@ public partial class DashboardModel : ObservableObject, IDisposable
         if (battery is null)
         {
             BatteryChargeFraction = 0d;
-            BatteryChargeText = "--";
+            BatteryChargePercent = null;
             IsBatteryCharging = false;
             ChargingStateText = "No battery detected";
-            FullInDisplay = "—";
+            ChargeStatusDotBrush = AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextSecondaryColor);
+            FullInDetailText = string.Empty;
             return;
         }
 
         BatteryChargeFraction = Math.Clamp((battery.ChargePercent ?? 0d) / 100d, 0d, 1d);
-        // Bare value only: BatteryChargeRingView renders its own "%" suffix.
-        BatteryChargeText = _unitFormattingService.FormatRatioValue(battery.ChargePercent, decimals: 0);
+        BatteryChargePercent = battery.ChargePercent;
         IsBatteryCharging = battery.BatteryState == FrameworkBatteryState.Charging;
 
         ChargingStateText = battery.BatteryState switch
@@ -484,15 +683,22 @@ public partial class DashboardModel : ObservableObject, IDisposable
                 : "Idle",
         };
 
+        ChargeStatusDotBrush = battery.BatteryState switch
+        {
+            FrameworkBatteryState.Charging => AppThemeBrushes.Get("StatusSuccessBrush", AppThemeBrushes.StatusSuccessColor),
+            FrameworkBatteryState.Discharging => AppThemeBrushes.Get("StatusWarningBrush", AppThemeBrushes.StatusWarningColor),
+            _ => AppThemeBrushes.Get("TextSecondaryBrush", AppThemeBrushes.TextSecondaryColor),
+        };
+
         // Time-to-full: remaining capacity gap over the live charge current.
-        FullInDisplay = IsBatteryCharging
+        FullInDetailText = IsBatteryCharging
             && battery.LastFullChargeCapacityAmpereHours is double fullCapacity
             && battery.RemainingCapacityAmpereHours is double remaining
             && battery.Amperage is double amps
             && Math.Abs(amps) > 0.05d
             && fullCapacity > remaining
-                ? $"~{Math.Round((fullCapacity - remaining) / Math.Abs(amps) * 60d):0} min"
-                : "—";
+                ? $"full in ~{Math.Round((fullCapacity - remaining) / Math.Abs(amps) * 60d):0} min"
+                : string.Empty;
     }
 
     private void UpdateAdapterInput(IReadOnlyList<PowerDeliveryPortStatus> ports)
@@ -500,14 +706,27 @@ public partial class DashboardModel : ObservableObject, IDisposable
         var activePort = ports.FirstOrDefault(port => port.IsActivePort && port.HasContract);
         var watts = activePort is null ? 0d : activePort.VoltageVolts * activePort.CurrentAmperes;
 
-        AdapterWattsDisplay = watts > 0d
-            ? _unitFormattingService.FormatPowerWatts(Math.Round(watts), decimals: 0)
-            : "—";
+        AdapterInputWatts = watts > 0d ? watts : null;
+        RefreshAdapterBadge();
     }
+
+    // Composed here (not converter-formatted in XAML) so the pill can collapse entirely when no adapter is
+    // attached — a converter would have to render a placeholder. Re-run on unit-preference changes too.
+    private void RefreshAdapterBadge() =>
+        AdapterBadgeText = AdapterInputWatts is double adapterWatts
+            ? _unitFormattingService.FormatPowerWatts(adapterWatts, decimals: 0)
+            : string.Empty;
 
     public void Dispose()
     {
+        // The store outlives this page, so a page that forgot to unhook would be kept alive by it — and every
+        // later profile edit would refresh a card list nothing is showing.
+        _profileStore.Changed -= OnProfileStoreChanged;
+
         _subscriptions.Dispose();
         foreach (var quickFan in _quickFans) quickFan.Detach();
     }
+
+    private void OnProfileStoreChanged(object? sender, EventArgs e)
+        => _synchronizationContext.Post(_ => RefreshProfiles(), null);
 }

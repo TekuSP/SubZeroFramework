@@ -29,5 +29,14 @@
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"
                           PrivateAssets="all" />
+
+        <!--
+            XAML reaches an analyzer only as an additional file. SZF0014 needs it: a binding's source type
+            lives in C# and its target type lives in markup, and neither half is wrong on its own.
+            obj/ and bin/ are excluded so generated copies are not analysed a second time, which would report
+            every finding twice and point the second one at a path nobody edits.
+        -->
+        <AdditionalFiles Include="$(MSBuildProjectDirectory)\**\*.xaml"
+                         Exclude="$(MSBuildProjectDirectory)\obj\**\*.xaml;$(MSBuildProjectDirectory)\bin\**\*.xaml" />
     </ItemGroup>
 </Project>

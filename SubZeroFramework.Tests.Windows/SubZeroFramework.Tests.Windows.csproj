@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Windows half of the test suite.
+
+    SubZeroFramework.Tests targets plain net10.0 so the Linux publish job in build.yml can build and run it on
+    ubuntu with no -f. That binds the PLATFORM-NEUTRAL flavour of Core and Service, in which the Windows-only
+    readers — PDH control telemetry, NVML, ADLX — do not exist as types at all. Adding a second TFM there
+    would have sent the ubuntu job looking for a Windows targeting pack, so those readers get their own
+    project instead of a conditional TFM on the shared one.
+
+    Deliberately NOT wired into either CI job: everything here reads real hardware, and build.yml's
+    TEST_PROJECT stays pointed at the neutral project.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <Platforms>x64;ARM64</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SubZeroFramework.Core\SubZeroFramework.Core.csproj" />
+    <ProjectReference Include="..\SubZeroFramework.Service\SubZeroFramework.Service.csproj" />
+  </ItemGroup>
+
+</Project>

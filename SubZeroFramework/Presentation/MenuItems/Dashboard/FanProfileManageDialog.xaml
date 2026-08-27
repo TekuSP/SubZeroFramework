@@ -1,0 +1,171 @@
+<ContentDialog
+    x:Class="SubZeroFramework.Presentation.MenuItems.Dashboard.FanProfileManageDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:material="using:Material.Icons.UNO"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:SubZeroFramework.Controls.Dashboard.Models"
+    Title="Manage profiles"
+    CloseButtonText="Done"
+    CornerRadius="12"
+    mc:Ignorable="d">
+
+    <Grid MinWidth="560" MaxWidth="620">
+
+        <!--  Empty state: the only route back is saving the current setup, so say so.  -->
+        <StackPanel
+            HorizontalAlignment="Center"
+            Spacing="12"
+            Visibility="{x:Bind ViewModel.IsEmpty, Mode=OneWay}">
+            <material:MaterialIcon
+                Width="42"
+                Height="42"
+                HorizontalAlignment="Center"
+                Foreground="{StaticResource TextTertiaryBrush}"
+                Kind="AccountCogOutline" />
+            <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="15"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="No saved profiles" />
+            <TextBlock
+                MaxWidth="320"
+                HorizontalAlignment="Center"
+                FontSize="12.5"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Text="Set the fans up the way you want them, then use “New profile” on the dashboard to save that arrangement."
+                TextAlignment="Center"
+                TextWrapping="WrapWholeWords" />
+        </StackPanel>
+
+        <ScrollViewer
+            MaxHeight="420"
+            HorizontalScrollMode="Disabled"
+            VerticalScrollBarVisibility="Auto">
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Rows}">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="6" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="models:FanProfileRowModel">
+                        <Border
+                            Padding="14,11"
+                            Background="{StaticResource CardSecondaryBackgroundBrush}"
+                            CornerRadius="10">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <material:MaterialIcon
+                                    Width="19"
+                                    Height="19"
+                                    VerticalAlignment="Center"
+                                    Foreground="{StaticResource StatusInfoBrush}"
+                                    Kind="{x:Bind IconKind}" />
+
+                                <StackPanel Grid.Column="1" Spacing="4">
+                                    <!--  Renaming in place: there is nothing else to say about a profile, so
+                                          a separate rename dialog would be a step for its own sake.  -->
+                                    <TextBox FontSize="13" Text="{x:Bind Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource TextTertiaryBrush}"
+                                        Text="{x:Bind Description}"
+                                        TextWrapping="WrapWholeWords" />
+                                </StackPanel>
+
+                                <StackPanel
+                                    Grid.Column="2"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal"
+                                    Spacing="4">
+                                    <Button
+                                        Width="36"
+                                        Height="36"
+                                        Padding="0"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{x:Bind Owner.MakeDefaultCommand}"
+                                        CommandParameter="{x:Bind}"
+                                        ToolTipService.ToolTip="Use as the default profile">
+                                        <material:MaterialIcon
+                                            Width="16"
+                                            Height="16"
+                                            Foreground="{x:Bind DefaultStarBrushKey, Mode=OneWay, Converter={StaticResource ThemeBrushKey}}"
+                                            Kind="Star" />
+                                    </Button>
+                                    <Button
+                                        Width="36"
+                                        Height="36"
+                                        Padding="0"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Command="{x:Bind Owner.AskDeleteCommand}"
+                                        CommandParameter="{x:Bind}"
+                                        ToolTipService.ToolTip="Delete this profile">
+                                        <material:MaterialIcon
+                                            Width="16"
+                                            Height="16"
+                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                            Kind="TrashCanOutline" />
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </ScrollViewer>
+
+        <!--  Delete confirmation, in place rather than as a second dialog stacked on this one.  -->
+        <Border
+            Padding="18,16"
+            VerticalAlignment="Bottom"
+            Background="{StaticResource CardBackgroundBrush}"
+            BorderBrush="{StaticResource StatusErrorTextBrush}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Visibility="{x:Bind ViewModel.IsConfirmingDelete, Mode=OneWay}">
+            <StackPanel Spacing="14">
+                <StackPanel Orientation="Horizontal" Spacing="11">
+                    <material:MaterialIcon
+                        Width="17"
+                        Height="17"
+                        VerticalAlignment="Top"
+                        Foreground="{StaticResource StatusErrorTextBrush}"
+                        Kind="AlertOutline" />
+                    <TextBlock
+                        FontSize="13"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="{x:Bind ViewModel.DeletePrompt, Mode=OneWay}"
+                        TextWrapping="WrapWholeWords" />
+                </StackPanel>
+                <StackPanel
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal"
+                    Spacing="9">
+                    <Button Command="{x:Bind ViewModel.CancelDeleteCommand}" Content="Keep it" />
+
+                    <!--
+                        The app's destructive treatment: transparent fill, red edge, red label — the same one
+                        the uninstall button wears. Two identically styled buttons here would make the
+                        irreversible option exactly as easy to hit as the safe one.
+                    -->
+                    <Button
+                        Background="Transparent"
+                        BorderBrush="{StaticResource StatusErrorTextBrush}"
+                        BorderThickness="1"
+                        Command="{x:Bind ViewModel.ConfirmDeleteCommand}"
+                        Foreground="{StaticResource StatusErrorTextBrush}">
+                        <TextBlock Foreground="{StaticResource StatusErrorTextBrush}" Text="Delete" />
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </Grid>
+</ContentDialog>

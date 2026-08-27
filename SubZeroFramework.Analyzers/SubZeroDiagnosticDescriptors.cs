@@ -112,6 +112,20 @@ internal static class SubZeroDiagnosticDescriptors
         isEnabledByDefault: true,
         description: "Telemetry streams tick on every poll. A subscription that does work per tick — especially one marshalled to the UI thread — should bound its rate explicitly rather than inheriting the poll cadence, which is configurable and can be lowered to milliseconds. Change-set streams must use Batch, which COALESCES deltas; Sample and Throttle drop items, and a dropped change set loses an add or a remove permanently. DynamicData deliberately offers no Sample/Throttle for change sets for this reason.");
 
+    internal static readonly DiagnosticDescriptor XamlBindingMustNotConvertStringToEnum = new(
+        id: "SZF0014",
+        title: "Do not bind a string to an enum XAML property",
+        messageFormat: "'{0}' is a string but is bound to {1}.{2}, which is the enum '{3}'; declare the property as '{3}'",
+        category: "SubZeroFramework.Xaml",
+        defaultSeverity: DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description: "A string bound to an enum-typed XAML property compiles cleanly and then throws when the page loads: the generated binding calls XamlBindingHelper.ConvertValue, which has no string-to-enum conversion and raises ArgumentException. Because nothing fails at build time, the mistake reaches a running app and presents as a crash on navigation rather than as a binding problem. Declare the source property as the enum itself. Bindings that name a Converter are exempt, since converting is then the converter's job.",
+        helpLinkUri: null,
+        // Reported from a compilation action, because the markup half of the pair reaches an analyzer only as
+        // an additional file and belongs to no single syntax tree. The tag tells tooling this surfaces on
+        // build rather than live as a document is edited.
+        customTags: WellKnownDiagnosticTags.CompilationEnd);
+
     internal static readonly DiagnosticDescriptor AvoidSetProperty = new(
         id: "SZF0012",
         title: "Use ObservableProperty partial properties",

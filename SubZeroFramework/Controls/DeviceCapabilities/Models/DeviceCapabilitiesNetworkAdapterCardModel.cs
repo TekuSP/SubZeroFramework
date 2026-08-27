@@ -127,9 +127,9 @@ public partial class DeviceCapabilitiesNetworkAdapterCardModel : ObservableObjec
 
     public string ManufacturerDisplay => FirstNonEmpty(Snapshot.Manufacturer) ?? "Unknown";
 
-    /// <summary>Formatted link speed. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    /// <summary>Link speed in canonical bits per second; null when the adapter reports none.</summary>
     [ObservableProperty]
-    public partial string SpeedDisplay { get; private set; } = string.Empty;
+    public partial double? SpeedBitsPerSecond { get; private set; }
 
     /// <summary>Mockup state colour: green when the link reports a speed.</summary>
     public Brush SpeedBrush => Snapshot.HasKnownSpeed
@@ -148,9 +148,11 @@ public partial class DeviceCapabilitiesNetworkAdapterCardModel : ObservableObjec
     /// </summary>
     public void RefreshUnitFormatting()
     {
-        SpeedDisplay = Snapshot.HasKnownSpeed
-            ? _unitFormattingService.FormatBitRateBitsPerSecond(Snapshot.Speed)
-            : "Unknown";
+        SpeedBitsPerSecond = Snapshot.HasKnownSpeed ? Snapshot.Speed : null;
+
+        // The link speed is a CANONICAL value formatted by UnitFormatConverter at render time, so a unit
+        // change needs only the notification — a null name re-reads every binding on this source.
+        OnPropertyChanged(propertyName: null);
     }
 
     /// <summary>True for VPN/TAP/tunnel adapters, whose virtual link speed shouldn't win "Fastest link".</summary>

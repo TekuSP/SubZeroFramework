@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Media;
 
 using SubZeroFramework.Controls.Fans.Models;
 using SubZeroFramework.Models;
+using SubZeroFramework.Services.Units;
 using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.Dashboard.Models;
@@ -20,10 +21,14 @@ namespace SubZeroFramework.Controls.Dashboard.Models;
 /// </summary>
 public partial class FanQuickControlModel : ObservableObject
 {
-    public FanQuickControlModel(FanCardModel fan)
+    private readonly IUnitFormattingService _unitFormattingService;
+
+    public FanQuickControlModel(FanCardModel fan, IUnitFormattingService unitFormattingService)
     {
         ArgumentNullException.ThrowIfNull(fan);
+        ArgumentNullException.ThrowIfNull(unitFormattingService);
 
+        _unitFormattingService = unitFormattingService;
         Fan = fan;
         fan.PropertyChanged += OnFanChanged;
         RefreshDerivedState();
@@ -62,6 +67,29 @@ public partial class FanQuickControlModel : ObservableObject
     [ObservableProperty]
     public partial double DutyBarValue { get; private set; }
 
+    /// <summary>
+    /// The saved profile the fans currently match, or null when none does.
+    /// </summary>
+    /// <remarks>
+    /// Pushed in by the page rather than resolved here: whether a profile is in effect is a statement about
+    /// EVERY fan, and a card that only knows its own state cannot answer it.
+    /// </remarks>
+    public string? ActiveProfileName
+    {
+        get;
+
+        set
+        {
+            if (field == value)
+            {
+                return;
+            }
+
+            field = value;
+            RefreshDerivedState();
+        }
+    }
+
     // Read-only mode indicator: the active segment fills with the brand accent (brushes created at bind
     // time — UI thread; see uno-vm-thread-affinity).
     public Brush AutoSegmentBackground => SegmentBackground(FanControlMode.Auto);
@@ -92,7 +120,10 @@ public partial class FanQuickControlModel : ObservableObject
 
     private void OnFanChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(FanCardModel.ControlState) or nameof(FanCardModel.Snapshot))
+        // An empty name is the "everything on the source changed" signal the fan card raises when the display
+        // units change — NowDrivingText embeds a formatted duty, so it has to be rebuilt then too.
+        if (string.IsNullOrEmpty(e.PropertyName)
+            || e.PropertyName is nameof(FanCardModel.ControlState) or nameof(FanCardModel.Snapshot))
         {
             RefreshDerivedState();
         }
@@ -130,17 +161,22 @@ public partial class FanQuickControlModel : ObservableObject
             return "Waiting for state";
         }
 
-        var modeLabel = state.Mode switch
+        // The profile's name wins over the mode's when one is in effect, because it is the more useful
+        // answer: "Balanced · 62%" says which decision produced this, where "Adaptive · 62%" only says how.
+        // It falls back to the mode the moment the fans stop matching any profile, which is exactly when the
+        // profile name would start being a lie.
+        var modeLabel = ActiveProfileName ?? state.Mode switch
         {
             FanControlMode.Auto => "Auto",
             FanControlMode.Manual => "Manual",
             FanControlMode.Max => "Max",
             FanControlMode.CustomCurve => "Custom curve",
+            FanControlMode.Adaptive => "Adaptive",
             _ => state.Mode.ToString(),
         };
 
         return state.Mode != FanControlMode.Auto && state.LastDutyPercent is double duty
-            ? $"{modeLabel} · {duty:0}%"
+            ? $"{modeLabel} · {_unitFormattingService.FormatRatio(duty, decimals: 0)}"
             : modeLabel;
     }
 }

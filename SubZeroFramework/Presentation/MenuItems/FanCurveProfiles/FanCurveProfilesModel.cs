@@ -18,6 +18,10 @@ using FrameworkDotnet.Enums;
 
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
+
+using Material.Icons;
+
+using SubZeroFramework.Services.Control;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using LiveChartsCore.SkiaSharpView.Painting.Effects;
@@ -99,6 +103,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         IFanHistoryStore historyStore,
         FanTelemetryHub hub,
         FanCoordinatorAccessor coordinatorAccessor,
+        IBatteryTelemetryClient batteryTelemetryClient,
+        IPowerDeliveryClient powerDeliveryClient,
         IUserUnitPreferencesClient userUnitPreferencesClient,
         IUnitFormattingService unitFormattingService,
         IDesktopNotificationService notificationService,
@@ -133,9 +139,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         SensorChart = new FanSensorChartModel(unitFormattingService);
         CurveChart = new FanCurveChartModel(unitFormattingService);
         LinkSection = new FanLinkSectionModel(this);
-        BoostSection = new FanBoostSectionModel(this, unitFormattingService);
         SensorSelection = new FanSensorSelectionModel(historyStore, unitFormattingService);
-        _session = new FanEditSession(this, actuator, logger);
+        _session = new FanEditSession(this, actuator, unitFormattingService, logger);
 
         _hub.FanAdded += OnFanAdded;
         _hub.FanRemoved += OnFanRemoved;
@@ -148,11 +153,29 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         _draft.Changed += RefreshCurveSeries;
         RefreshCurveSeries();
 
+        StalledFanNoticeDisplay = BuildStalledFanNoticeDisplay();
+
         _frameworkStatusClient
             .WatchStatus()
             .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(_synchronizationContext)
             .Subscribe(status => LastStatus = status)
+            .DisposeWith(_subscriptions);
+
+        // Power state, because a calibration REFUSES to run on battery — the processor runs to different
+        // limits there, so the model would describe a machine that only exists while unplugged. Watching it
+        // here means the wizard can say so before a five-minute run rather than aborting part-way through.
+        batteryTelemetryClient
+            .WatchBatteries()
+            .Batch(TelemetryRateLimits.LiveReadout)
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(ApplyBatteryChanges)
+            .DisposeWith(_subscriptions);
+
+        powerDeliveryClient
+            .WatchPorts()
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(UpdateAdapterInput)
             .DisposeWith(_subscriptions);
 
         _fanCapabilityClient
@@ -246,8 +269,6 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     /// <summary>The "Applies to" link group (chips + per-leader link sets). Driven by this coordinator.</summary>
     public FanLinkSectionModel LinkSection { get; }
 
-    public FanBoostSectionModel BoostSection { get; }
-
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsFollowing))]
     [NotifyPropertyChangedFor(nameof(CurveEditorVisibility))]
@@ -297,6 +318,24 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [ObservableProperty]
     public partial string ActiveProfileText { get; private set; } = "No curve profile is currently driving this fan.";
 
+    // ----- Adaptive learning-state pill -----
+    //
+    // Sits beside the mode selector, and reports what the controller KNOWS rather than whether it is ready.
+    // The distinction matters: a readiness badge would frame a fan running on its own model as incomplete,
+    // when the only thing left to do is nothing.
+
+    /// <summary>Pill caption for the selected fan's learning state. Assigned by <see cref="RefreshDerivedState"/>.</summary>
+    [ObservableProperty]
+    public partial string LearningStateText { get; private set; } = string.Empty;
+
+    /// <summary>Pill icon for the selected fan's learning state.</summary>
+    [ObservableProperty]
+    public partial MaterialIconKind LearningStateIconKind { get; private set; } = MaterialIconKind.SchoolOutline;
+
+    /// <summary>Visible only while Adaptive is the selected mode — it describes nothing otherwise.</summary>
+    [ObservableProperty]
+    public partial Microsoft.UI.Xaml.Visibility LearningStateVisibility { get; private set; } = Microsoft.UI.Xaml.Visibility.Collapsed;
+
     /// <summary>True when the draft curve differs from the curve the service currently has applied.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(UnsavedChangesVisibility))]
@@ -315,6 +354,44 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
     /// <summary>The mode the service currently has applied to the selected fan (ignores any staged overlay).</summary>
     internal FanControlMode ServiceFanMode => SelectedFan?.ControlState?.Mode ?? FanControlMode.Auto;
+
+    /// <summary>
+    /// Reports what the controller has worked out about the selected fan, beside the mode selector.
+    /// </summary>
+    /// <remarks>
+    /// Phrased as knowledge gained, never as progress toward readiness — no percentages, no bar, nothing that
+    /// reads like a fault. A fan on defaults is a working fan, and the wording has to survive a user glancing
+    /// at it for one second and drawing a conclusion.
+    /// </remarks>
+    private void RefreshLearningStatePill()
+    {
+        if (!IsAdaptiveModeChecked || SelectedFan?.ControlState is not { } controlState)
+        {
+            LearningStateVisibility = Microsoft.UI.Xaml.Visibility.Collapsed;
+            return;
+        }
+
+        LearningStateVisibility = Microsoft.UI.Xaml.Visibility.Visible;
+
+        var learning = controlState.AdaptiveLearning;
+        switch (learning.ConfidenceAt(DateTimeOffset.UtcNow))
+        {
+            case AdaptiveConfidence.Confident:
+                LearningStateIconKind = MaterialIconKind.CheckDecagram;
+                LearningStateText = "Knows this fan well";
+                break;
+
+            case AdaptiveConfidence.Converging:
+                LearningStateIconKind = MaterialIconKind.ChartBellCurveCumulative;
+                LearningStateText = $"Learned from {learning.ObservationCount} quiet periods";
+                break;
+
+            default:
+                LearningStateIconKind = MaterialIconKind.SchoolOutline;
+                LearningStateText = "Getting to know this fan";
+                break;
+        }
+    }
 
     /// <summary>True while the custom editor / curve mode is the active staging surface.</summary>
     private bool IsCustomStaging => ShowCustomEditor || SelectedFanMode == FanControlMode.CustomCurve;
@@ -362,7 +439,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [NotifyPropertyChangedFor(nameof(ActionBarCleanVisibility))]
     private partial bool HasPendingFanWork { get; set; }
 
-    // Staged but not yet previewing — the action bar shows Discard + Preview (covers custom + simple modes + links + boost).
+    // Staged but not yet previewing — the action bar shows Discard + Preview (covers custom + simple modes + links).
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ActionBarEditingVisibility))]
     private partial bool HasStagedNotPreviewing { get; set; }
@@ -376,6 +453,14 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     /// <summary>Footer summary ("N fans have unsaved changes" / previewing). Stored; assigned by <see cref="RefreshDerivedState"/>.</summary>
     [ObservableProperty]
     public partial string StagedSummaryText { get; private set; } = "1 fan has unsaved changes";
+
+    /// <summary>
+    /// The editing action bar's hint. Normally invites Preview/Apply; for a staged Adaptive the service
+    /// would refuse (uncalibrated fan) those buttons are greyed, so the hint names the real way forward
+    /// instead of inviting two dead clicks. Stored; assigned by <see cref="RefreshDerivedState"/>.
+    /// </summary>
+    [ObservableProperty]
+    public partial string ActionBarEditingHint { get; private set; } = "Staged changes — Preview them live, or Apply to commit.";
 
     // Mirror the staged state onto the selected fan card so its row shows the "Changes pending" pill.
     partial void OnIsDirtyChanged(bool value)
@@ -396,8 +481,12 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         // Mode first: the staged-edit checks below read it.
         SelectedFanMode = ShowCustomEditor ? FanControlMode.CustomCurve : _session.StagedMode ?? ServiceFanMode;
 
+        // Adaptive settings are staged PER FAN, so the selected fan's pill must ask about the selected fan.
+        // The page-wide check lit the pill on whichever fan happened to be selected while clearing it on the
+        // fan that actually held the edit.
         var selectedStaged = CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode
-            || LinkSection.HasStagedLinks || BoostSection.HasStagedBoosts;
+            || LinkSection.HasStagedLinks
+            || (SelectedFan is { } selected && HasStagedAdaptiveSettingsFor(selected.Snapshot.FanIndex));
         var otherStagedCount = OtherStagedFanCount();
         var anyStaged = selectedStaged || otherStagedCount > 0;
         HasPendingFanWork = anyStaged || IsTesting;
@@ -408,9 +497,15 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             ? "Previewing live on this fan"
             : stagedFanCount == 1 ? "1 fan has unsaved changes" : $"{stagedFanCount} fans have unsaved changes";
 
+        ActionBarEditingHint = HasStagedSimpleMode && !HasStagedRunnableSimpleMode
+            ? "Adaptive needs the learning test first — it is where this fan's sensors are chosen. Or Discard to go back."
+            : "Staged changes — Preview them live, or Apply to commit.";
+
         ActiveProfileText = SelectedFan?.ControlState is { Mode: FanControlMode.CustomCurve } state
             ? $"Profile {state.ActiveCurveSlot + 1} is currently driving this fan."
             : "No curve profile is currently driving this fan.";
+
+        RefreshLearningStatePill();
 
         // The row pill is per-fan: only the selected fan's OWN staged work lights it (other fans keep
         // theirs from when they were parked).
@@ -510,6 +605,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             FanControlMode.Manual => 1,
             FanControlMode.CustomCurve => 2,
             FanControlMode.Max => 3,
+            FanControlMode.Adaptive => 4,
             _ => 0,
         };
         set => SelectedMode = value switch
@@ -517,6 +613,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             1 => FanControlMode.Manual,
             2 => FanControlMode.CustomCurve,
             3 => FanControlMode.Max,
+            4 => FanControlMode.Adaptive,
             _ => FanControlMode.Auto,
         };
     }
@@ -598,7 +695,6 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         }
 
         LinkSection.RebuildLinkChips();
-        BoostSection.RefreshFromSelection();
         RecomputeDirty();
         // Re-project the stored mode/pending/profile state for the new fan before the duty prediction reads it.
         RefreshDerivedState();
@@ -610,13 +706,13 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         if (fan is null)
         {
             // Detached scratch session while no fan is selected.
-            return new FanEditSession(this, _actuator, _logger);
+            return new FanEditSession(this, _actuator, _unitFormattingService, _logger);
         }
 
         var fanIndex = fan.Snapshot.FanIndex;
         if (!_sessions.TryGetValue(fanIndex, out var session))
         {
-            session = new FanEditSession(this, _actuator, _logger);
+            session = new FanEditSession(this, _actuator, _unitFormattingService, _logger);
             _sessions[fanIndex] = session;
         }
 
@@ -802,8 +898,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             await _session.ApplySimpleModeAsync(cancellationToken).ConfigureAwait(true);
             // Persist any staged "Applies to" link changes (the link is grouping-only when no mode is staged).
             await LinkSection.FlushStagedLinksAsync(cancellationToken).ConfigureAwait(true);
-            // Boost flushes after the commit above so no preview hold is open (the service rejects otherwise).
-            await BoostSection.FlushStagedBoostsAsync(cancellationToken).ConfigureAwait(true);
+            await FlushStagedAdaptiveSettingsAsync(cancellationToken).ConfigureAwait(true);
             // "Apply all" reaches every fan: commit the other fans' parked staged work too.
             await ApplyOtherStagedFansAsync(cancellationToken).ConfigureAwait(true);
             return;
@@ -817,8 +912,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         // Validation failures on the SELECTED fan's draft must not abandon the rest of the command.
         // These used to be early `return`s, which meant "Apply all" with an incomplete draft on the
-        // selected fan silently skipped every OTHER fan's parked staged work (and the link/boost
-        // flushes) — the button appeared to do nothing beyond the warning. A service REJECTION of the
+        // selected fan silently skipped every OTHER fan's parked staged work (and the link flush) —
+        // the button appeared to do nothing beyond the warning. A service REJECTION of the
         // save already fell through to the shared tail below; validation now behaves the same way.
         var selectedDraftValid = true;
 
@@ -848,7 +943,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             // Skip only the selected fan's save; the shared tail still runs (same three calls as the
             // simple-mode branch above) so "Apply all" honors the other fans' parked staged work.
             await LinkSection.FlushStagedLinksAsync(cancellationToken).ConfigureAwait(true);
-            await BoostSection.FlushStagedBoostsAsync(cancellationToken).ConfigureAwait(true);
+            await FlushStagedAdaptiveSettingsAsync(cancellationToken).ConfigureAwait(true);
             await ApplyOtherStagedFansAsync(cancellationToken).ConfigureAwait(true);
             return;
         }
@@ -906,8 +1001,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         // Persist any staged "Applies to" link changes alongside the applied curve.
         await LinkSection.FlushStagedLinksAsync(cancellationToken).ConfigureAwait(true);
-        // Boost flushes after the profile commit so no preview hold is open (the service rejects otherwise).
-        await BoostSection.FlushStagedBoostsAsync(cancellationToken).ConfigureAwait(true);
+        await FlushStagedAdaptiveSettingsAsync(cancellationToken).ConfigureAwait(true);
         // "Apply all" reaches every fan: commit the other fans' parked staged work too.
         await ApplyOtherStagedFansAsync(cancellationToken).ConfigureAwait(true);
     }
@@ -938,8 +1032,31 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
                 // wrote the old curve back with activate: true, and then cleared the staged mode unapplied.
                 if (session.StagedMode is { } stagedMode)
                 {
-                    await _actuator.ActuateSimpleAsync(fanIndex, stagedMode, session.StagedManualDuty, preview: false, cancellationToken).ConfigureAwait(true);
-                    applied++;
+                    if (stagedMode == FanControlMode.Adaptive)
+                    {
+                        // Adaptive arms through its own sensor-carrying command, with the fan's OWN driving
+                        // sensors — the page's picker describes the selected fan, which this loop is not on.
+                        var armed = await ArmAdaptiveModeAsync(
+                            fanIndex,
+                            preview: false,
+                            sensorsOverride: [.. fan.ControlState?.DrivingSensorIndices ?? []],
+                            cancellationToken).ConfigureAwait(true);
+
+                        // A refused arm must KEEP the stage: clearing it below would throw the user's staged
+                        // work away while the fan stayed where it was, and leave the footer counting a fan
+                        // that no longer has anything staged.
+                        if (!armed)
+                        {
+                            continue;
+                        }
+
+                        applied++;
+                    }
+                    else
+                    {
+                        await _actuator.ActuateSimpleAsync(fanIndex, stagedMode, session.StagedManualDuty, preview: false, cancellationToken).ConfigureAwait(true);
+                        applied++;
+                    }
                 }
                 else if (session.DraftSnapshot is { } draft
                     && (session.WasCustomEditorOpen || fan.ControlState?.Mode == FanControlMode.CustomCurve))
@@ -1109,10 +1226,10 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [RelayCommand(CanExecute = nameof(CanRevertStaged))]
     private async Task RevertToAppliedAsync(CancellationToken cancellationToken)
     {
-        // Drop any pending "Applies to" link and CPU boost changes (they were never saved to the service),
-        // and every other fan's parked staged work — "Revert all" reaches the whole fleet.
+        // Drop any pending "Applies to" link changes (they were never saved to the service), and every
+        // other fan's parked staged work — "Revert all" reaches the whole fleet.
         LinkSection.DiscardStagedLinks();
-        BoostSection.DiscardStagedBoosts();
+        DiscardStagedAdaptiveSettings();
         DiscardOtherStagedFans();
 
         // While previewing, Revert stops the live test and restores the fan's prior state.
@@ -1314,6 +1431,18 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
                 }
                 await _actuator.ActuateCurveAsync(fanIndex, restored, [.. previous.DrivingSensorIndices], previous.DrivingTemperatureAggregation, preview: false, previous.TreatMissingSensorsAsZero, cancellationToken).ConfigureAwait(true);
             }
+            else if (previous?.Mode == FanControlMode.Adaptive)
+            {
+                // A fan that WAS Adaptive goes back to Adaptive, with the sensors it held — collapsing it
+                // to Auto would silently end a closed loop the user had running before the test.
+                await _fanControlClient.SetAdaptiveModeAsync(
+                    fanIndex,
+                    [.. previous.DrivingSensorIndices],
+                    previous.DrivingTemperatureAggregation,
+                    settings: null,
+                    preview: false,
+                    cancellationToken).ConfigureAwait(true);
+            }
             else
             {
                 var restoreMode = previous?.Mode is FanControlMode.Manual or FanControlMode.Max ? previous.Mode : FanControlMode.Auto;
@@ -1381,7 +1510,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     /// </summary>
     /// <returns>
     /// True only when the link was persisted. The caller keeps its staged entry on false — same contract
-    /// as <see cref="PersistFanBoostAsync"/>, so a failed persist never silently drops a staged link.
+    /// so a failed persist never silently drops a staged link.
     /// </returns>
     internal async Task<bool> PersistFanLinkAsync(int fanIndex, int? leaderIndex, CancellationToken cancellationToken = default)
     {
@@ -1410,47 +1539,377 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         NotifyCommandStates();
     }
 
+    // ----- Adaptive mode -----
+
     /// <summary>
-    /// Persists one fan's CPU boost (usage modifier) to the service; null clears it. Called from
-    /// <see cref="FanBoostSectionModel.FlushStagedBoostsAsync"/> on Apply — after the staged mode/curve has
-    /// committed, so no preview hold is open (the service rejects modifier writes during a live preview).
-    /// The change streams back as the fan's control-state CpuUsageModifierStrength.
+    /// Adaptive settings the user has changed but not yet applied, keyed by fan.
     /// </summary>
-    /// <returns>
-    /// True only when the service confirmed the change. The caller keeps its staged entry on false so a
-    /// failed persist never silently discards the user's choice — the boost toggle used to "reset to
-    /// disabled" after any failed apply because the staged overlay was dropped regardless of outcome.
-    /// </returns>
-    internal async Task<bool> PersistFanBoostAsync(int fanIndex, double? strength, CancellationToken cancellationToken = default)
+    /// <remarks>
+    /// Kept here rather than on the mode body because the body is recreated on every mode switch — staging it
+    /// there would silently discard the user's edits the moment they looked at another mode.
+    /// </remarks>
+    private readonly Dictionary<int, AdaptiveFanSettings> _stagedAdaptiveSettings = [];
+
+    /// <summary>True while any fan has unapplied Adaptive settings.</summary>
+    public bool HasStagedAdaptiveSettings => _stagedAdaptiveSettings.Count > 0;
+
+    /// <summary>
+    /// True while THIS fan has unapplied Adaptive settings.
+    /// </summary>
+    /// <remarks>
+    /// The editor must ask about the fan it is showing, not about the page. Gating the "adopt the service's
+    /// values" refresh on the page-wide <see cref="HasStagedAdaptiveSettings"/> meant that staging an edit on
+    /// one fan froze the editor for EVERY fan: selecting another Adaptive fan kept the first fan's target,
+    /// response and floor on screen, and the next nudge staged those values against the newly selected fan —
+    /// so Apply wrote one fan's holding temperature onto another.
+    /// </remarks>
+    public bool HasStagedAdaptiveSettingsFor(int fanIndex) => _stagedAdaptiveSettings.ContainsKey(fanIndex);
+
+    /// <summary>Stages Adaptive settings for a fan, to be flushed on Apply.</summary>
+    /// <param name="fanIndex">The fan.</param>
+    /// <param name="settings">The staged values.</param>
+    internal void StageAdaptiveSettings(int fanIndex, AdaptiveFanSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+
+        _stagedAdaptiveSettings[fanIndex] = settings;
+        RefreshDerivedState();
+        NotifyCommandStates();
+    }
+
+    /// <summary>Drops every staged Adaptive change, for Revert.</summary>
+    internal void DiscardStagedAdaptiveSettings()
+    {
+        if (_stagedAdaptiveSettings.Count == 0)
+        {
+            return;
+        }
+
+        _stagedAdaptiveSettings.Clear();
+        RefreshDerivedState();
+        NotifyCommandStates();
+    }
+
+    /// <summary>
+    /// Pushes staged Adaptive settings to the service.
+    /// </summary>
+    /// <remarks>
+    /// A fan keeps its staged entry when the service rejects the change, so a failed apply never silently
+    /// discards what the user asked for — the same contract as the fan-link flush.
+    /// </remarks>
+    internal async Task FlushStagedAdaptiveSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        if (_stagedAdaptiveSettings.Count == 0 || !CanIssueFanCommands)
+        {
+            return;
+        }
+
+        foreach (var (fanIndex, settings) in _stagedAdaptiveSettings.ToArray())
+        {
+            try
+            {
+                var result = await _fanControlClient
+                    .SetAdaptiveSettingsAsync(fanIndex, settings, cancellationToken)
+                    .ConfigureAwait(true);
+
+                if (result.Succeeded)
+                {
+                    _stagedAdaptiveSettings.Remove(fanIndex);
+                }
+                else
+                {
+                    ReportStatus($"Service rejected the Adaptive change: {result.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to persist Adaptive settings for fan {FanIndex}", fanIndex);
+                ReportStatus($"Failed to save the Adaptive settings: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+            }
+        }
+
+        RefreshDerivedState();
+        NotifyCommandStates();
+    }
+
+    /// <summary>
+    /// Clears a latched throttle escalation. Immediate, never staged.
+    /// </summary>
+    /// <remarks>
+    /// Staging this would be nonsense: it is a statement about a control loop that is running right now, and
+    /// if the processor is still throttling the controller latches again on its next tick — which is correct.
+    /// </remarks>
+    internal async Task ReleaseThrottleLatchAsync(int fanIndex, CancellationToken cancellationToken = default)
     {
         if (!CanIssueFanCommands)
         {
+            return;
+        }
+
+        try
+        {
+            var result = await _fanControlClient.ReleaseThrottleLatchAsync(fanIndex, cancellationToken).ConfigureAwait(true);
+            if (!result.Succeeded)
+            {
+                ReportStatus(result.Message, Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to release the throttle latch for fan {FanIndex}", fanIndex);
+            ReportStatus($"Failed to release the escalation: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+        }
+    }
+
+    /// <summary>
+    /// Arms a fan into Adaptive, carrying the driving sensors the loop will hold.
+    /// </summary>
+    /// <remarks>
+    /// Separate from the simple-mode actuation path because Adaptive needs sensors, and because a refusal
+    /// here is an ordinary, actionable outcome rather than an error — the service reports it as a message.
+    /// </remarks>
+    /// <param name="fanIndex">The fan.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <param name="fanIndex">The fan to arm.</param>
+    /// <param name="preview">Arms live without persisting — the same volatile-preview contract as every other mode.</param>
+    /// <param name="sensorsOverride">
+    /// Sensors to arm with instead of the page's current picker selection. The picker describes the SELECTED
+    /// fan, so a caller arming some other fan (Apply all over staged fans) passes that fan's own sensors.
+    /// </param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>True when the fan is now (or is now previewing) Adaptive.</returns>
+    /// <summary>
+    /// The sensor sets successful calibrations ran against, per fan, for the life of the page.
+    /// </summary>
+    /// <remarks>
+    /// The model a run produced DESCRIBES these sensors — arming Adaptive against a different set would pair
+    /// a measured gain with temperatures it never measured. They become the arming fallback so "calibrate,
+    /// then preview Adaptive" works without re-choosing anything.
+    /// </remarks>
+    private readonly Dictionary<int, int[]> _calibratedSensorIndices = [];
+
+    /// <summary>Records the sensors a successful calibration measured, so arming can reuse them.</summary>
+    internal void RememberCalibratedSensors(int fanIndex, IReadOnlyCollection<int> sensorIndices)
+    {
+        if (sensorIndices.Count > 0)
+        {
+            _calibratedSensorIndices[fanIndex] = [.. sensorIndices];
+        }
+    }
+
+    internal async Task<bool> ArmAdaptiveModeAsync(
+        int fanIndex,
+        bool preview = false,
+        IReadOnlyCollection<int>? sensorsOverride = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!CanIssueFanCommands)
+        {
+            ReportFanControlBlocked();
+            return false;
+        }
+
+        // The sensors, from wherever the user actually chose them — resolved by the same helper the
+        // can-run gate uses, so the editor never offers an arm this then refuses.
+        var sensors = ResolveAdaptiveSensors(fanIndex, sensorsOverride);
+
+        if (sensors.Count == 0)
+        {
+            // Reachable only through a path that skipped the gate (a linked group, a parked fan). The
+            // wizard is the ONLY place sensors can be chosen, so that is what this has to say.
+            ReportStatus(
+                "This fan has no driving temperature sensors yet. Run the learning test to choose them.",
+                Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
             return false;
         }
 
         try
         {
-            var result = await _fanControlClient.SetUsageModifierAsync(fanIndex, strength, cancellationToken).ConfigureAwait(true);
+            var settings = _stagedAdaptiveSettings.TryGetValue(fanIndex, out var staged) ? staged : null;
+
+            // The aggregation belongs to the fan being armed, not to the curve editor. SelectedAggregation
+            // describes the SELECTED fan's curve draft, so "Apply all" — which arms fans this page is not
+            // showing — used to overwrite each one's own aggregation with the selected fan's. Only fall back
+            // to the editor's value for the fan the editor is actually describing.
+            var aggregation = _hub.GetFan(fanIndex)?.ControlState?.DrivingTemperatureAggregation
+                ?? (fanIndex == SelectedFan?.Snapshot.FanIndex ? SelectedAggregation : null)
+                ?? TemperatureAggregationMode.Maximum;
+
+            var result = await _fanControlClient
+                .SetAdaptiveModeAsync(fanIndex, sensors, aggregation, settings, preview, cancellationToken)
+                .ConfigureAwait(true);
+
             if (!result.Succeeded)
             {
-                ReportStatus($"Service rejected the CPU boost change: {result.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+                ReportStatus(result.Message, Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
+                return false;
             }
 
-            return result.Succeeded;
+            if (!preview)
+            {
+                // The settings travelled with the arm command, so a separate flush would be a redundant
+                // write. A PREVIEW keeps them staged on purpose: reverting it restores the fan's previous
+                // state, and dropping the stage here would throw the user's edits away with it.
+                _stagedAdaptiveSettings.Remove(fanIndex);
+
+                // A successful reply can still carry a warning — "armed, but could not be saved to disk".
+                // Celebrating over it is how a persistence failure once hid until the next restart.
+                if (string.IsNullOrEmpty(result.Message))
+                {
+                    ReportStatus("Adaptive is now driving this fan.", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success);
+                }
+                else
+                {
+                    ReportStatus(result.Message, Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
+                }
+            }
+
+            return true;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to persist CPU boost for fan {FanIndex}", fanIndex);
-            ReportStatus($"Failed to save the CPU boost: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+            _logger.LogWarning(ex, "Failed to arm Adaptive mode for fan {FanIndex}", fanIndex);
+            ReportStatus($"Failed to switch to Adaptive: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
             return false;
         }
     }
 
-    /// <summary>The boost section staged or discarded a pending boost change — refresh the staged pill + command states.</summary>
-    internal void OnStagedBoostsChanged()
+    /// <summary>
+    /// Runs the calibration hot test for a fan, streaming progress to the wizard.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately thin: the dialog owns the presentation and the cancellation, the service owns the physical
+    /// run and the promise to restore the fan. This exists only because the page holds the client.
+    /// </remarks>
+    private readonly Dictionary<int, BatteryTelemetrySnapshot> _batterySnapshots = [];
+
+    /// <summary>
+    /// True when the machine is running from its batteries, by the SAME rules the service refuses on.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately mirrors <c>FanCalibrationRunner.IsOnBattery</c> rather than inventing a second reading.
+    /// A wizard that said "ready to start" and then watched the run abort for being on battery would be
+    /// worse than one that never offered — and any disagreement between the two would show up exactly there.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PowerReadyText))]
+    [NotifyPropertyChangedFor(nameof(PowerReadyBrushKey))]
+    [NotifyPropertyChangedFor(nameof(PowerReadyIconKind))]
+    public partial bool IsOnBattery { get; private set; }
+
+    /// <summary>The lowest pack's charge, canonical percent, for the wizard's blocked-on-battery readout.</summary>
+    [ObservableProperty]
+    public partial double? BatteryChargePercent { get; private set; }
+
+    /// <summary>Negotiated adapter input in watts, or null with nothing attached.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PowerReadyText))]
+    public partial double? AdapterInputWatts { get; private set; }
+
+    /// <summary>The banner above the wizard's start button: whether this machine can run a test right now.</summary>
+    public string PowerReadyText => IsOnBattery
+        ? "Running on battery — plug in before starting. Power limits behave differently on battery, so the test would measure a machine that only exists while unplugged."
+        : AdapterInputWatts is double watts
+            ? $"Running on AC power — {_unitFormattingService.FormatPowerWatts(watts, decimals: 0)} adapter connected. Ready to start."
+            : "Running on AC power. Ready to start.";
+
+    public string PowerReadyBrushKey => IsOnBattery ? "StatusWarningForegroundBrush" : "StatusSuccessBrush";
+
+    public MaterialIconKind PowerReadyIconKind => IsOnBattery
+        ? MaterialIconKind.BatteryAlertVariantOutline
+        : MaterialIconKind.PowerPlug;
+
+    private void ApplyBatteryChanges(IChangeSet<BatteryTelemetrySnapshot, int> set)
     {
-        RefreshDerivedState();
-        NotifyCommandStates();
+        foreach (var change in set)
+        {
+            if (change.Reason == ChangeReason.Remove)
+            {
+                _batterySnapshots.Remove(change.Key);
+                continue;
+            }
+
+            _batterySnapshots[change.Key] = change.Current;
+        }
+
+        RefreshPowerState();
+    }
+
+    private void UpdateAdapterInput(IReadOnlyList<PowerDeliveryPortStatus> ports)
+    {
+        var activePort = ports.FirstOrDefault(static port => port.IsActivePort && port.HasContract);
+        var watts = activePort is null ? 0d : activePort.VoltageVolts * activePort.CurrentAmperes;
+
+        AdapterInputWatts = watts > 0d ? watts : null;
+    }
+
+    private void RefreshPowerState()
+    {
+        var batteries = _batterySnapshots.Values.Where(static battery => battery.IsAvailable).ToArray();
+
+        // The lowest of the packs, because that is the one a battery-powered run would exhaust first.
+        BatteryChargePercent = batteries
+            .Select(static battery => battery.ChargePercent)
+            .Where(static charge => charge is not null)
+            .Min();
+
+        if (batteries.Length == 0)
+        {
+            // A desktop, or telemetry that has not arrived. Neither is "on battery", and blocking the wizard
+            // on a machine that has no battery to be on would be absurd.
+            IsOnBattery = false;
+            return;
+        }
+
+        // AC attached settles it, whatever the batteries are doing. AcAndBattery happens under a load the
+        // adapter alone cannot carry — the charger IS attached, so this is not running on battery.
+        if (batteries.Any(static battery =>
+                battery.PowerSourceState is FrameworkPowerSourceState.AcOnly or FrameworkPowerSourceState.AcAndBattery))
+        {
+            IsOnBattery = false;
+            return;
+        }
+
+        if (batteries.Any(static battery => battery.PowerSourceState == FrameworkPowerSourceState.BatteryOnly))
+        {
+            IsOnBattery = true;
+            return;
+        }
+
+        // No usable power-source reading: fall back to the batteries themselves. Something actively draining
+        // with no charger reported is the definition of running on battery.
+        IsOnBattery = batteries.Any(static battery =>
+            battery.BatteryState is FrameworkBatteryState.Discharging or FrameworkBatteryState.Critical);
+    }
+
+    internal Task<FanCalibrationRunResult> RunCalibrationAsync(
+        int fanIndex,
+        IReadOnlyCollection<int> drivingSensorIndices,
+        IProgress<FanCalibrationProgress> progress,
+        CancellationToken cancellationToken,
+        ThermalLoadTarget loadTarget = ThermalLoadTarget.None)
+        => _fanControlClient.RunCalibrationAsync(fanIndex, drivingSensorIndices, progress, cancellationToken, loadTarget);
+
+    /// <summary>Discards what a fan learned from ordinary use. Immediate and destructive.</summary>
+    internal async Task ForgetAdaptiveLearningAsync(int fanIndex, CancellationToken cancellationToken = default)
+    {
+        if (!CanIssueFanCommands)
+        {
+            return;
+        }
+
+        try
+        {
+            var result = await _fanControlClient.ForgetAdaptiveLearningAsync(fanIndex, cancellationToken).ConfigureAwait(true);
+            ReportStatus(
+                result.Succeeded ? "Discarded what this fan had learned. It will start again from defaults." : result.Message,
+                result.Succeeded ? Microsoft.UI.Xaml.Controls.InfoBarSeverity.Success : Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to discard the learned model for fan {FanIndex}", fanIndex);
+            ReportStatus($"Failed to discard the learned model: {ex.Message}", Microsoft.UI.Xaml.Controls.InfoBarSeverity.Error);
+        }
     }
 
     private FollowOption? FindFollowOption(int? fanIndex)
@@ -1722,8 +2181,10 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
     private void RefreshUnitFormatting()
     {
-        // Rebind the curve temperature axis labeler so it relabels with the new unit.
+        // Rebind the chart axis labelers so both charts relabel with the new unit.
         CurveChart.RefreshUnitFormatting();
+        SensorChart.RefreshUnitFormatting();
+        StalledFanNoticeDisplay = BuildStalledFanNoticeDisplay();
 
         foreach (var fan in _hub.Fans)
         {
@@ -1733,6 +2194,11 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         RefreshAllDrivingTemperatureHistory();
         RefreshSensorChart();
+
+        // The page's own readouts are either canonical values that UnitFormatConverter formats at render
+        // time, or computed slider bounds that move with the ratio unit. Neither has "changed" — only their
+        // presentation has — which is exactly what a null property name signals. See UnitFormatConverter.
+        OnPropertyChanged(propertyName: null);
     }
 
     // The five telemetry streams stay subscribed here, but the data lands in FanTelemetryHub; these handlers
@@ -1745,10 +2211,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         _hub.ApplyControlStateChanges(changes);
         RefreshAllDrivingTemperatureHistory();
         // LinkedLeaderIndex rides on the control state, so re-derive the link chips + row-disabling when it streams
-        // in (covers persisted groups loaded at startup and links written by another client). The CPU boost
-        // strength rides on the control state too.
+        // in (covers persisted groups loaded at startup and links written by another client).
         LinkSection.UpdateLinkChipStates();
-        BoostSection.RefreshFromSelection();
 
         if (SelectedFan is not null)
         {
@@ -1866,18 +2330,20 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         if (_historyStore.GetFanHistory(fanIndex) is not { Length: > 0 } points)
         {
-            fan.FanSpeedHistory = [];
+            fan.FanSpeedHistoryRpm = [];
             return;
         }
 
-        var converted = new DateTimePoint[points.Length];
+        // Handed over in canonical RPM. The card converts for its chart and re-derives on a unit change; the
+        // page converting here would have baked the unit into the numbers the card reasons about.
+        var canonical = new DateTimePoint[points.Length];
         for (var i = 0; i < points.Length; i++)
         {
             var point = points[i];
-            converted[i] = new DateTimePoint(point.ObservedAt.LocalDateTime, _unitFormattingService.ConvertFanSpeed(point.SpeedRpm));
+            canonical[i] = new DateTimePoint(point.ObservedAt.LocalDateTime, point.SpeedRpm);
         }
 
-        fan.FanSpeedHistory = converted;
+        fan.FanSpeedHistoryRpm = canonical;
     }
 
     // Coalesced (sampled ~3 Hz) recompute of all temperature-history visuals. Running the per-timestamp
@@ -1911,7 +2377,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         var state = fan.ControlState;
         if (state is null || state.DrivingSensorIndices.IsDefaultOrEmpty)
         {
-            fan.DrivingTemperatureHistory = [];
+            fan.DrivingTemperatureHistoryCelsius = [];
             return;
         }
 
@@ -1926,7 +2392,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
         if (perSensor.Count == 0)
         {
-            fan.DrivingTemperatureHistory = [];
+            fan.DrivingTemperatureHistoryCelsius = [];
             return;
         }
 
@@ -1965,10 +2431,11 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
                 _ => readings.Average(),
             };
 
-            output.Add(new DateTimePoint(timestamp.LocalDateTime, _unitFormattingService.ConvertTemperature(aggregated)));
+            // Handed over in canonical Celsius; the card converts for its chart and re-derives on a unit change.
+            output.Add(new DateTimePoint(timestamp.LocalDateTime, aggregated));
         }
 
-        fan.DrivingTemperatureHistory = output.ToArray();
+        fan.DrivingTemperatureHistoryCelsius = output.ToArray();
     }
 
     internal void ReportStatus(string message, Microsoft.UI.Xaml.Controls.InfoBarSeverity severity)
@@ -2067,19 +2534,69 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     //   staged      → Preview + Revert + Apply enabled (preview optional; Apply commits the staged change)
     //   previewing  → Apply + Revert enabled, Preview disabled (a test is already live)
 
+    /// <summary>
+    /// Mirror of the service's Adaptive arming gate: measured OR learned. A staged Adaptive on a fan that
+    /// passes neither cannot be previewed or applied — the service would refuse the arm — so those commands
+    /// grey out and the panel's Calibrate call to action is the only way forward. Discard stays available.
+    /// </summary>
+    internal bool SelectedFanCanRunAdaptive => SelectedFan is { } selectedFan
+        && selectedFan.ControlState is { } controlState
+        && (controlState.Calibration.IsMeasured || controlState.AdaptiveLearning.HasLearned)
+        // Sensors too, not just a model. A fan can hold a calibration and NO driving sensors — a config
+        // written before the sensors were persisted restores exactly that — and the loop cannot run without
+        // them. Gating on the model alone offered Preview and Apply, which then died on the service's
+        // "pick at least one driving temperature sensor" refusal with no way to pick one.
+        && ResolveAdaptiveSensors(selectedFan.Snapshot.FanIndex).Count > 0;
+
+    /// <summary>
+    /// The sensors an Adaptive arm would hold for a fan, from wherever the user actually chose them.
+    /// </summary>
+    /// <remarks>
+    /// Shared by the arm and by the gate that decides whether arming is even offered, so the two cannot
+    /// disagree about whether this fan has sensors.
+    /// </remarks>
+    internal IReadOnlyCollection<int> ResolveAdaptiveSensors(int fanIndex, IReadOnlyCollection<int>? sensorsOverride = null)
+    {
+        // Deliberately NOT the page's sensor picker. That picker belongs to the CURVE editor, and letting it
+        // stand in here meant a fan could arm Adaptive on sensors the calibration never measured — while the
+        // editor told the user, correctly, that the wizard chooses them. The wizard is the only source:
+        // what it just measured (remembered for the "calibrate, then preview" hand-off), or what a previous
+        // run persisted onto the fan.
+        var sensors = sensorsOverride ?? [];
+
+        if (sensors.Count == 0 && _calibratedSensorIndices.TryGetValue(fanIndex, out var calibratedSensors))
+        {
+            sensors = calibratedSensors;
+        }
+
+        if (sensors.Count == 0)
+        {
+            sensors = [.. _hub.GetFan(fanIndex)?.ControlState?.DrivingSensorIndices ?? []];
+        }
+
+        return sensors;
+    }
+
+    /// <summary>A staged simple mode the service would actually accept (an unrunnable Adaptive is not one).</summary>
+    private bool HasStagedRunnableSimpleMode => HasStagedSimpleMode
+        && (_session.StagedMode != FanControlMode.Adaptive || SelectedFanCanRunAdaptive);
+
     // Apply commits every staged change — the selected fan's and every other fan's parked staged work
     // ("Apply all"). Preview is optional: staged work can commit directly. A custom draft must be valid.
     private bool CanApplyStaged => HasSelectedFan && CanIssueFanCommands
+        // An unrunnable staged Adaptive can never be committed, previewing or not. Without this the
+        // IsTesting arm below re-enabled Apply during a live preview and the click became a silent no-op.
+        && (_session.StagedMode != FanControlMode.Adaptive || SelectedFanCanRunAdaptive)
         && (IsTesting
             || ((CurrentFanHasStagedEdits || IsCustomActivationStaged) && HasValidDraft)
-            || HasStagedSimpleMode
+            || HasStagedRunnableSimpleMode
             || LinkSection.HasStagedLinks
-            || BoostSection.HasStagedBoosts
+            || HasStagedAdaptiveSettings
             || HasOtherStagedFans);
 
     // Revert stops a live preview (restoring the prior state) or clears staged-but-unapplied work anywhere.
     private bool CanRevertStaged => HasSelectedFan && CanIssueFanCommands
-        && (IsTesting || CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode || LinkSection.HasStagedLinks || BoostSection.HasStagedBoosts || HasOtherStagedFans);
+        && (IsTesting || CurrentFanHasStagedEdits || IsCustomActivationStaged || HasStagedSimpleMode || LinkSection.HasStagedLinks || HasStagedAdaptiveSettings || HasOtherStagedFans);
 
     /// <summary>Parked staged work on non-selected fans ("Apply all" / "Revert all" reach them too).</summary>
     private bool HasOtherStagedFans => OtherStagedFanCount() > 0;
@@ -2092,6 +2609,23 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         foreach (var (fanIndex, session) in _sessions)
         {
             if (fanIndex != selectedIndex && (session.DraftSnapshot is not null || session.StagedMode is not null))
+            {
+                count++;
+            }
+        }
+
+        // Staged Adaptive settings live outside the sessions, so a fan holding only those was invisible here
+        // — now that the selected fan's own pill is per-fan, they have to be counted or they vanish entirely.
+        foreach (var fanIndex in _stagedAdaptiveSettings.Keys)
+        {
+            if (fanIndex == selectedIndex)
+            {
+                continue;
+            }
+
+            // Counted only when the loop above did not already count this fan for a draft or staged mode.
+            if (!_sessions.TryGetValue(fanIndex, out var adaptiveSession)
+                || (adaptiveSession.DraftSnapshot is null && adaptiveSession.StagedMode is null))
             {
                 count++;
             }
@@ -2117,7 +2651,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     private bool CanPreviewStaged => HasSelectedFan && CanIssueFanCommands && !IsTesting
         && (IsCustomStaging
             ? (CurrentFanHasStagedEdits || IsCustomActivationStaged) && !IsFollowing && HasValidDraft
-            : HasStagedSimpleMode);
+            : HasStagedRunnableSimpleMode);
 
     private bool CanClearProfile => HasSelectedFan && !IsTesting && CanIssueFanCommands && _session.AppliedBaseline is not null;
 
@@ -2286,6 +2820,18 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         }
     }
 
+    public bool IsAdaptiveModeChecked
+    {
+        get => SelectedMode == FanControlMode.Adaptive;
+        set
+        {
+            if (value)
+            {
+                SelectedMode = FanControlMode.Adaptive;
+            }
+        }
+    }
+
     public bool IsCustomModeChecked
     {
         get => SelectedMode == FanControlMode.CustomCurve || ShowCustomEditor;
@@ -2414,6 +2960,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [NotifyPropertyChangedFor(nameof(IsAutoModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsManualModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsMaxModeChecked))]
+    [NotifyPropertyChangedFor(nameof(IsAdaptiveModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsCustomModeChecked))]
     [NotifyPropertyChangedFor(nameof(AutoTileBackground))]
     [NotifyPropertyChangedFor(nameof(ManualTileBackground))]
@@ -2439,6 +2986,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [NotifyPropertyChangedFor(nameof(IsAutoModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsManualModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsMaxModeChecked))]
+    [NotifyPropertyChangedFor(nameof(IsAdaptiveModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsCustomModeChecked))]
     [NotifyPropertyChangedFor(nameof(AutoTileBackground))]
     [NotifyPropertyChangedFor(nameof(ManualTileBackground))]
@@ -2473,14 +3021,39 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ModeTargetText))]
-    [NotifyPropertyChangedFor(nameof(ManualDutyDisplay))]
     [NotifyPropertyChangedFor(nameof(IsPreset25))]
     [NotifyPropertyChangedFor(nameof(IsPreset50))]
     [NotifyPropertyChangedFor(nameof(IsPreset80))]
     [NotifyPropertyChangedFor(nameof(IsPreset100))]
     [NotifyPropertyChangedFor(nameof(ModeGaugeTargetValues))]
     [NotifyPropertyChangedFor(nameof(ModeGaugeTargetRemaining))]
+    [NotifyPropertyChangedFor(nameof(ManualDutyDisplayValue))]
     public partial double ManualDutyPercent { get; set; } = DefaultManualDutyPercent;
+
+    // ----- Manual duty slider, in the user's ratio unit (both directions; see the units project skill) -----
+
+    /// <summary>Zero is the same number in every ratio unit, so the slider floor needs no conversion.</summary>
+    public double ManualDutyDisplayMinimum => 0d;
+
+    /// <summary>Full duty in the display unit: 100 %, 1 fraction, 1 000 ‰, 1 000 000 PPM.</summary>
+    public double ManualDutyDisplayMaximum => _unitFormattingService.RatioAxisMaximum;
+
+    /// <summary>One canonical percent's worth of travel, so the slider keeps the same 100 stops in any unit.</summary>
+    public double ManualDutyDisplayStep => _unitFormattingService.RatioAxisMaximum / 100d;
+
+    /// <summary>A tick every ten canonical percent, matching the step above.</summary>
+    public double ManualDutyDisplayTickFrequency => _unitFormattingService.RatioAxisMaximum / 10d;
+
+    /// <summary>
+    /// The slider's thumb, in the display unit. The setter converts straight back to canonical percent — the
+    /// EC and every staging path speak percent — and that assignment re-raises this property, which is a
+    /// no-op when the value round-trips unchanged.
+    /// </summary>
+    public double ManualDutyDisplayValue
+    {
+        get => _unitFormattingService.ConvertRatio(ManualDutyPercent);
+        set => ManualDutyPercent = Math.Clamp(_unitFormattingService.ConvertRatioToPercent(value), 0d, 100d);
+    }
 
     // The active quick-preset (the one matching the current duty) is highlighted accent.
     public bool IsPreset25 => Math.Abs(ManualDutyPercent - 25d) < 0.5d;
@@ -2609,6 +3182,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     [NotifyPropertyChangedFor(nameof(IsAutoModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsManualModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsMaxModeChecked))]
+    [NotifyPropertyChangedFor(nameof(IsAdaptiveModeChecked))]
     [NotifyPropertyChangedFor(nameof(IsCustomModeChecked))]
     [NotifyPropertyChangedFor(nameof(AutoTileBackground))]
     [NotifyPropertyChangedFor(nameof(ManualTileBackground))]
@@ -2672,7 +3246,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     public string ModeTargetText => SelectedFanMode switch
     {
         FanControlMode.Max => "→ Max target",
-        FanControlMode.Manual => $"→ {ManualDutyPercent:0}% duty target",
+        FanControlMode.Manual => $"→ {_unitFormattingService.FormatRatio(ManualDutyPercent, decimals: 0)} duty target",
+        FanControlMode.Adaptive => "→ Temperature target",
         _ => "→ Controller policy",
     };
 
@@ -2690,12 +3265,20 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         _ => "The embedded controller is driving this fan based on its built-in policy. No user override is active.",
     };
 
-    /// <summary>Big duty readout shown beside the Manual slider (e.g. "43%").</summary>
-    public string ManualDutyDisplay => _unitFormattingService.FormatRatio(ManualDutyPercent);
-
     public string SelectedFanHeading => SelectedFan is null
         ? "Select a fan"
         : $"Editor — {SelectedFan.Snapshot.DisplayName}";
+
+    /// <summary>
+    /// The stalled-fan empty-state line ("0 RPM · no rotation detected"). A COMPOSITE (a zero reading joined
+    /// to a diagnosis), so it stays formatted here — in the user's fan-speed unit, because "RPM" is that
+    /// unit's name, not a fixed part of the sentence.
+    /// </summary>
+    [ObservableProperty]
+    public partial string StalledFanNoticeDisplay { get; private set; } = string.Empty;
+
+    private string BuildStalledFanNoticeDisplay()
+        => $"{_unitFormattingService.FormatFanSpeed(0d)} · no rotation detected";
 
     public string SelectedFanModeDisplay => SelectedFanMode switch
     {
@@ -2703,6 +3286,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
         FanControlMode.Manual => "Manual",
         FanControlMode.CustomCurve => "Custom curve",
         FanControlMode.Max => "Max",
+        FanControlMode.Adaptive => "Adaptive",
         _ => string.Empty,
     };
 

@@ -19,8 +19,8 @@ public partial class DeviceCapabilitiesVideoControllerCardModel : ObservableObje
     [NotifyPropertyChangedFor(nameof(VideoModeDescription))]
     [NotifyPropertyChangedFor(nameof(DisplayResolution))]
     [NotifyPropertyChangedFor(nameof(ResolutionBadge))]
-    [NotifyPropertyChangedFor(nameof(DisplayRefreshRate))]
-    [NotifyPropertyChangedFor(nameof(DisplayAdapterRam))]
+    [NotifyPropertyChangedFor(nameof(CurrentRefreshRateHertz))]
+    [NotifyPropertyChangedFor(nameof(AdapterRamBytes))]
     [NotifyPropertyChangedFor(nameof(ConnectedMonitorCountDisplay))]
     [NotifyPropertyChangedFor(nameof(ConnectedMonitorsDisplay))]
     public partial HardwareInfoVideoController Snapshot { get; set; } = default!;
@@ -42,9 +42,11 @@ public partial class DeviceCapabilitiesVideoControllerCardModel : ObservableObje
     /// <summary>Resolution standard chip per the mockup (WQXGA / QHD / Full HD…); empty when inactive.</summary>
     public string ResolutionBadge => DeviceCapabilitiesResolutionBadge.For(Snapshot.CurrentHorizontalResolution, Snapshot.CurrentVerticalResolution);
 
-    public string DisplayRefreshRate => Snapshot.DisplayRefreshRate;
+    /// <summary>Refresh rate in canonical hertz; formatted by UnitFormatConverter. Null when none was reported.</summary>
+    public double? CurrentRefreshRateHertz => Snapshot.CurrentRefreshRateHertz;
 
-    public string DisplayAdapterRam => Snapshot.DisplayAdapterRam;
+    /// <summary>Adapter memory in canonical bytes; formatted by UnitFormatConverter. Null when the adapter reports none.</summary>
+    public ulong? AdapterRamBytes => Snapshot.AdapterRAM == 0 ? null : Snapshot.AdapterRAM;
 
     public string ConnectedMonitorCountDisplay => Snapshot.LinkedMonitorDisplayNames.Length.ToString("N0");
 

@@ -13,9 +13,14 @@ namespace SubZeroFramework.Services.Compute;
 /// module fitted runs two of them at once.
 ///
 /// Isolation is the point: a source that throws is dropped for that tick and the others still report. One
-/// vendor's broken driver must not blank out the whole page. Devices are de-duplicated by
-/// <see cref="ComputeDeviceUtilization.DeviceKey"/> — first source wins — so a GPU visible to two sources
-/// (an AMD card readable through both sysfs and a future generic path) is published once.
+/// vendor's broken driver must not blank out the whole page.
+///
+/// A device seen by two sources is published ONCE, keyed by
+/// <see cref="ComputeDeviceUtilization.DeviceKey"/>, with the later source filling in only the fields the
+/// earlier one left null. This used to drop the duplicate outright, which was harmless when utilisation was
+/// the only field — but the readers now disagree about what they can measure, so discarding one would lose a
+/// real reading. On Windows in particular, PDH knows every adapter's utilisation while NVML knows the NVIDIA
+/// GPU's power, temperature and throttle reasons; neither is a superset of the other.
 /// </remarks>
 public sealed partial class CompositeComputeUtilizationReader : IComputeUtilizationReader
 {
@@ -40,7 +45,7 @@ public sealed partial class CompositeComputeUtilizationReader : IComputeUtilizat
     public IReadOnlyList<ComputeDeviceUtilization> Sample()
     {
         List<ComputeDeviceUtilization> merged = [];
-        HashSet<string> seenDeviceKeys = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, int> indexByDeviceKey = new(StringComparer.OrdinalIgnoreCase);
 
         foreach (var reader in _readers)
         {
@@ -55,20 +60,25 @@ public sealed partial class CompositeComputeUtilizationReader : IComputeUtilizat
                 continue;
             }
 
-            var duplicates = 0;
+            var enriched = 0;
             foreach (var sample in samples)
             {
-                if (seenDeviceKeys.Add(sample.DeviceKey))
+                if (indexByDeviceKey.TryGetValue(sample.DeviceKey, out var existingIndex))
                 {
-                    merged.Add(sample);
+                    // The same device through a second source. Fill in what the first source could not
+                    // answer rather than discarding this one: neither reader is a superset of the other, so
+                    // dropping the duplicate outright would throw away a real measurement.
+                    merged[existingIndex] = merged[existingIndex].EnrichFrom(sample);
+                    enriched += 1;
                 }
                 else
                 {
-                    duplicates += 1;
+                    indexByDeviceKey[sample.DeviceKey] = merged.Count;
+                    merged.Add(sample);
                 }
             }
 
-            LogReaderSampled(reader.GetType().Name, samples.Count, duplicates);
+            LogReaderSampled(reader.GetType().Name, samples.Count, enriched);
         }
 
         return merged;

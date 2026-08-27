@@ -81,9 +81,6 @@ public partial class FrameworkLaptop16FanAdvancedInfoCardModel : FanAdvancedInfo
     public partial string ExpansionBayPowerLimitDisplay { get; private set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string StandardFirmwareMaximumDisplay { get; private set; } = string.Empty;
-
-    [ObservableProperty]
     public partial string ApproximateThermalStressMaximumDisplay { get; private set; } = string.Empty;
 
     public void UpdateFrom(FrameworkLaptop16CoolingDetails details)
@@ -108,8 +105,11 @@ public partial class FrameworkLaptop16FanAdvancedInfoCardModel : FanAdvancedInfo
         ShellFanThicknessDisplay = $"{_unitFormattingService.FormatLengthMillimeters(ShellFanThicknessMillimeters)} thick";
         GraphicsFanThicknessDisplay = $"{_unitFormattingService.FormatLengthMillimeters(GraphicsFanThicknessMillimeters)} thick";
         ExpansionBayPowerLimitDisplay = $"{_unitFormattingService.FormatPowerWatts(ExpansionBayPowerLimitWatts)} max";
-        StandardFirmwareMaximumDisplay = _unitFormattingService.FormatFanSpeed(StandardFirmwareMaximumRpm);
         ApproximateThermalStressMaximumDisplay = $"~{_unitFormattingService.FormatFanSpeed(ApproximateThermalStressMaximumRpm)}";
+
+        // StandardFirmwareMaximumRpm is a canonical single quantity — UnitFormatConverter formats it; the
+        // base raise re-runs its binding.
+        base.RefreshUnitFormatting();
     }
 
     private string BuildDimensionsDisplay(double widthMillimeters, double heightMillimeters, double thicknessMillimeters)

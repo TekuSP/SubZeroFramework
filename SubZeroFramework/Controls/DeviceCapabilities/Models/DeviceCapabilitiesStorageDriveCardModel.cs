@@ -41,19 +41,19 @@ public partial class DeviceCapabilitiesStorageDriveCardModel : ObservableObject
 
     public string MediaTypeDisplay => FirstNonEmpty(Snapshot.MediaType) ?? "Unknown";
 
-    /// <summary>Formatted total capacity. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    /// <summary>Total capacity in canonical bytes; null when the drive reports no size.</summary>
     [ObservableProperty]
-    public partial string CapacityDisplay { get; private set; } = string.Empty;
+    public partial double? CapacityBytes { get; private set; }
 
     public string FirmwareRevisionDisplay => FirstNonEmpty(Snapshot.FirmwareRevision) ?? "Unavailable";
 
-    /// <summary>Formatted used space. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    /// <summary>Used space in canonical bytes.</summary>
     [ObservableProperty]
-    public partial string UsedSpaceDisplay { get; private set; } = string.Empty;
+    public partial double? UsedSpaceBytes { get; private set; }
 
-    /// <summary>Formatted free space. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    /// <summary>Free space in canonical bytes.</summary>
     [ObservableProperty]
-    public partial string FreeSpaceDisplay { get; private set; } = string.Empty;
+    public partial double? FreeSpaceBytes { get; private set; }
 
     public double UsagePercent => Snapshot.UsagePercent;
 
@@ -88,16 +88,23 @@ public partial class DeviceCapabilitiesStorageDriveCardModel : ObservableObject
     /// </summary>
     public void RefreshUnitFormatting()
     {
-        CapacityDisplay = _unitFormattingService.FormatInformationBytes(Snapshot.Size, treatZeroAsUnknown: true);
-        UsedSpaceDisplay = Snapshot.Size == 0
-            ? "Unknown"
-            : _unitFormattingService.FormatInformationBytes(Snapshot.UsedSpace);
-        FreeSpaceDisplay = Snapshot.Size == 0
-            ? "Unknown"
-            : _unitFormattingService.FormatInformationBytes(Snapshot.ClampedFreeSpace);
-        UsageSummary = Snapshot.Size == 0
-            ? "Unknown"
-            : $"{UsedSpaceDisplay} used / {FreeSpaceDisplay} free";
+        // Canonical bytes; a drive reporting size 0 reported nothing, so all three become null and the
+        // converter renders the empty state.
+        var known = Snapshot.Size != 0;
+        CapacityBytes = known ? Snapshot.Size : null;
+        UsedSpaceBytes = known ? Snapshot.UsedSpace : null;
+        FreeSpaceBytes = known ? Snapshot.ClampedFreeSpace : null;
+
+        // A composite of two quantities, so it stays formatted here — a converter formats one value and
+        // cannot join two. Same split as the monitor card's picker subtitle.
+        UsageSummary = known
+            ? $"{_unitFormattingService.FormatInformationBytes(Snapshot.UsedSpace)} used / "
+                + $"{_unitFormattingService.FormatInformationBytes(Snapshot.ClampedFreeSpace)} free"
+            : "Unknown";
+
+        // The three canonical byte counts above do not move when the unit preference does, so the tiles bound
+        // to them through the converter need the "everything changed" broadcast or they keep the old unit.
+        OnPropertyChanged(propertyName: null);
     }
 
     private static string? FirstNonEmpty(params string?[] values) => values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));

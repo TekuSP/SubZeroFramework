@@ -41,18 +41,18 @@
                         <Slider
                             VerticalAlignment="Center"
                             IsEnabled="{x:Bind ViewModel.CanSelectMode, Mode=OneWay}"
-                            Maximum="100"
-                            Minimum="0"
-                            StepFrequency="1"
-                            TickFrequency="10"
-                            Value="{x:Bind ViewModel.ManualDutyPercent, Mode=TwoWay}" />
+                            Maximum="{x:Bind ViewModel.ManualDutyDisplayMaximum, Mode=OneWay}"
+                            Minimum="{x:Bind ViewModel.ManualDutyDisplayMinimum, Mode=OneWay}"
+                            StepFrequency="{x:Bind ViewModel.ManualDutyDisplayStep, Mode=OneWay}"
+                            TickFrequency="{x:Bind ViewModel.ManualDutyDisplayTickFrequency, Mode=OneWay}"
+                            Value="{x:Bind ViewModel.ManualDutyDisplayValue, Mode=TwoWay}" />
                         <TextBlock
                             Grid.Column="1"
                             VerticalAlignment="Center"
                             FontSize="30"
                             FontWeight="SemiBold"
                             Foreground="{StaticResource TextPrimaryBrush}"
-                            Text="{x:Bind ViewModel.ManualDutyDisplay, Mode=OneWay}" />
+                            Text="{x:Bind ViewModel.ManualDutyPercent, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Ratio}" />
                     </Grid>
                 </StackPanel>
             </Border>

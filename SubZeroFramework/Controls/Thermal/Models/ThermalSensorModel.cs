@@ -29,29 +29,16 @@ public partial class ThermalSensorModel : ObservableObject
 		"#FFE8B86C",
 		"#FFFF8A80",
 	];
-	private readonly ObservableValue _coolGaugeObservable = new(0d);
-	private readonly ObservableValue _normalGaugeObservable = new(0d);
-	private readonly ObservableValue _warmGaugeObservable = new(0d);
-	private readonly ObservableValue _hotGaugeObservable = new(0d);
-	private readonly ObservableValue _remainingGaugeObservable = new(100d);
 	private readonly IUnitFormattingService _unitFormattingService;
 
 	public ThermalSensorModel(IUnitFormattingService unitFormattingService)
 	{
 		_unitFormattingService = unitFormattingService;
-		CoolGaugeValues = [_coolGaugeObservable];
-		NormalGaugeValues = [_normalGaugeObservable];
-		WarmGaugeValues = [_warmGaugeObservable];
-		HotGaugeValues = [_hotGaugeObservable];
-		RemainingGaugeValues = [_remainingGaugeObservable];
 
 		// Snapshot is seated by the object initializer right after construction, which runs the full
 		// RefreshUnitFormatting pass via OnSnapshotChanged; seed the service-derived text so the
 		// stored properties are never null in the interim.
-		TemperatureValueWithUnit = _unitFormattingService.FormatTemperature(null);
 		TemperatureUnitSuffix = _unitFormattingService.TemperatureUnitSuffix;
-		TemperatureAxisMinLimit = _unitFormattingService.ConvertTemperature(0d);
-		TemperatureAxisMaxLimit = _unitFormattingService.ConvertTemperature(100d);
 	}
 
 	[ObservableProperty]
@@ -66,12 +53,15 @@ public partial class ThermalSensorModel : ObservableObject
 	[NotifyPropertyChangedFor(nameof(StatusIconKind))]
 	public partial TemperatureTelemetrySnapshot Snapshot { get; set; } = default!;
 
-	public ObservableCollection<DateTimePoint> TemperatureHistory { get; } = [];
-
+	/// <summary>
+	/// The sensor's plotted points, in DISPLAY units.
+	/// </summary>
+	/// <remarks>
+	/// Bound from C#, not XAML: <see cref="Presentation.MenuItems.ThermalTelemetry.ThermalTelemetryModel"/>
+	/// hands this very instance to a LiveCharts series as its <c>Values</c>, so the chart updates when the
+	/// collection is mutated in place. A search for bindings that only greps XAML will not find that.
+	/// </remarks>
 	public ObservableCollection<DateTimePoint> OverviewTemperatureHistory { get; } = [];
-
-	[ObservableProperty]
-	public partial double[] Separators { get; set; } = [];
 
 	[ObservableProperty]
 	[NotifyPropertyChangedFor(nameof(PlottedIndicatorBrush))]
@@ -91,8 +81,6 @@ public partial class ThermalSensorModel : ObservableObject
 	[ObservableProperty]
 	public partial Brush TemperatureBrush { get; set; } = AppThemeBrushes.Get("TextPrimaryBrush", AppThemeBrushes.TextPrimaryColor);
 
-	public Func<DateTime, string> LabelsFormatter { get; } = Formatter;
-
 	public string DisplayName => string.IsNullOrWhiteSpace(Snapshot.DisplayName)
 		? $"Sensor {Snapshot.SensorIndex + 1}"
 		: Snapshot.DisplayName;
@@ -107,51 +95,27 @@ public partial class ThermalSensorModel : ObservableObject
 
 	public Visibility LocationVisibility => HasLocation ? Visibility.Visible : Visibility.Collapsed;
 
-	// Unit-formatted displays are stored and reassigned (RefreshUnitFormattedDisplays) whenever the
-	// snapshot or the unit preference changes; the setters raise PropertyChanged only on a real change.
+	/// <summary>
+	/// The temperature to show, in canonical Celsius, or null when this sensor should not show a measurement.
+	/// Formatted by UnitFormatConverter at render time.
+	/// </summary>
 	[ObservableProperty]
-	public partial string TemperatureValueDisplay { get; private set; } = "--";
+	public partial double? DisplayTemperatureCelsius { get; private set; }
 
-	[ObservableProperty]
-	public partial string TemperatureValueWithUnit { get; private set; } = string.Empty;
-
+	// The suffix stays formatted in the view model: it is rendered as its own element beside the number,
+	// not as part of it.
 	[ObservableProperty]
 	public partial string TemperatureUnitSuffix { get; private set; } = string.Empty;
 
 	[ObservableProperty]
 	public partial string SelectionDisplay { get; private set; } = string.Empty;
 
-	// The card's history chart plots the sensor's temperature in the display unit, so the fixed 0–100 °C
-	// Y-axis band converts through UnitsNet (0/100 °C → 32/212 °F, 273/373 K, …). Reassigned on unit change.
-	[ObservableProperty]
-	public partial double TemperatureAxisMinLimit { get; private set; }
-
-	[ObservableProperty]
-	public partial double TemperatureAxisMaxLimit { get; private set; }
-
+	// A 0–100 scale position, not a temperature: the tile renders it as a ProgressBar with Maximum="100",
+	// so it stays canonical and unit-independent. The number BESIDE the bar is DisplayTemperatureCelsius,
+	// which the UnitFormat converter renders in the user's unit.
 	public double GaugeValue => ShouldDisplayMeasuredTemperature
 		? Math.Clamp(Snapshot.TemperatureCelsius ?? 0d, 0d, 100d)
 		: 0d;
-
-	public double CoolGaugeValue => GetGaugeSegmentValue(0d, 45d);
-
-	public ObservableValue[] CoolGaugeValues { get; }
-
-	public double NormalGaugeValue => GetGaugeSegmentValue(45d, 70d);
-
-	public ObservableValue[] NormalGaugeValues { get; }
-
-	public double WarmGaugeValue => GetGaugeSegmentValue(70d, 85d);
-
-	public ObservableValue[] WarmGaugeValues { get; }
-
-	public double HotGaugeValue => GetGaugeSegmentValue(85d, 100d);
-
-	public ObservableValue[] HotGaugeValues { get; }
-
-	public double RemainingGaugeValue => Math.Max(0d, 100d - GaugeValue);
-
-	public ObservableValue[] RemainingGaugeValues { get; }
 
 	public string HistoryStrokeHex => HistoryStrokePalette[Math.Abs(Snapshot.SensorIndex) % HistoryStrokePalette.Length];
 
@@ -202,29 +166,29 @@ public partial class ThermalSensorModel : ObservableObject
 	public void RefreshUnitFormatting()
 	{
 		RefreshUnitFormattedDisplays();
-		TemperatureAxisMinLimit = _unitFormattingService.ConvertTemperature(0d);
-		TemperatureAxisMaxLimit = _unitFormattingService.ConvertTemperature(100d);
+
+		// The canonical reading is formatted by UnitFormatConverter at render time, so it only needs its
+		// bindings to run again — that is what the null property name asks for. See UnitFormatConverter.
+		OnPropertyChanged(propertyName: null);
 	}
 
 	// Reassigns every unit-formatted display from the current snapshot + unit preference. Safe once the
 	// snapshot is seated (the object initializer runs OnSnapshotChanged right after construction).
 	private void RefreshUnitFormattedDisplays()
 	{
-		TemperatureValueDisplay = ShouldDisplayMeasuredTemperature && Snapshot.TemperatureCelsius is double value
-			? _unitFormattingService.FormatTemperatureValue(value, decimals: 0)
-			: "--";
-
-		TemperatureValueWithUnit = ShouldDisplayMeasuredTemperature
-			? _unitFormattingService.FormatTemperature(Snapshot.TemperatureCelsius, decimals: 0)
-			: _unitFormattingService.FormatTemperature(null);
+		// The canonical value the tiles bind through UnitFormatValue. Null when the sensor should not show a
+		// measurement at all, so the converter renders the empty state rather than this deciding the wording.
+		DisplayTemperatureCelsius = ShouldDisplayMeasuredTemperature ? Snapshot.TemperatureCelsius : null;
 
 		TemperatureUnitSuffix = _unitFormattingService.TemperatureUnitSuffix;
-		SelectionDisplay = $"{DisplayName}: {TemperatureValueWithUnit}";
+
+		// A COMPOSITE (name + reading), so it stays formatted here — through the service, like every
+		// composite. A converter formats one value and cannot join two.
+		SelectionDisplay = $"{DisplayName}: {_unitFormattingService.FormatTemperature(DisplayTemperatureCelsius, decimals: 0)}";
 	}
 
 	partial void OnSnapshotChanged(TemperatureTelemetrySnapshot value)
 	{
-		UpdateGaugeValues();
 		UpdatePresentation();
 		RefreshUnitFormattedDisplays();
 	}
@@ -297,45 +261,21 @@ public partial class ThermalSensorModel : ObservableObject
 		TemperatureBrush = AppThemeBrushes.Get("SeverityCriticalBrush", AppThemeBrushes.SeverityCriticalColor);
 	}
 
-	private void UpdateGaugeValues()
-	{
-		_coolGaugeObservable.Value = CoolGaugeValue;
-		_normalGaugeObservable.Value = NormalGaugeValue;
-		_warmGaugeObservable.Value = WarmGaugeValue;
-		_hotGaugeObservable.Value = HotGaugeValue;
-		_remainingGaugeObservable.Value = RemainingGaugeValue;
-	}
-
 	public void ClearTemperatureHistory()
 	{
-		// The history collections are ObservableCollections bound as LiveCharts Values; mutating them in
-		// place raises CollectionChanged, which drives the chart directly — no revision nudge needed.
+		// The history collection is an ObservableCollection handed to a LiveCharts series as its Values;
+		// mutating it in place raises CollectionChanged, which drives the chart directly — no revision nudge.
 		SynchronizePoints(OverviewTemperatureHistory, []);
-		SynchronizePoints(TemperatureHistory, []);
-		Separators = [];
 	}
 
-	public void UpdateTemperatureHistory(IReadOnlyList<DateTimePoint> overviewHistory, IReadOnlyList<DateTimePoint> cardHistory)
+	public void UpdateTemperatureHistory(IReadOnlyList<DateTimePoint> history)
 	{
-		SynchronizePoints(OverviewTemperatureHistory, overviewHistory);
-		SynchronizePoints(TemperatureHistory, cardHistory);
-		Separators = GetSeparators();
+		SynchronizePoints(OverviewTemperatureHistory, history);
 	}
 
 	private bool ShouldDisplayMeasuredTemperature => Snapshot.IsAvailable
 		&& Snapshot.TemperatureCelsius is not null
 		&& (Snapshot.TemperatureState is null || Snapshot.TemperatureState == FrameworkTemperatureState.Ok);
-
-	private double GetGaugeSegmentValue(double startInclusive, double endExclusive)
-	{
-		var value = GaugeValue;
-		if (value <= startInclusive)
-		{
-			return 0d;
-		}
-
-		return Math.Min(value, endExclusive) - startInclusive;
-	}
 
 	private static void SynchronizePoints(ObservableCollection<DateTimePoint> target, IReadOnlyList<DateTimePoint> source)
 	{
@@ -379,15 +319,6 @@ public partial class ThermalSensorModel : ObservableObject
 		{
 			target.Add(source[sourceIndex]);
 		}
-	}
-
-	private static double[] GetSeparators()
-	{
-		var now = DateTime.Now;
-		return TimeChartAxisHelper.BuildSeparators(
-			now - PresentationDefaults.RecentTelemetryHistoryWindow,
-			now,
-			PresentationDefaults.RecentTelemetrySeparatorStep);
 	}
 
 	public static string Formatter(DateTime date)

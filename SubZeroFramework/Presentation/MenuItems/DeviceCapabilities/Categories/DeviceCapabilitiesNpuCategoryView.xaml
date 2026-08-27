@@ -79,7 +79,7 @@
                 </controls:InstancePickerView.ItemTemplate>
             </controls:InstancePickerView>
 
-            <ScrollViewer
+            <ScrollViewer controls:ScrollHint.IsEnabled="True"
                 Grid.Column="1"
                 Padding="0,0,12,0"
                 VerticalScrollBarVisibility="Auto">

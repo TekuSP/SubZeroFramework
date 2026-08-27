@@ -48,6 +48,7 @@ public static class TelemetryWireMapper
         TelemetryMetric.BatteryPresentRateAmperes => TelemetryMetricValue.BatteryPresentRateAmperes,
         TelemetryMetric.BatteryPresentVoltageVolts => TelemetryMetricValue.BatteryPresentVoltageVolts,
         TelemetryMetric.UtilizationPercent => TelemetryMetricValue.UtilizationPercent,
+        TelemetryMetric.VramUtilizationPercent => TelemetryMetricValue.VramUtilizationPercent,
         _ => TelemetryMetricValue.Unspecified,
     };
 
@@ -100,6 +101,7 @@ public static class TelemetryWireMapper
             case TelemetryMetricValue.BatteryPresentRateAmperes: metric = TelemetryMetric.BatteryPresentRateAmperes; return true;
             case TelemetryMetricValue.BatteryPresentVoltageVolts: metric = TelemetryMetric.BatteryPresentVoltageVolts; return true;
             case TelemetryMetricValue.UtilizationPercent: metric = TelemetryMetric.UtilizationPercent; return true;
+            case TelemetryMetricValue.VramUtilizationPercent: metric = TelemetryMetric.VramUtilizationPercent; return true;
             default: metric = default; return false;
         }
     }

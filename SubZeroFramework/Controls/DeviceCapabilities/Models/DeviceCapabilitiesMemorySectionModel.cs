@@ -10,6 +10,12 @@ using SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 
 namespace SubZeroFramework.Controls.DeviceCapabilities.Models;
 
+/// <summary>
+/// The Memory section's slice over the Device Capabilities page model. Every figure it shows is MIRRORED as
+/// a stored property that <see cref="RefreshDerivedState"/> reassigns when the page reports a relevant
+/// change: assignment raises PropertyChanged only for values that actually changed. The byte totals stay
+/// CANONICAL — UnitFormatConverter formats them at render time.
+/// </summary>
 public sealed partial class DeviceCapabilitiesMemorySectionModel : ObservableObject, IDisposable
 {
     private readonly DeviceCapabilitiesModel _parent;
@@ -18,49 +24,47 @@ public sealed partial class DeviceCapabilitiesMemorySectionModel : ObservableObj
     {
         _parent = parent;
         _parent.PropertyChanged += ParentPropertyChanged;
+        RefreshDerivedState();
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(MemoryModuleCount))]
     [NotifyPropertyChangedFor(nameof(MemoryModuleCountDisplay))]
-    [NotifyPropertyChangedFor(nameof(MemoryTotalCapacity))]
-    [NotifyPropertyChangedFor(nameof(TotalPhysicalMemory))]
-    [NotifyPropertyChangedFor(nameof(AvailablePhysicalMemory))]
-    [NotifyPropertyChangedFor(nameof(TotalPageFileMemory))]
-    [NotifyPropertyChangedFor(nameof(AvailablePageFileMemory))]
-    [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsagePercent))]
-    [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsageBarBrush))]
-    [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsageDisplay))]
-    [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsageSuccessVisibility))]
-    [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsageWarningVisibility))]
-    [NotifyPropertyChangedFor(nameof(PhysicalMemoryUsageErrorVisibility))]
-    private partial int SnapshotVersion { get; set; }
+    public partial int MemoryModuleCount { get; private set; }
 
-    public int MemoryModuleCount => _parent.MemoryModuleCount;
+    public string MemoryModuleCountDisplay => MemoryModuleCount.ToString();
 
-    public string MemoryModuleCountDisplay => _parent.MemoryModuleCount.ToString();
+    [ObservableProperty]
+    public partial ulong? MemoryTotalCapacityBytes { get; private set; }
 
-    public string MemoryTotalCapacity => _parent.MemoryTotalCapacity;
+    [ObservableProperty]
+    public partial ulong? TotalPhysicalMemoryBytes { get; private set; }
 
-    public string TotalPhysicalMemory => _parent.TotalPhysicalMemory;
+    [ObservableProperty]
+    public partial ulong? AvailablePhysicalMemoryBytes { get; private set; }
 
-    public string AvailablePhysicalMemory => _parent.AvailablePhysicalMemory;
+    [ObservableProperty]
+    public partial ulong? TotalPageFileMemoryBytes { get; private set; }
 
-    public string TotalPageFileMemory => _parent.TotalPageFileMemory;
+    [ObservableProperty]
+    public partial ulong? AvailablePageFileMemoryBytes { get; private set; }
 
-    public string AvailablePageFileMemory => _parent.AvailablePageFileMemory;
+    [ObservableProperty]
+    public partial double PhysicalMemoryUsagePercent { get; private set; }
 
-    public double PhysicalMemoryUsagePercent => _parent.PhysicalMemoryUsagePercent;
+    [ObservableProperty]
+    public partial Microsoft.UI.Xaml.Media.Brush? PhysicalMemoryUsageBarBrush { get; private set; }
 
-    public Microsoft.UI.Xaml.Media.Brush PhysicalMemoryUsageBarBrush => _parent.PhysicalMemoryUsageBarBrush;
+    [ObservableProperty]
+    public partial string PhysicalMemoryUsageDisplay { get; private set; } = "Unknown";
 
-    public string PhysicalMemoryUsageDisplay => _parent.PhysicalMemoryUsageDisplay;
+    [ObservableProperty]
+    public partial Visibility PhysicalMemoryUsageSuccessVisibility { get; private set; }
 
-    public Visibility PhysicalMemoryUsageSuccessVisibility => _parent.PhysicalMemoryUsageSuccessVisibility;
+    [ObservableProperty]
+    public partial Visibility PhysicalMemoryUsageWarningVisibility { get; private set; } = Visibility.Collapsed;
 
-    public Visibility PhysicalMemoryUsageWarningVisibility => _parent.PhysicalMemoryUsageWarningVisibility;
-
-    public Visibility PhysicalMemoryUsageErrorVisibility => _parent.PhysicalMemoryUsageErrorVisibility;
+    [ObservableProperty]
+    public partial Visibility PhysicalMemoryUsageErrorVisibility { get; private set; } = Visibility.Collapsed;
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesMemoryModuleCardModel> MemoryModuleCards => _parent.MemoryModuleCards;
 
@@ -69,18 +73,46 @@ public sealed partial class DeviceCapabilitiesMemorySectionModel : ObservableObj
         _parent.PropertyChanged -= ParentPropertyChanged;
     }
 
+    private void RefreshDerivedState()
+    {
+        MemoryModuleCount = _parent.MemoryModuleCount;
+        MemoryTotalCapacityBytes = _parent.MemoryTotalCapacityBytes;
+        TotalPhysicalMemoryBytes = _parent.TotalPhysicalMemoryBytes;
+        AvailablePhysicalMemoryBytes = _parent.AvailablePhysicalMemoryBytes;
+        TotalPageFileMemoryBytes = _parent.TotalPageFileMemoryBytes;
+        AvailablePageFileMemoryBytes = _parent.AvailablePageFileMemoryBytes;
+        PhysicalMemoryUsagePercent = _parent.PhysicalMemoryUsagePercent;
+        PhysicalMemoryUsageBarBrush = _parent.PhysicalMemoryUsageBarBrush;
+        PhysicalMemoryUsageDisplay = _parent.PhysicalMemoryUsageDisplay;
+        PhysicalMemoryUsageSuccessVisibility = _parent.PhysicalMemoryUsageSuccessVisibility;
+        PhysicalMemoryUsageWarningVisibility = _parent.PhysicalMemoryUsageWarningVisibility;
+        PhysicalMemoryUsageErrorVisibility = _parent.PhysicalMemoryUsageErrorVisibility;
+    }
+
     private void ParentPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        // An empty name is the page's "everything changed" signal, raised when the display units change —
+        // the usage line is unit-formatted text.
+        if (string.IsNullOrEmpty(e.PropertyName))
+        {
+            RefreshDerivedState();
+
+            // See the CPU section: a unit change moves no canonical value, so the broadcast has to pass
+            // through or converter-bound tiles keep rendering in the old unit.
+            OnPropertyChanged(propertyName: null);
+            return;
+        }
+
         switch (e.PropertyName)
         {
             case nameof(DeviceCapabilitiesModel.Snapshot):
-            case nameof(DeviceCapabilitiesModel.MemoryTotalCapacity):
-            case nameof(DeviceCapabilitiesModel.TotalPhysicalMemory):
-            case nameof(DeviceCapabilitiesModel.AvailablePhysicalMemory):
-            case nameof(DeviceCapabilitiesModel.TotalPageFileMemory):
-            case nameof(DeviceCapabilitiesModel.AvailablePageFileMemory):
+            case nameof(DeviceCapabilitiesModel.MemoryTotalCapacityBytes):
+            case nameof(DeviceCapabilitiesModel.TotalPhysicalMemoryBytes):
+            case nameof(DeviceCapabilitiesModel.AvailablePhysicalMemoryBytes):
+            case nameof(DeviceCapabilitiesModel.TotalPageFileMemoryBytes):
+            case nameof(DeviceCapabilitiesModel.AvailablePageFileMemoryBytes):
             case nameof(DeviceCapabilitiesModel.PhysicalMemoryUsageDisplay):
-                SnapshotVersion++;
+                RefreshDerivedState();
                 break;
         }
     }

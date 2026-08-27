@@ -21,7 +21,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
     // Serializes every lookup -> mutate -> publish sequence. SourceCache.AddOrUpdate is individually
     // thread-safe, but two concurrent read-modify-writes (e.g. the curve worker's RecordAppliedDuty vs a
-    // gRPC command like SetCpuUsageModifier) can interleave so the later publish resurrects the earlier
+    // gRPC command like SetFanLink) can interleave so the later publish resurrects the earlier
     // lookup's stale fields, silently reverting a just-applied change (and persisting the reverted value).
     private readonly Lock _stateLock = new();
     private readonly CompositeDisposable _subscriptions = [];
@@ -115,6 +115,230 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                 LastDutyPercent = null,
             },
             "manual command");
+    }
+
+    /// <summary>
+    /// Publishes the latest adaptive controller tick for a fan, or clears it when the fan is not adaptively
+    /// driven.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Called every evaluation for every adaptive fan, so it is deliberately a no-op when nothing changed:
+    /// republishing an identical decision would push a stream update per fan per second to every connected
+    /// client for no benefit. Reference equality on the record is enough — the worker builds a new decision
+    /// object each tick, so equal values mean genuinely nothing moved.
+    /// </para>
+    /// <para>
+    /// This is live telemetry and is NOT persisted. What IS persisted is the learned model inside it, which
+    /// the caller extracts and saves on its own schedule; writing the file every second would be absurd.
+    /// </para>
+    /// </remarks>
+    /// <param name="fanIndex">The fan.</param>
+    /// <param name="decision">The tick, or null to clear.</param>
+    public void RecordAdaptiveControl(int fanIndex, AdaptiveControlDecision? decision)
+    {
+        ThrowIfDisposed();
+
+        lock (_stateLock)
+        {
+            var lookup = _fanControlStates.Lookup(fanIndex);
+            if (!lookup.HasValue || lookup.Value.AdaptiveControl == decision)
+            {
+                return;
+            }
+
+            PublishState(lookup.Value with { AdaptiveControl = decision, ObservedAt = DateTimeOffset.UtcNow }, "adaptive control update");
+        }
+    }
+
+    /// <summary>
+    /// Stores what a fan's controller has learned, so it survives a restart.
+    /// </summary>
+    /// <param name="fanIndex">The fan.</param>
+    /// <param name="learning">The learned state.</param>
+    /// <returns>True when the fan is known and the state changed.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="learning"/> is null.</exception>
+    public bool RecordAdaptiveLearning(int fanIndex, AdaptiveLearningState learning)
+    {
+        ArgumentNullException.ThrowIfNull(learning);
+        ThrowIfDisposed();
+
+        lock (_stateLock)
+        {
+            var lookup = _fanControlStates.Lookup(fanIndex);
+            if (!lookup.HasValue || lookup.Value.AdaptiveLearning == learning)
+            {
+                return false;
+            }
+
+            PublishState(lookup.Value with { AdaptiveLearning = learning }, "adaptive learning update");
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Arms a fan into <see cref="FanControlMode.Adaptive"/>.
+    /// </summary>
+    /// <param name="fanIndex">The fan.</param>
+    /// <param name="drivingSensorIndices">The sensors whose aggregate temperature the loop holds.</param>
+    /// <param name="aggregation">How to combine them.</param>
+    /// <param name="settings">New target and floor, or null to keep whatever the fan already had.</param>
+    /// <returns>Whether the fan was armed, with a message explaining a refusal.</returns>
+    /// <remarks>
+    /// <b>Deliberately not gated on calibration.</b> An uncalibrated fan arms on the conservative bootstrap
+    /// model and learns from ordinary use; refusing to arm would leave it on firmware control, which is the
+    /// worse outcome of the two. What Adaptive genuinely cannot do without is a driving sensor — with nothing
+    /// to measure there is no loop to close, so that is the one refusal here.
+    /// </remarks>
+    public FanControlStoreResult SetAdaptiveMode(
+        int fanIndex,
+        IReadOnlyCollection<int> drivingSensorIndices,
+        TemperatureAggregationMode aggregation,
+        AdaptiveFanSettings? settings)
+    {
+        ArgumentNullException.ThrowIfNull(drivingSensorIndices);
+        ThrowIfDisposed();
+
+        lock (_stateLock)
+        {
+            var lookup = _fanControlStates.Lookup(fanIndex);
+            if (!lookup.HasValue)
+            {
+                return FanControlStoreResult.Failed($"Unknown fan {fanIndex}.");
+            }
+
+            if (drivingSensorIndices.Count == 0)
+            {
+                return FanControlStoreResult.Failed("Adaptive needs at least one driving temperature sensor.");
+            }
+
+            // Nothing is known about this fan: never measured, and nothing learned from use. Calibration is
+            // the door into Adaptive — once through it, ordinary use keeps refining the model forever after.
+            //
+            // The check is "measured OR learned", not "calibrated", so a fan that has built its own model
+            // stays armed after a recalibration is discarded. What locks it out is genuine ignorance: a fresh
+            // install, or a fan whose learning was just thrown away without a measurement behind it.
+            if (!lookup.Value.Calibration.IsMeasured && !lookup.Value.AdaptiveLearning.HasLearned)
+            {
+                return FanControlStoreResult.Failed(
+                    "Adaptive needs to learn this fan first. Run the learning test to measure how it moves heat.");
+            }
+
+            PublishState(
+                lookup.Value with
+                {
+                    Mode = FanControlMode.Adaptive,
+                    DrivingSensorIndices = [.. drivingSensorIndices.Distinct().Order()],
+                    DrivingTemperatureAggregation = aggregation,
+                    AdaptiveSettings = (settings ?? lookup.Value.AdaptiveSettings).Sanitized(),
+                    ObservedAt = DateTimeOffset.UtcNow,
+                },
+                "adaptive mode command");
+
+            return FanControlStoreResult.Ok;
+        }
+    }
+
+    /// <summary>
+    /// Updates a fan's Adaptive target and safety floor without changing its mode.
+    /// </summary>
+    /// <param name="fanIndex">The fan.</param>
+    /// <param name="settings">The new settings; clamped before storage.</param>
+    /// <returns>False when the fan is unknown.</returns>
+    /// <remarks>
+    /// Deliberately does NOT require the fan to be in Adaptive: the settings are per-fan and survive mode
+    /// switches, so a user can set a target before arming the mode, and keep it after leaving.
+    /// </remarks>
+    public bool SetAdaptiveSettings(int fanIndex, AdaptiveFanSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        ThrowIfDisposed();
+
+        var sanitized = settings.Sanitized();
+
+        lock (_stateLock)
+        {
+            var lookup = _fanControlStates.Lookup(fanIndex);
+            if (!lookup.HasValue)
+            {
+                return false;
+            }
+
+            if (lookup.Value.AdaptiveSettings == sanitized)
+            {
+                return true;
+            }
+
+            PublishState(lookup.Value with { AdaptiveSettings = sanitized, ObservedAt = DateTimeOffset.UtcNow }, "adaptive settings change");
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Stores a completed calibration for a fan.
+    /// </summary>
+    /// <param name="fanIndex">The fan.</param>
+    /// <param name="calibration">The learned model.</param>
+    /// <returns>False when the fan is unknown.</returns>
+    /// <remarks>
+    /// Storing a calibration also clears what was learned online: the previous refinement was measured around
+    /// the OLD model, and a fresh hot test is a controlled measurement that supersedes it.
+    /// </remarks>
+    public bool SetCalibration(int fanIndex, FanCalibrationSnapshot calibration)
+    {
+        ArgumentNullException.ThrowIfNull(calibration);
+        ThrowIfDisposed();
+
+        lock (_stateLock)
+        {
+            var lookup = _fanControlStates.Lookup(fanIndex);
+            if (!lookup.HasValue)
+            {
+                return false;
+            }
+
+            PublishState(
+                lookup.Value with
+                {
+                    Calibration = calibration,
+                    AdaptiveLearning = AdaptiveLearningState.None,
+                    ObservedAt = DateTimeOffset.UtcNow,
+                },
+                "calibration stored");
+
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Discards what a fan identified from ordinary use, returning it to its calibration or to the bootstrap.
+    /// </summary>
+    /// <param name="fanIndex">The fan.</param>
+    /// <returns>False when the fan is unknown.</returns>
+    /// <remarks>
+    /// For a machine that changed physically — a repaste, a new heatsink, a cleaned vent — where the
+    /// identified model describes hardware that no longer exists and would otherwise take a long time to
+    /// forget on its own. The worker drops the running controller on the next tick, so the estimator restarts
+    /// empty rather than resuming from what was just discarded.
+    /// </remarks>
+    public bool ForgetAdaptiveLearning(int fanIndex)
+    {
+        ThrowIfDisposed();
+
+        lock (_stateLock)
+        {
+            var lookup = _fanControlStates.Lookup(fanIndex);
+            if (!lookup.HasValue)
+            {
+                return false;
+            }
+
+            PublishState(
+                lookup.Value with { AdaptiveLearning = AdaptiveLearningState.None, ObservedAt = DateTimeOffset.UtcNow },
+                "adaptive learning forgotten");
+
+            return true;
+        }
     }
 
     public void RecordAppliedDuty(int fanIndex, double dutyPercent)
@@ -311,7 +535,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
     /// <summary>
     /// Wipes every fan back to a fresh-install control state: Auto mode, no curve profiles, slot 0 active, no
-    /// "applies to" link, no CPU usage modifier, no remembered manual duty. Live telemetry fields (display
+    /// "applies to" link, no remembered manual duty. Live telemetry fields (display
     /// name, availability) and the safety overlay are preserved — the fan still exists, only its settings are
     /// gone. In-memory only: the caller clears the persisted copy and restores the EC. Returns the fans reset.
     /// </summary>
@@ -338,8 +562,15 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     ActiveCurveSlot = 0,
                     CurveProfiles = CreateEmptyProfiles(),
                     LinkedLeaderIndex = null,
-                    CpuUsageModifierStrength = null,
                     LastDutyPercent = null,
+
+                    // A factory reset deletes every saved fan setting, and the calibration is one — the user
+                    // asked for the machine as it shipped, and keeping a learned model would leave Adaptive
+                    // armable against a model they just asked to be rid of.
+                    Calibration = FanCalibrationSnapshot.None,
+                    AdaptiveSettings = AdaptiveFanSettings.Default,
+                    AdaptiveLearning = AdaptiveLearningState.None,
+                    AdaptiveControl = null,
                     ObservedAt = DateTimeOffset.UtcNow,
                 },
                 "factory reset");
@@ -369,6 +600,12 @@ public sealed class FrameworkFanControlStateStore : IDisposable
         {
             FanIndex = fanIndex,
             Mode = state.Mode,
+            // The live top-level driving fields — for a curve fan they mirror the active slot, but for an
+            // ADAPTIVE fan they are the only record of which sensors the loop holds. Leaving them out once
+            // meant a service restart restored Mode=Adaptive with zero sensors, which the worker cannot
+            // drive — the user applied Adaptive and came back to a fan behaving as Auto.
+            DrivingTemperatureAggregation = state.DrivingTemperatureAggregation,
+            DrivingSensorIndices = [.. state.DrivingSensorIndices],
             ActiveCurveSlot = state.ActiveCurveSlot,
             CurveProfiles =
             [
@@ -386,9 +623,119 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     }),
             ],
             LinkedLeaderIndex = state.LinkedLeaderIndex,
-            CpuUsageModifierStrength = state.CpuUsageModifierStrength,
+            Calibration = ToCalibrationOptions(state.Calibration),
+            AdaptiveSettings = new AdaptiveFanSettingsOptions
+            {
+                TargetTemperatureCelsius = state.AdaptiveSettings.TargetTemperatureCelsius,
+                SafetyFloorEnabled = state.AdaptiveSettings.SafetyFloorEnabled,
+                SafetyFloorPercent = state.AdaptiveSettings.SafetyFloorPercent,
+                LambdaSeconds = state.AdaptiveSettings.LambdaSeconds,
+            },
+            AdaptiveLearning = state.AdaptiveLearning.HasLearned
+                ? new AdaptiveLearningOptions
+                {
+                    FeedForwardDutyPerWatt = state.AdaptiveLearning.FeedForwardDutyPerWatt,
+                    CalibratedAnchorDutyPerWatt = state.AdaptiveLearning.CalibratedAnchorDutyPerWatt,
+                    IdentifiedProcessGainCelsiusPerPercent = state.AdaptiveLearning.IdentifiedProcessGainCelsiusPerPercent,
+                    IdentifiedCelsiusPerWatt = state.AdaptiveLearning.IdentifiedCelsiusPerWatt,
+                    IdentifiedInterceptCelsius = state.AdaptiveLearning.IdentifiedInterceptCelsius,
+                    ObservationCount = state.AdaptiveLearning.ObservationCount,
+                    LastUpdatedAt = state.AdaptiveLearning.LastUpdatedAt,
+                    LastMaterialChangeAt = state.AdaptiveLearning.LastMaterialChangeAt,
+                    ThermalLoadSource = state.AdaptiveLearning.ThermalLoadSource,
+                    GainHistory =
+                    [
+                        .. state.AdaptiveLearning.GainHistory.Select(static sample => new AdaptiveGainSampleOptions
+                        {
+                            At = sample.At,
+                            ProcessGainCelsiusPerPercent = sample.ProcessGainCelsiusPerPercent,
+                        }),
+                    ],
+                }
+                : null,
         };
     }
+
+    private static FanCalibrationOptions? ToCalibrationOptions(FanCalibrationSnapshot calibration)
+        => calibration.State == FanCalibrationState.None
+            ? null
+            : new FanCalibrationOptions
+            {
+                State = calibration.State,
+                CalibratedAt = calibration.CalibratedAt,
+                ProcessGainCelsiusPerPercent = calibration.ProcessGainCelsiusPerPercent,
+                TimeConstantSeconds = calibration.TimeConstantSeconds,
+                DeadTimeSeconds = calibration.DeadTimeSeconds,
+                MinimumSpinRpm = calibration.MinimumSpinRpm,
+                MinimumSpinDutyPercent = calibration.MinimumSpinDutyPercent,
+                MaximumRpm = calibration.MaximumRpm,
+                ProportionalGain = calibration.ProportionalGain,
+                IntegralGain = calibration.IntegralGain,
+                FeedForwardDutyPerWatt = calibration.FeedForwardDutyPerWatt,
+                TrackingMode = calibration.TrackingMode,
+                // The gain curve is read by the control loop, so dropping it here did not merely lose a
+                // readout — it silently downgraded gain scheduling to a single averaged K after any restart.
+                GainCurvePoints =
+                [
+                    .. calibration.GainCurve.Points.Select(static point => new FanGainCurvePointOptions
+                    {
+                        DutyPercent = point.DutyPercent,
+                        SettledCelsius = point.SettledCelsius,
+                    }),
+                ],
+                PerformanceResponse = calibration.PerformanceResponse == FanPerformanceResponse.None
+                    ? null
+                    : new FanPerformanceResponseOptions
+                    {
+                        LowDutyPercent = calibration.PerformanceResponse.LowDutyPercent,
+                        FullDutyPercent = calibration.PerformanceResponse.FullDutyPercent,
+                        CpuPerformanceRatioAtLowDuty = calibration.PerformanceResponse.CpuPerformanceRatioAtLowDuty,
+                        CpuPerformanceRatioAtFullDuty = calibration.PerformanceResponse.CpuPerformanceRatioAtFullDuty,
+                        GpuCoreClockAtLowDutyMegahertz = calibration.PerformanceResponse.GpuCoreClockAtLowDutyMegahertz,
+                        GpuCoreClockAtFullDutyMegahertz = calibration.PerformanceResponse.GpuCoreClockAtFullDutyMegahertz,
+                    },
+            };
+
+    private static FanCalibrationSnapshot ToCalibrationSnapshot(FanCalibrationOptions? options)
+        => options is null
+            ? FanCalibrationSnapshot.None
+            : new FanCalibrationSnapshot
+            {
+                State = options.State,
+                CalibratedAt = options.CalibratedAt,
+                ProcessGainCelsiusPerPercent = options.ProcessGainCelsiusPerPercent,
+                TimeConstantSeconds = options.TimeConstantSeconds,
+                DeadTimeSeconds = options.DeadTimeSeconds,
+                MinimumSpinRpm = options.MinimumSpinRpm,
+                MinimumSpinDutyPercent = options.MinimumSpinDutyPercent,
+                MaximumRpm = options.MaximumRpm,
+                ProportionalGain = options.ProportionalGain,
+                IntegralGain = options.IntegralGain,
+                FeedForwardDutyPerWatt = options.FeedForwardDutyPerWatt,
+                TrackingMode = options.TrackingMode,
+                GainCurve = options.GainCurvePoints is { Length: > 0 } points
+                    ? new FanGainCurve
+                    {
+                        Points =
+                        [
+                            .. points
+                                .OrderBy(static point => point.DutyPercent)
+                                .Select(static point => new FanGainPoint(point.DutyPercent, point.SettledCelsius)),
+                        ],
+                    }
+                    : FanGainCurve.None,
+                PerformanceResponse = options.PerformanceResponse is { } response
+                    ? new FanPerformanceResponse
+                    {
+                        LowDutyPercent = response.LowDutyPercent,
+                        FullDutyPercent = response.FullDutyPercent,
+                        CpuPerformanceRatioAtLowDuty = response.CpuPerformanceRatioAtLowDuty,
+                        CpuPerformanceRatioAtFullDuty = response.CpuPerformanceRatioAtFullDuty,
+                        GpuCoreClockAtLowDutyMegahertz = response.GpuCoreClockAtLowDutyMegahertz,
+                        GpuCoreClockAtFullDutyMegahertz = response.GpuCoreClockAtFullDutyMegahertz,
+                    }
+                    : FanPerformanceResponse.None,
+            };
 
     /// <summary>
     /// Sets (or clears, when <paramref name="leaderIndex"/> is null) which fan this one is grouped under for the
@@ -424,41 +771,6 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
         return true;
     }
-
-    /// <summary>
-    /// Sets (or clears, when <paramref name="strength"/> is null or NaN) the fan's CPU usage modifier: the
-    /// duty points added on top of the active custom curve at 100% smoothed CPU usage. The modifier is
-    /// per-fan — it survives mode switches and applies whenever a custom curve drives the fan. Updates the
-    /// in-memory snapshot and streams the change; the caller persists it. Returns false when the fan is unknown.
-    /// </summary>
-    public bool SetCpuUsageModifier(int fanIndex, double? strength)
-    {
-        ThrowIfDisposed();
-
-        var normalized = SanitizeModifierStrength(strength);
-
-        lock (_stateLock)
-        {
-            var lookup = _fanControlStates.Lookup(fanIndex);
-            if (!lookup.HasValue)
-            {
-                return false;
-            }
-
-            if (lookup.Value.CpuUsageModifierStrength == normalized)
-            {
-                return true;
-            }
-
-            PublishState(lookup.Value with { CpuUsageModifierStrength = normalized, ObservedAt = DateTimeOffset.UtcNow }, "cpu usage modifier change");
-        }
-
-        return true;
-    }
-
-    // Null/NaN/infinite means disabled; a stored strength is always a finite 0-100 duty-point value.
-    private static double? SanitizeModifierStrength(double? strength)
-        => strength is double value && double.IsFinite(value) ? Math.Clamp(value, 0d, 100d) : null;
 
     public void Dispose()
     {
@@ -558,6 +870,10 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     updated = currentLookup.Value with
                     {
                         DisplayName = change.Current.DisplayName,
+
+                        // A live field like the name: it comes from the hardware, not from a command, so a
+                        // module swap that changes what a fan cools is picked up on the next tick.
+                        CoolingRole = change.Current.CoolingRole,
                         ObservedAt = change.Current.ObservedAt,
                         IsAvailable = change.Current.IsAvailable,
                     };
@@ -569,6 +885,7 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                     {
                         FanIndex = change.Key,
                         DisplayName = change.Current.DisplayName,
+                        CoolingRole = change.Current.CoolingRole,
                         Mode = FanControlMode.Auto,
                         DrivingTemperatureAggregation = TemperatureAggregationMode.Maximum,
                         DrivingSensorIndices = [],
@@ -617,13 +934,52 @@ public sealed class FrameworkFanControlStateStore : IDisposable
 
     private static FanControlStateSnapshot ApplyConfiguredState(FanControlStateSnapshot state, FanControlStateOptions configuredState)
     {
+        // Adaptive persisted without sensors (a config written before the sensors were persisted) cannot be
+        // driven — the worker would sit at NotDriven forever while the UI claimed the loop was armed. Auto
+        // is the honest restore: the fan is under firmware control either way, and re-applying Adaptive
+        // re-picks the sensors.
+        var mode = configuredState.Mode == FanControlMode.Adaptive && configuredState.DrivingSensorIndices.Length == 0
+            ? FanControlMode.Auto
+            : configuredState.Mode;
+
         var next = state with
         {
-            Mode = configuredState.Mode,
+            Mode = mode,
+            DrivingTemperatureAggregation = configuredState.DrivingTemperatureAggregation,
+            DrivingSensorIndices = [.. configuredState.DrivingSensorIndices],
             ActiveCurveSlot = Math.Clamp(configuredState.ActiveCurveSlot, 0, MaxCurveProfileSlots - 1),
             CurveProfiles = BuildProfilesFromOptions(configuredState),
             LinkedLeaderIndex = configuredState.LinkedLeaderIndex,
-            CpuUsageModifierStrength = SanitizeModifierStrength(configuredState.CpuUsageModifierStrength),
+            Calibration = ToCalibrationSnapshot(configuredState.Calibration),
+            AdaptiveSettings = configuredState.AdaptiveSettings is { } adaptiveSettings
+                ? new AdaptiveFanSettings
+                {
+                    TargetTemperatureCelsius = adaptiveSettings.TargetTemperatureCelsius,
+                    SafetyFloorEnabled = adaptiveSettings.SafetyFloorEnabled,
+                    SafetyFloorPercent = adaptiveSettings.SafetyFloorPercent,
+                    LambdaSeconds = adaptiveSettings.LambdaSeconds,
+                }.Sanitized()
+                : AdaptiveFanSettings.Default,
+            AdaptiveLearning = configuredState.AdaptiveLearning is { FeedForwardDutyPerWatt: not null } learning
+                ? new AdaptiveLearningState
+                {
+                    FeedForwardDutyPerWatt = learning.FeedForwardDutyPerWatt,
+                    CalibratedAnchorDutyPerWatt = learning.CalibratedAnchorDutyPerWatt,
+                    IdentifiedProcessGainCelsiusPerPercent = learning.IdentifiedProcessGainCelsiusPerPercent,
+                    IdentifiedCelsiusPerWatt = learning.IdentifiedCelsiusPerWatt,
+                    IdentifiedInterceptCelsius = learning.IdentifiedInterceptCelsius,
+                    ObservationCount = learning.ObservationCount,
+                    LastUpdatedAt = learning.LastUpdatedAt,
+                    LastMaterialChangeAt = learning.LastMaterialChangeAt,
+                    ThermalLoadSource = learning.ThermalLoadSource,
+                    GainHistory =
+                    [
+                        .. (learning.GainHistory ?? [])
+                            .OrderBy(static sample => sample.At)
+                            .Select(static sample => new AdaptiveGainSample(sample.At, sample.ProcessGainCelsiusPerPercent)),
+                    ],
+                }
+                : AdaptiveLearningState.None,
         };
 
         return SyncActiveCurveFields(NormalizeProfiles(next));

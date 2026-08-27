@@ -47,9 +47,6 @@ public partial class FrameworkLaptop13FanAdvancedInfoCardModel : FanAdvancedInfo
     public partial string ApproximateUserTunedIdleSpeedDisplay { get; private set; } = string.Empty;
 
     [ObservableProperty]
-    public partial string MaximumFirmwareLimitDisplay { get; private set; } = string.Empty;
-
-    [ObservableProperty]
     public partial string ApproximatePhysicalMaximumDisplay { get; private set; } = string.Empty;
 
     public void UpdateFrom(FrameworkLaptop13CoolingDetails details)
@@ -66,7 +63,10 @@ public partial class FrameworkLaptop13FanAdvancedInfoCardModel : FanAdvancedInfo
     {
         ApproximateFirmwareIdleSpeedDisplay = $"~{_unitFormattingService.FormatFanSpeed(ApproximateFirmwareIdleSpeedRpm)}";
         ApproximateUserTunedIdleSpeedDisplay = $"~{_unitFormattingService.FormatFanSpeed(ApproximateUserTunedIdleSpeedRpm)}";
-        MaximumFirmwareLimitDisplay = _unitFormattingService.FormatFanSpeed(MaximumFirmwareLimitRpm);
         ApproximatePhysicalMaximumDisplay = $"~{_unitFormattingService.FormatFanSpeed(ApproximatePhysicalMaximumRpm)}";
+
+        // MaximumFirmwareLimitRpm is a canonical single quantity — UnitFormatConverter formats it; the base
+        // raise re-runs its binding.
+        base.RefreshUnitFormatting();
     }
 }

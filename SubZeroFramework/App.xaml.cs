@@ -8,6 +8,7 @@ using LiveChartsCore.SkiaSharpView;
 using Microsoft.Extensions.Options;
 
 using SubZeroFramework.Controls.DeviceCapabilities.Models;
+using SubZeroFramework.Converters;
 using SubZeroFramework.Controls.DeviceCapabilities.Models.Categories;
 using SubZeroFramework.Controls.FanCurveProfiles.Models.Modes;
 using SubZeroFramework.Presentation.MenuItems.Dashboard;
@@ -180,6 +181,7 @@ public partial class App : Application
 
                     // Client-only settings: launch behavior + alert opt-ins persist next to the display units.
                     services.AddSingleton<ILocalClientSettingsStore, LocalClientSettingsStore>();
+                    services.AddSingleton<ILocalFanProfileStore, LocalFanProfileStore>();
                     // Cross-platform launch-at-sign-in via the AutoLaunch library (HKCU Run key /
                     // freedesktop autostart / LaunchAgent behind one API).
                     services.AddSingleton<IStartupRegistrationService, AutoLaunchStartupRegistrationService>();
@@ -213,10 +215,62 @@ public partial class App : Application
 
         Logger = Host.Log();
 
+        // The units converter is built HERE, with the DI-resolved formatting service, and placed in
+        // application resources — rather than being constructed by XAML, which cannot inject anything. A
+        // XAML-constructed converter would need a static or a service locator to reach the service, making
+        // the user's unit preference a hidden global and costing the formatting service its testability.
+        var unitFormattingService = Host.Services.GetRequiredService<IUnitFormattingService>();
+        Current.Resources["UnitFormat"] = new UnitFormatConverter(unitFormattingService);
+
+        // Same converter, different empty state. Two instances rather than a second parameter because the
+        // wording is a property of the SURFACE, not of the quantity: a live readout shows "--" for a reading
+        // that has not arrived, while an inventory field shows "Unknown" for something the platform never
+        // reports. Both distinctions already existed and neither should be flattened.
+        Current.Resources["UnitFormatUnknown"] = new UnitFormatConverter(unitFormattingService)
+        {
+            UnavailableDisplay = "Unknown",
+        };
+
+        // Em-dash empty state: "not applicable here" (no adapter attached, device not reporting) rather than
+        // "a reading that has not arrived yet" ("--") or "never reported by the platform" ("Unknown").
+        Current.Resources["UnitFormatDash"] = new UnitFormatConverter(unitFormattingService)
+        {
+            UnavailableDisplay = "—",
+        };
+
+        // Bare number, no unit suffix — for the tiles that draw the value large and the unit small beside it,
+        // where the suffix cannot be part of the same string.
+        Current.Resources["UnitFormatValue"] = new UnitFormatConverter(unitFormattingService)
+        {
+            ValueOnly = true,
+        };
+
+        // Resolves a theme brush KEY per item, for collections whose rows carry their own colour. A
+        // DataTemplate cannot pick a StaticResource per row, and putting a Brush on the model would create a
+        // UI object off the UI thread — which fails silently in Uno.
+        Current.Resources["ThemeBrushKey"] = new ThemeBrushKeyConverter();
+
+        // The NUMERIC converters, for chart axis limits and steps — properties that take a double, not text.
+        // Usable only where the bound source raises PropertyChanged: a converter cannot re-run by itself, so
+        // a fixed bound converts in the view model instead. UnitValueStep treats its input as a DIFFERENCE,
+        // which matters only for temperature — the one scale with an offset, where a 10 °C step is 18 °F.
+        Current.Resources["UnitValue"] = new UnitValueConverter(unitFormattingService);
+        Current.Resources["UnitValueStep"] = new UnitValueConverter(unitFormattingService) { IsDelta = true };
+
         // Client-only alert opt-ins (Settings → Startup & alerts).
         Host.Services.GetRequiredService<IDesktopNotificationService>().Start();
         Host.Services.GetRequiredService<ThermalAlertMonitor>().Start();
         Host.Services.GetRequiredService<ServiceHealthNotifier>().Start();
+
+#if DEBUG
+        // Debug builds only: a route passed on the command line opens the app there — including the
+        // calibration wizard's individual states, which are otherwise minutes of hot test away. The type
+        // does not exist in RELEASE at all; see DebugDeepLink for the route grammar.
+        if (MainWindow is not null)
+        {
+            await DebugDeepLink.TryHandleAsync(MainWindow, Host.Services);
+        }
+#endif
     }
 
     private void Current_UnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
@@ -318,6 +372,7 @@ public partial class App : Application
             new ViewMap<FanManualModeView, FanManualModeModel>(),
             new ViewMap<FanMaxModeView, FanMaxModeModel>(),
             new ViewMap<FanCustomCurveView, FanCustomCurveModel>(),
+            new ViewMap<FanAdaptiveModeView, FanAdaptiveModeModel>(),
             new ViewMap<PowerTelemetryPage, PowerTelemetryModel>(),
             new ViewMap<ThermalTelemetryPage, ThermalTelemetryModel>(),
             new ViewMap<WarningIssuesPage, WarningIssuesModel>(),
@@ -389,6 +444,7 @@ public partial class App : Application
                     new RouteMap("Manual", View: views.FindByViewModel<FanManualModeModel>()),
                     new RouteMap("Max", View: views.FindByViewModel<FanMaxModeModel>()),
                     new RouteMap("Custom", View: views.FindByViewModel<FanCustomCurveModel>()),
+                    new RouteMap("Adaptive", View: views.FindByViewModel<FanAdaptiveModeModel>()),
                 ]),
                 new RouteMap("PowerTelemetry",  View: views.FindByViewModel<PowerTelemetryModel>()),
                 new RouteMap("ThermalTelemetry",  View: views.FindByViewModel<ThermalTelemetryModel>()),

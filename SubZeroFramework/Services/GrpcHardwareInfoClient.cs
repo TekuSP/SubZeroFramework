@@ -322,7 +322,8 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
             reply.HasPercentProcessorTime
                 ? reply.PercentProcessorTime
                 : null,
-            reply.CpuCores.Select(MapCpuCore).ToImmutableArray());
+            reply.CpuCores.Select(MapCpuCore).ToImmutableArray(),
+            reply.HasPackagePowerWatts ? reply.PackagePowerWatts : null);
     }
 
     private static HardwareInfoCpuCore MapCpuCore(HardwareInfoCpuCoreReply reply)

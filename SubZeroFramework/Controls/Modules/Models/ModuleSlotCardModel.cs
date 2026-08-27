@@ -7,6 +7,7 @@ using Material.Icons;
 using Microsoft.UI.Xaml.Media;
 
 using SubZeroFramework.Services;
+using SubZeroFramework.Services.Units;
 using SubZeroFramework.Themes;
 
 namespace SubZeroFramework.Controls.Modules.Models;
@@ -20,10 +21,13 @@ namespace SubZeroFramework.Controls.Modules.Models;
 #pragma warning disable FD0001
 public partial class ModuleSlotCardModel : ObservableObject
 {
+    private readonly IUnitFormattingService _unitFormattingService;
     private int _displayNumber;
 
-    public ModuleSlotCardModel(int slotIndex, bool isUnreported = false)
+    /// <param name="unitFormattingService">Formats the negotiated PD wattage in the user's chosen power unit.</param>
+    public ModuleSlotCardModel(int slotIndex, IUnitFormattingService unitFormattingService, bool isUnreported = false)
     {
+        _unitFormattingService = unitFormattingService;
         SlotIndex = slotIndex;
         IsUnreported = isUnreported;
         _displayNumber = slotIndex + 1;
@@ -209,7 +213,15 @@ public partial class ModuleSlotCardModel : ObservableObject
         var negotiatedWatts = (int)Math.Round(port.VoltageVolts * port.CurrentAmperes);
         var watts = negotiatedWatts > 0 ? negotiatedWatts : port.MaxChargeWatts;
         var altMode = Descriptor?.Flags.HasFlag(FrameworkModuleFlags.DisplayAltMode) == true ? " · DP alt-mode" : string.Empty;
-        return watts > 0 ? $"{watts} W{altMode}" : $"PD contract{altMode}";
+
+        if (watts <= 0)
+        {
+            return $"PD contract{altMode}";
+        }
+
+        // A composite (wattage plus an alt-mode note), so it is formatted here rather than by a converter —
+        // but through the service, so it follows the user's power-unit preference like every other wattage.
+        return $"{_unitFormattingService.FormatPowerWatts(watts)}{altMode}";
     }
 }
 #pragma warning restore FD0001

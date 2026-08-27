@@ -84,7 +84,7 @@
                         FontSize="34"
                         FontWeight="SemiBold"
                         Foreground="{x:Bind ViewModel.TemperatureBrush, Mode=OneWay}"
-                        Text="{x:Bind ViewModel.TemperatureValueDisplay, Mode=OneWay}" />
+                        Text="{x:Bind ViewModel.DisplayTemperatureCelsius, Mode=OneWay, Converter={StaticResource UnitFormatValue}, ConverterParameter=Temperature}" />
                     <TextBlock
                         Margin="0,0,0,7"
                         VerticalAlignment="Bottom"

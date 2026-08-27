@@ -1,3 +1,7 @@
+using System.Reactive.Disposables;
+using System.Reactive.Disposables.Fluent;
+using System.Reactive.Linq;
+
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -19,8 +23,9 @@ namespace SubZeroFramework.Presentation.MenuItems.Settings.Sections;
 /// Save (Cancel re-reads the actual state). This also makes the model immune to spurious slider writebacks:
 /// a coerced value can never silently persist.
 /// </summary>
-public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedChangesGuard
+public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedChangesGuard, IDisposable
 {
+    private readonly CompositeDisposable _subscriptions = [];
     private readonly IFrameworkServiceControlClient _serviceControlClient;
     private readonly ILocalClientSettingsStore _clientSettings;
     private readonly IStartupRegistrationService _startupRegistration;
@@ -51,13 +56,17 @@ public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedCha
         ILocalClientSettingsStore clientSettings,
         IStartupRegistrationService startupRegistration,
         ThermalAlertMonitor thermalAlertMonitor,
-        IUnitFormattingService unitFormattingService)
+        IUnitFormattingService unitFormattingService,
+        IUserUnitPreferencesClient userUnitPreferencesClient,
+        SynchronizationContext synchronizationContext)
     {
         ArgumentNullException.ThrowIfNull(serviceControlClient);
         ArgumentNullException.ThrowIfNull(clientSettings);
         ArgumentNullException.ThrowIfNull(startupRegistration);
         ArgumentNullException.ThrowIfNull(thermalAlertMonitor);
         ArgumentNullException.ThrowIfNull(unitFormattingService);
+        ArgumentNullException.ThrowIfNull(userUnitPreferencesClient);
+        ArgumentNullException.ThrowIfNull(synchronizationContext);
 
         _serviceControlClient = serviceControlClient;
         _clientSettings = clientSettings;
@@ -66,6 +75,19 @@ public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedCha
         _unitFormattingService = unitFormattingService;
 
         ReloadFromActualState();
+
+        // A temperature-unit change while this section is open re-scales the slider (bounds + value) and
+        // re-runs the converter binding on the readout (the null-name raise). Previously the section only
+        // picked the new unit up on its next reload.
+        userUnitPreferencesClient
+            .WatchPreferences()
+            .ObserveOn(synchronizationContext)
+            .Subscribe(_ =>
+            {
+                RefreshThresholdDisplay();
+                OnPropertyChanged(propertyName: null);
+            })
+            .DisposeWith(_subscriptions);
     }
 
     [ObservableProperty]
@@ -77,12 +99,9 @@ public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedCha
     [ObservableProperty]
     public partial bool ThermalAlertsEnabled { get; set; }
 
-    /// <summary>
-    /// The staged warning temperature in the user's chosen unit (Settings → Display units), e.g. "85 °C"
-    /// or "185 °F". Recomputed (not a live getter) so a unit-preference change is picked up on refresh.
-    /// </summary>
+    /// <summary>The staged warning temperature in canonical Celsius, formatted by UnitFormatConverter.</summary>
     [ObservableProperty]
-    public partial string ThermalAlertThresholdDisplay { get; set; } = string.Empty;
+    public partial double? ThermalAlertThresholdCelsius { get; set; }
 
     // ----- Unit-aware slider surface: the slider binds these so its whole scale (not just the value
     // label) renders in the user's chosen temperature unit; writes convert back to canonical Celsius. -----
@@ -167,7 +186,7 @@ public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedCha
         }
 
         _thresholdCelsius = celsius;
-        ThermalAlertThresholdDisplay = _unitFormattingService.FormatTemperature(celsius);
+        ThermalAlertThresholdCelsius = celsius;
         UpdateDirtyState();
     }
 
@@ -266,7 +285,9 @@ public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedCha
 
     private void RefreshThresholdDisplay()
     {
-        ThermalAlertThresholdDisplay = _unitFormattingService.FormatTemperature(_thresholdCelsius);
+        // The readout binds this canonical value through UnitFormatConverter; only the slider bounds need
+        // converting here, because a control's Minimum/Maximum are values, not formatted text.
+        ThermalAlertThresholdCelsius = _thresholdCelsius;
 
         _suppressThresholdSync = true;
         try
@@ -292,4 +313,6 @@ public partial class SettingsStartupSectionModel : ObservableObject, IUnsavedCha
             ? "Test notification sent."
             : "Sending the test notification failed. See the log.";
     }
+
+    public void Dispose() => _subscriptions.Dispose();
 }

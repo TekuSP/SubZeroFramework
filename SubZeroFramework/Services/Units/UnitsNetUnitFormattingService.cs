@@ -30,6 +30,8 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
 
     public string ChargeCapacityUnitSuffix => GetChargeCapacityUnitSuffix();
 
+    public string EnergyUnitSuffix => GetEnergyUnitSuffix();
+
     public string RatioUnitSuffix => GetRatioUnitSuffix();
 
     public string LengthUnitSuffix => GetLengthUnitSuffix();
@@ -80,6 +82,13 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
         };
     }
 
+    /// <summary>
+    /// A temperature DIFFERENCE in the user's unit: the absolute conversion of the delta minus the
+    /// conversion of zero, which cancels the scale offset and leaves only the scale factor.
+    /// </summary>
+    public double ConvertTemperatureDelta(double celsiusDelta)
+        => ConvertTemperature(celsiusDelta) - ConvertTemperature(0d);
+
     public double ConvertTemperatureToCelsius(double displayValue)
     {
         return GetTemperatureSelectionKey() switch
@@ -91,8 +100,39 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
         };
     }
 
-    public string FormatTemperatureAxisLabel(double celsiusValue)
-        => FormatTemperature(celsiusValue, decimals: 0);
+    // ----- Axis TICK formatters: display-space input -----
+    //
+    // Each formats a value that ARRIVES ALREADY SCALED, because the series it labels was converted before
+    // it was plotted. Decimals and suffix follow the same rules as the corresponding Format* member; the
+    // conversion is the only thing missing, and that is the point. See the interface.
+
+    public string FormatTemperatureAxisTick(double displayValue)
+        => $"{FormatTick(displayValue, 0)}{TemperatureUnitSuffix}";
+
+    public string FormatFanSpeedAxisTick(double displayValue)
+        => $"{FormatTick(displayValue, GetFanSpeedDefaultDecimals())} {FanSpeedUnitSuffix}";
+
+    public string FormatRatioAxisTick(double displayValue)
+    {
+        var formattedValue = FormatTick(displayValue, GetRatioDefaultDecimals());
+
+        // The fraction scale has no suffix — "0.85 " with a dangling unit reads as a typo.
+        return string.Equals(GetRatioSelectionKey(), "fraction", StringComparison.Ordinal)
+            ? formattedValue
+            : $"{formattedValue}{RatioUnitSuffix}";
+    }
+
+    public string FormatClockFrequencyAxisTick(double displayValue)
+        => $"{FormatTick(displayValue, GetClockFrequencySelectionKey() == "gigahertz" ? 1 : GetClockFrequencyDefaultDecimals())} {ClockFrequencyUnitSuffix}";
+
+    public string FormatVoltageAxisTick(double displayValue)
+        => $"{FormatTick(displayValue, GetVoltageDefaultDecimals())} {VoltageUnitSuffix}";
+
+    public string FormatCurrentAxisTick(double displayValue)
+        => $"{FormatTick(displayValue, GetCurrentSelectionKey() == "ampere" ? 1 : GetCurrentDefaultDecimals())} {CurrentUnitSuffix}";
+
+    private static string FormatTick(double displayValue, int decimals)
+        => displayValue.ToString($"N{Math.Max(decimals, 0)}", CultureInfo.CurrentCulture);
 
     public string FormatFanSpeed(double? rpm, string unavailableDisplay = "--", int decimals = -1)
     {
@@ -119,9 +159,6 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
             _ => speed.RevolutionsPerMinute,
         };
     }
-
-    public string FormatFanSpeedAxisLabel(double rpmValue)
-        => FormatFanSpeed(rpmValue, decimals: GetFanSpeedDefaultDecimals());
 
     public string FormatClockFrequencyMegahertz(double? megahertz, string unavailableDisplay = "--", int decimals = -1)
     {
@@ -151,9 +188,6 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
         };
     }
 
-    public string FormatClockFrequencyAxisLabel(double megahertzValue)
-        => FormatClockFrequencyMegahertz(megahertzValue, decimals: GetClockFrequencySelectionKey() == "gigahertz" ? 1 : GetClockFrequencyDefaultDecimals());
-
     public string FormatRefreshRateHertz(double? hertz, string unavailableDisplay = "--", int decimals = -1)
     {
         return hertz is not double value
@@ -179,9 +213,6 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
             _ => frequency.Hertz,
         };
     }
-
-    public string FormatRefreshRateAxisLabel(double hertzValue)
-        => FormatRefreshRateHertz(hertzValue, decimals: GetRefreshRateDefaultDecimals());
 
     public string FormatInformationBytes(ulong bytes, bool treatZeroAsUnknown = false, string unavailableDisplay = "Unknown")
     {
@@ -241,9 +272,6 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
         };
     }
 
-    public string FormatVoltageAxisLabel(double voltsValue)
-        => FormatVoltage(voltsValue, decimals: GetVoltageDefaultDecimals());
-
     public string FormatCurrent(double? amperes, string unavailableDisplay = "--", int decimals = -1)
     {
         return amperes is not double value
@@ -269,9 +297,6 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
             _ => current.Amperes,
         };
     }
-
-    public string FormatCurrentAxisLabel(double amperesValue)
-        => FormatCurrent(amperesValue, decimals: GetCurrentSelectionKey() == "ampere" ? 1 : GetCurrentDefaultDecimals());
 
     public string FormatChargeCapacity(double? ampereHours, string unavailableDisplay = "--", int decimals = -1)
     {
@@ -299,8 +324,32 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
         };
     }
 
-    public string FormatChargeCapacityAxisLabel(double ampereHoursValue)
-        => FormatChargeCapacity(ampereHoursValue, decimals: GetChargeCapacityDefaultDecimals());
+    public string FormatEnergyWattHours(double? wattHours, string unavailableDisplay = "--", int decimals = -1)
+    {
+        return wattHours is not double value
+            ? unavailableDisplay
+            : $"{FormatEnergyValueWattHours(value, unavailableDisplay, decimals)} {EnergyUnitSuffix}";
+    }
+
+    public string FormatEnergyValueWattHours(double? wattHours, string unavailableDisplay = "--", int decimals = -1)
+    {
+        return wattHours is not double value
+            ? unavailableDisplay
+            : ConvertEnergyWattHours(value).ToString($"N{ResolveDecimals(decimals, GetEnergyDefaultDecimals())}", CultureInfo.CurrentCulture);
+    }
+
+    public double ConvertEnergyWattHours(double wattHours)
+    {
+        var energy = Energy.FromWattHours(wattHours);
+
+        return GetEnergySelectionKey() switch
+        {
+            "kilowatt-hour" => energy.KilowattHours,
+            "joule" => energy.Joules,
+            "kilojoule" => energy.Kilojoules,
+            _ => energy.WattHours,
+        };
+    }
 
     public string FormatRatio(double? percent, string unavailableDisplay = "--", int decimals = -1)
     {
@@ -325,6 +374,17 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
         return ConvertRatio(value).ToString($"N{ResolveDecimals(decimals, GetRatioDefaultDecimals())}", CultureInfo.CurrentCulture);
     }
 
+    public double ConvertRatioToPercent(double displayValue)
+    {
+        return GetRatioSelectionKey() switch
+        {
+            "fraction" => Ratio.FromDecimalFractions(displayValue).Percent,
+            "per-mille" => Ratio.FromPartsPerThousand(displayValue).Percent,
+            "parts-per-million" => Ratio.FromPartsPerMillion(displayValue).Percent,
+            _ => displayValue,
+        };
+    }
+
     public double ConvertRatio(double percent)
     {
         var ratio = Ratio.FromPercent(percent);
@@ -337,9 +397,6 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
             _ => ratio.Percent,
         };
     }
-
-    public string FormatRatioAxisLabel(double percentValue)
-        => FormatRatio(percentValue, decimals: GetRatioDefaultDecimals());
 
     public string FormatLengthMillimeters(double? millimeters, string unavailableDisplay = "--", int decimals = -1)
     {
@@ -693,6 +750,28 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
         };
     }
 
+    private string GetEnergyUnitSuffix()
+    {
+        return GetEnergySelectionKey() switch
+        {
+            "kilowatt-hour" => "kWh",
+            "joule" => "J",
+            "kilojoule" => "kJ",
+            _ => "Wh",
+        };
+    }
+
+    private int GetEnergyDefaultDecimals()
+    {
+        return GetEnergySelectionKey() switch
+        {
+            "kilowatt-hour" => 3,
+            "joule" => 0,
+            "kilojoule" => 1,
+            _ => 1,
+        };
+    }
+
     private string GetPowerUnitSuffix()
     {
         return GetPowerSelectionKey() switch
@@ -738,6 +817,9 @@ public sealed class UnitsNetUnitFormattingService : IUnitFormattingService
 
     private string GetChargeCapacitySelectionKey()
         => _userUnitPreferencesClient.CurrentPreferences.GetOptionKey(UnitQuantityKind.ElectricChargeCapacity, "ampere-hour");
+
+    private string GetEnergySelectionKey()
+        => _userUnitPreferencesClient.CurrentPreferences.GetOptionKey(UnitQuantityKind.Energy, "watt-hour");
 
     private string GetRatioSelectionKey()
         => _userUnitPreferencesClient.CurrentPreferences.GetOptionKey(UnitQuantityKind.Ratio, "percent");

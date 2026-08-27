@@ -19,7 +19,7 @@
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <ScrollViewer controls:ScrollHint.IsEnabled="True" VerticalScrollBarVisibility="Auto">
         <StackPanel
             Padding="24,4,24,24"
             HorizontalAlignment="Stretch"
@@ -243,30 +243,266 @@
                     TextWrapping="WrapWholeWords" />
             </StackPanel>
 
-            <Grid ColumnSpacing="10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Grid.Column="0" Spacing="6">
+            <!--
+                The three sensor-polling tiers. One row each rather than a grid of bare boxes, because the
+                numbers mean nothing without knowing what each tier feeds — a user who lowers the tertiary
+                interval to "make things faster" is only paying for a hardware inventory sweep.
+                Ranges and Default values come from PollingTiers, the same source the service validates
+                against, so the hints cannot advertise a value the service would reject.
+            -->
+            <StackPanel Spacing="14">
+                <StackPanel Spacing="6">
                     <TextBlock
                         FontSize="12.5"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Primary — fan control" />
+                    <TextBlock
+                        FontSize="12"
                         Foreground="{StaticResource TextSecondaryBrush}"
-                        Text="Telemetry polling interval (ms)" />
-                    <TextBox
-                        IsEnabled="{x:Bind ViewModel.IsConfigurationLoaded, Mode=OneWay}"
-                        Text="{x:Bind ViewModel.TelemetryPollingIntervalMillisecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        Text="EC temperatures, fan speeds and CPU load. This is the loop fan curves run on, so it sets how quickly the fans react to heat. Lower is more responsive and costs more EC traffic."
+                        TextWrapping="WrapWholeWords" />
+                    <!--
+                        Two columns: how often the tier samples, and how long those samples are kept. They
+                        belong side by side because the memory a tier costs is their PRODUCT — halving the
+                        interval doubles what the same retention holds — and a single full-width column of
+                        six fields hid that relationship behind a lot of scrolling.
+                    -->
+                    <Grid ColumnSpacing="24">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextTertiaryBrush}"
+                                Text="Poll every (ms)" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox
+                                    IsEnabled="{x:Bind ViewModel.IsConfigurationLoaded, Mode=OneWay}"
+                                    Text="{x:Bind ViewModel.TelemetryPollingIntervalMillisecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button
+                                    Grid.Column="1"
+                                    MinHeight="32"
+                                    Padding="14,0"
+                                    Background="{StaticResource CardBackgroundBrush}"
+                                    BorderBrush="{StaticResource CardBorderBrush}"
+                                    BorderThickness="1"
+                                    Command="{x:Bind ViewModel.ResetPrimaryPollingIntervalCommand, Mode=OneWay}"
+                                    Content="Default"
+                                    CornerRadius="8"
+                                    Foreground="{StaticResource TextPrimaryBrush}" />
+                            </Grid>
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind ViewModel.PrimaryPollingRangeHint}"
+                                TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Spacing="6">
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextTertiaryBrush}"
+                                Text="Keep history for (min)" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox
+                                    IsEnabled="{x:Bind ViewModel.IsConfigurationLoaded, Mode=OneWay}"
+                                    Text="{x:Bind ViewModel.PrimaryRetentionMinutesText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button
+                                    Grid.Column="1"
+                                    MinHeight="32"
+                                    Padding="14,0"
+                                    Background="{StaticResource CardBackgroundBrush}"
+                                    BorderBrush="{StaticResource CardBorderBrush}"
+                                    BorderThickness="1"
+                                    Command="{x:Bind ViewModel.ResetPrimaryRetentionCommand, Mode=OneWay}"
+                                    Content="Default"
+                                    CornerRadius="8"
+                                    Foreground="{StaticResource TextPrimaryBrush}" />
+                            </Grid>
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind ViewModel.PrimaryRetentionRangeHint}"
+                                TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+                    </Grid>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Spacing="6">
+
+                <StackPanel Spacing="6">
                     <TextBlock
                         FontSize="12.5"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Secondary — live display data" />
+                    <TextBlock
+                        FontSize="12"
                         Foreground="{StaticResource TextSecondaryBrush}"
-                        Text="Hardware info polling interval (ms)" />
-                    <TextBox
-                        IsEnabled="{x:Bind ViewModel.IsConfigurationLoaded, Mode=OneWay}"
-                        Text="{x:Bind ViewModel.HardwareInfoPollingIntervalMillisecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        Text="GPU and NPU load, sampled inside the primary loop. Nothing actuates on this — it only feeds the charts and readouts, so match it to how often you want them to move."
+                        TextWrapping="WrapWholeWords" />
+                    <Grid ColumnSpacing="24">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextTertiaryBrush}"
+                                Text="Poll every (ms)" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox
+                                    IsEnabled="{x:Bind ViewModel.IsConfigurationLoaded, Mode=OneWay}"
+                                    Text="{x:Bind ViewModel.SecondaryPollingIntervalMillisecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button
+                                    Grid.Column="1"
+                                    MinHeight="32"
+                                    Padding="14,0"
+                                    Background="{StaticResource CardBackgroundBrush}"
+                                    BorderBrush="{StaticResource CardBorderBrush}"
+                                    BorderThickness="1"
+                                    Command="{x:Bind ViewModel.ResetSecondaryPollingIntervalCommand, Mode=OneWay}"
+                                    Content="Default"
+                                    CornerRadius="8"
+                                    Foreground="{StaticResource TextPrimaryBrush}" />
+                            </Grid>
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind ViewModel.SecondaryPollingRangeHint}"
+                                TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Spacing="6">
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextTertiaryBrush}"
+                                Text="Keep history for (min)" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox
+                                    IsEnabled="{x:Bind ViewModel.IsConfigurationLoaded, Mode=OneWay}"
+                                    Text="{x:Bind ViewModel.SecondaryRetentionMinutesText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button
+                                    Grid.Column="1"
+                                    MinHeight="32"
+                                    Padding="14,0"
+                                    Background="{StaticResource CardBackgroundBrush}"
+                                    BorderBrush="{StaticResource CardBorderBrush}"
+                                    BorderThickness="1"
+                                    Command="{x:Bind ViewModel.ResetSecondaryRetentionCommand, Mode=OneWay}"
+                                    Content="Default"
+                                    CornerRadius="8"
+                                    Foreground="{StaticResource TextPrimaryBrush}" />
+                            </Grid>
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind ViewModel.SecondaryRetentionRangeHint}"
+                                TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+                    </Grid>
                 </StackPanel>
-            </Grid>
+
+                <StackPanel Spacing="6">
+                    <TextBlock
+                        FontSize="12.5"
+                        Foreground="{StaticResource TextPrimaryBrush}"
+                        Text="Tertiary — hardware inventory" />
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="Installed memory, drives, motherboard, BIOS, network adapters and CPU identity. None of it changes while the machine is running, and each sweep is expensive — on Linux it shells out to lshw. Leave this slow."
+                        TextWrapping="WrapWholeWords" />
+                    <Grid ColumnSpacing="24">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Spacing="6">
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextTertiaryBrush}"
+                                Text="Poll every (ms)" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox
+                                    IsEnabled="{x:Bind ViewModel.IsConfigurationLoaded, Mode=OneWay}"
+                                    Text="{x:Bind ViewModel.HardwareInfoPollingIntervalMillisecondsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button
+                                    Grid.Column="1"
+                                    MinHeight="32"
+                                    Padding="14,0"
+                                    Background="{StaticResource CardBackgroundBrush}"
+                                    BorderBrush="{StaticResource CardBorderBrush}"
+                                    BorderThickness="1"
+                                    Command="{x:Bind ViewModel.ResetTertiaryPollingIntervalCommand, Mode=OneWay}"
+                                    Content="Default"
+                                    CornerRadius="8"
+                                    Foreground="{StaticResource TextPrimaryBrush}" />
+                            </Grid>
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind ViewModel.TertiaryPollingRangeHint}"
+                                TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Spacing="6">
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextTertiaryBrush}"
+                                Text="Keep history for (min)" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox
+                                    IsEnabled="{x:Bind ViewModel.IsConfigurationLoaded, Mode=OneWay}"
+                                    Text="{x:Bind ViewModel.TertiaryRetentionMinutesText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                <Button
+                                    Grid.Column="1"
+                                    MinHeight="32"
+                                    Padding="14,0"
+                                    Background="{StaticResource CardBackgroundBrush}"
+                                    BorderBrush="{StaticResource CardBorderBrush}"
+                                    BorderThickness="1"
+                                    Command="{x:Bind ViewModel.ResetTertiaryRetentionCommand, Mode=OneWay}"
+                                    Content="Default"
+                                    CornerRadius="8"
+                                    Foreground="{StaticResource TextPrimaryBrush}" />
+                            </Grid>
+                            <TextBlock
+                                FontSize="11.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind ViewModel.TertiaryRetentionRangeHint}"
+                                TextWrapping="WrapWholeWords" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
 
             <controls:ToggleRowView
                 IconKind="Fan"
@@ -331,7 +567,7 @@
                 <TextBlock
                     FontSize="13"
                     Foreground="{StaticResource TextSecondaryBrush}"
-                    Text="Returns every fan to the controller's automatic mode and deletes all saved fan settings: curve profiles in every slot, the active profile per fan, &quot;Applies to&quot; links, CPU boost, and manual or max overrides. Display units, startup and alert settings are left alone."
+                    Text="Returns every fan to the controller's automatic mode and deletes all saved fan settings: curve profiles in every slot, the active profile per fan, &quot;Applies to&quot; links, and manual or max overrides. Display units, startup and alert settings are left alone."
                     TextWrapping="WrapWholeWords" />
             </StackPanel>
 

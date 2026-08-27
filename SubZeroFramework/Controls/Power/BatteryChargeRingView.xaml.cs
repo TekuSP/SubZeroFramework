@@ -63,11 +63,85 @@ public sealed partial class BatteryChargeRingView : UserControl
         typeof(BatteryChargeRingView),
         new PropertyMetadata("--"));
 
-    /// <summary>Text shown in the centre of the ring (e.g. "76%").</summary>
+    /// <summary>
+    /// The bare charge figure shown large in the centre of the ring (e.g. "76"), WITHOUT its unit — the unit
+    /// is drawn smaller beside it, from <see cref="ChargeUnitText"/>.
+    /// </summary>
     public string ChargeText
     {
         get => (string)GetValue(ChargeTextProperty);
         set => SetValue(ChargeTextProperty, value);
+    }
+
+    public static readonly DependencyProperty ChargeUnitTextProperty = DependencyProperty.Register(
+        nameof(ChargeUnitText),
+        typeof(string),
+        typeof(BatteryChargeRingView),
+        new PropertyMetadata("%"));
+
+    /// <summary>
+    /// The unit drawn small beside the figure. Supplied by the caller rather than hardcoded, because the
+    /// ratio unit is a user preference — "%" is only the default, not the only possibility.
+    /// </summary>
+    public string ChargeUnitText
+    {
+        get => (string)GetValue(ChargeUnitTextProperty);
+        set => SetValue(ChargeUnitTextProperty, value);
+    }
+
+    public static readonly DependencyProperty StatusTextProperty = DependencyProperty.Register(
+        nameof(StatusText),
+        typeof(string),
+        typeof(BatteryChargeRingView),
+        new PropertyMetadata(null, OnCentreContentChanged));
+
+    /// <summary>
+    /// Optional battery-state line ("Charging", "Discharging", …) shown with a status dot in place of the
+    /// static "charge" caption. Null/empty keeps the plain caption, so existing callers are unchanged.
+    /// </summary>
+    public string? StatusText
+    {
+        get => (string?)GetValue(StatusTextProperty);
+        set => SetValue(StatusTextProperty, value);
+    }
+
+    public static readonly DependencyProperty StatusDotBrushProperty = DependencyProperty.Register(
+        nameof(StatusDotBrush),
+        typeof(Brush),
+        typeof(BatteryChargeRingView),
+        new PropertyMetadata(null, OnCentreContentChanged));
+
+    /// <summary>Fill for the status dot (state colour). Null falls back to the secondary text brush.</summary>
+    public Brush? StatusDotBrush
+    {
+        get => (Brush?)GetValue(StatusDotBrushProperty);
+        set => SetValue(StatusDotBrushProperty, value);
+    }
+
+    public static readonly DependencyProperty DetailTextProperty = DependencyProperty.Register(
+        nameof(DetailText),
+        typeof(string),
+        typeof(BatteryChargeRingView),
+        new PropertyMetadata(null, OnCentreContentChanged));
+
+    /// <summary>Optional fine-print line under the status ("full in ~21 min"). Collapsed when empty.</summary>
+    public string? DetailText
+    {
+        get => (string?)GetValue(DetailTextProperty);
+        set => SetValue(DetailTextProperty, value);
+    }
+
+    public static readonly DependencyProperty BadgeTextProperty = DependencyProperty.Register(
+        nameof(BadgeText),
+        typeof(string),
+        typeof(BatteryChargeRingView),
+        new PropertyMetadata(null, OnCentreContentChanged));
+
+    /// <summary>Optional adapter-power figure ("240 W") shown as a pill in the ring's bottom mouth. Collapsed when empty.</summary>
+    public string? BadgeText
+    {
+        get => (string?)GetValue(BadgeTextProperty);
+        set => SetValue(BadgeTextProperty, value);
     }
 
     public static readonly DependencyProperty IsAnimatingProperty = DependencyProperty.Register(
@@ -98,6 +172,21 @@ public sealed partial class BatteryChargeRingView : UserControl
 
     private static void OnVisualChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((BatteryChargeRingView)d).Render();
+
+    private static void OnCentreContentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+        ((BatteryChargeRingView)d).RenderCentreContent();
+
+    private void RenderCentreContent()
+    {
+        var hasStatus = !string.IsNullOrEmpty(StatusText);
+        StatusRow.Visibility = hasStatus ? Visibility.Visible : Visibility.Collapsed;
+        ChargeCaption.Visibility = hasStatus ? Visibility.Collapsed : Visibility.Visible;
+        DetailLabel.Visibility = string.IsNullOrEmpty(DetailText) ? Visibility.Collapsed : Visibility.Visible;
+        Badge.Visibility = string.IsNullOrEmpty(BadgeText) ? Visibility.Collapsed : Visibility.Visible;
+
+        StatusDot.Fill = StatusDotBrush
+            ?? Themes.AppThemeBrushes.Get("TextSecondaryBrush", Themes.AppThemeBrushes.TextSecondaryColor);
+    }
 
     private void Render()
     {

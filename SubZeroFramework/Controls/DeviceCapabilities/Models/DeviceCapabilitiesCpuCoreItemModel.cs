@@ -51,10 +51,10 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
     public string DisplayName => NormalizeCoreDisplayName(Snapshot.Name);
 
     [ObservableProperty]
-    public partial string DisplayLoad { get; private set; } = "--";
-
-    [ObservableProperty]
     public partial double UsageAxisMaxLimit { get; private set; }
+
+    /// <summary>The usage axis floor, in display units — converted rather than a literal 0, as elsewhere.</summary>
+    public double UsageAxisMinPercent => 0d;
 
     /// <summary>
     /// Tier colour for the load figure and the sparkline stroke.
@@ -96,27 +96,27 @@ public partial class DeviceCapabilitiesCpuCoreItemModel : ObservableObject
         UsageSeparators = [.. separators];
     }
 
-    // The DisplayLoad string follows the snapshot's live load; the axis formatter + max follow the unit
-    // preference. Assignment raises PropertyChanged only on a real change.
-    partial void OnSnapshotChanged(HardwareInfoCpuCore value)
-    {
-        DisplayLoad = _unitFormattingService.FormatRatio(value.PercentProcessorTime, decimals: 1);
-        RefreshUsageTier();
-    }
+    partial void OnSnapshotChanged(HardwareInfoCpuCore value) => RefreshUsageTier();
 
     public void RefreshUnitFormatting()
     {
         UsageLabelFormatter = CreateUsageLabelFormatter();
         UsageAxisMaxLimit = _unitFormattingService.RatioAxisMaximum;
-        DisplayLoad = _unitFormattingService.FormatRatio(Snapshot.PercentProcessorTime, decimals: 1);
+
+        // The load figure is a CANONICAL percent formatted by UnitFormatConverter at render time, so there is
+        // nothing to recompute — the binding just has to run again. A null property name is the framework's
+        // own signal for that; the generated x:Bind code re-reads every binding on this source.
+        OnPropertyChanged(propertyName: null);
     }
 
     // Fresh closure per call so the assignment never no-ops (delegates over the same method/target compare
     // equal); capturing a local gives each delegate a new target, so PropertyChanged fires and the axis rebinds.
     private Func<double, string> CreateUsageLabelFormatter()
     {
+        // AxisTick, not AxisLabel: the per-core history is converted in DeviceCapabilitiesModel before it
+        // reaches this card, so the tick is already in the user's unit.
         var unitFormattingService = _unitFormattingService;
-        return value => unitFormattingService.FormatRatioAxisLabel(value);
+        return value => unitFormattingService.FormatRatioAxisTick(value);
     }
 
     public static string NormalizeCoreDisplayName(string? rawName)

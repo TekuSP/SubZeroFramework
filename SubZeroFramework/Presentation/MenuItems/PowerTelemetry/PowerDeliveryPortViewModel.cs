@@ -17,12 +17,21 @@ public partial class PowerDeliveryPortViewModel : ObservableObject
 {
     private readonly IUnitFormattingService _unitFormattingService;
 
+    // The status this row was last built from, kept so a display-unit change can rebuild the row without
+    // waiting for the next PD update — several of these strings are composites the units converter cannot
+    // reach ("20 V · 5 A", the wattage pill), so they only change when Update runs again.
+    private PowerDeliveryPortStatus _status;
+
     public PowerDeliveryPortViewModel(IUnitFormattingService unitFormattingService, PowerDeliveryPortStatus status)
     {
         _unitFormattingService = unitFormattingService;
+        _status = status;
         SlotIndex = status.SlotIndex;
         Update(status);
     }
+
+    /// <summary>Rebuilds this row's unit-formatted text in the newly chosen display units.</summary>
+    public void RefreshUnitFormatting() => Update(_status);
 
     public int SlotIndex { get; }
 
@@ -75,6 +84,8 @@ public partial class PowerDeliveryPortViewModel : ObservableObject
 
     public void Update(PowerDeliveryPortStatus status)
     {
+        _status = status;
+
         // An "Invalid" CC state means the EC could not resolve the port; its other PD fields (voltage, EPR/VCONN,
         // alt-mode) are then unreliable, so we surface only "Unknown / error" and suppress the rest.
         var isInvalid = string.Equals(status.CState, "Invalid", System.StringComparison.OrdinalIgnoreCase);

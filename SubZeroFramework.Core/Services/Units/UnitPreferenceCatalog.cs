@@ -113,6 +113,19 @@ public sealed class UnitPreferenceCatalog
                 new UnitPreferenceOption("coulomb", "C", "Displays charge capacity in coulombs."),
             ]),
         new(
+            UnitQuantityKind.Energy,
+            GroupName: "Power",
+            DisplayName: "Battery energy",
+            Description: "Applies to battery energy values such as design, last-full, and remaining capacity expressed in watt-hours.",
+            DefaultOptionKey: "watt-hour",
+            Options:
+            [
+                new UnitPreferenceOption("watt-hour", "Wh", "Displays energy in watt-hours."),
+                new UnitPreferenceOption("kilowatt-hour", "kWh", "Displays energy in kilowatt-hours."),
+                new UnitPreferenceOption("joule", "J", "Displays energy in joules."),
+                new UnitPreferenceOption("kilojoule", "kJ", "Displays energy in kilojoules."),
+            ]),
+        new(
             UnitQuantityKind.Ratio,
             GroupName: "Usage & Charts",
             DisplayName: "Ratio / utilization",

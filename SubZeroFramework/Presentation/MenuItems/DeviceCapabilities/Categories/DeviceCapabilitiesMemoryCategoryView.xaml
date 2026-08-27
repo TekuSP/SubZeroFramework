@@ -51,7 +51,7 @@
                                             Foreground="{StaticResource TextPrimaryBrush}"
                                             Text="{x:Bind BankLabel, Mode=OneWay}" />
                                         <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}">
-                                            <Run Text="{x:Bind DisplayCapacity, Mode=OneWay}" />
+                                            <Run Text="{x:Bind CapacityBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}" />
                                             <Run Text="{x:Bind MemoryType, Mode=OneWay}" />
                                         </TextBlock>
                                     </StackPanel>
@@ -60,7 +60,7 @@
                 </controls:InstancePickerView.ItemTemplate>
             </controls:InstancePickerView>
 
-            <ScrollViewer
+            <ScrollViewer controls:ScrollHint.IsEnabled="True"
                 Grid.Column="1"
                 Padding="0,0,12,0"
                 VerticalScrollBarVisibility="Auto">

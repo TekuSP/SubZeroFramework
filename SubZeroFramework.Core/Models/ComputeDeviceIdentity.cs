@@ -26,8 +26,23 @@ public sealed record ComputeDeviceIdentity
     /// <summary>Device firmware version, where the platform exposes one separately from the driver.</summary>
     public string? FirmwareVersion { get; init; }
 
-    /// <summary>Where the device sits, e.g. the PCI address "0000:c7:00.1".</summary>
+    /// <summary>Where the device sits, in whatever form the platform describes it.</summary>
+    /// <remarks>
+    /// Human-readable and platform-shaped: Linux gives the PCI slot name, Windows gives text such as
+    /// "PCI bus 194, device 0, function 0". Do NOT match on this — use <see cref="PciAddress"/>.
+    /// </remarks>
     public string? Location { get; init; }
+
+    /// <summary>
+    /// Canonical lower-case PCI address, e.g. <c>0000:c2:00.0</c>, or null for a device that has none.
+    /// </summary>
+    /// <remarks>
+    /// Exists to JOIN this device to a source that identifies devices by bus address rather than by OS
+    /// identity — NVML being the case that forced it. On Windows it is derived from the numeric
+    /// <c>DEVPKEY_Device_BusNumber</c> and <c>DEVPKEY_Device_Address</c> rather than parsed out of
+    /// <see cref="Location"/>, whose wording is localized and therefore unmatchable.
+    /// </remarks>
+    public string? PciAddress { get; init; }
 
     /// <summary>
     /// Windows adapter LUID, when the platform has one. SESSION-SCOPED: Windows regenerates LUIDs across

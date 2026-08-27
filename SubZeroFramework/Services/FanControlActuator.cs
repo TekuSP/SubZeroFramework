@@ -30,6 +30,12 @@ public sealed class FanControlActuator : IFanControlActuator, IDisposable
             case FanControlMode.Max:
                 await _client.SetFanMaxAsync(fanIndex, preview, cancellationToken).ConfigureAwait(false);
                 break;
+            case FanControlMode.Adaptive:
+                // NOT handled here: arming Adaptive needs driving sensors, which this signature has no way to
+                // carry. Falling through to the default would silently restore the fan to Auto — the mode
+                // would appear selected in the UI and the fan would be doing something else entirely.
+                throw new InvalidOperationException(
+                    "Adaptive mode is armed through SetAdaptiveModeAsync, which carries the driving sensors this call cannot.");
             default:
                 await _client.RestoreAutoFanControlAsync(fanIndex, preview, cancellationToken).ConfigureAwait(false);
                 break;

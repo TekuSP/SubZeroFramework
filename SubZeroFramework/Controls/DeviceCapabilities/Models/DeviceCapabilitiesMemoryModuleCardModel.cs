@@ -27,15 +27,15 @@ public partial class DeviceCapabilitiesMemoryModuleCardModel : ObservableObject
 
     public string BankLabel => FirstNonEmpty(Snapshot.BankLabel) ?? "Unknown";
 
-    /// <summary>Formatted module capacity. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    /// <summary>Module capacity in canonical bytes; null when the platform does not report it.</summary>
     [ObservableProperty]
-    public partial string DisplayCapacity { get; private set; } = "Unknown";
+    public partial double? CapacityBytes { get; private set; }
 
     public string MemoryType => FirstNonEmpty(Snapshot.MemoryType) ?? "Unknown";
 
-    /// <summary>Formatted module speed. Stored; assigned by <see cref="RefreshUnitFormatting"/>.</summary>
+    /// <summary>Module speed in canonical megahertz; null when the platform does not report it.</summary>
     [ObservableProperty]
-    public partial string DisplaySpeed { get; private set; } = "Unknown";
+    public partial double? SpeedMegahertz { get; private set; }
 
     public string DisplayDataWidth => Snapshot.DisplayDataWidth;
 
@@ -52,16 +52,16 @@ public partial class DeviceCapabilitiesMemoryModuleCardModel : ObservableObject
         RefreshUnitFormatting();
     }
 
-    /// <summary>Recomputes and assigns the unit-formatted projections; assignment raises PropertyChanged only for values that actually changed.</summary>
+    /// <summary>
+    /// Projects the snapshot into CANONICAL values. Formatting happens in UnitFormatConverter at render time,
+    /// so a unit change needs only the notification below, not a recomputation.
+    /// </summary>
     public void RefreshUnitFormatting()
     {
-        DisplayCapacity = Snapshot.CapacityBytes == 0
-            ? "Unknown"
-            : _unitFormattingService.FormatInformationBytes(Snapshot.CapacityBytes);
+        CapacityBytes = Snapshot.CapacityBytes == 0 ? null : Snapshot.CapacityBytes;
+        SpeedMegahertz = Snapshot.SpeedMHz > 0 ? Snapshot.SpeedMHz : null;
 
-        DisplaySpeed = Snapshot.SpeedMHz > 0
-            ? _unitFormattingService.FormatClockFrequencyMegahertz(Snapshot.SpeedMHz)
-            : "Unknown";
+        OnPropertyChanged(propertyName: null);
     }
 
     private string? FirstNonEmpty(params string?[] values)

@@ -28,7 +28,7 @@
             <deviceCapabilitiesControls:StatTileView
                 IconKind="Memory"
                 Label="Adapter RAM"
-                Value="{x:Bind ViewModel.VideoController.DisplayAdapterRam, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                Value="{x:Bind ViewModel.VideoController.AdapterRamBytes, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=InformationSize}" />
             <deviceCapabilitiesControls:StatTileView
                 Badge="{x:Bind ViewModel.VideoController.ResolutionBadge, Mode=OneWay}"
                 IconKind="Monitor"
@@ -37,7 +37,7 @@
             <deviceCapabilitiesControls:StatTileView
                 IconKind="SineWave"
                 Label="Refresh rate"
-                Value="{x:Bind ViewModel.VideoController.DisplayRefreshRate, Mode=OneWay, FallbackValue=Unknown, TargetNullValue=Unknown}" />
+                Value="{x:Bind ViewModel.VideoController.CurrentRefreshRateHertz, Mode=OneWay, Converter={StaticResource UnitFormatUnknown}, ConverterParameter=RefreshRate}" />
             <deviceCapabilitiesControls:StatTileView
                 IconKind="MonitorMultiple"
                 Label="Monitors"
@@ -53,7 +53,92 @@
                 CharacterSpacing="60"
                 Foreground="{StaticResource TextSecondaryBrush}"
                 Text="LIVE UTILIZATION" />
-            <deviceCapabilitiesControls:ComputeUsageCardView ViewModel="{x:Bind ViewModel.UsageCard, Mode=OneWay}" />
+
+            <!--  Split in half: busy-time share on the left, video memory on the right. They are two
+                  independent resources — a GPU can be saturated on either one alone — so they get equal
+                  weight rather than the memory figure being demoted to a bar under the chart. Both charts
+                  share the same time axis and Y maximum, so they read as one panel.
+
+                  Memory USED rather than memory-bandwidth utilisation, because that is the meaning every
+                  vendor library can report — see ComputeDeviceUtilization.VramUsedBytes. The right column
+                  collapses on a device that publishes no video-memory channel (an integrated GPU sharing
+                  system RAM), and the left chart then takes the full width.  -->
+            <Grid ColumnSpacing="10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="{x:Bind ViewModel.UsageCard.VramColumnWidth, Mode=OneWay}" />
+                </Grid.ColumnDefinitions>
+
+                <deviceCapabilitiesControls:ComputeUsageCardView ViewModel="{x:Bind ViewModel.UsageCard, Mode=OneWay}" />
+
+                <deviceCapabilitiesControls:ComputeVramCardView
+                    Grid.Column="1"
+                    ViewModel="{x:Bind ViewModel.UsageCard, Mode=OneWay}"
+                    Visibility="{x:Bind ViewModel.UsageCard.VramVisibility, Mode=OneWay}" />
+            </Grid>
+
+            <!--  How close the current clock is to the maximum. Sits directly under the charts because it is
+                  the same kind of question they answer — a live proportion over time — where the stat tiles
+                  below are point readings. Hidden when either end is unknown, because a bar with one end
+                  missing means nothing.  -->
+            <Border
+                Padding="14,12"
+                Background="{StaticResource CardBackgroundBrush}"
+                CornerRadius="11"
+                Visibility="{x:Bind ViewModel.UsageCard.CoreClockBarVisibility, Mode=OneWay}">
+                <StackPanel Spacing="7">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Core clock against maximum" />
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            FontSize="13"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource TextPrimaryBrush}"
+                            Text="{x:Bind ViewModel.UsageCard.CoreClockRatioPercent, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Ratio}" />
+                    </Grid>
+                    <ProgressBar
+                        Maximum="1"
+                        Minimum="0"
+                        Value="{x:Bind ViewModel.UsageCard.CoreClockBarValue, Mode=OneWay, FallbackValue=0}" />
+                </StackPanel>
+            </Border>
+
+            <!--  Power, temperature, clock and throttle state. Reuses the stat tiles the static details above
+                  use, so the live block reads as part of the same card rather than a bolted-on panel. Hidden
+                  entirely on a device whose source cannot measure any of it: the Windows GPU counter set has
+                  no power, temperature or clock, so this appears for an NVIDIA GPU (via NVML) and is absent
+                  for AMD/Intel adapters, rather than showing a row of dashes that looks like a fault.  -->
+            <deviceCapabilitiesControls:StatTilePanel Visibility="{x:Bind ViewModel.UsageCard.ExtendedTelemetryVisibility, Mode=OneWay}">
+                <deviceCapabilitiesControls:StatTileView
+                    IconKind="FlashOutline"
+                    Label="Power"
+                    Value="{x:Bind ViewModel.UsageCard.PowerWatts, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Power}" />
+                <deviceCapabilitiesControls:StatTileView
+                    IconKind="ThermometerLines"
+                    Label="Temperature"
+                    Value="{x:Bind ViewModel.UsageCard.TemperatureCelsius, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=Temperature}" />
+                <deviceCapabilitiesControls:StatTileView
+                    IconKind="SpeedometerMedium"
+                    Label="Core clock"
+                    Value="{x:Bind ViewModel.UsageCard.CoreClockMegahertz, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=ClockFrequency}" />
+                <deviceCapabilitiesControls:StatTileView
+                    IconKind="Speedometer"
+                    Label="Max core clock"
+                    Value="{x:Bind ViewModel.UsageCard.MaxCoreClockMegahertz, Mode=OneWay, Converter={StaticResource UnitFormat}, ConverterParameter=ClockFrequency}" />
+                <deviceCapabilitiesControls:StatTileView
+                    IconKind="ArrowDownBoldOutline"
+                    Label="Clocked down by"
+                    Value="{x:Bind ViewModel.UsageCard.ThrottleDisplay, Mode=OneWay, FallbackValue=--, TargetNullValue=--}" />
+            </deviceCapabilitiesControls:StatTilePanel>
         </StackPanel>
 
         <Border

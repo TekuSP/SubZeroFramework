@@ -54,6 +54,11 @@ public sealed class WindowsComputeDeviceIdentityResolver : IComputeDeviceIdentit
     private static readonly DEVPROPKEY DriverDescriptionKey = DEVPKEY_Device_DriverDesc;
     private static readonly DEVPROPKEY LocationInfoKey = DEVPKEY_Device_LocationInfo;
 
+    // Numeric, and therefore locale-independent, unlike LocationInfo. Together they give the canonical PCI
+    // address that lets NVML's view of a GPU be joined to this one.
+    private static readonly DEVPROPKEY BusNumberKey = DEVPKEY_Device_BusNumber;
+    private static readonly DEVPROPKEY AddressKey = DEVPKEY_Device_Address;
+
     // A device name or instance path that needs more than this is not a shape we understand; refusing the read
     // is cheaper than trusting a driver-supplied length.
     private const uint MaximumPropertyBytes = 8192;
@@ -137,6 +142,9 @@ public sealed class WindowsComputeDeviceIdentityResolver : IComputeDeviceIdentit
                 // No firmware property exists for these device classes on Windows.
                 FirmwareVersion = null,
                 Location = TryReadStringProperty(deviceInfoSet, in deviceInfo, in LocationInfoKey),
+                PciAddress = WindowsPciAddress.Format(
+                    TryReadUInt32Property(deviceInfoSet, in deviceInfo, in BusNumberKey),
+                    TryReadUInt32Property(deviceInfoSet, in deviceInfo, in AddressKey)),
                 AdapterLuid = adapterLuid is { } luid ? unchecked((long)luid) : null,
                 PhysicalAdapterIndex = physicalAdapterIndex is { } physicalIndex && physicalIndex <= int.MaxValue
                     ? (int)physicalIndex
