@@ -16,6 +16,7 @@
   <ItemGroup>
     <PackageVersion Include="AutoLaunch" Version="1.0.1" />
     <PackageVersion Include="CodeBrix.Platform.LinuxDBus.MitLicenseForever" Version="1.0.117" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Controls.ColorPicker" Version="8.2.251219" />
     <PackageVersion Include="CommunityToolkit.WinUI.Controls.Primitives" Version="8.2.251219" />
     <PackageVersion Include="CommunityToolkit.WinUI.Controls.RangeSelector" Version="8.2.251219" />
     <PackageVersion Include="CommunityToolkit.WinUI.Controls.Segmented" Version="8.2.251219" />

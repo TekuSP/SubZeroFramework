@@ -222,7 +222,8 @@ public partial class App : Application
 #endif
                             () => DateTimeOffset.UtcNow,
                             provider.GetRequiredService<ILogger<SubZeroFramework.Services.Updates.UpdateNotificationCoordinator>>()));
-                    services.AddSingleton<ILocalFanProfileStore, LocalFanProfileStore>();
+                    services.AddSingleton<ICoolingProfileClient, GrpcCoolingProfileClient>();
+                    services.AddSingleton<IShellAccentPainter, ShellAccentPainter>();
                     // Cross-platform launch-at-sign-in via the AutoLaunch library (HKCU Run key /
                     // freedesktop autostart / LaunchAgent behind one API).
                     services.AddSingleton<IStartupRegistrationService, AutoLaunchStartupRegistrationService>();

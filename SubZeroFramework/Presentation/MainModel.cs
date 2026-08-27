@@ -5,6 +5,8 @@ using System.Reactive.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.WinUI;
 
+using DynamicData;
+
 using Microsoft.UI.Dispatching;
 
 using SubZeroFramework.Services;
@@ -19,11 +21,18 @@ public partial class MainModel : ObservableObject, IDisposable
     private readonly DispatcherQueue dispatcherQueue;
     private readonly SynchronizationContext context;
     private readonly IFrameworkStatusClient frameworkStatusClient;
+    private readonly IShellAccentPainter _shellAccentPainter;
+
+    /// <summary>The profile library, mirrored so the active profile's tint can be looked up on any change.</summary>
+    private readonly SourceCache<Models.CoolingProfile, string> _coolingProfiles = new(static profile => profile.Id);
+
+    private string? _activeCoolingProfileId;
     public MainModel(
         IStringLocalizer localizer,
-        IOptions<AppConfig> appInfo, INavigator navigator, IServiceProvider serviceProvider, DispatcherQueue dispatcherQueue, SynchronizationContext context, IFrameworkStatusClient frameworkStatusClient, NavigationGuardRegistry navigationGuardRegistry)
+        IOptions<AppConfig> appInfo, INavigator navigator, IServiceProvider serviceProvider, DispatcherQueue dispatcherQueue, SynchronizationContext context, IFrameworkStatusClient frameworkStatusClient, NavigationGuardRegistry navigationGuardRegistry, ICoolingProfileClient coolingProfileClient, IShellAccentPainter shellAccentPainter)
     {
         this.navigator = navigator;
+        _shellAccentPainter = shellAccentPainter;
         ServiceProvider = serviceProvider;
         this.dispatcherQueue = dispatcherQueue;
         this.context = context;
@@ -35,6 +44,28 @@ public partial class MainModel : ObservableObject, IDisposable
             .Sample(TelemetryRateLimits.LiveReadout)
             .ObserveOn(context)
             .Subscribe(SystemStatusChanged)
+            .DisposeWith(_subscriptions);
+
+        // The shell's tint. Observed on the UI thread because the painter animates a brush, and both halves
+        // are needed to answer one question: which colour, if any, the active profile carries.
+        coolingProfileClient
+            .WatchCoolingProfiles()
+            .ObserveOn(context)
+            .Subscribe(changes =>
+            {
+                _coolingProfiles.Edit(updater => updater.Clone(changes));
+                RefreshShellAccent();
+            })
+            .DisposeWith(_subscriptions);
+
+        coolingProfileClient
+            .WatchActiveProfileId()
+            .ObserveOn(context)
+            .Subscribe(activeProfileId =>
+            {
+                _activeCoolingProfileId = activeProfileId;
+                RefreshShellAccent();
+            })
             .DisposeWith(_subscriptions);
 
         // The startup update check is deliberately NOT started here. Uno hands nested regions their own
@@ -104,9 +135,25 @@ public partial class MainModel : ObservableObject, IDisposable
         IsWarningIssuesEnabled = false;
     }
 
+    /// <summary>
+    /// Repaints the shell for whichever profile is selected.
+    /// </summary>
+    /// <remarks>
+    /// No selection means NO tint, deliberately: black has to keep meaning "nothing chosen", or the colour
+    /// stops carrying information and becomes decoration. A selection naming a profile that is no longer in
+    /// the library counts as no selection for the same reason.
+    /// </remarks>
+    private void RefreshShellAccent()
+    {
+        var active = _activeCoolingProfileId is { } id ? _coolingProfiles.Lookup(id) : default;
+
+        _shellAccentPainter.Apply(active.HasValue ? active.Value.AccentColorArgb : null);
+    }
+
     public void Dispose()
     {
         _subscriptions.Dispose();
+        _coolingProfiles.Dispose();
     }
 
     /// <summary>The shell's unsaved-changes registry — read by MainPage's selection guard.</summary>

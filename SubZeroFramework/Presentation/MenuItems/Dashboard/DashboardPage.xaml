@@ -11,6 +11,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:powerControls="using:SubZeroFramework.Controls.Power"
     xmlns:thermalModels="using:SubZeroFramework.Controls.Thermal.Models"
+    xmlns:toolkit="using:CommunityToolkit.WinUI.Controls"
     xmlns:utu="using:Uno.Toolkit.UI"
     Background="{StaticResource AppBackgroundBrush}"
     NavigationCacheMode="Required"
@@ -75,15 +76,15 @@
             <StackPanel Padding="15,0,15,24" Spacing="16">
 
                 <!--
-                    Saved fan setups. Applying one switches every fan at once; which one reads as active is
-                    derived from the live control states rather than remembered, so it survives a restart and
-                    stops being claimed the moment a fan is changed by hand.
+                    Saved fan setups, owned by the service. Applying one switches every fan at once. WHICH one
+                    is selected is the service's answer and survives a restart; whether the fans still agree
+                    with it is computed here, which is what the Modified notice reports.
 
-                    Collapsed entirely while the feature is off rather than greyed: with seeding off there are
-                    no cards to grey, and a heading over an empty space reads as broken. See
-                    DashboardModel.ProfilesEnabled.
+                    Always shown. There is no availability gate: the shelf is the only place profiles are
+                    switched, so hiding it would leave no way to reach them, and the service answers for
+                    itself when a profile cannot actually be applied.
                 -->
-                <StackPanel Spacing="16" Visibility="{x:Bind ViewModel.AreProfilesAvailable, Mode=OneWay}">
+                <StackPanel Spacing="16">
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -103,11 +104,6 @@
                                 FontWeight="SemiBold"
                                 Foreground="{StaticResource TextPrimaryBrush}"
                                 Text="Profiles" />
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                FontSize="12.5"
-                                Foreground="{StaticResource TextSecondaryBrush}"
-                                Text="saved fan setups — applying one switches every fan at once" />
 
                             <!--  The prompt to save: without it, tuning a fan just blanks the row.  -->
                             <Border
@@ -148,65 +144,41 @@
                                 <SolidColorBrush x:Key="HyperlinkButtonForegroundDisabled" Color="#FF71728C" />
                             </StackPanel.Resources>
 
+                            <!--
+                                Only the drift notice lives here now. Creating, renaming, editing and
+                                deleting all happen on the cards themselves, so the shelf is the whole
+                                interface and there is no second place to learn.
+                            -->
                             <HyperlinkButton
                                 Padding="0"
                                 Click="OnSaveAsProfileClick"
                                 Visibility="{x:Bind ViewModel.IsModified, Mode=OneWay}">
                                 <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <material:MaterialIcon
-                                        Width="14"
-                                        Height="14"
+                                    <FontIcon
                                         VerticalAlignment="Center"
-                                        Kind="ContentSaveOutline" />
-                                    <TextBlock FontSize="12" Text="Save as profile" />
-                                </StackPanel>
-                            </HyperlinkButton>
-
-                            <HyperlinkButton Padding="0" Click="OnManageProfilesClick">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <material:MaterialIcon
-                                        Width="14"
-                                        Height="14"
-                                        VerticalAlignment="Center"
-                                        Kind="PencilOutline" />
-                                    <TextBlock FontSize="12" Text="Manage profiles" />
+                                        FontSize="13"
+                                        Glyph="&#xE74E;" />
+                                    <TextBlock FontSize="12" Text="Save changes to this profile" />
                                 </StackPanel>
                             </HyperlinkButton>
                         </StackPanel>
                     </Grid>
 
                     <ItemsControl ItemTemplate="{StaticResource FanProfileTemplate}" ItemsSource="{x:Bind ViewModel.Profiles, Mode=OneWay}">
+                        <!--
+                            Wrapping, not tiling. StatTilePanel divides the row among however many cards
+                            there are, so a single profile became a card half the window wide with a small
+                            icon marooned in the middle of it. A profile card has a fixed size and the row
+                            fills left to right, so one card looks the same as six.
+                        -->
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <deviceCapControls:StatTilePanel MaxColumns="5" MinTileWidth="200" />
+                                <toolkit:WrapPanel HorizontalSpacing="12" VerticalSpacing="12" />
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                     </ItemsControl>
 
-                    <!--  Saves what the fans are doing right now, which is the only way to make one.  -->
-                    <Button
-                        Height="52"
-                        Padding="18,0"
-                        HorizontalAlignment="Left"
-                        Background="Transparent"
-                        BorderBrush="{StaticResource SurfaceOutlineBrush}"
-                        BorderThickness="1"
-                        Click="OnSaveAsProfileClick"
-                        CornerRadius="12">
-                        <StackPanel Orientation="Horizontal" Spacing="9">
-                            <material:MaterialIcon
-                                Width="16"
-                                Height="16"
-                                VerticalAlignment="Center"
-                                Foreground="{StaticResource TextSecondaryBrush}"
-                                Kind="Plus" />
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                FontSize="12.5"
-                                Foreground="{StaticResource TextSecondaryBrush}"
-                                Text="New profile" />
-                        </StackPanel>
-                    </Button>
+                    <!--  No "New profile" button: the plus card at the end of the shelf is that control.  -->
                 </StackPanel>
 
                 <!--  Fans (read-only live overview)  -->

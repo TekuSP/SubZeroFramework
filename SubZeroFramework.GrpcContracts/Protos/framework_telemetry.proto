@@ -30,6 +30,7 @@ service FrameworkTelemetryService {
   rpc WatchTelemetrySeries (WatchTelemetrySeriesRequest) returns (stream TelemetrySeriesPointChangeBatchReply);
   rpc WatchPowerDelivery (WatchPowerDeliveryRequest) returns (stream PowerDeliveryReply);
   rpc WatchModuleInventory (WatchModuleInventoryRequest) returns (stream ModuleInventoryReply);
+  rpc WatchCoolingProfiles (WatchCoolingProfilesRequest) returns (stream CoolingProfileChangeBatchReply);
 }
 
 service HardwareInfoService {
@@ -86,6 +87,14 @@ service FrameworkFanControlService {
   // fan setting is deleted (curve profile slots, active slot, "applies to" links, and manual/max overrides),
   // including entries for fan indices that no longer enumerate. Never a preview — it always persists.
   rpc ResetFanControlToFactoryDefaults (ResetFanControlToFactoryDefaultsRequest) returns (ResetFanControlToFactoryDefaultsReply);
+
+  // Cooling profiles: a NAMED CROSS-FAN setup, distinct from the per-fan curve slots above. The service
+  // stores the library and remembers which one was selected; what the fans are actually doing stays the
+  // fan control state's answer alone.
+  rpc SaveCoolingProfile (SaveCoolingProfileRequest) returns (CoolingProfileOperationReply);
+  rpc DeleteCoolingProfile (DeleteCoolingProfileRequest) returns (CoolingProfileOperationReply);
+  rpc RenameCoolingProfile (RenameCoolingProfileRequest) returns (CoolingProfileOperationReply);
+  rpc SetActiveCoolingProfile (SetActiveCoolingProfileRequest) returns (CoolingProfileOperationReply);
 }
 
 message GetStatusRequest {
@@ -1274,4 +1283,75 @@ message ModuleInventoryReply {
   string expansion_bay_board = 7;                 // FrameworkExpansionBayBoard name (e.g. "DualInterposer").
   string expansion_bay_vendor = 8;                // FrameworkExpansionBayVendor name (e.g. "AmdGpu").
   string expansion_bay_serial = 9;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Cooling profiles
+//
+// A named setup covering EVERY fan, as opposed to FanCurveProfileReply above, which is one numbered curve
+// slot on one fan. The service owns the library and the selection; it does not own what the fans are doing,
+// which is why there is no "is active" flag on a profile — the client derives that by comparing the profile
+// against live fan state, so it stops being true the moment someone changes a fan by hand.
+// ---------------------------------------------------------------------------------------------------
+
+message WatchCoolingProfilesRequest {}
+
+message CoolingProfileFanEntryReply {
+  int32 fan_index = 1;
+  FanControlModeValue mode = 2;
+  double duty_percent = 3;          // Manual only.
+  double adaptive_target_celsius = 4;  // Adaptive only.
+  // The curve travels WITH the profile rather than as a slot number, so overwriting a fan's slot cannot
+  // silently change what a saved profile means.
+  repeated FanCurvePointReply curve_points = 5;
+  TemperatureAggregationModeValue aggregation = 6;
+}
+
+message CoolingProfileReply {
+  string id = 1;                    // Stable across renames.
+  string name = 2;
+  string icon_name = 3;             // Empty lets the client derive one from the setup.
+  bool is_seeded = 4;
+  repeated CoolingProfileFanEntryReply fans = 5;
+  // Tints the shell while this profile is selected. Unset means no tint, which is also what "nothing
+  // selected" looks like.
+  optional uint32 accent_color_argb = 6;
+}
+
+message CoolingProfileChangeReply {
+  TelemetryChangeKind change_kind = 1;
+  CoolingProfileReply profile = 2;
+}
+
+message CoolingProfileChangeBatchReply {
+  repeated CoolingProfileChangeReply changes = 1;
+  // Stamped on EVERY batch, so a client that reconnects mid-session learns the selection without a second
+  // round trip. Empty means nothing is selected.
+  string active_profile_id = 2;
+}
+
+message SaveCoolingProfileRequest {
+  CoolingProfileReply profile = 1;
+}
+
+message DeleteCoolingProfileRequest {
+  string profile_id = 1;
+}
+
+message RenameCoolingProfileRequest {
+  string profile_id = 1;
+  string name = 2;
+}
+
+message SetActiveCoolingProfileRequest {
+  string profile_id = 1;
+}
+
+message CoolingProfileOperationReply {
+  string profile_id = 1;
+  bool succeeded = 2;
+  string message = 3;
+  // Fans the profile could not be applied to, by display name. Non-empty with succeeded=false means a
+  // PARTIAL apply: the rest of the machine did take the profile.
+  repeated string failed_fan_names = 4;
 }

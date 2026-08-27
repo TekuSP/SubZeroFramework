@@ -36,23 +36,31 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
     private readonly IFrameworkServiceControlClient _serviceControlClient;
     private readonly IFrameworkServiceConfigurationClient _serviceConfigurationClient;
     private readonly IFrameworkFanControlClient _fanControlClient;
+    private readonly IUserUnitPreferencesClient _userUnitPreferencesClient;
+    private readonly ILocalClientSettingsStore _clientSettings;
 
     public SettingsServiceSectionModel(
         IFrameworkStatusClient frameworkStatusClient,
         IFrameworkServiceControlClient serviceControlClient,
         IFrameworkServiceConfigurationClient serviceConfigurationClient,
         IFrameworkFanControlClient fanControlClient,
+        IUserUnitPreferencesClient userUnitPreferencesClient,
+        ILocalClientSettingsStore clientSettings,
         DispatcherQueue dispatcherQueue)
     {
         ArgumentNullException.ThrowIfNull(frameworkStatusClient);
         ArgumentNullException.ThrowIfNull(serviceControlClient);
         ArgumentNullException.ThrowIfNull(serviceConfigurationClient);
         ArgumentNullException.ThrowIfNull(fanControlClient);
+        ArgumentNullException.ThrowIfNull(userUnitPreferencesClient);
+        ArgumentNullException.ThrowIfNull(clientSettings);
         ArgumentNullException.ThrowIfNull(dispatcherQueue);
 
         _serviceControlClient = serviceControlClient;
         _serviceConfigurationClient = serviceConfigurationClient;
         _fanControlClient = fanControlClient;
+        _userUnitPreferencesClient = userUnitPreferencesClient;
+        _clientSettings = clientSettings;
 
         LastStatusObservedAt = frameworkStatusClient.LastObservedAt is DateTimeOffset observedAt
             ? observedAt.LocalDateTime.ToString("T", CultureInfo.CurrentCulture)
@@ -802,6 +810,19 @@ public partial class SettingsServiceSectionModel : ObservableObject, IUnsavedCha
         try
         {
             var result = await _fanControlClient.ResetFanControlToFactoryDefaultsAsync(CancellationToken.None);
+
+            // The CLIENT'S half of "factory new". The service owns fan state and the profile library; display
+            // units, alerts, notifications and the update-check opt-in live here, and a reset that left them
+            // behind would not be the fresh install it claims to be.
+            //
+            // Only after the service half succeeds: wiping the user's units as a consolation prize for a
+            // failed fan reset would be the worst of both outcomes.
+            if (result.Succeeded)
+            {
+                await _userUnitPreferencesClient.ResetToDefaultsAsync(CancellationToken.None).ConfigureAwait(true);
+                _clientSettings.ResetToDefaults();
+            }
+
             ApplyFanResetActionResult(
                 result.Message,
                 result.Succeeded ? InfoBarSeverity.Success : InfoBarSeverity.Warning);

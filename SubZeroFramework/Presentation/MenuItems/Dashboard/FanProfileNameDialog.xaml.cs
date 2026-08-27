@@ -2,7 +2,7 @@ using SubZeroFramework.Controls.Dashboard.Models;
 
 namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 
-/// <summary>Names a new profile, and shows the setup it is about to capture.</summary>
+/// <summary>Names a profile, and — unless renaming — chooses how it looks.</summary>
 public sealed partial class FanProfileNameDialog : ContentDialog
 {
     public FanProfileNameDialog(FanProfileNameDialogModel viewModel)
@@ -17,4 +17,14 @@ public sealed partial class FanProfileNameDialog : ContentDialog
     }
 
     public FanProfileNameDialogModel ViewModel { get; }
+
+    // Tag rather than DataContext: an ItemsControl template's buttons are easiest to read back this way, and
+    // it keeps the selection logic in the model where the rest of it lives.
+    private void OnIconClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.Tag is ProfileIconModel icon)
+        {
+            ViewModel.SelectIcon(icon);
+        }
+    }
 }

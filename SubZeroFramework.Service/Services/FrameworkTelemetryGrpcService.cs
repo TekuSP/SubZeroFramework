@@ -1,3 +1,7 @@
+using System.Reactive.Linq;
+
+using DynamicData;
+
 using Grpc.Core;
 
 using SubZeroFramework.GrpcContracts;
@@ -10,12 +14,18 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
 {
     private readonly IFrameworkDataProvider _frameworkDataProvider;
     private readonly FrameworkFanControlStateStore _fanControlStateStore;
+    private readonly FrameworkCoolingProfileStore _coolingProfileStore;
     private readonly ILogger<FrameworkTelemetryGrpcService> _logger;
 
-    public FrameworkTelemetryGrpcService(IFrameworkDataProvider frameworkDataProvider, FrameworkFanControlStateStore fanControlStateStore, ILogger<FrameworkTelemetryGrpcService> logger)
+    public FrameworkTelemetryGrpcService(
+        IFrameworkDataProvider frameworkDataProvider,
+        FrameworkFanControlStateStore fanControlStateStore,
+        FrameworkCoolingProfileStore coolingProfileStore,
+        ILogger<FrameworkTelemetryGrpcService> logger)
     {
         _frameworkDataProvider = frameworkDataProvider;
         _fanControlStateStore = fanControlStateStore;
+        _coolingProfileStore = coolingProfileStore;
         _logger = logger;
     }
 
@@ -56,6 +66,79 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
             context.CancellationToken,
             _logger,
             "fan control state stream");
+    }
+
+    /// <summary>
+    /// Streams the cooling profile library and which profile is selected.
+    /// </summary>
+    /// <remarks>
+    /// A bespoke loop rather than <see cref="GrpcChangeSetWriter"/> because TWO things have to reach the
+    /// client: the library, and the selection. Selecting a profile changes no profile record, so a
+    /// change-set-only stream would leave every other client still showing the previous selection — and
+    /// still tinted by it — until something unrelated happened to the library.
+    /// </remarks>
+    public override async Task WatchCoolingProfiles(WatchCoolingProfilesRequest request, IServerStreamWriter<CoolingProfileChangeBatchReply> responseStream, ServerCallContext context)
+    {
+        try
+        {
+            _logger.LogInformation("Opening cooling profile stream.");
+
+            var library = _coolingProfileStore.Connect().Select(BuildCoolingProfileBatch);
+
+            // The selection subject replays its current value on subscribe, so this is also what gives a
+            // newly connected client the selection without a separate request.
+            var selection = _coolingProfileStore.ConnectActiveProfileId()
+                .Select(activeProfileId => new CoolingProfileChangeBatchReply
+                {
+                    ActiveProfileId = activeProfileId ?? string.Empty,
+                });
+
+            var reader = ObservableChannelBridge.CreateBoundedReader(
+                library.Merge(selection), context.CancellationToken, _logger, "cooling profile stream");
+
+            while (await reader.WaitToReadAsync(context.CancellationToken).ConfigureAwait(false))
+            {
+                while (reader.TryRead(out var batch))
+                {
+                    await responseStream.WriteAsync(batch, context.CancellationToken).ConfigureAwait(false);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+        {
+            _logger.LogDebug("Stopping cooling profile stream because the request was cancelled.");
+        }
+    }
+
+    /// <summary>
+    /// One change set as a batch, stamped with the current selection.
+    /// </summary>
+    /// <remarks>
+    /// Every batch carries the selection so a client that reconnects mid-session learns it from the first
+    /// message it receives, whichever kind that turns out to be.
+    /// </remarks>
+    private CoolingProfileChangeBatchReply BuildCoolingProfileBatch(IChangeSet<CoolingProfile, string> changes)
+    {
+        var batch = new CoolingProfileChangeBatchReply
+        {
+            ActiveProfileId = _coolingProfileStore.ActiveProfileId ?? string.Empty,
+        };
+
+        foreach (var change in changes)
+        {
+            batch.Changes.Add(new CoolingProfileChangeReply
+            {
+                ChangeKind = change.Reason == ChangeReason.Remove
+                    ? TelemetryChangeKind.Remove
+                    : TelemetryChangeKind.Upsert,
+
+                // Current carries the removed profile on a Remove too, which is what lets the client match it
+                // by id without keeping a shadow copy of the library.
+                Profile = CoolingProfileProtoMapper.ToReply(change.Current),
+            });
+        }
+
+        return batch;
     }
 
     public override async Task WatchPowerDelivery(WatchPowerDeliveryRequest request, IServerStreamWriter<PowerDeliveryReply> responseStream, ServerCallContext context)

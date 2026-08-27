@@ -526,6 +526,55 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
         File.Move(temporaryPath, PersistentConfigurationPath, overwrite: true);
     }
 
+    /// <summary>
+    /// Replaces the whole cooling profile library and the current selection.
+    /// </summary>
+    /// <param name="profiles">Every profile, in order. An empty list clears the library.</param>
+    /// <param name="activeProfileId">The selected profile, or null for none.</param>
+    /// <remarks>
+    /// Whole-collection replace rather than the per-entry merge <see cref="UpsertFanControlStateAsync"/>
+    /// does, because the store already holds the entire library in memory and hands it over intact. There is
+    /// no partial state to reconcile, so there is no merge to get wrong.
+    ///
+    /// Serialized with JsonSerializer rather than hand-built nodes: a hand-written serializer that silently
+    /// drops a field has already cost this project a debugging session, and a profile quietly losing its
+    /// curve points on save would be exactly that bug again.
+    /// </remarks>
+    public Task ReplaceCoolingProfilesAsync(
+        IReadOnlyList<CoolingProfileOptions> profiles,
+        string? activeProfileId,
+        bool hasSeeded,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(profiles);
+
+        return _writeQueue.EnqueueAsync(async ct =>
+        {
+            var root = await LoadRootObjectAsync(ct).ConfigureAwait(false);
+            var section = root["FrameworkService"] as JsonObject ?? new JsonObject();
+
+            section["CoolingProfiles"] = System.Text.Json.JsonSerializer.SerializeToNode(
+                profiles,
+                CoolingProfileSerialization.Options);
+
+            // Null rather than removed: an explicit null is what the binder reads back as "nothing selected",
+            // whereas an absent property would fall back to whatever a default carried.
+            section["ActiveCoolingProfileId"] = activeProfileId is null ? null : JsonValue.Create(activeProfileId);
+            section["CoolingProfilesSeeded"] = JsonValue.Create(hasSeeded);
+
+            root["FrameworkService"] = section;
+
+            await PersistRootAsync(root, ct).ConfigureAwait(false);
+
+            _logger.LogInformation(
+                "Persisted {ProfileCount} cooling profile(s), active {ActiveCoolingProfileId}, to {PersistentConfigurationPath}.",
+                profiles.Count,
+                activeProfileId ?? "(none)",
+                PersistentConfigurationPath);
+        }, cancellationToken);
+    }
+
     public Task WriteAsync(FrameworkServiceOptions options, CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

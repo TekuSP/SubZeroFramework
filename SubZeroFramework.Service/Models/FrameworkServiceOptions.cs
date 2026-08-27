@@ -46,4 +46,31 @@ public sealed record FrameworkServiceOptions
     public bool AllowFanControlCommands { get; init; }
 
     public FanControlStateOptions[] FanControlStates { get; init; } = [];
+
+    /// <summary>The user's saved cooling profiles.</summary>
+    /// <remarks>
+    /// Alongside <see cref="FanControlStates"/> rather than in a file of its own: this is already the
+    /// authority for fan state, so profiles inherit its save, load, relocate and backup behaviour instead of
+    /// growing a second persistence path with its own failure modes.
+    /// </remarks>
+    public CoolingProfileOptions[] CoolingProfiles { get; init; } = [];
+
+    /// <summary>
+    /// Which cooling profile the user last selected, or null if none.
+    /// </summary>
+    /// <remarks>
+    /// A LABEL, not a command. It is never replayed at startup — <see cref="FanControlStates"/> already
+    /// restores what the fans were doing, and re-applying a profile on top of that would clobber every tweak
+    /// made after the profile was chosen. Keeping it inert is what stops the profile library and the live fan
+    /// state from ever being two competing sources of intent.
+    /// </remarks>
+    public string? ActiveCoolingProfileId { get; init; }
+
+    /// <summary>Whether the starting set of cooling profiles has ever been written.</summary>
+    /// <remarks>
+    /// Stored rather than inferred from an empty <see cref="CoolingProfiles"/>, because "empty" is also what
+    /// a user who deleted every seeded profile leaves behind. Without this flag they would find them all back
+    /// on the next launch.
+    /// </remarks>
+    public bool CoolingProfilesSeeded { get; init; }
 }

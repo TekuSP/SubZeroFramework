@@ -80,6 +80,7 @@
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="AutoLaunch" />
+        <PackageReference Include="CommunityToolkit.WinUI.Controls.ColorPicker" />
         <PackageReference Include="CommunityToolkit.WinUI.Controls.Primitives" />
         <PackageReference Include="CommunityToolkit.WinUI.Controls.RangeSelector" />
         <PackageReference Include="CommunityToolkit.WinUI.Controls.Segmented" />

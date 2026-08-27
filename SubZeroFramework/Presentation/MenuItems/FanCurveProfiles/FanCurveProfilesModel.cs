@@ -78,6 +78,8 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
 
     // Per-fan curve profile slots (the page name's "profiles"). One editable draft at a time, targeting
     // the active slot; up to MaxCurveProfileSlots unique slots per fan.
+    // Deliberately FIVE while the service stores six. The sixth is reserved for the curve a cooling profile
+    // carries, and stopping at five here is what keeps it out of every slot picker on this page.
     private const int MaxCurveProfileSlots = 5;
     private readonly ObservableCollection<FollowOption> _followOptions = [];
 

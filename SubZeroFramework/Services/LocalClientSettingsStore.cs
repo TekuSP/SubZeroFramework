@@ -29,6 +29,9 @@ public interface ILocalClientSettingsStore
     /// master switch over their own button.
     /// </remarks>
     bool AutomaticUpdateChecksEnabled { get; set; }
+
+    /// <summary>Returns every client-side setting to its shipped value, as on a fresh install.</summary>
+    void ResetToDefaults();
 }
 
 public sealed class LocalClientSettingsStore : ILocalClientSettingsStore
@@ -70,6 +73,13 @@ public sealed class LocalClientSettingsStore : ILocalClientSettingsStore
         get => _current.AutomaticUpdateChecksEnabled;
         set => Update(_current with { AutomaticUpdateChecksEnabled = value });
     }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// A fresh record rather than a field-by-field reset, so a setting added later cannot be forgotten here
+    /// and quietly survive a factory reset.
+    /// </remarks>
+    public void ResetToDefaults() => Update(new StoredClientSettings());
 
     private void Update(StoredClientSettings settings)
     {

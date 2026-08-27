@@ -567,7 +567,7 @@
                 <TextBlock
                     FontSize="13"
                     Foreground="{StaticResource TextSecondaryBrush}"
-                    Text="Returns every fan to the controller's automatic mode and deletes all saved fan settings: curve profiles in every slot, the active profile per fan, &quot;Applies to&quot; links, and manual or max overrides. Display units, startup and alert settings are left alone."
+                    Text="Returns the app to a fresh install. Every fan goes back to the controller's automatic mode, and everything saved is deleted: curve profiles in every slot, the active profile per fan, &quot;Applies to&quot; links, manual or max overrides, your cooling profiles, display units, and startup, alert and update settings."
                     TextWrapping="WrapWholeWords" />
             </StackPanel>
 

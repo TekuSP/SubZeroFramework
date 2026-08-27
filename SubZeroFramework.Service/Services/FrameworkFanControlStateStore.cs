@@ -14,8 +14,26 @@ namespace SubZeroFramework.Service.Services;
 
 public sealed class FrameworkFanControlStateStore : IDisposable
 {
+    /// <summary>How many curve slots a fan offers the user.</summary>
+    /// <remarks>
+    /// The client holds the same number independently (FanCurveProfilesModel), which is what keeps the
+    /// reserved slot below out of every picker without the UI having to know it exists.
+    /// </remarks>
+    public const int UserVisibleCurveProfileSlots = 5;
+
+    /// <summary>
+    /// Where a cooling profile's embedded curve lands.
+    /// </summary>
+    /// <remarks>
+    /// RESERVED because <see cref="SetCustomCurve"/> writes into whichever slot happens to be active:
+    /// without a destination of its own, applying a cooling profile would silently overwrite a curve the
+    /// user had built. Sitting above the user-visible range means no picker offers it and no existing
+    /// configuration can already be using it.
+    /// </remarks>
+    public const int ReservedProfileSlot = UserVisibleCurveProfileSlots;
+
     /// <summary>Maximum number of unique curve profile slots a single fan can store.</summary>
-    public const int MaxCurveProfileSlots = 5;
+    public const int MaxCurveProfileSlots = UserVisibleCurveProfileSlots + 1;
 
     private readonly SourceCache<FanControlStateSnapshot, int> _fanControlStates = new(state => state.FanIndex);
 

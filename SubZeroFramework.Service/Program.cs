@@ -202,6 +202,8 @@ public static class Program
         builder.Services.AddSingleton<FrameworkShutdownCoordinator>();
         builder.Services.AddSingleton<FrameworkFatalExitHandler>();
         builder.Services.AddSingleton<FrameworkFanControlStateStore>();
+        builder.Services.AddSingleton<ICoolingProfilePersistence, ServiceOptionsCoolingProfilePersistence>();
+        builder.Services.AddSingleton<FrameworkCoolingProfileStore>();
         builder.Services.AddSingleton<FanPreviewWatchdog>();
         builder.Services.AddSingleton<FanAdaptiveControlSignals>();
 
@@ -229,6 +231,7 @@ public static class Program
         // Registered after the telemetry worker so it stops first (LIFO) on shutdown, ceasing EC writes
         // before the restore-to-auto path runs. Actuates stored custom curves against live temperatures.
         builder.Services.AddHostedService<FrameworkFanCurveControlWorker>();
+        builder.Services.AddHostedService<CoolingProfileSeedWorker>();
 
         var app = builder.Build();
         var serviceOptions = app.Services.GetRequiredService<IOptionsMonitor<FrameworkServiceOptions>>().CurrentValue;
