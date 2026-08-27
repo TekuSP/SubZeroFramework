@@ -144,8 +144,13 @@ jobs:
 
       # Tests run BETWEEN build and publish, so nothing is published from a red suite. --no-build binds
       # this to the exact assemblies built above rather than rebuilding a second, unverified copy.
+      #
+      # TestCategory!=Hardware excludes the load-generator tests, which drive the REAL CPU and GPU and then
+      # assert the load landed where it was asked to. A shared, throttled, virtualised CI runner cannot hold
+      # a steady 30% — one observed 22.2% against a 24.6% floor — so on CI they measure the runner, not the
+      # code. They stay part of the local suite, where the machine is real and the number means something.
       - name: Test
-        run: dotnet test --no-restore --no-build ${{ env.TEST_PROJECT }} -v normal -c Release --logger "trx;LogFileName=test-results.trx" --results-directory test-results
+        run: dotnet test --no-restore --no-build ${{ env.TEST_PROJECT }} -v normal -c Release --filter "TestCategory!=Hardware" --logger "trx;LogFileName=test-results.trx" --results-directory test-results
 
       # always(): a failed suite is exactly when the report is worth having. The Test step above has
       # already failed the job by then, so fail-on-error is off — it would only add a second, redundant
@@ -461,8 +466,9 @@ jobs:
 
       # Tests run BETWEEN build and publish, so nothing is published from a red suite. --no-build binds
       # this to the exact assemblies built above rather than rebuilding a second, unverified copy.
+      # See the note on the Windows job for why TestCategory!=Hardware is excluded.
       - name: Test
-        run: dotnet test --no-restore --no-build ${{ env.TEST_PROJECT }} -v normal -c Release --logger "trx;LogFileName=test-results.trx" --results-directory test-results
+        run: dotnet test --no-restore --no-build ${{ env.TEST_PROJECT }} -v normal -c Release --filter "TestCategory!=Hardware" --logger "trx;LogFileName=test-results.trx" --results-directory test-results
 
       # See the note on the Windows job for why always() + fail-on-error: false.
       - name: Publish test report
