@@ -51,6 +51,14 @@
 
             <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1b2727" />
             <SolidColorBrush x:Key="SidebarBackgroundBrush" Color="#000000" />
+            <!--
+                The shell surface: the title bar and the navigation pane, both of which take the active
+                cooling profile's tint. ONE brush instance shared by both, whose Color is animated at runtime
+                — a per-change brush could not be animated between two values, and tinting the two surfaces
+                separately would leave a visible seam in the top-left corner where they meet.
+                Starts at the sidebar colour, which is also what "no profile selected" looks like.
+            -->
+            <SolidColorBrush x:Key="ShellSurfaceBrush" Color="#000000" />
 
             <SolidColorBrush x:Key="CardBackgroundBrush" Color="#2e2e2e" />
             <SolidColorBrush x:Key="CardSelectedBackgroundBrush" Color="#0078D7" />
@@ -153,15 +161,16 @@
             <StaticResource x:Key="NavigationViewButtonBackgroundPointerOver" ResourceKey="BrandHoverBrush" />
             <StaticResource x:Key="NavigationViewButtonBackgroundPressed" ResourceKey="BrandCheckedBrush" />
             <StaticResource x:Key="NavigationViewButtonBackgroundDisabled" ResourceKey="BrandDisabledBrush" />
-            <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="SidebarBackgroundBrush" />
-            <StaticResource x:Key="NavigationViewExpandedPaneBackground" ResourceKey="SidebarBackgroundBrush" />
-            <StaticResource x:Key="NavigationViewTopPaneBackground" ResourceKey="SidebarBackgroundBrush" />
+            <!--  Through ShellSurfaceBrush so the pane follows the active profile's tint along with the title bar.  -->
+            <StaticResource x:Key="NavigationViewDefaultPaneBackground" ResourceKey="ShellSurfaceBrush" />
+            <StaticResource x:Key="NavigationViewExpandedPaneBackground" ResourceKey="ShellSurfaceBrush" />
+            <StaticResource x:Key="NavigationViewTopPaneBackground" ResourceKey="ShellSurfaceBrush" />
             <StaticResource x:Key="NavigationViewContentBackground" ResourceKey="AppBackgroundBrush" />
             <StaticResource x:Key="TitleBarPaneToggleButtonForeground" ResourceKey="BrandSecondaryBrush" />
             <StaticResource x:Key="TitleBarPaneToggleButtonForegroundPointerOver" ResourceKey="BrandPrimaryBrush" />
             <StaticResource x:Key="TitleBarPaneToggleButtonForegroundPressed" ResourceKey="BrandPrimaryBrush" />
             <StaticResource x:Key="TitleBarPaneToggleButtonForegroundDisabled" ResourceKey="BrandDisabledBrush" />
-            <StaticResource x:Key="TitleBarPaneToggleButtonBackground" ResourceKey="SidebarBackgroundBrush" />
+            <StaticResource x:Key="TitleBarPaneToggleButtonBackground" ResourceKey="ShellSurfaceBrush" />
             <StaticResource x:Key="TitleBarPaneToggleButtonBackgroundPointerOver" ResourceKey="BrandHoverBrush" />
             <StaticResource x:Key="TitleBarPaneToggleButtonBackgroundPressed" ResourceKey="BrandCheckedBrush" />
             <StaticResource x:Key="TitleBarPaneToggleButtonBackgroundDisabled" ResourceKey="BrandDisabledBrush" />

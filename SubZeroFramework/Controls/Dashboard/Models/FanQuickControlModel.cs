@@ -57,10 +57,12 @@ public partial class FanQuickControlModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ManualSegmentBackground))]
     [NotifyPropertyChangedFor(nameof(MaxSegmentBackground))]
     [NotifyPropertyChangedFor(nameof(CurveSegmentBackground))]
+    [NotifyPropertyChangedFor(nameof(AdaptiveSegmentBackground))]
     [NotifyPropertyChangedFor(nameof(AutoSegmentForeground))]
     [NotifyPropertyChangedFor(nameof(ManualSegmentForeground))]
     [NotifyPropertyChangedFor(nameof(MaxSegmentForeground))]
     [NotifyPropertyChangedFor(nameof(CurveSegmentForeground))]
+    [NotifyPropertyChangedFor(nameof(AdaptiveSegmentForeground))]
     public partial string NowDrivingText { get; private set; } = "Waiting for state";
 
     /// <summary>Progress-bar fraction under the "Now driving" line (last commanded duty; 0 in Auto). Stored; assigned by <see cref="RefreshDerivedState"/>.</summary>
@@ -100,6 +102,8 @@ public partial class FanQuickControlModel : ObservableObject
 
     public Brush CurveSegmentBackground => SegmentBackground(FanControlMode.CustomCurve);
 
+    public Brush AdaptiveSegmentBackground => SegmentBackground(FanControlMode.Adaptive);
+
     public Brush AutoSegmentForeground => SegmentForeground(FanControlMode.Auto);
 
     public Brush ManualSegmentForeground => SegmentForeground(FanControlMode.Manual);
@@ -107,6 +111,16 @@ public partial class FanQuickControlModel : ObservableObject
     public Brush MaxSegmentForeground => SegmentForeground(FanControlMode.Max);
 
     public Brush CurveSegmentForeground => SegmentForeground(FanControlMode.CustomCurve);
+
+    /// <summary>
+    /// Adaptive's segment.
+    /// </summary>
+    /// <remarks>
+    /// It was missing entirely, so a fan running Adaptive lit NONE of the four segments and the row read as
+    /// though the fan were in no mode at all — the one state the indicator most needed to show, since
+    /// Adaptive is the mode a user is least able to infer from the numbers.
+    /// </remarks>
+    public Brush AdaptiveSegmentForeground => SegmentForeground(FanControlMode.Adaptive);
 
     public void Detach() => Fan.PropertyChanged -= OnFanChanged;
 

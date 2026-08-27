@@ -8,7 +8,7 @@ using SubZeroFramework.Services.Control;
 
 namespace SubZeroFramework.Service.Services;
 
-public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.FrameworkFanControlServiceBase
+public sealed partial class FrameworkFanControlGrpcService : FrameworkFanControlService.FrameworkFanControlServiceBase
 {
     /// <summary>
     /// Upper bound on curve points accepted from a client. Comfortably above anything the editor can produce
@@ -19,6 +19,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
     private readonly FrameworkFanControlAuthorizationService _authorizationService;
     private readonly IFrameworkDataProvider _frameworkDataProvider;
     private readonly FrameworkFanControlStateStore _fanControlStateStore;
+    private readonly FrameworkCoolingProfileStore _coolingProfileStore;
     private readonly FrameworkServiceConfigurationStore _configurationStore;
     private readonly FanPreviewWatchdog _previewWatchdog;
     private readonly FanAdaptiveControlSignals _fanControlWorkerSignals;
@@ -31,6 +32,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         IFrameworkDataProvider frameworkDataProvider,
         FrameworkFanControlAuthorizationService authorizationService,
         FrameworkFanControlStateStore fanControlStateStore,
+        FrameworkCoolingProfileStore coolingProfileStore,
         FrameworkServiceConfigurationStore configurationStore,
         FanPreviewWatchdog previewWatchdog,
         FanAdaptiveControlSignals fanControlWorkerSignals,
@@ -43,6 +45,7 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
         _frameworkDataProvider = frameworkDataProvider;
         _authorizationService = authorizationService;
         _fanControlStateStore = fanControlStateStore;
+        _coolingProfileStore = coolingProfileStore;
         _configurationStore = configurationStore;
         _previewWatchdog = previewWatchdog;
         _fanControlWorkerSignals = fanControlWorkerSignals;
@@ -1059,6 +1062,11 @@ public sealed class FrameworkFanControlGrpcService : FrameworkFanControlService.
             // restoring the EC before the store flips to Auto lets an in-flight tick immediately re-drive the
             // fan. A single per-fan command races nothing meaningful; a whole-store wipe does.
             var fanIndices = _fanControlStateStore.ResetAllToFactoryDefaults();
+
+            // The cooling profile library goes too. A reset that returned every fan to Auto while leaving a
+            // shelf of saved profiles behind — one of them still marked as selected, and none of them any
+            // longer describing the machine — would be a half-wipe wearing the word "factory".
+            _coolingProfileStore.ResetToFactoryDefaults([.. fanIndices]);
 
             var restoredCount = 0;
             var failedCount = 0;

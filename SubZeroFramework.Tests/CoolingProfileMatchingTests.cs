@@ -18,7 +18,7 @@ namespace SubZeroFramework.Tests;
 /// damaging direction, because the claim is then used to label every fan card.
 /// </remarks>
 [TestFixture]
-public class FanProfileMatchingTests
+public class CoolingProfileMatchingTests
 {
     [Test]
     public void Matches_WhenEveryFanIsDoingWhatTheProfileAsks()
@@ -96,16 +96,36 @@ public class FanProfileMatchingTests
         Assert.That(profile.Matches(states), Is.False);
     }
 
+    /// <summary>
+    /// A curve is compared by its SHAPE, not by which slot it came from.
+    /// </summary>
+    /// <remarks>
+    /// The profile embeds its own points, so it keeps meaning what it meant even after the user has rebuilt
+    /// the slot it was captured from. Matching on the slot number would have made a profile silently start
+    /// describing a different curve.
+    /// </remarks>
     [Test]
-    public void CurveMatchesOnTheSlot_NotMerelyOnBeingACurve()
+    public void CurveMatchesOnItsPoints_NotOnTheSlotItCameFrom()
     {
-        var profile = Profile(Entry(0, FanControlMode.CustomCurve, curveSlot: 2));
+        var curve = Curve((40, 20d), (70, 80d));
+        var profile = Profile(Entry(0, FanControlMode.CustomCurve, curvePoints: curve));
 
         Assert.Multiple(() =>
         {
-            Assert.That(profile.Matches(States(State(0, FanControlMode.CustomCurve, curveSlot: 2))), Is.True);
-            Assert.That(profile.Matches(States(State(0, FanControlMode.CustomCurve, curveSlot: 1))), Is.False);
+            // Same shape, different slot: still the same curve, so still a match.
+            Assert.That(profile.Matches(States(State(0, FanControlMode.CustomCurve, curvePoints: curve, curveSlot: 3))), Is.True);
+            Assert.That(profile.Matches(States(State(0, FanControlMode.CustomCurve, curvePoints: Curve((40, 20d), (70, 95d))))), Is.False);
         });
+    }
+
+    [Test]
+    public void CurveDoesNotMatch_WhenTheFanRunsMoreOrFewerPointsThanTheProfile()
+    {
+        var profile = Profile(Entry(0, FanControlMode.CustomCurve, curvePoints: Curve((40, 20d))));
+
+        Assert.That(
+            profile.Matches(States(State(0, FanControlMode.CustomCurve, curvePoints: Curve((40, 20d), (70, 80d))))),
+            Is.False);
     }
 
     /// <summary>
@@ -144,30 +164,33 @@ public class FanProfileMatchingTests
     [Test]
     public void AnEmptyProfileMatchesNothing()
     {
-        var profile = new FanProfile { Id = "empty", Name = "Empty" };
+        var profile = new CoolingProfile { Id = "empty", Name = "Empty" };
 
         Assert.That(profile.Matches(States(State(0, FanControlMode.Auto))), Is.False);
     }
 
-    private static FanProfile Profile(params FanProfileEntry[] entries) => new()
+    private static ImmutableSortedDictionary<int, double> Curve(params (int Temperature, double Duty)[] points)
+        => points.ToImmutableSortedDictionary(static point => point.Temperature, static point => point.Duty);
+
+    private static CoolingProfile Profile(params CoolingProfileFanEntry[] entries) => new()
     {
         Id = "test",
         Name = "Test",
         Fans = [.. entries],
     };
 
-    private static FanProfileEntry Entry(
+    private static CoolingProfileFanEntry Entry(
         int fanIndex,
         FanControlMode mode,
         double duty = 0d,
-        int curveSlot = 0,
+        ImmutableSortedDictionary<int, double>? curvePoints = null,
         double adaptiveTarget = AdaptiveFanSettings.DefaultTargetCelsius)
         => new()
         {
             FanIndex = fanIndex,
             Mode = mode,
             DutyPercent = duty,
-            CurveSlot = curveSlot,
+            CurvePoints = curvePoints ?? ImmutableSortedDictionary<int, double>.Empty,
             AdaptiveTargetCelsius = adaptiveTarget,
         };
 
@@ -176,6 +199,7 @@ public class FanProfileMatchingTests
         FanControlMode mode,
         double? duty = null,
         int curveSlot = 0,
+        ImmutableSortedDictionary<int, double>? curvePoints = null,
         double adaptiveTarget = AdaptiveFanSettings.DefaultTargetCelsius)
         => new()
         {
@@ -184,6 +208,7 @@ public class FanProfileMatchingTests
             Mode = mode,
             LastDutyPercent = duty,
             ActiveCurveSlot = curveSlot,
+            CustomCurvePoints = curvePoints ?? ImmutableSortedDictionary<int, double>.Empty,
             AdaptiveSettings = AdaptiveFanSettings.Default with { TargetTemperatureCelsius = adaptiveTarget },
             IsAvailable = true,
         };

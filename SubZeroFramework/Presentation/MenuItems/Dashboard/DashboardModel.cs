@@ -29,12 +29,15 @@ namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 /// Everything here renders LIVE values only — no telemetry history is subscribed (the old dashboard's
 /// one-hour history replay saturated the UI thread at startup once the service had been running a while).
 /// </summary>
-public partial class DashboardModel : ObservableObject, IDisposable
+public partial class DashboardModel : ObservableObject, IDisposable, IProfileCardActions
 {
     private readonly CompositeDisposable _subscriptions = [];
     private readonly ObservableCollection<FanQuickControlModel> _quickFans = [];
     private readonly ObservableCollection<ThermalSensorModel> _thermalSensors = [];
     private readonly ObservableCollection<FanProfileCardModel> _profiles = [];
+
+    /// <summary>The service's library, mirrored so a change set can be turned into a whole list.</summary>
+    private readonly SourceCache<CoolingProfile, string> _profileLibrary = new(static profile => profile.Id);
     private readonly Dictionary<int, FanCardModel> _fanCardsByIndex = [];
     private readonly Dictionary<int, FanQuickControlModel> _quickFansByIndex = [];
     private readonly Dictionary<int, FanCapabilityState> _fanCapabilities = [];
@@ -47,7 +50,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
     private readonly IUnitFormattingService _unitFormattingService;
     private readonly IFanControlActuator _fanControlActuator;
     private readonly IFrameworkFanControlClient _fanControlClient;
-    private readonly ILocalFanProfileStore _profileStore;
+    private readonly ICoolingProfileClient _coolingProfileClient;
+    private readonly IDesktopNotificationService _notifications;
+    private readonly IFanHistoryStore _historyStore;
+
+    /// <summary>The service's current selection, mirrored so card state can be recomputed synchronously.</summary>
+    private string? _activeProfileId;
 
     public DashboardModel(
         IStringLocalizer localizer,
@@ -64,28 +72,43 @@ public partial class DashboardModel : ObservableObject, IDisposable
         IUnitFormattingService unitFormattingService,
         IFanControlActuator fanControlActuator,
         IFrameworkFanControlClient fanControlClient,
-        ILocalFanProfileStore profileStore,
+        ICoolingProfileClient coolingProfileClient,
+        IDesktopNotificationService notifications,
+        IFanHistoryStore historyStore,
         IPowerDeliveryClient powerDeliveryClient,
         SynchronizationContext synchronizationContext)
     {
         _unitFormattingService = unitFormattingService;
         _fanControlActuator = fanControlActuator;
         _fanControlClient = fanControlClient;
-        _profileStore = profileStore;
+        _coolingProfileClient = coolingProfileClient;
+        _notifications = notifications;
+        _historyStore = historyStore;
         _synchronizationContext = synchronizationContext;
+
+        AttachFanHistory();
 
         QuickFans = new ReadOnlyObservableCollection<FanQuickControlModel>(_quickFans);
         ThermalSensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_thermalSensors);
         Profiles = new ReadOnlyObservableCollection<FanProfileCardModel>(_profiles);
 
-        if (ProfilesEnabled)
-        {
-            // The store is edited from dialogs this page owns, so following it rather than re-reading after
-            // each command keeps one path for "the list changed" whether the change came from here or from a
-            // restart.
-            _profileStore.Changed += OnProfileStoreChanged;
-            RefreshProfiles();
-        }
+        // The library is the SERVICE'S, so following its stream is the one path for "the list changed" —
+        // whether the change came from a dialog on this page, from another running client, or from a restart.
+        _coolingProfileClient
+            .WatchCoolingProfiles()
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(RefreshProfiles)
+            .DisposeWith(_subscriptions);
+
+        _coolingProfileClient
+            .WatchActiveProfileId()
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(activeProfileId =>
+            {
+                _activeProfileId = activeProfileId;
+                RecomputeProfileSelection();
+            })
+            .DisposeWith(_subscriptions);
 
         frameworkStatusClient
             .WatchStatus()
@@ -157,14 +180,13 @@ public partial class DashboardModel : ObservableObject, IDisposable
                     }
                 }
 
-                if (ProfilesEnabled)
-                {
-                    // Seeded from the fans the service actually reports, so a machine with three fans does
-                    // not get profiles describing four. Only ever on an empty list; see SeedIfEmpty.
-                    _profileStore.SeedIfEmpty([.. _fanControlStates.Keys]);
+                // Seeding is the service's job now — it happens once the machine reports its fans, whether or
+                // not a client is connected.
+                RecomputeProfileSelection();
 
-                    RecomputeProfileSelection();
-                }
+                // Driving sensors can change with the control state, so the history watches are re-checked
+                // here rather than once at startup.
+                EnsureFanHistorySubscriptions();
             })
             .DisposeWith(_subscriptions);
 
@@ -327,6 +349,7 @@ public partial class DashboardModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial FrameworkSystemStatus? LastStatus { get; set; }
 
+
     public ReadOnlyObservableCollection<FanQuickControlModel> QuickFans { get; }
 
     public ReadOnlyObservableCollection<ThermalSensorModel> ThermalSensors { get; }
@@ -368,34 +391,11 @@ public partial class DashboardModel : ObservableObject, IDisposable
         OnPropertyChanged(propertyName: null);
     }
 
-    // ----- Saved fan profiles (one profile applied to every fan; selection derived from live states) -----
-
-    /// <summary>
-    /// Pre-release feature flag: profiles are built but not switched on yet. Flip to ship them.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Off means <b>entirely</b> off, not merely un-clickable: nothing seeds, nothing is written to disk, and
-    /// the section does not render. A greyed-out section would be worse than none, because with seeding off
-    /// there are no cards to grey — it would draw a heading over an empty space and read as broken rather
-    /// than as unfinished.
-    /// </para>
-    /// <para>
-    /// Not a <c>const</c>: that makes every guarded branch unreachable code and buries the feature under
-    /// compiler warnings the moment it is turned off.
-    /// </para>
-    /// </remarks>
-    private static readonly bool ProfilesEnabled = false;
-
-    /// <summary>Whether the Profiles section renders at all. See <see cref="ProfilesEnabled"/>.</summary>
-    public bool AreProfilesAvailable => ProfilesEnabled;
+    // ----- Cooling profiles (one profile applied to every fan; the service owns the library) -----
 
     /// <summary>Average speed across available fans, canonical RPM; null until a fan reports. Formatted by UnitFormatConverter.</summary>
     [ObservableProperty]
     public partial double? AverageFanSpeedRpm { get; set; }
-
-    [ObservableProperty]
-    public partial bool IsFanControlEnabled { get; set; }
 
     /// <summary>
     /// True when the fans are not doing what any saved profile asks for.
@@ -414,103 +414,115 @@ public partial class DashboardModel : ObservableObject, IDisposable
     public ReadOnlyObservableCollection<FanProfileCardModel> Profiles { get; }
 
     /// <summary>
-    /// Reports which fans a profile could not be applied to.
+    /// Asks the service to switch to a profile.
     /// </summary>
+    /// <returns>The fans it could not be applied to. Empty on success.</returns>
     /// <remarks>
-    /// Empty on success. Applying is a batch of independent commands and any one of them can legitimately
-    /// fail — arming Adaptive on a fan with no driving sensors is the common case — so the caller is told
-    /// exactly which fans were left alone rather than being given a single pass-or-fail.
+    /// The per-fan loop lives in the SERVICE now, so every client applies a profile the same way and a
+    /// machine cannot end up half-applied because the app was closed mid-way through the batch.
     /// </remarks>
-    public async Task<IReadOnlyList<string>> ApplyProfileAsync(FanProfile profile)
+    public async Task<IReadOnlyList<string>> ApplyProfileAsync(CoolingProfile profile)
     {
         ArgumentNullException.ThrowIfNull(profile);
 
-        if (!ProfilesEnabled)
+        // No local pre-check on whether fan control is available: the service answers that authoritatively
+        // in its reply, and a second opinion here could only ever be a staler one.
+        var result = await _coolingProfileClient.SetActiveAsync(profile.Id).ConfigureAwait(true);
+
+        if (result.FailedFanNames.Count > 0)
         {
-            return [];
+            return result.FailedFanNames;
         }
 
-        if (!IsFanControlEnabled)
+        if (!result.Succeeded)
         {
-            return ["Fan control is not available right now."];
+            return [result.Message];
         }
 
-        List<string> failures = [];
+        // Only on a CLEAN apply. A partial one already opens a dialog naming the fans that refused, and a
+        // notification celebrating the same switch alongside it would contradict the dialog.
+        _ = _notifications.TryShowStatusAsync($"{profile.Name} applied", DescribeProfileForNotification(profile));
 
-        // In fan order, so a machine where several fans share a heatsink ramps predictably rather than in
-        // whatever order the profile happened to be written.
-        foreach (var entry in profile.Fans.OrderBy(static entry => entry.FanIndex))
-        {
-            if (!_fanControlStates.TryGetValue(entry.FanIndex, out var state) || !state.IsAvailable)
-            {
-                // Not a failure worth reporting: a profile written while a module was attached should apply
-                // cleanly to the fans that remain rather than complaining about the ones that left.
-                continue;
-            }
-
-            var failure = await ApplyEntryAsync(entry, state).ConfigureAwait(false);
-            if (failure is not null)
-            {
-                failures.Add($"{state.DisplayName}: {failure}");
-            }
-        }
-
-        return failures;
+        return [];
     }
 
-    private async Task<string?> ApplyEntryAsync(FanProfileEntry entry, FanControlStateSnapshot state)
+    /// <summary>
+    /// What a profile just did to each fan, as one line for a notification.
+    /// </summary>
+    /// <remarks>
+    /// Per fan and by NAME, because the whole point of a profile is that it changes several fans at once and
+    /// a notification saying only "Gaming applied" leaves the user to go and look at what that meant. Fans the
+    /// machine no longer has are left out rather than named as unchanged.
+    ///
+    /// Every quantity goes through the formatting service, so the notification agrees with the units the user
+    /// reads everywhere else — a target shown as 72 °C on the page must not arrive as 161.6 here.
+    /// </remarks>
+    private string DescribeProfileForNotification(CoolingProfile profile)
     {
-        try
-        {
-            switch (entry.Mode)
-            {
-                case FanControlMode.Adaptive:
-                    // The profile carries the TARGET, and the fan keeps its own driving sensors. Sensor
-                    // choice is a property of the hardware — which sensors this fan actually cools — not of
-                    // the mood the user is in, and a profile overwriting it would silently undo work done on
-                    // the Fan Control page.
-                    var armed = await _fanControlClient.SetAdaptiveModeAsync(
-                        entry.FanIndex,
-                        [.. state.DrivingSensorIndices],
-                        state.DrivingTemperatureAggregation,
-                        state.AdaptiveSettings with { TargetTemperatureCelsius = entry.AdaptiveTargetCelsius })
-                        .ConfigureAwait(false);
+        var parts = profile.Fans
+            .OrderBy(static entry => entry.FanIndex)
+            .Where(entry => _fanControlStates.ContainsKey(entry.FanIndex))
+            .Select(entry => $"{FanName(entry.FanIndex)}: {DescribeEntryMode(entry)}");
 
-                    return armed.Succeeded ? null : armed.Message ?? "could not switch to Adaptive";
-
-                case FanControlMode.CustomCurve:
-                    var curve = await _fanControlClient
-                        .SetActiveCurveProfileAsync(entry.FanIndex, entry.CurveSlot)
-                        .ConfigureAwait(false);
-
-                    return curve.Succeeded ? null : curve.Message ?? "could not switch to its saved curve";
-
-                default:
-                    await _fanControlActuator
-                        .ActuateSimpleAsync(entry.FanIndex, entry.Mode, entry.DutyPercent, preview: false)
-                        .ConfigureAwait(false);
-
-                    return null;
-            }
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            // One fan refusing must not abandon the rest of the profile half-applied.
-            return exception.Message;
-        }
+        return string.Join(" · ", parts);
     }
 
-    /// <summary>Captures what every fan is doing right now as a new profile.</summary>
-    public FanProfile CaptureCurrentSetup(string name) => new()
+    private string FanName(int fanIndex)
+        => _fanControlStates.TryGetValue(fanIndex, out var state) ? state.DisplayName : $"Fan {fanIndex}";
+
+    private string DescribeEntryMode(CoolingProfileFanEntry entry) => entry.Mode switch
+    {
+        FanControlMode.Manual => $"Manual {_unitFormattingService.FormatRatio(entry.DutyPercent, decimals: 0)}",
+        FanControlMode.Adaptive => $"Adaptive {_unitFormattingService.FormatTemperature(entry.AdaptiveTargetCelsius)}",
+        FanControlMode.CustomCurve => "Curve",
+        FanControlMode.Max => "Max",
+        _ => "Auto",
+    };
+
+    /// <summary>A new profile with every fan on Auto.</summary>
+    /// <param name="name">What to call it.</param>
+    /// <param name="iconName">The chosen icon, or null to let the card derive one from the setup.</param>
+    /// <param name="accentColorArgb">The chosen tint, or null for none.</param>
+    /// <remarks>
+    /// The plus card starts from AUTO rather than from whatever the fans happen to be doing, so making a
+    /// profile is a deliberate act with a known starting point. Capturing the live setup is the other
+    /// entry point — the prompt that appears once the fans no longer match the selected profile.
+    /// </remarks>
+    public CoolingProfile CreateAutoSetup(string name, string? iconName = null, uint? accentColorArgb = null) => new()
     {
         Id = Guid.NewGuid().ToString("N"),
         Name = name,
+        IconName = iconName,
+        AccentColorArgb = accentColorArgb,
         Fans =
         [
             .. _fanControlStates.Values
                 .Where(static state => state.IsAvailable)
                 .OrderBy(static state => state.FanIndex)
-                .Select(static state => new FanProfileEntry
+                .Select(static state => new CoolingProfileFanEntry
+                {
+                    FanIndex = state.FanIndex,
+                    Mode = FanControlMode.Auto,
+                }),
+        ],
+    };
+
+    /// <summary>Captures what every fan is doing right now as a new profile.</summary>
+    /// <param name="name">What to call it.</param>
+    /// <param name="iconName">The chosen icon, or null to let the card derive one from the setup.</param>
+    /// <param name="accentColorArgb">The chosen tint, or null for none.</param>
+    public CoolingProfile CaptureCurrentSetup(string name, string? iconName = null, uint? accentColorArgb = null) => new()
+    {
+        Id = Guid.NewGuid().ToString("N"),
+        Name = name,
+        IconName = iconName,
+        AccentColorArgb = accentColorArgb,
+        Fans =
+        [
+            .. _fanControlStates.Values
+                .Where(static state => state.IsAvailable)
+                .OrderBy(static state => state.FanIndex)
+                .Select(static state => new CoolingProfileFanEntry
                 {
                     FanIndex = state.FanIndex,
                     Mode = state.Mode,
@@ -518,8 +530,12 @@ public partial class DashboardModel : ObservableObject, IDisposable
                     // Every mode's settings are captured, not just the active one's, so re-saving a profile
                     // after switching one fan to Auto does not throw away the duty it had before.
                     DutyPercent = state.LastDutyPercent ?? 0d,
-                    CurveSlot = state.ActiveCurveSlot,
                     AdaptiveTargetCelsius = state.AdaptiveSettings.TargetTemperatureCelsius,
+
+                    // The CURVE, not the slot it lives in. A profile that pointed at a slot would silently
+                    // start meaning something else the next time that slot was edited.
+                    CurvePoints = state.CustomCurvePoints,
+                    Aggregation = state.DrivingTemperatureAggregation,
                 }),
         ],
     };
@@ -527,54 +543,105 @@ public partial class DashboardModel : ObservableObject, IDisposable
     /// <summary>Formatting for the profile dialogs, so their summaries obey the user's chosen units too.</summary>
     public IUnitFormattingService UnitFormattingService => _unitFormattingService;
 
-    public void SaveProfile(FanProfile profile) => _profileStore.Save(profile);
+    public Task<CoolingProfileCommandResult> SaveProfileAsync(CoolingProfile profile)
+        => _coolingProfileClient.SaveAsync(profile);
 
-    /// <summary>
-    /// Builds the model behind the manage dialog.
-    /// </summary>
-    /// <remarks>
-    /// Constructed here rather than in the page because it needs the store, and handing a page a service just
-    /// so it can hand it straight back to a dialog is a dependency the page has no other use for.
-    /// </remarks>
-    public FanProfileManageDialogModel CreateManageProfilesModel()
-        => new(_profileStore, _unitFormattingService);
+    // No manage dialog: renaming, editing and deleting are all on the cards themselves, so the shelf is the
+    // whole interface and there is no second, parallel place to learn.
 
     /// <summary>Rebuilds the card list from the store, preserving which one reads as active.</summary>
-    private void RefreshProfiles()
+    /// <summary>Rebuilds the cards from a change set on the service's library.</summary>
+    /// <remarks>
+    /// A full rebuild rather than a per-change edit: the list is three to a handful of items, it is rebuilt
+    /// only when the library actually changes, and reconciling adds, removes and renames by hand would be a
+    /// great deal of code guarding a collection small enough to redraw whole.
+    /// </remarks>
+    private void RefreshProfiles(IChangeSet<CoolingProfile, string> changes)
     {
+        _profileLibrary.Edit(updater => updater.Clone(changes));
+
         _profiles.Clear();
 
-        foreach (var profile in _profileStore.Profiles)
+        foreach (var profile in _profileLibrary.Items.OrderBy(static profile => profile.Name, StringComparer.CurrentCultureIgnoreCase))
         {
-            _profiles.Add(new FanProfileCardModel(profile, _unitFormattingService));
+            _profiles.Add(new FanProfileCardModel(profile, _unitFormattingService) { Owner = this });
         }
+
+        // Last, so it reads as the end of the shelf rather than as the first thing on it.
+        _profiles.Add(FanProfileCardModel.CreateAddCard(this, _unitFormattingService));
 
         RecomputeProfileSelection();
     }
 
+    /// <summary>Raised when a card's button asks for something that needs a dialog.</summary>
+    /// <remarks>
+    /// An event rather than a direct call, because every one of these opens a ContentDialog and a dialog needs
+    /// a XamlRoot — which the page has and a view model does not.
+    /// </remarks>
+    public event EventHandler<ProfileCardActionEventArgs>? ProfileActionRequested;
+
+    /// <inheritdoc />
+    public void RequestProfileAction(CoolingProfile? profile, ProfileCardAction action)
+        => ProfileActionRequested?.Invoke(this, new ProfileCardActionEventArgs(profile, action));
+
+    /// <summary>The profile the service is on, or null when nothing is selected.</summary>
+    public CoolingProfile? ActiveProfile
+    {
+        get
+        {
+            var found = _activeProfileId is { } id ? _profileLibrary.Lookup(id) : default;
+            return found.HasValue ? found.Value : null;
+        }
+    }
+
     /// <summary>
-    /// Selection is derived from the live control states, so it reflects reality across restarts.
+    /// Writes what the fans are doing right now into the selected profile.
     /// </summary>
     /// <remarks>
-    /// Nothing stores "the active profile". A stored flag would keep claiming a profile was in effect after
-    /// the user changed a fan by hand, which is precisely the moment the claim stops being true.
+    /// This is how a profile becomes anything other than Auto: select it, change the fans by hand, then keep
+    /// the result. Editing a profile's appearance deliberately cannot do this — a colour change must never
+    /// rewrite behaviour — so saving the live setup is its own explicit act, offered only once the fans have
+    /// actually stopped matching.
+    /// </remarks>
+    public async Task<CoolingProfileCommandResult> SaveCurrentSetupToActiveProfileAsync()
+    {
+        if (ActiveProfile is not { } profile)
+        {
+            return new CoolingProfileCommandResult(false, "No profile is selected.", []);
+        }
+
+        var captured = CaptureCurrentSetup(profile.Name);
+
+        return await _coolingProfileClient
+            .SaveAsync(profile with { Fans = captured.Fans })
+            .ConfigureAwait(true);
+    }
+
+    public Task<CoolingProfileCommandResult> RenameProfileAsync(string profileId, string name)
+        => _coolingProfileClient.RenameAsync(profileId, name);
+
+    public Task<CoolingProfileCommandResult> DeleteProfileAsync(string profileId)
+        => _coolingProfileClient.DeleteAsync(profileId);
+
+    /// <summary>
+    /// Which card is selected, and whether the fans still agree with it.
+    /// </summary>
+    /// <remarks>
+    /// SELECTION comes from the service — it is the profile the user chose, and it survives restarts. Whether
+    /// that profile is still in EFFECT is a separate question, answered here by comparing it against live fan
+    /// state: change one fan by hand and the card stays selected while the page starts saying Modified, which
+    /// is the honest description of what just happened.
     /// </remarks>
     private void RecomputeProfileSelection()
     {
-        var defaultId = _profileStore.DefaultProfileId;
         FanProfileCardModel? active = null;
 
         foreach (var card in _profiles)
         {
-            card.IsDefault = card.Id == defaultId;
+            var isActive = string.Equals(card.Id, _activeProfileId, StringComparison.Ordinal);
+            card.IsSelected = isActive;
 
-            // First match wins. Two profiles CAN describe the same state — "all fans Auto" saved twice under
-            // different names — and lighting up both would suggest the app is confused rather than that the
-            // user saved a duplicate.
-            var matches = active is null && card.Profile.Matches(_fanControlStates);
-            card.IsSelected = matches;
-
-            if (matches)
+            if (isActive)
             {
                 active = card;
             }
@@ -582,9 +649,11 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
         ActiveProfileName = active?.Name;
 
-        // Only once fans have actually reported. Before that, "no profile matches" is true but meaningless,
-        // and showing Modified on a page that has not finished loading is just noise.
-        IsModified = _fanControlStates.Count > 0 && active is null;
+        // Only once fans have actually reported. Before that, "the fans do not match" is true but
+        // meaningless, and showing Modified on a page that has not finished loading is just noise.
+        IsModified = _fanControlStates.Count > 0
+            && active is not null
+            && !active.Profile.Matches(_fanControlStates);
 
         foreach (var fan in _quickFans)
         {
@@ -719,14 +788,8 @@ public partial class DashboardModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        // The store outlives this page, so a page that forgot to unhook would be kept alive by it — and every
-        // later profile edit would refresh a card list nothing is showing.
-        _profileStore.Changed -= OnProfileStoreChanged;
-
         _subscriptions.Dispose();
+        _profileLibrary.Dispose();
         foreach (var quickFan in _quickFans) quickFan.Detach();
     }
-
-    private void OnProfileStoreChanged(object? sender, EventArgs e)
-        => _synchronizationContext.Post(_ => RefreshProfiles(), null);
 }

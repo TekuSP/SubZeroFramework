@@ -3,73 +3,134 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
+    <!--
+        The card wears the profile's own colour, so the shelf reads as a set of colours before it reads as a
+        set of names. The tint is blended over the card surface at the same strength the rail uses, which is
+        what makes a card and the tinted shell recognisably the same choice.
+    -->
+    <!--  Fixed, so the shelf reads as a row of equal cards however many profiles there happen to be.  -->
     <Border
-        MinHeight="96"
-        Padding="16,12"
-        Background="{StaticResource CardBackgroundBrush}"
+        Width="250"
+        Height="210"
+        Background="{x:Bind Model.CardBackgroundBrush, Mode=OneWay}"
         BorderBrush="{x:Bind Model.CardBorderBrush, Mode=OneWay}"
         BorderThickness="1.5"
         CornerRadius="12">
-        <Grid RowSpacing="6">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+        <Grid>
+            <!--  The add card: a plus and nothing else, so it cannot be mistaken for a saved profile.  -->
+            <FontIcon
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                FontSize="44"
+                Foreground="{StaticResource TextSecondaryBrush}"
+                Glyph="&#xE710;"
+                Visibility="{x:Bind Model.AddContentVisibility, Mode=OneWay}" />
 
-            <Grid>
-                <material:MaterialIcon
-                    Width="20"
-                    Height="20"
-                    HorizontalAlignment="Left"
-                    Foreground="{StaticResource StatusInfoBrush}"
-                    Kind="{x:Bind Model.IconKind, Mode=OneWay}" />
-                <material:MaterialIcon
-                    Width="16"
-                    Height="16"
-                    HorizontalAlignment="Right"
-                    Foreground="{StaticResource BrandPrimaryBrush}"
-                    Kind="CheckCircle"
-                    Visibility="{x:Bind Model.CheckVisibility, Mode=OneWay}" />
-            </Grid>
+            <Grid Visibility="{x:Bind Model.ProfileContentVisibility, Mode=OneWay}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <!--  The name and, on one of them, the badge saying it is where the machine starts.  -->
-            <StackPanel
-                Grid.Row="1"
-                Orientation="Horizontal"
-                Spacing="8">
+                <!--  A bar of the raw colour along the top: the blend is deliberately subtle, so the card needs
+                      one place where the chosen colour is shown at full strength.  -->
+                <Border
+                    Height="4"
+                    VerticalAlignment="Top"
+                    Background="{x:Bind Model.AccentBarBrush, Mode=OneWay}"
+                    CornerRadius="12,12,0,0" />
+
+            <Grid Margin="14,14,14,0" ColumnSpacing="6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="16" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="16" />
+                </Grid.ColumnDefinitions>
+
                 <TextBlock
-                    VerticalAlignment="Center"
+                    Grid.Column="1"
+                    HorizontalAlignment="Center"
                     FontSize="14.5"
                     FontWeight="SemiBold"
                     Foreground="{StaticResource TextPrimaryBrush}"
-                    Text="{x:Bind Model.Name, Mode=OneWay}" />
-                <Border
-                    Height="18"
-                    Padding="7,0"
-                    VerticalAlignment="Center"
-                    Background="{StaticResource CardSecondaryBackgroundBrush}"
-                    CornerRadius="9"
-                    Visibility="{x:Bind Model.DefaultBadgeVisibility, Mode=OneWay}">
-                    <TextBlock
-                        VerticalAlignment="Center"
-                        FontSize="9.5"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource TextTertiaryBrush}"
-                        Text="DEFAULT" />
-                </Border>
-            </StackPanel>
+                    Text="{x:Bind Model.Name, Mode=OneWay}"
+                    TextAlignment="Center"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="NoWrap" />
 
-            <TextBlock
+                <!--  The tick sits beside the name rather than over the icon, which is the card's subject.  -->
+                <FontIcon
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    FontSize="14"
+                    Foreground="{StaticResource BrandPrimaryBrush}"
+                    Glyph="&#xE73E;"
+                    Visibility="{x:Bind Model.CheckVisibility, Mode=OneWay}" />
+            </Grid>
+
+            <SymbolIcon
+                Grid.Row="1"
+                Margin="0,10"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                RenderTransformOrigin="0.5,0.5"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Symbol="{x:Bind Model.IconSymbol, Mode=OneWay}">
+                <SymbolIcon.RenderTransform>
+                    <!--  SymbolIcon has no size of its own to set, so the glyph is scaled instead.  -->
+                    <ScaleTransform ScaleX="3.2" ScaleY="3.2" />
+                </SymbolIcon.RenderTransform>
+            </SymbolIcon>
+
+            <!--
+                Bottom right, and only icons: three labelled buttons would crowd a card this size, and each
+                one opens a dialog that says in full what it is about to do.
+            -->
+            <StackPanel
                 Grid.Row="2"
-                FontSize="12"
-                Foreground="{StaticResource TextSecondaryBrush}"
-                Text="{x:Bind Model.Description, Mode=OneWay}"
-                TextWrapping="WrapWholeWords" />
+                Margin="10,0,8,8"
+                HorizontalAlignment="Right"
+                Orientation="Horizontal"
+                Spacing="2">
+                <Button
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Command="{x:Bind Model.RenameCommand}"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    ToolTipService.ToolTip="Rename">
+                    <FontIcon FontSize="14" Glyph="&#xE8AC;" />
+                </Button>
+                <Button
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Command="{x:Bind Model.EditCommand}"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    ToolTipService.ToolTip="Edit">
+                    <FontIcon FontSize="14" Glyph="&#xE70F;" />
+                </Button>
+                <Button
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    Command="{x:Bind Model.DeleteCommand}"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    ToolTipService.ToolTip="Delete">
+                    <FontIcon FontSize="14" Glyph="&#xE74D;" />
+                </Button>
+            </StackPanel>
+            </Grid>
         </Grid>
     </Border>
 </UserControl>

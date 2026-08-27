@@ -20,10 +20,15 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
+        <!--
+            ShellSurfaceBrush, not SidebarBackgroundBrush: this and the navigation pane are the two surfaces
+            the active profile tints, and they meet at the top-left corner. Painting them from different
+            brushes left the rail tinting alone and a hard seam where the two met.
+        -->
         <Grid
             x:Name="TitleBarHost"
             Height="48"
-            Background="{StaticResource SidebarBackgroundBrush}">
+            Background="{StaticResource ShellSurfaceBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition x:Name="PaneToggleButtonColumn" Width="48" />
                 <ColumnDefinition x:Name="DraggableAreaColumn" Width="*" />
@@ -43,7 +48,7 @@
             Grid.Row="1"
             uen:Region.Attached="True"
             uen:Region.Navigator="ConfirmNav"
-            Background="{StaticResource SidebarBackgroundBrush}"
+            Background="{StaticResource ShellSurfaceBrush}"
             IsBackButtonVisible="Collapsed"
             IsBackEnabled="False"
             IsPaneToggleButtonVisible="False"

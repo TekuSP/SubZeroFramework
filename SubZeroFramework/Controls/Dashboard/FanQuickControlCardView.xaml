@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:lvc="using:LiveChartsCore.SkiaSharpView.WinUI"
     xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -64,8 +65,9 @@
                 </Border>
             </Grid>
 
-            <!--  Body: ring gauge | now driving + duty bar  -->
-            <Grid Grid.Row="1" ColumnSpacing="14">
+            <!--  Body: the history spans the whole card, with the gauge and readout riding on top of it.  -->
+            <Grid Grid.Row="1">
+                <Grid ColumnSpacing="14">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
@@ -106,11 +108,141 @@
                         Maximum="100"
                         Value="{x:Bind Model.DutyBarValue, Mode=OneWay}" />
                 </StackPanel>
+
+                </Grid>
+
+                <!--
+                    The same last-60-seconds history the fan detail editor shows, bound through the same
+                    FanCardModel — so the two pages cannot drift into drawing the same fan differently.
+
+                    Drawn UNDER the readout across the whole card, then covered on the left by a gradient in
+                    the card's own colour so the line dissolves before it reaches the name. WinUI has no
+                    OpacityMask worth using here, and painting the card colour over the line achieves the same
+                    thing against a flat surface — which this card is.
+                -->
+                <Grid
+                    Height="84"
+                    VerticalAlignment="Bottom"
+                    Canvas.ZIndex="-1">
+                    <lvc:CartesianChart
+                        AnimationsSpeed="0:0:0.4"
+                        AutoUpdateEnabled="True"
+                        Background="Transparent"
+                        IsHitTestVisible="False"
+                        TooltipPosition="Hidden">
+                        <lvc:CartesianChart.Series>
+                            <lvc:SeriesCollection>
+                                <!--  rev/s and Temp share one Y scale; plotted by sample index so the line always spans the width  -->
+                                <lvc:XamlLineSeries
+                                    Fill="{x:Null}"
+                                    GeometryFill="{x:Null}"
+                                    GeometryStroke="{x:Null}"
+                                    LineSmoothness="0.65"
+                                    Stroke="{x:Bind Model.Fan.HeaderRevStrokePaint, Mode=OneWay}"
+                                    Values="{x:Bind Model.Fan.RevPerSecondHistory, Mode=OneWay}" />
+                                <lvc:XamlLineSeries
+                                    Fill="{x:Null}"
+                                    GeometryFill="{x:Null}"
+                                    GeometryStroke="{x:Null}"
+                                    LineSmoothness="0.65"
+                                    Stroke="{x:Bind Model.Fan.HeaderTempStrokePaint, Mode=OneWay}"
+                                    Values="{x:Bind Model.Fan.TemperatureSparkline, Mode=OneWay}" />
+                            </lvc:SeriesCollection>
+                        </lvc:CartesianChart.Series>
+                        <!--  TextSize 0 and zero padding on both axes: hidden labels still RESERVE space, and
+                              a sparkline this small ends up drawing almost nothing without them.  -->
+                        <lvc:CartesianChart.XAxes>
+                            <lvc:AxesCollection>
+                                <lvc:XamlAxis
+                                    Padding="{lvc:Padding Value='0,0'}"
+                                    LabelsPaint="{x:Null}"
+                                    ShowSeparatorLines="False"
+                                    TextSize="0" />
+                            </lvc:AxesCollection>
+                        </lvc:CartesianChart.XAxes>
+                        <lvc:CartesianChart.YAxes>
+                            <lvc:AxesCollection>
+                                <!--  A deliberately UNITLESS shared scale carrying rev/s and canonical Celsius
+                                      together, purely so the two lines are comparable. Fixed bounds from the
+                                      model: an auto-ranging axis zoomed in and out on every poll.  -->
+                                <lvc:XamlAxis
+                                    Padding="{lvc:Padding Value='0,0'}"
+                                    LabelsPaint="{x:Null}"
+                                    MaxLimit="{x:Bind Model.Fan.HeaderSparklineAxisMaxLimit, Mode=OneWay}"
+                                    MinLimit="{x:Bind Model.Fan.HeaderSparklineAxisMinLimit, Mode=OneWay}"
+                                    ShowSeparatorLines="False"
+                                    TextSize="0" />
+                            </lvc:AxesCollection>
+                        </lvc:CartesianChart.YAxes>
+                    </lvc:CartesianChart>
+
+                    <Rectangle IsHitTestVisible="False">
+                        <Rectangle.Fill>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Offset="0.0" Color="#2E2E2E" />
+                                <GradientStop Offset="0.30" Color="#2E2E2E" />
+                                <GradientStop Offset="0.62" Color="#002E2E2E" />
+                            </LinearGradientBrush>
+                        </Rectangle.Fill>
+                    </Rectangle>
+                </Grid>
+
+                <!--  Legend, kept clear of the readout on the right where the line is actually visible.  -->
+                <StackPanel
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Orientation="Horizontal"
+                    Spacing="11">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="10"
+                        Foreground="{StaticResource TextSecondaryBrush}"
+                        Text="Last 60s" />
+                    <StackPanel
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="11">
+                            <StackPanel
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal"
+                                Spacing="4">
+                                <Border
+                                    Width="9"
+                                    Height="2"
+                                    VerticalAlignment="Center"
+                                    Background="{StaticResource BrandPrimaryBrush}"
+                                    CornerRadius="1" />
+                                <TextBlock
+                                    FontSize="10"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="rev/s" />
+                            </StackPanel>
+                            <StackPanel
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal"
+                                Spacing="4">
+                                <Border
+                                    Width="9"
+                                    Height="2"
+                                    VerticalAlignment="Center"
+                                    Background="#FFD9706A"
+                                    CornerRadius="1" />
+                                <TextBlock
+                                    FontSize="10"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="Temp" />
+                            </StackPanel>
+                    </StackPanel>
+                </StackPanel>
             </Grid>
 
             <!--
                 Read-only mode indicator: the fan is controlled from Fan Curve Profiles, so these segments
                 only REFLECT the active mode (including Curve, which the old buttons could clobber).
+
+                ALL FIVE modes, Adaptive included. With it missing, a fan running Adaptive lit none of the
+                segments at all, so the row read as though the fan were in no mode whatsoever — and Adaptive
+                is the mode a user is least able to infer from the numbers beside it.
             -->
             <Border
                 Grid.Row="2"
@@ -120,6 +252,7 @@
                 CornerRadius="8">
                 <Grid ColumnSpacing="2">
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
@@ -165,6 +298,17 @@
                             FontSize="12.5"
                             Foreground="{x:Bind Model.CurveSegmentForeground, Mode=OneWay}"
                             Text="Curve" />
+                    </Border>
+                    <Border
+                        Grid.Column="4"
+                        Background="{x:Bind Model.AdaptiveSegmentBackground, Mode=OneWay}"
+                        CornerRadius="6">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="12.5"
+                            Foreground="{x:Bind Model.AdaptiveSegmentForeground, Mode=OneWay}"
+                            Text="Adaptive" />
                     </Border>
                 </Grid>
             </Border>
