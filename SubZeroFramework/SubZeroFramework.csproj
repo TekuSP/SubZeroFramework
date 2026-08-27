@@ -18,6 +18,15 @@
              Directory.Build.props — invisible while both read 0.1.0, but every local build would keep
              stamping 0.1.0 after a bump. Let the SDK derive it. -->
         <ApplicationVersion>1</ApplicationVersion>
+        <!-- Uno.Sdk turns the assembly version attributes OFF (the package manifest owns the version in a
+             packaged app), which leaves an UNPACKAGED build reporting 0.0.0.0 and no informational version
+             at all. Settings > About then shows nothing real, and the update check has no version to
+             compare against GitHub, so it can only ever answer "couldn't check". Turned back on here: the
+             attributes are derived from the shared <Version> in Directory.Build.props, and CI overrides
+             both explicitly anyway. -->
+        <GenerateAssemblyVersionAttribute>true</GenerateAssemblyVersionAttribute>
+        <GenerateAssemblyFileVersionAttribute>true</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>true</GenerateAssemblyInformationalVersionAttribute>
         <!-- Package Publisher -->
         <ApplicationPublisher>Richard "TekuSP" Torhan</ApplicationPublisher>
         <!-- Package Description -->
@@ -83,6 +92,7 @@
         <PackageReference Include="IconifyBundle.SimpleIcons" GeneratePathProperty="true" />
         <PackageReference Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" />
         <PackageReference Include="Material.Icons" />
+        <PackageReference Include="Microsoft.Extensions.Http" />
         <PackageReference Include="System.Drawing.Common" />
         <PackageReference Include="System.Reactive" />
         <PackageReference Include="Tmds.DBus" />
