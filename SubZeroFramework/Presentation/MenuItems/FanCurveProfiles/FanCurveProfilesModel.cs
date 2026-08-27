@@ -498,7 +498,7 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             : stagedFanCount == 1 ? "1 fan has unsaved changes" : $"{stagedFanCount} fans have unsaved changes";
 
         ActionBarEditingHint = HasStagedSimpleMode && !HasStagedRunnableSimpleMode
-            ? "Adaptive needs a calibrated fan — run the learning test, or Discard to go back."
+            ? "Adaptive needs the learning test first — it is where this fan's sensors are chosen. Or Discard to go back."
             : "Staged changes — Preview them live, or Apply to commit.";
 
         ActiveProfileText = SelectedFan?.ControlState is { Mode: FanControlMode.CustomCurve } state
@@ -1709,26 +1709,16 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
             return false;
         }
 
-        // The sensors, from wherever the user actually chose them. The page's picker belongs to the curve
-        // editor and is empty for a fan that never had a curve — which is exactly the fan that was just
-        // CALIBRATED, whose wizard both preselected and measured a sensor set. Demanding the picker here
-        // told a user who had already chosen, twice, to go choose.
-        IReadOnlyCollection<int> sensors = sensorsOverride ?? SensorSelection.SelectedIndices();
-
-        if (sensors.Count == 0 && _calibratedSensorIndices.TryGetValue(fanIndex, out var calibratedSensors))
-        {
-            sensors = calibratedSensors;
-        }
+        // The sensors, from wherever the user actually chose them — resolved by the same helper the
+        // can-run gate uses, so the editor never offers an arm this then refuses.
+        var sensors = ResolveAdaptiveSensors(fanIndex, sensorsOverride);
 
         if (sensors.Count == 0)
         {
-            sensors = [.. _hub.GetFan(fanIndex)?.ControlState?.DrivingSensorIndices ?? []];
-        }
-
-        if (sensors.Count == 0)
-        {
+            // Reachable only through a path that skipped the gate (a linked group, a parked fan). The
+            // wizard is the ONLY place sensors can be chosen, so that is what this has to say.
             ReportStatus(
-                "Pick at least one driving temperature sensor before switching to Adaptive.",
+                "This fan has no driving temperature sensors yet. Run the learning test to choose them.",
                 Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning);
             return false;
         }
@@ -2549,8 +2539,43 @@ public partial class FanCurveProfilesModel : ObservableObject, IUnsavedChangesGu
     /// passes neither cannot be previewed or applied — the service would refuse the arm — so those commands
     /// grey out and the panel's Calibrate call to action is the only way forward. Discard stays available.
     /// </summary>
-    internal bool SelectedFanCanRunAdaptive => SelectedFan?.ControlState is { } controlState
-        && (controlState.Calibration.IsMeasured || controlState.AdaptiveLearning.HasLearned);
+    internal bool SelectedFanCanRunAdaptive => SelectedFan is { } selectedFan
+        && selectedFan.ControlState is { } controlState
+        && (controlState.Calibration.IsMeasured || controlState.AdaptiveLearning.HasLearned)
+        // Sensors too, not just a model. A fan can hold a calibration and NO driving sensors — a config
+        // written before the sensors were persisted restores exactly that — and the loop cannot run without
+        // them. Gating on the model alone offered Preview and Apply, which then died on the service's
+        // "pick at least one driving temperature sensor" refusal with no way to pick one.
+        && ResolveAdaptiveSensors(selectedFan.Snapshot.FanIndex).Count > 0;
+
+    /// <summary>
+    /// The sensors an Adaptive arm would hold for a fan, from wherever the user actually chose them.
+    /// </summary>
+    /// <remarks>
+    /// Shared by the arm and by the gate that decides whether arming is even offered, so the two cannot
+    /// disagree about whether this fan has sensors.
+    /// </remarks>
+    internal IReadOnlyCollection<int> ResolveAdaptiveSensors(int fanIndex, IReadOnlyCollection<int>? sensorsOverride = null)
+    {
+        // Deliberately NOT the page's sensor picker. That picker belongs to the CURVE editor, and letting it
+        // stand in here meant a fan could arm Adaptive on sensors the calibration never measured — while the
+        // editor told the user, correctly, that the wizard chooses them. The wizard is the only source:
+        // what it just measured (remembered for the "calibrate, then preview" hand-off), or what a previous
+        // run persisted onto the fan.
+        var sensors = sensorsOverride ?? [];
+
+        if (sensors.Count == 0 && _calibratedSensorIndices.TryGetValue(fanIndex, out var calibratedSensors))
+        {
+            sensors = calibratedSensors;
+        }
+
+        if (sensors.Count == 0)
+        {
+            sensors = [.. _hub.GetFan(fanIndex)?.ControlState?.DrivingSensorIndices ?? []];
+        }
+
+        return sensors;
+    }
 
     /// <summary>A staged simple mode the service would actually accept (an unrunnable Adaptive is not one).</summary>
     private bool HasStagedRunnableSimpleMode => HasStagedSimpleMode

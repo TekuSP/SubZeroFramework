@@ -964,9 +964,17 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         var learning = state?.AdaptiveLearning ?? AdaptiveLearningState.None;
         HasLearnedAnything = learning.HasLearned;
 
-        // Nothing measured and nothing learned: the fan is unknown, and Adaptive cannot run on it yet.
+        // Whether Adaptive can run here at all — asked of the page so this editor and the Preview/Apply
+        // buttons can never disagree about it.
+        //
+        // Deliberately NOT just "nothing measured and nothing learned". A fan can carry a model and no
+        // DRIVING SENSORS (a config written before sensors were persisted restores exactly that), and the
+        // loop cannot run without them. The wizard is the only place sensors can be chosen, so this editor —
+        // which states the sensors but never offers to change them — is a dead end in that state: it showed
+        // a tuning page for a loop that could not start, and Apply died on the service's refusal. The
+        // consent panel and its Calibrate button are the only honest thing to show.
         var calibration = state?.Calibration ?? FanCalibrationSnapshot.None;
-        IsAwaitingFirstLearning = !calibration.IsMeasured && !learning.HasLearned;
+        IsAwaitingFirstLearning = !Page.SelectedFanCanRunAdaptive;
 
         DeadTimeSeconds = calibration.DeadTimeSeconds > 0d
             ? calibration.DeadTimeSeconds
