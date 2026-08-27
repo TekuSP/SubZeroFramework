@@ -408,10 +408,18 @@
                     Text="{x:Bind ViewModel.ConfidenceBody, Mode=OneWay}"
                     TextWrapping="WrapWholeWords" />
 
+                <!--
+                    Two per row, so each tile is half the card wide. Four narrow tiles fitted the short
+                    values (a count, an RPM) and clipped the long one — the gain-curve fact is a phrase, not
+                    a number, and TextWrapping does not save it: UniformGridLayout measures its children
+                    unconstrained, so the text reports its full width and the CELL does the clipping, with
+                    no wrap ever triggered. Width is the only thing that actually fixes it.
+                -->
                 <ItemsRepeater ItemsSource="{x:Bind ViewModel.KnownFacts, Mode=OneWay}">
                     <ItemsRepeater.Layout>
                         <UniformGridLayout
                             ItemsStretch="Fill"
+                            MaximumRowsOrColumns="2"
                             MinColumnSpacing="10"
                             MinItemWidth="170"
                             MinRowSpacing="10" />
