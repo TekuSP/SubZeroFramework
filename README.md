@@ -7,16 +7,48 @@ It ships as two pieces. A **background service** owns privileged embedded-contro
 hardware polling and fan writes — and an **unprivileged desktop app** talks to it over a local-only
 socket. Nothing leaves your machine; there is no telemetry, no account, and no network service.
 
-> **0.1.0 is the first public release.** It is usable day to day, but see
-> [Known limitations](#known-limitations-in-010) before you install — some surfaces are deliberately
-> switched off in this release.
+> **0.2.0 is the current release.** See [What's new](#whats-new-in-020) for this release, and
+> [Known limitations](#known-limitations-in-020) before you install — a few surfaces are still
+> deliberately switched off.
 
-<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/1af5fc42-ca90-44a9-acaa-32a6a9103a3e" />
-<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/e1d11b50-3ff3-4063-b878-30fd47088f02" />
-<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/7c880731-2de0-47bd-8c74-0f874463f8f8" />
-<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/07d03fd3-c52c-4dfa-944d-1a2f919b11fb" />
-<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/b5845e83-a310-4969-92d9-fe2c1adae289" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/d145deca-0df3-401c-84b1-b266103cfdde" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/065230aa-79d7-43a3-9c88-7f47ec14b220" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/6b972219-d0ec-42ab-a922-928fb13f8fbc" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/981e8900-fbbd-4fdf-b7de-cddceaaa82e0" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/9d613638-d4d4-4936-8562-eecd700955d6" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/b9d2040b-cd81-4ed9-aea0-be9d76a67b2e" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/bcbf05f7-dae9-4b75-ae7c-1eef8169ef06" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/5552f5db-fe2f-41de-ada3-9f3fc4fc5a4a" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/51feb23d-6a12-48aa-b420-0df7661aa3a1" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/71d4bace-be6b-4f27-9bd1-b60bbb275cef" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/5df74361-c6f8-4910-aff6-428fad71174e" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/1adb60ce-1261-4a4d-83d1-f905b68546c8" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/31dd40f4-9e7c-4996-ad99-24b888657190" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/c9bf4063-f6f1-4f60-9217-4e6a4b8f2929" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/cf1ea823-2b0e-47b1-b8b8-7bceb60b204b" />
 
+
+## What's new in 0.2.0
+
+**Cooling profiles.** A profile is a named setup covering every fan — switch between them from a shelf of
+cards on the Dashboard, and the one you are on tints the title bar and the side bar in a colour you pick,
+so the machine's cooling mood is visible from any page. The service owns the library, so a profile saved
+in one window shows up in another, and the selection survives a restart. Profiles carry their own curve
+points rather than pointing at a slot, so editing a fan's saved curve cannot silently change what a
+profile means.
+
+**Adaptive fan control.** A new per-fan mode that measures your machine and then holds a temperature
+target rather than following a fixed curve. It calibrates the fan first — learning its minimum spin
+speed, how much cooling each percent of duty actually buys, and how long the heat takes to respond — and
+keeps refining that model while it runs, so it adapts to a repasted heatsink or a dusty intake instead of
+needing a curve redrawn by hand.
+
+**Update notifications.** The app checks GitHub Releases and tells you when a newer version exists, with
+a button to the release page and a "Check for updates" item in the side bar. It never downloads or
+installs anything by itself, and the automatic check can be switched off in Settings.
+
+**Security and dependency updates.** The full NuGet dependency set was moved forward, picking up upstream
+security fixes along with it.
 
 ## Requirements
 
@@ -68,17 +100,23 @@ opt-out.
 To enable it: **Settings → Service → runtime configuration**, turn on fan-control commands, and apply.
 The app tells you when a command was refused for this reason.
 
-Fan control itself lives on the **Fan Curve Profiles** page — Auto, Manual, Max, and Custom curves, with
-staged changes you preview before applying.
+Per-fan control lives on the **Fan Curve Profiles** page — Auto, Manual, Max, Custom curves and Adaptive,
+with staged changes you preview before applying. Adaptive asks you to run a calibration first, because it
+needs to measure the fan before it can hold a target with it.
 
-## Known limitations in 0.1.0
+Whole-machine switching lives on the **Dashboard**, where cooling profiles apply a saved setup to every
+fan at once.
 
-These are intentional for the first release, not bugs:
+## Known limitations in 0.2.0
+
+These are intentional, not bugs:
 
 - **Modules** — the tab is disabled. It depends on EC slot reporting that is not complete yet.
-- **Cooling profile presets** on the Dashboard render inert and read *Coming soon*.
-- **The Dashboard is read-only.** All fan control is on the Fan Curve Profiles page, on purpose — one
-  surface owns actuation.
+- **Per-fan mode changes are not on the Dashboard.** Its mode row reports what each fan is doing but does
+  not change it; one surface owns per-fan actuation, and that is the Fan Curve Profiles page. The
+  Dashboard does apply cooling profiles, which act on every fan at once.
+- **A profile's fan settings are fixed when it is created.** Editing one changes its name, colour and
+  icon. To change what it does, select it, adjust the fans, and save those changes back into it.
 - **Installers are unsigned** (see above).
 - **Caller-identity validation is not enforced** on the local IPC socket. The transport is a local-only
   socket with path, permission and symlink checks, and fan-control commands are refused unless you
@@ -125,7 +163,7 @@ where it ships one, a canonical SPDX text where the package declares an identifi
 
 - [CHANGELOG.md](CHANGELOG.md) — what shipped in each release
 - [CONTRIBUTING.md](CONTRIBUTING.md) — building, the zero-warning bar, and hardware-safety rules
-- [SECURITY.md](SECURITY.md) — reporting a vulnerability, and the limitations known in 0.1.0
+- [SECURITY.md](SECURITY.md) — reporting a vulnerability, and the known limitations of the shipped posture
 - [docs/ReleasePlan.md](docs/ReleasePlan.md) — release scope, gating decisions, and outstanding work
 - [docs/Architecture.md](docs/Architecture.md) — how the client and service fit together
 - [SubZeroFramework/Docs/](SubZeroFramework/Docs/) — IPC authorization posture and the fan-safety checklist

@@ -2,7 +2,96 @@
 
 All notable changes to this repository should be documented in this file.
 
-## [0.1.5] - Unreleased
+## [0.2.0] - Unreleased
+
+### Added
+
+- **Cooling profiles.** A profile is a named setup covering every fan, switched from a shelf of cards on the
+  Dashboard. Applying one puts every fan into the state it describes in a single action, and the profile you
+  are on tints the title bar and the navigation rail in a colour you choose, so the machine's cooling mood is
+  visible from any page rather than only from the page that set it.
+
+  The library lives in the **service**, alongside the fan state it describes, and streams to every connected
+  client — a profile saved in one window appears in another without either side polling, and the selection
+  survives a restart. What the fans are actually *doing* remains the fan state store's answer alone: the
+  service stores a library and a label, never a competing command, and the remembered selection is a name for
+  the current setup rather than an instruction replayed at startup. Whether the fans still match the profile
+  is computed on the client by comparing against live state, which is what the Modified prompt reports — so
+  changing a fan by hand stops the app claiming a profile is in effect at exactly the moment it stops being
+  true.
+
+  A profile carries its own **curve points** rather than a reference to a numbered slot, so overwriting a
+  fan's saved curve cannot silently change what an unrelated profile means. Fans start on Auto when a profile
+  is created; to make it anything else, select it, change the fans, and save those changes back into it.
+  Renaming, editing appearance and deleting are on the cards themselves, and the library is never empty —
+  deleting the last profile restores the Default baseline and applies it.
+
+- **Adaptive fan control.** A per-fan mode that holds a temperature target instead of following a fixed
+  curve. It calibrates the fan first — finding the duty at which the blades actually start turning, how much
+  cooling each additional percent buys, and how long the heat takes to answer — and keeps refining that model
+  while it runs, so it follows a repasted heatsink or a dust-blocked intake rather than needing a curve
+  redrawn by hand. Calibration cools the machine down between its measurement phases and holds the sibling
+  fan at a floor while it works, so measuring one fan does not cook the component the other one is cooling.
+
+- **Update notifications.** The app checks GitHub Releases and says when a newer version exists, naming the
+  version and offering a button to the release page, with a "Check for updates" item in the navigation rail
+  that turns amber while an update is outstanding. It never downloads or installs anything by itself. The
+  automatic check is once a day, uses conditional requests so a repeat check costs nothing, and can be turned
+  off in Settings; pressing the button always checks regardless.
+
+- **The Dashboard's fan cards show the last 60 seconds.** The same fan-speed and driving-temperature history
+  the fan detail editor draws, spanning the card and fading out under the readout. Both lines are resampled
+  onto one shared timeline, so the two describe the same instants rather than one running out of points
+  early.
+
+- **Applying a profile can raise a desktop notification**, naming what each fan was set to, when status
+  notifications are enabled.
+
+### Changed
+
+- **The mode row on the Dashboard reports all five modes.** Adaptive had no segment, so a fan running it lit
+  none of the four and read as being in no mode at all — the one state hardest to infer from the numbers
+  beside it.
+
+- **"Reset fan settings to factory defaults" now means factory new.** Alongside returning every fan to
+  automatic control it clears the cooling profile library, display units, and the startup, alert and
+  update-check settings, then re-seeds and selects the Default profile. Previously it left everything outside
+  fan state untouched, which made "factory defaults" a half-wipe.
+
+- **Dependency and security updates.** The full NuGet dependency set was moved forward, picking up upstream
+  security fixes along with it.
+
+## [0.1.7] - 2026-08-23 (released as v0.1.7)
+
+### Fixed
+
+- **Five findings from a private security advisory are closed**, and the one that remains open is documented
+  rather than quietly carried. See [SECURITY.md](SECURITY.md) for the shipped posture.
+
+- **The Linux service could not persist its own settings.** `ProtectSystem=full` made `/etc` read-only for
+  the unit, so every configuration write failed. Fixes #72.
+
+- **A single failing hardware probe no longer skips the rest.** Each static inventory probe is isolated, so
+  one unreadable subsystem cannot blank out the others.
+
+- **Linux kernel device-name resolution is more robust.**
+
+### Added
+
+- **Linux: physical drives** enumerated from `/sys/block`, and **memory modules** from SMBIOS type 17.
+- **Linux: the graphics driver version** read from the DRM `VERSION` ioctl.
+
+## [0.1.6] - 2026-08-06 (released as v0.1.6)
+
+### Fixed
+
+- **Fedora package dependencies.**
+
+### Changed
+
+- Dependency updates, including Uno.Sdk.
+
+## [0.1.5] - 2026-07-27 (released as v0.1.5)
 
 ### Added
 
