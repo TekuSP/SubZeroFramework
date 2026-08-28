@@ -1,0 +1,34 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+
+
+    {
+      "label": "build-desktop",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "build",
+        "${workspaceFolder}/MyExtensionsApp.1/MyExtensionsApp.1.csproj",
+        "/property:GenerateFullPaths=true",
+        "/property:TargetFramework=$baseTargetFramework$-desktop",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "publish-desktop",
+      "command": "dotnet",
+      "type": "process",
+      "args": [
+        "publish",
+        "${workspaceFolder}/MyExtensionsApp.1/MyExtensionsApp.1.csproj",
+        "/property:GenerateFullPaths=true",
+        "/property:TargetFramework=$baseTargetFramework$-desktop",
+        "/consoleloggerparameters:NoSummary"
+      ],
+      "problemMatcher": "$msCompile"
+    }
+
+  ]
+}

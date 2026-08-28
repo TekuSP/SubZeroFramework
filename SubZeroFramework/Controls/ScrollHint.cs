@@ -56,6 +56,23 @@ public static class ScrollHint
 
     public static void SetIsEnabled(DependencyObject element, bool value) => element.SetValue(IsEnabledProperty, value);
 
+    /// <summary>
+    /// Marks an element as already decorated.
+    /// </summary>
+    /// <remarks>
+    /// The wrapper-name check alone is no longer enough: the overlay path below leaves the element where it
+    /// is, so there is no wrapper to recognise it by.
+    /// </remarks>
+    private static readonly DependencyProperty IsAttachedProperty = DependencyProperty.RegisterAttached(
+        "IsAttached",
+        typeof(bool),
+        typeof(ScrollHint),
+        new PropertyMetadata(false));
+
+    private static bool GetIsAttached(DependencyObject element) => (bool)element.GetValue(IsAttachedProperty);
+
+    private static void SetIsAttached(DependencyObject element, bool value) => element.SetValue(IsAttachedProperty, value);
+
     private static void OnIsEnabledChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is not FrameworkElement element)
@@ -89,8 +106,8 @@ public static class ScrollHint
 
     private static void Attach(FrameworkElement element)
     {
-        // Loaded fires again on every re-parent (navigation caches pages), so wrapping must be idempotent.
-        if (element.Parent is Grid { Name: WrapperName })
+        // Loaded fires again on every re-parent (navigation caches pages), so attaching must be idempotent.
+        if (GetIsAttached(element) || element.Parent is Grid { Name: WrapperName })
         {
             return;
         }
@@ -106,10 +123,14 @@ public static class ScrollHint
         var upChevron = CreateChevron(MaterialIconKind.ChevronUp, VerticalAlignment.Top);
         var downChevron = CreateChevron(MaterialIconKind.ChevronDown, VerticalAlignment.Bottom);
 
-        if (!TryWrap(element, upChevron, downChevron))
+        // OVERLAY FIRST, wrap only as a fallback. See TryOverlayInGrid for why moving the element is the
+        // last resort rather than the default.
+        if (!TryOverlayInGrid(element, upChevron, downChevron) && !TryWrap(element, upChevron, downChevron))
         {
             return;
         }
+
+        SetIsAttached(element, true);
 
         void Update()
         {
@@ -178,9 +199,61 @@ public static class ScrollHint
     }
 
     /// <summary>
+    /// Adds the chevrons as SIBLINGS in the element's own Grid cell, leaving the element where it is.
+    /// </summary>
+    /// <returns>False when the parent is not a Grid, so there is no cell to share.</returns>
+    /// <remarks>
+    /// <para>
+    /// Preferred over wrapping wherever the parent is a Grid, because wrapping REPARENTS the element — and a
+    /// reparent unloads and reloads the entire subtree. A LiveCharts chart does not survive that: its
+    /// SkiaSharp surface is torn down and never re-established, so the chart goes on measuring, laying out
+    /// and calling its axis formatters while painting nothing at all.
+    /// </para>
+    /// <para>
+    /// That is not hypothetical. It is what blanked the Temperature comparison chart — data, axes, limits,
+    /// bindings and threading all verified healthy, and a hardcoded six-point series in the same card was
+    /// equally invisible. Any scroller containing a chart was exposed to it.
+    /// </para>
+    /// </remarks>
+    private static bool TryOverlayInGrid(FrameworkElement element, FrameworkElement upChevron, FrameworkElement downChevron)
+    {
+        if (element.Parent is not Grid grid)
+        {
+            return false;
+        }
+
+        foreach (var chevron in (FrameworkElement[])[upChevron, downChevron])
+        {
+            // The element's own cell, so the chevrons sit OVER it rather than beside it.
+            Grid.SetRow(chevron, Grid.GetRow(element));
+            Grid.SetColumn(chevron, Grid.GetColumn(element));
+            Grid.SetRowSpan(chevron, Grid.GetRowSpan(element));
+            Grid.SetColumnSpan(chevron, Grid.GetColumnSpan(element));
+
+            // And its margin, added to the chevron's own inset — otherwise a scroller that is inset from its
+            // cell gets chevrons floating outside its edges.
+            chevron.Margin = new Thickness(
+                element.Margin.Left + chevron.Margin.Left,
+                element.Margin.Top + chevron.Margin.Top,
+                element.Margin.Right + chevron.Margin.Right,
+                element.Margin.Bottom + chevron.Margin.Bottom);
+
+            // Added AFTER the element, so they paint on top of it.
+            grid.Children.Add(chevron);
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Puts a Grid where the element was, containing the element and the chevron above it.
     /// </summary>
     /// <returns>False when the parent is a shape this cannot rearrange without risking the layout.</returns>
+    /// <remarks>
+    /// The FALLBACK, for parents that hold a single child and therefore offer no cell to share. This moves
+    /// the element, so anything in the subtree that cannot survive an unload — a LiveCharts chart, most
+    /// notably — will stop rendering. See <see cref="TryOverlayInGrid"/>.
+    /// </remarks>
     private static bool TryWrap(FrameworkElement scrollViewer, UIElement upChevron, UIElement downChevron)
     {
         var wrapper = new Grid { Name = WrapperName };
@@ -270,7 +343,7 @@ public static class ScrollHint
     /// One chevron: centred against the given edge, muted, and transparent to the pointer so it can never
     /// swallow a click meant for the content underneath it.
     /// </summary>
-    private static UIElement CreateChevron(MaterialIconKind kind, VerticalAlignment alignment)
+    private static Border CreateChevron(MaterialIconKind kind, VerticalAlignment alignment)
     {
         var icon = new MaterialIcon
         {

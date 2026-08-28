@@ -32,8 +32,16 @@ namespace SubZeroFramework.Presentation.MenuItems.Dashboard;
 /// </remarks>
 public partial class DashboardModel
 {
-    /// <summary>How much history to keep. The chart is labelled "Last 60s", so this is that.</summary>
-    private static readonly TimeSpan FanHistoryWindow = TimeSpan.FromSeconds(60);
+    /// <summary>
+    /// How much history to ask the store for.
+    /// </summary>
+    /// <remarks>
+    /// The SHARED constant, not a window of this page's own. EnsureFanHistory and EnsureTemperatureHistory
+    /// are first-come-wins — the first caller's range is the one every later caller silently gets — and the
+    /// Dashboard is the landing page, so a bespoke window here would quietly become the window the Fan
+    /// Control page ends up with too.
+    /// </remarks>
+    private static readonly TimeSpan FanHistoryWindow = PresentationDefaults.RecentTelemetryHistoryWindow;
 
     /// <summary>
     /// How often the temperature history is recomputed, at most.
