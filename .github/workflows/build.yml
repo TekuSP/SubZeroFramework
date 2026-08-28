@@ -21,7 +21,7 @@ on:
 
 env:
   DOTNET_VERSION: '10.0.x'
-  VERSION_PREFIX: '0.1'
+  VERSION_PREFIX: '0.2'
   WINUI_PUBLISH_PROFILE: './SubZeroFramework/Properties/PublishProfiles/'
   SOLUTION_NAME: './SubZeroFramework/SubZeroFramework.csproj'
   # SOLUTION_NAME is the APP HEAD, which does not reference the tests, so the test project needs its own
