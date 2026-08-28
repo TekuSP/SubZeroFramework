@@ -25,6 +25,7 @@ socket. Nothing leaves your machine; there is no telemetry, no account, and no n
 <img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/1adb60ce-1261-4a4d-83d1-f905b68546c8" />
 <img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/31dd40f4-9e7c-4996-ad99-24b888657190" />
 <img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/c9bf4063-f6f1-4f60-9217-4e6a4b8f2929" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/cf1ea823-2b0e-47b1-b8b8-7bceb60b204b" />
 
 
 ## What's new in 0.2.0
