@@ -11,11 +11,20 @@ socket. Nothing leaves your machine; there is no telemetry, no account, and no n
 > [Known limitations](#known-limitations-in-020) before you install — a few surfaces are still
 > deliberately switched off.
 
-<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/1af5fc42-ca90-44a9-acaa-32a6a9103a3e" />
-<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/e1d11b50-3ff3-4063-b878-30fd47088f02" />
-<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/7c880731-2de0-47bd-8c74-0f874463f8f8" />
-<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/07d03fd3-c52c-4dfa-944d-1a2f919b11fb" />
-<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/b5845e83-a310-4969-92d9-fe2c1adae289" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/d145deca-0df3-401c-84b1-b266103cfdde" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/065230aa-79d7-43a3-9c88-7f47ec14b220" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/6b972219-d0ec-42ab-a922-928fb13f8fbc" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/981e8900-fbbd-4fdf-b7de-cddceaaa82e0" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/9d613638-d4d4-4936-8562-eecd700955d6" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/b9d2040b-cd81-4ed9-aea0-be9d76a67b2e" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/bcbf05f7-dae9-4b75-ae7c-1eef8169ef06" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/5552f5db-fe2f-41de-ada3-9f3fc4fc5a4a" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/51feb23d-6a12-48aa-b420-0df7661aa3a1" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/71d4bace-be6b-4f27-9bd1-b60bbb275cef" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/5df74361-c6f8-4910-aff6-428fad71174e" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/1adb60ce-1261-4a4d-83d1-f905b68546c8" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/31dd40f4-9e7c-4996-ad99-24b888657190" />
+<img width="2560" height="1528" alt="image" src="https://github.com/user-attachments/assets/c9bf4063-f6f1-4f60-9217-4e6a4b8f2929" />
 
 
 ## What's new in 0.2.0
