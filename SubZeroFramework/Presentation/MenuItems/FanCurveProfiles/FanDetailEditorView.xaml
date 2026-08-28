@@ -442,6 +442,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="3">
                             <ToggleButton
                                 Padding="14,6"
+                                controls:SegmentedSelection.KeepsSelection="True"
                                 Click="ModeSegment_Click"
                                 CornerRadius="6"
                                 IsChecked="{x:Bind ViewModel.IsAutoModeChecked, Mode=OneWay}"
@@ -458,6 +459,7 @@
                             </ToggleButton>
                             <ToggleButton
                                 Padding="14,6"
+                                controls:SegmentedSelection.KeepsSelection="True"
                                 Click="ModeSegment_Click"
                                 CornerRadius="6"
                                 IsChecked="{x:Bind ViewModel.IsManualModeChecked, Mode=OneWay}"
@@ -474,6 +476,7 @@
                             </ToggleButton>
                             <ToggleButton
                                 Padding="14,6"
+                                controls:SegmentedSelection.KeepsSelection="True"
                                 Click="ModeSegment_Click"
                                 CornerRadius="6"
                                 IsChecked="{x:Bind ViewModel.IsCustomModeChecked, Mode=OneWay}"
@@ -498,6 +501,7 @@
                             -->
                             <ToggleButton
                                 Padding="14,6"
+                                controls:SegmentedSelection.KeepsSelection="True"
                                 Click="ModeSegment_Click"
                                 CornerRadius="6"
                                 IsChecked="{x:Bind ViewModel.IsAdaptiveModeChecked, Mode=OneWay}"
@@ -514,6 +518,7 @@
                             </ToggleButton>
                             <ToggleButton
                                 Padding="14,6"
+                                controls:SegmentedSelection.KeepsSelection="True"
                                 Click="ModeSegment_Click"
                                 CornerRadius="6"
                                 IsChecked="{x:Bind ViewModel.IsMaxModeChecked, Mode=OneWay}"

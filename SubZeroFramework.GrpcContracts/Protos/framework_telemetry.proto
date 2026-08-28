@@ -1305,6 +1305,10 @@ message CoolingProfileFanEntryReply {
   // silently change what a saved profile means.
   repeated FanCurvePointReply curve_points = 5;
   TemperatureAggregationModeValue aggregation = 6;
+  // Which sensors drive the fan, for Adaptive and CustomCurve. Carried by the profile because Auto and Max
+  // clear a fan's own sensor list, so a fan cannot be relied on to still have them. Empty means "keep
+  // whatever the fan already has".
+  repeated int32 driving_sensor_indices = 7;
 }
 
 message CoolingProfileReply {

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 
 using SubZeroFramework.Controls.FanCurveProfiles.Models;
 using SubZeroFramework.Controls.FanCurveProfiles.Models.Modes;
+using SubZeroFramework.Presentation.MenuItems.FanCurveProfiles.Modes;
 
 using Uno.Extensions.Navigation;
 
@@ -20,6 +21,7 @@ public sealed partial class FanDetailEditorView : UserControl, INotifyPropertyCh
 {
     private int _lastNavigatedIndex = -1;
     private bool _syncQueued;
+    private bool _navigating;
 
     public FanDetailEditorView()
     {
@@ -31,6 +33,12 @@ public sealed partial class FanDetailEditorView : UserControl, INotifyPropertyCh
         // instead asks an unattached region for its navigator over and over, which logs
         // "Unable to find service provider for root navigator" on every attempt.
         ModeRegionHost.Loaded += (_, _) => QueueModeSync();
+
+        // Detaching discards whatever the region was showing, and re-attaching puts it back on its DEFAULT
+        // route — which is Auto. Anything we remember navigating to before that point describes a view that
+        // no longer exists, so forget it here or the guard in SyncModeRegion will suppress the very
+        // navigation that would put the body back on the selected mode.
+        ModeRegionHost.Unloaded += (_, _) => _lastNavigatedIndex = -1;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -69,6 +77,8 @@ public sealed partial class FanDetailEditorView : UserControl, INotifyPropertyCh
 
     private void ModeSegment_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
     {
+        // Deselection is prevented by SegmentedSelection.KeepsSelection on the buttons themselves, so this
+        // only has to record the choice.
         if (sender is Microsoft.UI.Xaml.FrameworkElement { Tag: string tag }
             && int.TryParse(tag, System.Globalization.CultureInfo.InvariantCulture, out var index))
         {
@@ -104,13 +114,13 @@ public sealed partial class FanDetailEditorView : UserControl, INotifyPropertyCh
 
     private void SyncModeRegion()
     {
-        if (ViewModel is null)
+        if (ViewModel is null || _navigating)
         {
             return;
         }
 
         var index = ViewModel.SelectedModeIndex;
-        if (index == _lastNavigatedIndex)
+        if (index == _lastNavigatedIndex && !ShowsWrongModeView(index))
         {
             return;
         }
@@ -120,24 +130,64 @@ public sealed partial class FanDetailEditorView : UserControl, INotifyPropertyCh
             // Not ready yet. Do NOT poll: ModeRegionHost.Loaded re-queues this once the region is attached,
             // which is what fixes the "opened on Auto for a curve-driven fan" case without asking an
             // unattached region for a navigator on every UI tick.
+            _lastNavigatedIndex = -1;
             return;
         }
 
-        _lastNavigatedIndex = index;
         _ = NavigateAsync(navigator, index);
     }
 
     private async Task NavigateAsync(INavigator navigator, int index)
     {
-        // The mode VMs bind to the page-driven coordinator via FanCoordinatorAccessor (published in the
-        // coordinator's ctor), so no navigation data is needed here.
-        _ = index switch
+        _navigating = true;
+        try
         {
-            1 => await navigator.NavigateViewModelAsync<FanManualModeModel>(this),
-            2 => await navigator.NavigateViewModelAsync<FanCustomCurveModel>(this),
-            3 => await navigator.NavigateViewModelAsync<FanMaxModeModel>(this),
-            4 => await navigator.NavigateViewModelAsync<FanAdaptiveModeModel>(this),
-            _ => await navigator.NavigateViewModelAsync<FanAutoModeModel>(this),
-        };
+            // The mode VMs bind to the page-driven coordinator via FanCoordinatorAccessor (published in the
+            // coordinator's ctor), so no navigation data is needed here.
+            _ = index switch
+            {
+                1 => await navigator.NavigateViewModelAsync<FanManualModeModel>(this),
+                2 => await navigator.NavigateViewModelAsync<FanCustomCurveModel>(this),
+                3 => await navigator.NavigateViewModelAsync<FanMaxModeModel>(this),
+                4 => await navigator.NavigateViewModelAsync<FanAdaptiveModeModel>(this),
+                _ => await navigator.NavigateViewModelAsync<FanAutoModeModel>(this),
+            };
+        }
+        finally
+        {
+            _navigating = false;
+        }
+
+        // Recorded AFTER the await, and only if it took. This used to be assigned before navigating, which
+        // made it a record of what was ASKED FOR — and nothing ever cleared it, so one navigation that did
+        // not land desynchronised the body from the mode selector for the life of this view.
+        _lastNavigatedIndex = ShowsWrongModeView(index) ? -1 : index;
+
+        // The mode can move while this awaits (telemetry, or a profile being applied).
+        if (ViewModel is not null && ViewModel.SelectedModeIndex != _lastNavigatedIndex)
+        {
+            QueueModeSync();
+        }
     }
+
+    /// <summary>
+    /// True only when the region is DEMONSTRABLY showing the wrong mode — its content is one of the mode
+    /// views and it is not the one <paramref name="index"/> asks for.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately one-sided. Content the region hosts in some wrapper is not something this view models, so
+    /// it is left alone rather than treated as a mismatch that would re-navigate on every telemetry tick.
+    /// </remarks>
+    private bool ShowsWrongModeView(int index) => ModeRegionHost.Content is
+        FanAutoModeView or FanManualModeView or FanCustomCurveView or FanMaxModeView or FanAdaptiveModeView
+        && ModeRegionHost.Content.GetType() != ModeViewTypeFor(index);
+
+    private static Type ModeViewTypeFor(int index) => index switch
+    {
+        1 => typeof(FanManualModeView),
+        2 => typeof(FanCustomCurveView),
+        3 => typeof(FanMaxModeView),
+        4 => typeof(FanAdaptiveModeView),
+        _ => typeof(FanAutoModeView),
+    };
 }

@@ -120,7 +120,12 @@ public partial class MainModel : ObservableObject, IDisposable
         if (healthChanged && SelectedItem is NavigationViewItemBase bs2 && bs2.Tag?.ToString() == "WarningIssues")
         {
             navigator.NavigateRouteAsync(this, "/Main/Dashboard");
-            _ = ShowUpdateNoticeAsync(force: true);
+
+            // NOT forced. This fires when the service comes back and the app leaves the recovery screen —
+            // which on a normal cold start is simply "the app finished starting", not a request. Forcing it
+            // made the check speak on every launch, including to say "you're up to date", which is exactly
+            // what the silent startup path exists to avoid. Only the rail button asks.
+            _ = ShowUpdateNoticeAsync(force: false);
         }
 
         //For now enable all capabilities

@@ -105,29 +105,6 @@
                                 Foreground="{StaticResource TextPrimaryBrush}"
                                 Text="Profiles" />
 
-                            <!--  The prompt to save: without it, tuning a fan just blanks the row.  -->
-                            <Border
-                                Height="24"
-                                Padding="11,0"
-                                VerticalAlignment="Center"
-                                Background="{StaticResource CardSecondaryBackgroundBrush}"
-                                CornerRadius="12"
-                                Visibility="{x:Bind ViewModel.IsModified, Mode=OneWay}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <material:MaterialIcon
-                                        Width="13"
-                                        Height="13"
-                                        VerticalAlignment="Center"
-                                        Foreground="{StaticResource StatusWarningBrush}"
-                                        Kind="CircleEditOutline" />
-                                    <TextBlock
-                                        VerticalAlignment="Center"
-                                        FontSize="11.5"
-                                        FontWeight="SemiBold"
-                                        Foreground="{StaticResource StatusWarningBrush}"
-                                        Text="Modified" />
-                                </StackPanel>
-                            </Border>
                         </controls:AutoWrapPanel>
 
                         <StackPanel
@@ -145,22 +122,11 @@
                             </StackPanel.Resources>
 
                             <!--
-                                Only the drift notice lives here now. Creating, renaming, editing and
-                                deleting all happen on the cards themselves, so the shelf is the whole
-                                interface and there is no second place to learn.
+                                Nothing here. Creating, renaming, editing and deleting live on the cards, and
+                                the selected profile follows the fans on its own — the fan editor will not let
+                                a change reach this page without having been applied first, so there was never
+                                anything for a save button to protect.
                             -->
-                            <HyperlinkButton
-                                Padding="0"
-                                Click="OnSaveAsProfileClick"
-                                Visibility="{x:Bind ViewModel.IsModified, Mode=OneWay}">
-                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                    <FontIcon
-                                        VerticalAlignment="Center"
-                                        FontSize="13"
-                                        Glyph="&#xE74E;" />
-                                    <TextBlock FontSize="12" Text="Save changes to this profile" />
-                                </StackPanel>
-                            </HyperlinkButton>
                         </StackPanel>
                     </Grid>
 

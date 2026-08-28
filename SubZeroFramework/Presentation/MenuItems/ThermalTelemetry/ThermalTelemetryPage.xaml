@@ -62,6 +62,7 @@
                             <StackPanel Orientation="Horizontal" Spacing="3">
                                 <ToggleButton
                                     Padding="14,6"
+                                    controls:SegmentedSelection.KeepsSelection="True"
                                     Click="HistorySegment_Click"
                                     CornerRadius="6"
                                     IsChecked="{x:Bind ViewModel.IsHistoryWindow0Selected, Mode=OneWay}"
@@ -70,6 +71,7 @@
                                 </ToggleButton>
                                 <ToggleButton
                                     Padding="14,6"
+                                    controls:SegmentedSelection.KeepsSelection="True"
                                     Click="HistorySegment_Click"
                                     CornerRadius="6"
                                     IsChecked="{x:Bind ViewModel.IsHistoryWindow1Selected, Mode=OneWay}"
@@ -78,6 +80,7 @@
                                 </ToggleButton>
                                 <ToggleButton
                                     Padding="14,6"
+                                    controls:SegmentedSelection.KeepsSelection="True"
                                     Click="HistorySegment_Click"
                                     CornerRadius="6"
                                     IsChecked="{x:Bind ViewModel.IsHistoryWindow2Selected, Mode=OneWay}"
@@ -86,6 +89,7 @@
                                 </ToggleButton>
                                 <ToggleButton
                                     Padding="14,6"
+                                    controls:SegmentedSelection.KeepsSelection="True"
                                     Click="HistorySegment_Click"
                                     CornerRadius="6"
                                     IsChecked="{x:Bind ViewModel.IsHistoryWindow3Selected, Mode=OneWay}"

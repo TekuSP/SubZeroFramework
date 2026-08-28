@@ -34,8 +34,24 @@ public sealed record CoolingProfileFanEntry
     /// </remarks>
     public ImmutableSortedDictionary<int, double> CurvePoints { get; init; } = ImmutableSortedDictionary<int, double>.Empty;
 
-    /// <summary>How several driving sensors are reduced to one temperature, for the embedded curve.</summary>
+    /// <summary>How several driving sensors are reduced to one temperature.</summary>
     public TemperatureAggregationMode Aggregation { get; init; } = TemperatureAggregationMode.Maximum;
+
+    /// <summary>
+    /// Which sensors drive this fan, for <see cref="FanControlMode.Adaptive"/> and
+    /// <see cref="FanControlMode.CustomCurve"/>.
+    /// </summary>
+    /// <remarks>
+    /// CARRIED BY THE PROFILE, though it began the other way round. The original rule was that a profile
+    /// holds the target while the fan keeps its own sensors — sensible while a fan retains them, but Auto
+    /// and Max clear <c>DrivingSensorIndices</c> outright. So switching to an Auto profile and back to an
+    /// Adaptive one left the fan with no sensors, and arming Adaptive without sensors is refused: the
+    /// profile reported "only partly applied" and both fans stayed on Auto.
+    ///
+    /// Empty means "use whatever the fan already has", which is what profiles saved before this field
+    /// existed will do.
+    /// </remarks>
+    public ImmutableArray<int> DrivingSensorIndices { get; init; } = [];
 
     /// <summary>
     /// Structural equality, because the compiler's is not.
@@ -54,11 +70,12 @@ public sealed record CoolingProfileFanEntry
         && AdaptiveTargetCelsius.Equals(other.AdaptiveTargetCelsius)
         && Aggregation == other.Aggregation
         && CurvePoints.Count == other.CurvePoints.Count
-        && CurvePoints.All(point => other.CurvePoints.TryGetValue(point.Key, out var value) && value.Equals(point.Value));
+        && CurvePoints.All(point => other.CurvePoints.TryGetValue(point.Key, out var value) && value.Equals(point.Value))
+        && DrivingSensorIndices.SequenceEqual(other.DrivingSensorIndices);
 
     /// <inheritdoc />
     public override int GetHashCode()
-        => HashCode.Combine(FanIndex, Mode, DutyPercent, AdaptiveTargetCelsius, Aggregation, CurvePoints.Count);
+        => HashCode.Combine(FanIndex, Mode, DutyPercent, AdaptiveTargetCelsius, Aggregation, CurvePoints.Count, DrivingSensorIndices.Length);
 }
 
 /// <summary>

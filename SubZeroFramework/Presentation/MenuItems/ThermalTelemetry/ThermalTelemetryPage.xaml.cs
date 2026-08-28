@@ -34,6 +34,7 @@ public sealed partial class ThermalTelemetryPage : Page, INotifyPropertyChanged
 
     private void HistorySegment_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
     {
+        // Deselection is prevented by SegmentedSelection.KeepsSelection on the buttons themselves.
         if (sender is Microsoft.UI.Xaml.FrameworkElement { Tag: string tag }
             && int.TryParse(tag, System.Globalization.CultureInfo.InvariantCulture, out var index))
         {

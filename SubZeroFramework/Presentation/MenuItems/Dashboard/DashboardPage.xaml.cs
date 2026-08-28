@@ -109,22 +109,6 @@ public sealed partial class DashboardPage : Page, INotifyPropertyChanged
     }
 
     /// <summary>Keeps the hand-made changes by writing them into the profile that is selected.</summary>
-    private async void OnSaveAsProfileClick(object sender, RoutedEventArgs e)
-    {
-        var result = await ViewModel.SaveCurrentSetupToActiveProfileAsync().ConfigureAwait(true);
-
-        if (!result.Succeeded && XamlRoot is not null)
-        {
-            await ShowDialogAsync(new ContentDialog
-            {
-                XamlRoot = XamlRoot,
-                Title = "Could not save this profile",
-                Content = result.Message,
-                CloseButtonText = "Close",
-            }).ConfigureAwait(true);
-        }
-    }
-
     /// <summary>Makes a new profile, with every fan on Auto.</summary>
     /// <remarks>
     /// From AUTO rather than from whatever the fans happen to be doing, so making a profile is a deliberate

@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Reactive;
 using System.Reactive.Disposables;
 using System.Reactive.Disposables.Fluent;
 using System.Reactive.Linq;
+using System.Reactive.Subjects;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -57,6 +59,33 @@ public partial class DashboardModel : ObservableObject, IDisposable, IProfileCar
     /// <summary>The service's current selection, mirrored so card state can be recomputed synchronously.</summary>
     private string? _activeProfileId;
 
+    /// <summary>Raised when the fans stop matching the selected profile, so the profile can follow them.</summary>
+    private readonly Subject<Unit> _profileDriftDetected = new();
+
+    /// <summary>How long after an apply the fans are given to settle before their state counts as a change.</summary>
+    private static readonly TimeSpan AutoSaveSettleWindow = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// Auto-save is suppressed until this moment.
+    /// </summary>
+    /// <remarks>
+    /// A TIME WINDOW, not a flag around the call. Applying a profile moves the fans, but they keep settling
+    /// for a while after the RPC returns — and every one of those states reads as drift. A flag held only for
+    /// the duration of the call let the fallout through: a profile that failed to apply left its fans on
+    /// Auto, the auto-save captured that, and the profile was silently redefined as all-Auto. Which is
+    /// precisely what happened to a profile named "Adaptive".
+    /// </remarks>
+    private DateTimeOffset _suppressAutoSaveUntil = DateTimeOffset.MinValue;
+
+    /// <summary>
+    /// Set when an apply reported fans that refused, and cleared only by the next successful one.
+    /// </summary>
+    /// <remarks>
+    /// A partial apply leaves the machine in a state no profile describes. Saving it would turn a failure
+    /// into the profile's new meaning, which is the most destructive thing this page can do.
+    /// </remarks>
+    private bool _lastApplyFailed;
+
     public DashboardModel(
         IStringLocalizer localizer,
         IOptions<AppConfig> appInfo,
@@ -87,6 +116,16 @@ public partial class DashboardModel : ObservableObject, IDisposable, IProfileCar
         _synchronizationContext = synchronizationContext;
 
         AttachFanHistory();
+
+        // Coalesced: a fan settling after an apply emits several states in quick succession, and each one
+        // would otherwise be a separate write of the same profile.
+        _profileDriftDetected
+            .Sample(TimeSpan.FromSeconds(1))
+            .ObserveOn(_synchronizationContext)
+            .Subscribe(drift => { _ = SaveCurrentSetupToActiveProfileAsync(); })
+            .DisposeWith(_subscriptions);
+
+        _profileDriftDetected.DisposeWith(_subscriptions);
 
         QuickFans = new ReadOnlyObservableCollection<FanQuickControlModel>(_quickFans);
         ThermalSensors = new ReadOnlyObservableCollection<ThermalSensorModel>(_thermalSensors);
@@ -397,15 +436,8 @@ public partial class DashboardModel : ObservableObject, IDisposable, IProfileCar
     [ObservableProperty]
     public partial double? AverageFanSpeedRpm { get; set; }
 
-    /// <summary>
-    /// True when the fans are not doing what any saved profile asks for.
-    /// </summary>
-    /// <remarks>
-    /// The prompt to save. Without it, tuning a fan silently deselects every card and the row just goes blank
-    /// — which reads as the profiles having stopped working rather than as the user having moved past them.
-    /// </remarks>
-    [ObservableProperty]
-    public partial bool IsModified { get; set; }
+    // No IsModified. The selected profile follows the fans automatically, so "modified" is a state that
+    // cannot be observed: by the time a change reaches this page the fan editor has already committed it.
 
     /// <summary>The profile the fans currently match, or null when none does.</summary>
     [ObservableProperty]
@@ -427,7 +459,23 @@ public partial class DashboardModel : ObservableObject, IDisposable, IProfileCar
 
         // No local pre-check on whether fan control is available: the service answers that authoritatively
         // in its reply, and a second opinion here could only ever be a staler one.
-        var result = await _coolingProfileClient.SetActiveAsync(profile.Id).ConfigureAwait(true);
+        //
+        // Suppressed across the apply AND for a settle window afterwards, so the fans moving into place is
+        // not mistaken for the user changing them and written straight back into the profile.
+        _suppressAutoSaveUntil = DateTimeOffset.UtcNow + AutoSaveSettleWindow;
+
+        CoolingProfileCommandResult result;
+        try
+        {
+            result = await _coolingProfileClient.SetActiveAsync(profile.Id).ConfigureAwait(true);
+        }
+        finally
+        {
+            _suppressAutoSaveUntil = DateTimeOffset.UtcNow + AutoSaveSettleWindow;
+        }
+
+        // A profile that could not be applied must never be redefined by what the machine was left doing.
+        _lastApplyFailed = !result.Succeeded || result.FailedFanNames.Count > 0;
 
         if (result.FailedFanNames.Count > 0)
         {
@@ -536,6 +584,10 @@ public partial class DashboardModel : ObservableObject, IDisposable, IProfileCar
                     // start meaning something else the next time that slot was edited.
                     CurvePoints = state.CustomCurvePoints,
                     Aggregation = state.DrivingTemperatureAggregation,
+
+                    // And the sensors, because Auto and Max clear a fan's own list — so a fan cannot be
+                    // relied on to still have them by the time this profile is applied again.
+                    DrivingSensorIndices = state.DrivingSensorIndices,
                 }),
         ],
     };
@@ -598,23 +650,33 @@ public partial class DashboardModel : ObservableObject, IDisposable, IProfileCar
     /// Writes what the fans are doing right now into the selected profile.
     /// </summary>
     /// <remarks>
-    /// This is how a profile becomes anything other than Auto: select it, change the fans by hand, then keep
-    /// the result. Editing a profile's appearance deliberately cannot do this — a colour change must never
-    /// rewrite behaviour — so saving the live setup is its own explicit act, offered only once the fans have
-    /// actually stopped matching.
+    /// This is how a profile becomes anything other than Auto: select it, change the fans, and the profile
+    /// follows. It runs automatically rather than behind a button because the fan page will not let the user
+    /// leave with unsaved edits — so every change that reaches here has already been applied deliberately,
+    /// and asking a second time added a state to learn without protecting anything.
+    ///
+    /// Coalesced, and skipped while a profile is being applied: applying one moves the fans, which would
+    /// otherwise look like drift and write the profile straight back over itself.
     /// </remarks>
-    public async Task<CoolingProfileCommandResult> SaveCurrentSetupToActiveProfileAsync()
+    private async Task SaveCurrentSetupToActiveProfileAsync()
     {
-        if (ActiveProfile is not { } profile)
+        if (_lastApplyFailed
+            || DateTimeOffset.UtcNow < _suppressAutoSaveUntil
+            || ActiveProfile is not { } profile)
         {
-            return new CoolingProfileCommandResult(false, "No profile is selected.", []);
+            return;
         }
 
         var captured = CaptureCurrentSetup(profile.Name);
+        var updated = profile with { Fans = captured.Fans };
 
-        return await _coolingProfileClient
-            .SaveAsync(profile with { Fans = captured.Fans })
-            .ConfigureAwait(true);
+        // Structural equality, so an unchanged setup is not written back on every telemetry tick.
+        if (updated == profile)
+        {
+            return;
+        }
+
+        await _coolingProfileClient.SaveAsync(updated).ConfigureAwait(true);
     }
 
     public Task<CoolingProfileCommandResult> RenameProfileAsync(string profileId, string name)
@@ -649,11 +711,18 @@ public partial class DashboardModel : ObservableObject, IDisposable, IProfileCar
 
         ActiveProfileName = active?.Name;
 
-        // Only once fans have actually reported. Before that, "the fans do not match" is true but
-        // meaningless, and showing Modified on a page that has not finished loading is just noise.
-        IsModified = _fanControlStates.Count > 0
-            && active is not null
-            && !active.Profile.Matches(_fanControlStates);
+        // The selected profile FOLLOWS the fans. There is no Modified state and nothing to press, because
+        // there is no way to reach this page with a change the user has not already committed: the Fan
+        // Curve Profiles page refuses to navigate away with unsaved edits, so anything that lands here went
+        // through an explicit Apply. A profile that then disagreed with the fans would be describing a
+        // machine that no longer exists.
+        //
+        // Only once fans have actually reported — before that, "the fans do not match" is true but
+        // meaningless, and saving over a profile from a half-loaded page would be destructive.
+        if (_fanControlStates.Count > 0 && active is not null && !active.Profile.Matches(_fanControlStates))
+        {
+            _profileDriftDetected.OnNext(Unit.Default);
+        }
 
         foreach (var fan in _quickFans)
         {

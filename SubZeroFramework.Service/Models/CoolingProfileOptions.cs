@@ -69,6 +69,8 @@ public sealed record CoolingProfileFanEntryOptions
 
     public Dictionary<int, double> CurvePoints { get; init; } = [];
 
+    public int[] DrivingSensorIndices { get; init; } = [];
+
     public static CoolingProfileFanEntryOptions From(CoolingProfileFanEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -81,6 +83,7 @@ public sealed record CoolingProfileFanEntryOptions
             AdaptiveTargetCelsius = entry.AdaptiveTargetCelsius,
             Aggregation = entry.Aggregation,
             CurvePoints = new Dictionary<int, double>(entry.CurvePoints),
+            DrivingSensorIndices = [.. entry.DrivingSensorIndices],
         };
     }
 
@@ -92,5 +95,6 @@ public sealed record CoolingProfileFanEntryOptions
         AdaptiveTargetCelsius = AdaptiveTargetCelsius,
         Aggregation = Aggregation,
         CurvePoints = CurvePoints.ToImmutableSortedDictionary(),
+        DrivingSensorIndices = [.. DrivingSensorIndices],
     };
 }

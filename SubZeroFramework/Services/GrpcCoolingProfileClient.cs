@@ -256,6 +256,7 @@ public sealed class GrpcCoolingProfileClient : ICoolingProfileClient, IDisposabl
                 .ToImmutableSortedDictionary(
                     static group => group.Key,
                     static group => group.Last().FanDutyPercent),
+            DrivingSensorIndices = [.. entry.DrivingSensorIndices],
         })],
     };
 
@@ -293,6 +294,8 @@ public sealed class GrpcCoolingProfileClient : ICoolingProfileClient, IDisposabl
                     FanDutyPercent = point.Value,
                 });
             }
+
+            entryReply.DrivingSensorIndices.AddRange(entry.DrivingSensorIndices);
 
             reply.Fans.Add(entryReply);
         }

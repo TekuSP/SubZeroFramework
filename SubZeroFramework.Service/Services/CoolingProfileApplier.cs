@@ -31,12 +31,22 @@ public interface IFanCommandTarget
 
     Task<bool> TrySetDutyAsync(int fanIndex, double dutyPercent, CancellationToken cancellationToken);
 
-    Task<bool> TrySetAdaptiveAsync(int fanIndex, double targetCelsius, CancellationToken cancellationToken);
+    /// <param name="drivingSensorIndices">
+    /// The sensors the loop should hold. Empty means keep whatever the fan already has.
+    /// </param>
+    Task<bool> TrySetAdaptiveAsync(
+        int fanIndex,
+        double targetCelsius,
+        IReadOnlyList<int> drivingSensorIndices,
+        TemperatureAggregationMode aggregation,
+        CancellationToken cancellationToken);
 
+    /// <param name="drivingSensorIndices">See <see cref="TrySetAdaptiveAsync"/>.</param>
     Task<bool> TrySetCurveAsync(
         int fanIndex,
         IReadOnlyDictionary<int, double> points,
         TemperatureAggregationMode aggregation,
+        IReadOnlyList<int> drivingSensorIndices,
         CancellationToken cancellationToken);
 }
 
@@ -78,8 +88,8 @@ public static class CoolingProfileApplier
             {
                 FanControlMode.Max => await target.TrySetMaxAsync(entry.FanIndex, cancellationToken).ConfigureAwait(false),
                 FanControlMode.Manual => await target.TrySetDutyAsync(entry.FanIndex, entry.DutyPercent, cancellationToken).ConfigureAwait(false),
-                FanControlMode.Adaptive => await target.TrySetAdaptiveAsync(entry.FanIndex, entry.AdaptiveTargetCelsius, cancellationToken).ConfigureAwait(false),
-                FanControlMode.CustomCurve => await target.TrySetCurveAsync(entry.FanIndex, entry.CurvePoints, entry.Aggregation, cancellationToken).ConfigureAwait(false),
+                FanControlMode.Adaptive => await target.TrySetAdaptiveAsync(entry.FanIndex, entry.AdaptiveTargetCelsius, entry.DrivingSensorIndices, entry.Aggregation, cancellationToken).ConfigureAwait(false),
+                FanControlMode.CustomCurve => await target.TrySetCurveAsync(entry.FanIndex, entry.CurvePoints, entry.Aggregation, entry.DrivingSensorIndices, cancellationToken).ConfigureAwait(false),
 
                 // Auto is also the fallback for a mode this build does not recognise. A profile written by a
                 // newer client should hand the fan back to the firmware rather than leave it wherever the

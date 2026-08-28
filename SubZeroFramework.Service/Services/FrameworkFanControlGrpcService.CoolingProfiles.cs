@@ -246,7 +246,12 @@ public sealed partial class FrameworkFanControlGrpcService
         /// overwriting them here would silently undo work done on the fan detail page. An uncalibrated fan
         /// refuses, which is a real refusal the user should see rather than a crash.
         /// </remarks>
-        public async Task<bool> TrySetAdaptiveAsync(int fanIndex, double targetCelsius, CancellationToken cancellationToken)
+        public async Task<bool> TrySetAdaptiveAsync(
+            int fanIndex,
+            double targetCelsius,
+            IReadOnlyList<int> drivingSensorIndices,
+            TemperatureAggregationMode aggregation,
+            CancellationToken cancellationToken)
         {
             try
             {
@@ -260,10 +265,17 @@ public sealed partial class FrameworkFanControlGrpcService
 
                 var settings = existing.AdaptiveSettings with { TargetTemperatureCelsius = targetCelsius };
 
+                // The PROFILE'S sensors, falling back to the fan's own. Auto and Max clear a fan's sensor
+                // list, so after switching through one of those the fan has none — and arming Adaptive with
+                // no sensors is refused, which is what left both fans on Auto reporting a partial apply.
+                var sensors = drivingSensorIndices.Count > 0
+                    ? [.. drivingSensorIndices]
+                    : existing.DrivingSensorIndices;
+
                 var result = owner._fanControlStateStore.SetAdaptiveMode(
                     fanIndex,
-                    [.. existing.DrivingSensorIndices],
-                    existing.DrivingTemperatureAggregation,
+                    [.. sensors],
+                    aggregation,
                     settings);
 
                 if (!result.Succeeded)
@@ -294,6 +306,7 @@ public sealed partial class FrameworkFanControlGrpcService
             int fanIndex,
             IReadOnlyDictionary<int, double> points,
             TemperatureAggregationMode aggregation,
+            IReadOnlyList<int> drivingSensorIndices,
             CancellationToken cancellationToken)
         {
             try
@@ -306,13 +319,18 @@ public sealed partial class FrameworkFanControlGrpcService
                     return false;
                 }
 
+                // As in TrySetAdaptiveAsync: the profile's sensors first, the fan's own only as a fallback.
+                var sensors = drivingSensorIndices.Count > 0
+                    ? [.. drivingSensorIndices]
+                    : existing.DrivingSensorIndices;
+
                 owner._fanControlStateStore.SaveCurveProfile(
                     fanIndex,
                     FrameworkFanControlStateStore.ReservedProfileSlot,
                     name: "Cooling profile",
                     curvePoints: points,
                     aggregationMode: aggregation,
-                    drivingSensorIndices: [.. existing.DrivingSensorIndices],
+                    drivingSensorIndices: [.. sensors],
                     followFanIndex: null,
                     activate: true);
 
@@ -379,6 +397,8 @@ public static class CoolingProfileProtoMapper
                 });
             }
 
+            entryReply.DrivingSensorIndices.AddRange(entry.DrivingSensorIndices);
+
             reply.Fans.Add(entryReply);
         }
 
@@ -411,6 +431,7 @@ public static class CoolingProfileProtoMapper
                     .ToImmutableSortedDictionary(
                         static group => group.Key,
                         static group => group.Last().FanDutyPercent),
+                DrivingSensorIndices = [.. entry.DrivingSensorIndices],
             })],
         };
     }

@@ -175,11 +175,13 @@ public partial class FanQuickControlModel : ObservableObject
             return "Waiting for state";
         }
 
-        // The profile's name wins over the mode's when one is in effect, because it is the more useful
-        // answer: "Balanced · 62%" says which decision produced this, where "Adaptive · 62%" only says how.
-        // It falls back to the mode the moment the fans stop matching any profile, which is exactly when the
-        // profile name would start being a lie.
-        var modeLabel = ActiveProfileName ?? state.Mode switch
+        // THE MODE, not the profile's name. The name used to win here, on the reasoning that "Balanced · 62%"
+        // says which decision produced this where "Adaptive · 62%" only says how — and it fell back to the
+        // mode whenever the fans stopped matching the profile. That fallback no longer exists: profiles now
+        // follow the fans, so a profile is always "matching" and the name always won. A profile named after
+        // a mode then read as a contradiction — "Now driving Adaptive" directly above a mode row showing Auto.
+        // The selected profile is already named on the shelf; this line answers what the fan is doing.
+        var modeLabel = state.Mode switch
         {
             FanControlMode.Auto => "Auto",
             FanControlMode.Manual => "Manual",
