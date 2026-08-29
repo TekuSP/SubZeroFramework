@@ -140,7 +140,18 @@ jobs:
       - name: Build
         run: |
           dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -p:PublishProfile=${{ env.WINUI_PUBLISH_PROFILE }}${{ matrix.platform }}.pubxml -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable
-          dotnet build --no-restore ${{ env.TEST_PROJECT }} -v normal -c Release
+          # The version props are REQUIRED here, for the same reason as the service bundle below and with a
+          # nastier failure. This build walks Tests -> Service -> GrpcContracts, and GrpcContracts is the one
+          # shared project with a SINGLE TargetFramework: Core and Service are multi-targeted, so the app head
+          # consumes their net10.0-windows10.0.26100 output while the tests consume their net10.0 output —
+          # separate folders. GrpcContracts has only bin/Release/net10.0, so both consume the SAME FILE.
+          # Without the version here, this step recompiled it at the Directory.Build.props default and
+          # overwrote the copy the app had just been compiled against. `dotnet publish --no-build` below then
+          # shipped that older stamp beside an app whose IL records the newer one, and CoreCLR refuses a lower
+          # version at load with "Could not load file or assembly ... The system cannot find the file
+          # specified." Shipped exactly that way in 0.2.1 — the installed app died on startup while every
+          # local build worked, because nothing local builds the tests between the app build and its publish.
+          dotnet build --no-restore ${{ env.TEST_PROJECT }} -v normal -c Release -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }}
 
       # Tests run BETWEEN build and publish, so nothing is published from a red suite. --no-build binds
       # this to the exact assemblies built above rather than rebuilding a second, unverified copy.
@@ -191,6 +202,35 @@ jobs:
         # let the service fall back to <Version> in Directory.Build.props while the app and installer
         # were stamped with the CI version — one installer shipping the product at two versions.
         run: ./SubZeroFramework.Service/Scripts/package-windows-service.ps1 -RuntimeIdentifier ${{ matrix.platform }} -OutputRoot "${{ env.ARTIFACT_OUTPUT }}" -Configuration Release -Version ${{ needs.version.outputs.version }}
+
+      # The two version notes above are both reactions to the same failure: one step builds a shared project
+      # at a different stamp than the step that compiled against it. Neither note can stop the NEXT variant,
+      # because the mismatch is invisible until the installed app is launched on someone else's machine —
+      # every CI step is green, the payload looks complete, and the DLL is right there in the folder.
+      # So assert it. This runs on the assembled payload, after everything that writes into it.
+      - name: Verify payload assembly versions
+        shell: pwsh
+        run: |
+          $expected = '${{ needs.version.outputs.version }}.0'
+          $mismatched = @()
+          Get-ChildItem -Path '${{ env.ARTIFACT_OUTPUT }}' -Recurse -Filter 'SubZeroFramework*.dll' | ForEach-Object {
+              try {
+                  $actual = [System.Reflection.AssemblyName]::GetAssemblyName($_.FullName).Version.ToString()
+              }
+              catch {
+                  # Not a managed assembly (or unreadable) — not this check's business.
+                  return
+              }
+              if ($actual -ne $expected) {
+                  $mismatched += "$($_.FullName) is stamped $actual"
+              }
+          }
+          if ($mismatched.Count -gt 0) {
+              Write-Host "::error::Payload assemblies disagree on the version. The app records the exact assembly version of every project reference it compiled against, and CoreCLR refuses a lower one at load time with a FileNotFoundException — so this payload would install and then fail to start."
+              $mismatched | ForEach-Object { Write-Host "::error::$_ (expected $expected)" }
+              exit 1
+          }
+          Write-Host "All SubZeroFramework assemblies in the payload are stamped $expected."
 
       # WiX v7 MSI. Migrated from Inno Setup 2026-07-22 (Inno 6.5+ is non-commercial-only without a paid
       # license; WiX's OSMF applies only above USD $10k annual revenue — this project accepts the EULA and
@@ -462,7 +502,9 @@ jobs:
       - name: Build
         run: |
           dotnet build --no-restore ${{ env.SOLUTION_NAME }} -v normal -c Release -f ${{ env.PUBLISH_DOTNET_TARGET_FRAMEWORK }} -r ${{ matrix.platform }} -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }} -p:DebugSymbols=true -p:DebugType=portable -p:SelfContained=true -p:IncludeNativeLibrariesForSelfExtract=true -p:IncludeAllContentForSelfExtract=true
-          dotnet build --no-restore ${{ env.TEST_PROJECT }} -v normal -c Release
+          # Version props required — see the note on the Windows job. Same shared single-TFM GrpcContracts
+          # output, same clobber; this head only escapes the crash because it self-extracts one bundle.
+          dotnet build --no-restore ${{ env.TEST_PROJECT }} -v normal -c Release -p:Version=${{ needs.version.outputs.version }} -p:InformationalVersion=${{ needs.version.outputs.version }}+${{ github.sha }}
 
       # Tests run BETWEEN build and publish, so nothing is published from a red suite. --no-build binds
       # this to the exact assemblies built above rather than rebuilding a second, unverified copy.

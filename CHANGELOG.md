@@ -2,6 +2,33 @@
 
 All notable changes to this repository should be documented in this file.
 
+## [0.2.2] - Unreleased
+
+### Fixed
+
+- **The installed 0.2.1 app could not start.** It died on launch with `Could not load file or assembly
+  'SubZeroFramework.GrpcContracts, Version=0.2.1.0'` while every local build ran fine. CI built the app with
+  the run's version, then built the test project without it — and that second build walks
+  Tests → Service → GrpcContracts. GrpcContracts is the only shared project with a single target framework, so
+  where Core and Service hand the app head and the tests separate `net10.0-windows10.0.26100` and `net10.0`
+  outputs, GrpcContracts hands both the same file. The test build recompiled it at the repository's default
+  version, overwriting the copy the app had just been compiled against, and `dotnet publish --no-build`
+  shipped that older stamp. The runtime refuses a lower assembly version than the one recorded in the
+  reference, and reports it as a missing file. The test builds now carry the same version, and the payload's
+  assembly versions are asserted before the installer is built, so a repeat cannot reach a release.
+
+- **The fan editor's body could show a different mode than the mode selector.** Opening a fan whose mode had
+  changed while you were elsewhere — switching cooling profiles, which happens on the Dashboard — left the
+  detail pane on "Auto mode active" under a selector reading Adaptive. The pane is a navigation sub-region
+  whose default route is Auto, and the guard that kept it in sync remembered the mode it had last *asked* for
+  rather than the one on screen, so once the region re-attached on its default the guard suppressed the very
+  navigation that would have corrected it.
+
+- **A profile that failed to apply could be silently redefined.** Applying a profile whose fans the service
+  refused left those fans on Auto, and the auto-save then captured that as the profile's new meaning — a
+  profile named for the mode it no longer set. Auto-save is now suppressed for a settle window after an apply
+  rather than only for the call, and skipped entirely when the apply reported a fan that did not take.
+
 ## [0.2.0] - Unreleased
 
 ### Added
