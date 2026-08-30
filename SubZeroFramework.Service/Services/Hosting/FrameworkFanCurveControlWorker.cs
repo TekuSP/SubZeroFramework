@@ -785,7 +785,9 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
             celsius,
             controlTelemetry,
             elapsed,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            // The processor's throttle status only applies to a fan that cools the processor.
+            state.CoolingRole);
 
         // The learner moves rarely — at most once per steady-state observation interval — so this is cheap
         // and only publishes when the gain actually changed. A change also owes the disk a write: without it

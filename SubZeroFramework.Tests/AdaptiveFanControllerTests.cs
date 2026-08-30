@@ -458,6 +458,55 @@ public class AdaptiveFanControllerTests
         });
     }
 
+    /// <summary>
+    /// The processor's throttle status says nothing about the graphics die, so a fan over the graphics
+    /// module must not escalate on it — nor tell the user "the processor reported thermal throttling" on a
+    /// card about their GPU.
+    /// </summary>
+    [Test]
+    public void Evaluate_OnAGpuFan_IgnoresProcessorThrottling()
+    {
+        var decision = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), temperature: 90d,
+            performanceRatio: 1.0d, ecThrottle: EcThrottleSeverity.Hard, ticks: 12,
+            coolingRole: FanCoolingRole.Gpu);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(decision.IsThrottleLatched, Is.False);
+            Assert.That(decision.ThrottleEscalationDutyPercent, Is.Zero);
+        });
+    }
+
+    /// <summary>
+    /// A chassis fan moves air over the whole machine, processor included, so it keeps the escalation.
+    /// </summary>
+    [Test]
+    public void Evaluate_OnASystemFan_StillEscalatesOnProcessorThrottling()
+    {
+        var decision = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), temperature: 90d,
+            performanceRatio: 1.0d, ecThrottle: EcThrottleSeverity.Hard, ticks: 12,
+            coolingRole: FanCoolingRole.System);
+
+        Assert.That(decision.IsThrottleLatched, Is.True);
+    }
+
+    /// <summary>
+    /// Guessing wrong here costs noise; guessing wrong the other way leaves a processor-cooling fan idle
+    /// while the processor throttles. So an unclassified fan escalates.
+    /// </summary>
+    [Test]
+    public void Evaluate_OnAFanOfUnknownRole_StillEscalatesOnProcessorThrottling()
+    {
+        var decision = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), temperature: 90d,
+            performanceRatio: 1.0d, ecThrottle: EcThrottleSeverity.Hard, ticks: 12,
+            coolingRole: FanCoolingRole.Unknown);
+
+        Assert.That(decision.IsThrottleLatched, Is.True);
+    }
+
     /// <summary>Firmware that cannot answer must keep the old behaviour, not lose throttle handling.</summary>
     [Test]
     public void Evaluate_WhenEcThrottleIsUnknown_FallsBackToThePerformanceRatio()
@@ -626,7 +675,8 @@ public class AdaptiveFanControllerTests
         double temperature,
         double? packageWatts = 20d,
         double? performanceRatio = 1d,
-        EcThrottleSeverity? ecThrottle = null)
+        EcThrottleSeverity? ecThrottle = null,
+        FanCoolingRole coolingRole = FanCoolingRole.Cpu)
         => controller.Evaluate(
             calibration,
             settings,
@@ -638,7 +688,8 @@ public class AdaptiveFanControllerTests
                 EcThrottle = ecThrottle,
             },
             TimeSpan.FromSeconds(Tick),
-            DateTimeOffset.UnixEpoch);
+            DateTimeOffset.UnixEpoch,
+            coolingRole);
 
     /// <summary>
     /// Steps the controller repeatedly and returns the LAST decision.
@@ -654,12 +705,15 @@ public class AdaptiveFanControllerTests
         double temperature,
         double? performanceRatio,
         EcThrottleSeverity? ecThrottle,
-        int ticks)
+        int ticks,
+        FanCoolingRole coolingRole = FanCoolingRole.Cpu)
     {
         AdaptiveControlDecision decision = AdaptiveControlDecision.NotDriven;
         for (var index = 0; index < ticks; index++)
         {
-            decision = Step(controller, calibration, settings, temperature, performanceRatio: performanceRatio, ecThrottle: ecThrottle);
+            decision = Step(
+                controller, calibration, settings, temperature,
+                performanceRatio: performanceRatio, ecThrottle: ecThrottle, coolingRole: coolingRole);
         }
 
         return decision;

@@ -183,13 +183,18 @@ public sealed class AdaptiveFanController
     /// <param name="timestamp">Now, used to stamp a throttle latch.</param>
     /// <returns>The decomposed decision.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="calibration"/> or <paramref name="settings"/> is null.</exception>
+    /// <param name="coolingRole">
+    /// What this fan cools. Decides whether the processor's throttle status applies to it at all — see
+    /// <see cref="UpdateThrottleLatch"/>.
+    /// </param>
     public AdaptiveControlDecision Evaluate(
         FanCalibrationSnapshot calibration,
         AdaptiveFanSettings settings,
         double drivingTemperatureCelsius,
         ControlTelemetrySample controlTelemetry,
         TimeSpan elapsed,
-        DateTimeOffset timestamp)
+        DateTimeOffset timestamp,
+        FanCoolingRole coolingRole = FanCoolingRole.Unknown)
     {
         ArgumentNullException.ThrowIfNull(calibration);
         ArgumentNullException.ThrowIfNull(settings);
@@ -242,7 +247,7 @@ public sealed class AdaptiveFanController
         var feedForward = ComputeFeedForward(controlTelemetry, elapsed, out var feedForwardUnavailable);
         var proportionalIntegral = ComputeProportionalIntegral(gains, error, elapsed);
         var lead = ComputeLead(drivingTemperatureCelsius, elapsed);
-        var escalation = UpdateThrottleLatch(controlTelemetry, error, elapsed, timestamp);
+        var escalation = UpdateThrottleLatch(controlTelemetry, error, elapsed, timestamp, coolingRole);
 
         var raw = feedForward + proportionalIntegral + lead + escalation;
         var limited = ApplyLimits(raw, model, sanitized);
@@ -423,12 +428,48 @@ public sealed class AdaptiveFanController
         return capped * LeadDutyPerCelsiusPerSecond;
     }
 
+    /// <summary>
+    /// Escalates the fan while the processor is being held back, and holds that escalation until the
+    /// temperature settles.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// SCOPED BY COOLING ROLE. Both signals available here — the controller's throttle status and the
+    /// performance ratio — describe the APPLICATION PROCESSOR and nothing else. A fan over the graphics
+    /// module cannot do anything about a CPU that is overheating, so escalating it there spins a fan for a
+    /// problem it cannot reach and tells the user "the processor reported thermal throttling" on a card about
+    /// their GPU.
+    /// </para>
+    /// <para>
+    /// A fan whose role is unknown still escalates. Guessing wrong in that direction costs some noise;
+    /// guessing wrong the other way leaves a processor-cooling fan idle while the processor throttles.
+    /// </para>
+    /// <para>
+    /// There is deliberately no GPU equivalent yet. The graphics throttle reasons exist in telemetry but are
+    /// not carried on the control sample, and on this platform's integrated AMD graphics under Windows the
+    /// source reports none at all — so a GPU-role fan currently has no throttle escalation rather than a
+    /// fabricated one.
+    /// </para>
+    /// </remarks>
     private double UpdateThrottleLatch(
         ControlTelemetrySample controlTelemetry,
         double error,
         TimeSpan elapsed,
-        DateTimeOffset timestamp)
+        DateTimeOffset timestamp,
+        FanCoolingRole coolingRole)
     {
+        if (coolingRole == FanCoolingRole.Gpu)
+        {
+            // Not merely "do not escalate": release any latch this fan is already holding, so a role that
+            // changes under a running controller cannot strand it at an elevated speed forever.
+            if (_isThrottleLatched)
+            {
+                ReleaseThrottleLatch();
+            }
+
+            return 0d;
+        }
+
         // The embedded controller is asked FIRST and believed whenever it answers. The performance ratio
         // below is a proxy: it falls for power limits, parked cores and a workload that simply stopped, none
         // of which is a thermal emergency, and escalating the fan for those produces noise the user cannot
