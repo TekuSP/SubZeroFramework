@@ -600,6 +600,50 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     [ObservableProperty]
     public partial double TargetDisplayMaximum { get; private set; }
 
+    /// <summary>
+    /// The highest target this fan's driving sensor can actually be asked to hold, in canonical Celsius.
+    /// </summary>
+    /// <remarks>
+    /// The firmware's own warning point when it reports one, otherwise the app's own maximum. A target above
+    /// the point where the firmware starts acting is a target the machine will never be allowed to sit at:
+    /// the loop would settle there and the firmware would immediately intervene, and the user would read the
+    /// resulting fan behaviour as this app misbehaving.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TargetCeilingCaption))]
+    [NotifyPropertyChangedFor(nameof(TargetCeilingVisibility))]
+    public partial double TargetCeilingCelsius { get; private set; } = AdaptiveFanSettings.MaximumTargetCelsius;
+
+    /// <summary>Names the bound, so a slider that stops early does not look broken.</summary>
+    [ObservableProperty]
+    public partial string TargetCeilingCaption { get; private set; } = string.Empty;
+
+    public Visibility TargetCeilingVisibility => TargetCeilingCelsius < AdaptiveFanSettings.MaximumTargetCelsius
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    /// <summary>
+    /// Recomputes the ceiling from the driving sensor's firmware thresholds.
+    /// </summary>
+    /// <remarks>
+    /// Takes the LOWEST warning point across the driving sensors, not the highest: the fan is holding all of
+    /// them, so the first one to complain is the one that binds.
+    /// </remarks>
+    private void RefreshTargetCeiling(IReadOnlyList<double> drivingSensorWarnCelsius)
+    {
+        var ceiling = AdaptiveFanSettings.ResolveTargetCeilingCelsius(drivingSensorWarnCelsius);
+
+        TargetCeilingCelsius = ceiling;
+        TargetCeilingCaption = ceiling < AdaptiveFanSettings.MaximumTargetCelsius
+            ? $"The firmware starts warning at {_unitFormattingService.FormatTemperature(ceiling, decimals: 0)}."
+            : string.Empty;
+
+        if (TargetDraftCelsius > ceiling)
+        {
+            TargetDraftCelsius = ceiling;
+        }
+    }
+
     /// <summary>The staged floor in the user's chosen unit (TwoWay slider value).</summary>
     /// <remarks>
     /// A ratio, which every supported unit renders identically — but it goes through the service anyway, so
@@ -635,7 +679,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         TargetDraftCelsius = Math.Clamp(
             _unitFormattingService.ConvertTemperatureToCelsius(value),
             AdaptiveFanSettings.MinimumTargetCelsius,
-            AdaptiveFanSettings.MaximumTargetCelsius);
+            TargetCeilingCelsius);
     }
 
     partial void OnSafetyFloorDisplayValueChanged(double value)
@@ -663,7 +707,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         try
         {
             TargetDisplayMinimum = _unitFormattingService.ConvertTemperature(AdaptiveFanSettings.MinimumTargetCelsius);
-            TargetDisplayMaximum = _unitFormattingService.ConvertTemperature(AdaptiveFanSettings.MaximumTargetCelsius);
+            TargetDisplayMaximum = _unitFormattingService.ConvertTemperature(TargetCeilingCelsius);
             TargetDisplayValue = _unitFormattingService.ConvertTemperature(TargetDraftCelsius);
 
             SafetyFloorDisplayMaximum = _unitFormattingService.ConvertRatio(AdaptiveFanSettings.MaximumSafetyFloorPercent);
@@ -1041,6 +1085,11 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
         CoolingRole = state?.CoolingRole ?? FanCoolingRole.Unknown;
         DrivingSensorIndices = state?.DrivingSensorIndices ?? [];
+
+        RefreshTargetCeiling([.. DrivingSensorIndices
+            .Select(index => AvailableSensors.FirstOrDefault(sensor => sensor.SensorIndex == index)?.FirmwareWarnCelsius)
+            .Where(static warn => warn is not null)
+            .Select(static warn => warn!.Value)]);
 
         var confidence = learning.ConfidenceAt(DateTimeOffset.UtcNow);
         List<AdaptiveKnownFact> facts = [];

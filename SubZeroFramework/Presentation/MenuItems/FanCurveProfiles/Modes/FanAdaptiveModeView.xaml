@@ -597,6 +597,17 @@
                     StepFrequency="1"
                     Value="{x:Bind ViewModel.TargetDisplayValue, Mode=TwoWay}" />
 
+                <!--
+                    Shown only when the firmware's warning point is lower than the app's own maximum, so a
+                    slider that stops short reads as a boundary rather than a bug.
+                -->
+                <TextBlock
+                    FontSize="11.5"
+                    Foreground="{StaticResource TextSecondaryBrush}"
+                    Text="{x:Bind ViewModel.TargetCeilingCaption, Mode=OneWay}"
+                    TextWrapping="WrapWholeWords"
+                    Visibility="{x:Bind ViewModel.TargetCeilingVisibility, Mode=OneWay}" />
+
                 <Grid>
                     <TextBlock
                         FontSize="11"

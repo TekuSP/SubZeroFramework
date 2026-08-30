@@ -243,9 +243,37 @@ public sealed class GrpcHardwareInfoClient : IHardwareInfoClient, IDisposable
                 Monitors = reply.Monitors.Select(MapMonitor).ToImmutableArray(),
                 VideoControllers = reply.VideoControllers.Select(MapVideoController).ToImmutableArray(),
             },
-
+            Firmware = MapFirmwareInventory(reply.Firmware),
         };
     }
+
+    private static FirmwareInventorySnapshot MapFirmwareInventory(FirmwareInventoryReply? firmware)
+    {
+        if (firmware is null)
+        {
+            return FirmwareInventorySnapshot.Empty;
+        }
+
+        return new FirmwareInventorySnapshot
+        {
+            Cameras = [.. firmware.Cameras.Select(MapFirmwareComponent)],
+            InputModules = [.. firmware.InputModules.Select(MapFirmwareComponent)],
+            UsbHubs = [.. firmware.UsbHubs.Select(MapFirmwareComponent)],
+            AudioCards = [.. firmware.AudioCards.Select(MapFirmwareComponent)],
+            PowerDeliveryControllers = [.. firmware.PowerDeliveryControllers.Select(MapFirmwareComponent)],
+            RetimerVersion = firmware.RetimerVersion,
+            NvmeDrives = [.. firmware.NvmeDrives.Select(static drive =>
+                new NvmeFirmware(drive.DevicePath, drive.ModelNumber, drive.FirmwareVersion))],
+        };
+    }
+
+    private static FirmwareComponent MapFirmwareComponent(FirmwareComponentReply component)
+        => new(
+            component.SlotIndex,
+            component.ProductName,
+            component.Version,
+            (ushort)component.VendorId,
+            (ushort)component.ProductId);
 
     private static HardwareInfoOperatingSystem? MapOperatingSystem(HardwareInfoOperatingSystemReply reply)
     {

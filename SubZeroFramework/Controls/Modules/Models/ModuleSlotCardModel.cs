@@ -193,8 +193,19 @@ public partial class ModuleSlotCardModel : ObservableObject
                 new ModuleHeroTileModel(MaterialIconKind.Barcode, "Vendor ID", FormatHexId(descriptor.VendorId)),
                 new ModuleHeroTileModel(MaterialIconKind.Barcode, "Product ID", FormatHexId(descriptor.ProductId)),
                 new ModuleHeroTileModel(MaterialIconKind.Pound, "Board ID", descriptor.BoardId < 0 ? "—" : descriptor.BoardId.ToString()),
+                new ModuleHeroTileModel(MaterialIconKind.Memory, "Firmware", FirmwareVersion.Length > 0 ? FirmwareVersion : "—"),
             ]);
     }
+
+    /// <summary>
+    /// What this module is running, or empty where nothing reported a version for it.
+    /// </summary>
+    /// <remarks>
+    /// Pushed in by the page, which resolves it by vendor and product id. Not by slot index: the peripheral
+    /// descriptors number slots by USB enumeration order, which bears no relation to the physical position
+    /// this card draws, and matching on it would put a confident wrong version under a picture of a slot.
+    /// </remarks>
+    public string FirmwareVersion { get; set; } = string.Empty;
 
     private static string FormatHexId(uint id) => id == 0 ? "—" : $"0x{id:X4}";
 

@@ -141,6 +141,63 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
         return batch;
     }
 
+    /// <summary>
+    /// Reads the battery pack's own registers, on demand.
+    /// </summary>
+    /// <remarks>
+    /// Unary rather than streamed, and deliberately so: the read costs many I2C round trips and holds the
+    /// passthrough while it runs, so it must happen only when a person asks for it. The provider rate-limits
+    /// repeats, so a leaned-on refresh button cannot queue reads behind each other.
+    /// </remarks>
+    public override async Task<SmartBatteryReply> GetSmartBattery(GetSmartBatteryRequest request, ServerCallContext context)
+    {
+        var pack = await _frameworkDataProvider.ReadSmartBatteryAsync(context.CancellationToken).ConfigureAwait(false);
+
+        if (pack is null)
+        {
+            // Not an RPC error: a machine whose pack cannot be read is not a broken service, and reporting it
+            // as a fault would put an error banner on a page whose other half is working fine.
+            return new SmartBatteryReply { IsAvailable = false };
+        }
+
+        var reply = new SmartBatteryReply
+        {
+            IsAvailable = true,
+            SerialNumber = pack.SerialNumber,
+            DeviceName = pack.DeviceName,
+            ManufacturerName = pack.ManufacturerName,
+            Chemistry = pack.Chemistry,
+            TemperatureCelsius = pack.TemperatureCelsius,
+            VoltageVolts = pack.VoltageVolts,
+            CurrentAmperes = pack.CurrentAmperes,
+            CycleCount = pack.CycleCount,
+            RelativeStateOfChargePercent = pack.RelativeStateOfChargePercent,
+            CellVoltageVolts1 = pack.CellVoltageVolts1,
+            CellVoltageVolts2 = pack.CellVoltageVolts2,
+            CellVoltageVolts3 = pack.CellVoltageVolts3,
+            CellVoltageVolts4 = pack.CellVoltageVolts4,
+            ChargingVoltageVolts = pack.ChargingVoltageVolts,
+            ChargingCurrentAmperes = pack.ChargingCurrentAmperes,
+            IsUnsealed = pack.IsUnsealed,
+            CutoffState = pack.CutoffState.ToString(),
+            IsCharging = pack.IsCharging,
+            IsAcPresent = pack.IsAcPresent,
+            ObservedAtUnixTimeMilliseconds = pack.ObservedAt.ToUnixTimeMilliseconds(),
+        };
+
+        if (pack.ManufactureDate is { } manufactured)
+        {
+            reply.ManufactureDateDayNumber = manufactured.DayNumber;
+        }
+
+        if (pack.StateOfHealthEnergyWattHours is double stateOfHealth)
+        {
+            reply.StateOfHealthEnergyWattHours = stateOfHealth;
+        }
+
+        return reply;
+    }
+
     public override async Task WatchPowerDelivery(WatchPowerDeliveryRequest request, IServerStreamWriter<PowerDeliveryReply> responseStream, ServerCallContext context)
     {
         try
@@ -170,7 +227,7 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
         var reply = new PowerDeliveryReply();
         foreach (var port in snapshot.Ports)
         {
-            reply.Ports.Add(new PowerDeliveryPortState
+            var state = new PowerDeliveryPortState
             {
                 SlotIndex = port.SlotIndex,
                 IsPresent = port.IsPresent,
@@ -186,7 +243,7 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
                 IsEprActive = port.IsEprActive,
                 IsEprSupported = port.IsEprSupported,
                 AltModeFlags = port.AltModeFlags,
-                CardType = port.CardType,
+                CardType = port.CardType.ToString(),
                 DataLane = port.DataLane.ToString(),
                 DisplayPortCapability = port.DisplayPortCapability.ToString(),
                 CapabilitySupportsCharging = port.SupportsCharging,
@@ -196,7 +253,35 @@ public sealed class FrameworkTelemetryGrpcService : FrameworkTelemetryService.Fr
                 PortSource = port.PortSource,
                 PortPosition = port.PortPosition,
                 PortIsLeft = port.PortIsLeft,
-            });
+                SupportsDualRole = port.SupportsDualRole,
+                UsbPowerRole = port.UsbPowerRole.ToString(),
+                ChargingType = port.ChargingType.ToString(),
+            };
+
+            // Assigned after construction because the generated setters for proto3 `optional double` take a
+            // plain double: an unset field is how "no contract reported" is expressed on the wire, and a slot
+            // with no PD controller behind it must reach the client as absent rather than as zero volts.
+            if (port.NegotiatedMaximumVoltageVolts is double maximumVoltage)
+            {
+                state.NegotiatedMaximumVoltageVolts = maximumVoltage;
+            }
+
+            if (port.NegotiatedMaximumCurrentAmperes is double maximumCurrent)
+            {
+                state.NegotiatedMaximumCurrentAmperes = maximumCurrent;
+            }
+
+            if (port.NegotiatedMaximumPowerWatts is double maximumPower)
+            {
+                state.NegotiatedMaximumPowerWatts = maximumPower;
+            }
+
+            if (port.CurrentLimitAmperes is double currentLimit)
+            {
+                state.CurrentLimitAmperes = currentLimit;
+            }
+
+            reply.Ports.Add(state);
         }
 
         return reply;

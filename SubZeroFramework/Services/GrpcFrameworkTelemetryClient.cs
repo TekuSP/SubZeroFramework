@@ -320,6 +320,16 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             FirstObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.FirstObservedAtUnixTimeMilliseconds),
             LastObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.LastObservedAtUnixTimeMilliseconds),
             IsAvailable = reply.IsAvailable,
+            FirmwareThresholds = reply.FirmwareThresholds is { } thresholds
+                ? new Models.FirmwareThermalThresholds
+                {
+                    WarnCelsius = thresholds.HasWarnCelsius ? thresholds.WarnCelsius : null,
+                    HighCelsius = thresholds.HasHighCelsius ? thresholds.HighCelsius : null,
+                    HaltCelsius = thresholds.HasHaltCelsius ? thresholds.HaltCelsius : null,
+                    FanOffCelsius = thresholds.HasFanOffCelsius ? thresholds.FanOffCelsius : null,
+                    FanMaxCelsius = thresholds.HasFanMaxCelsius ? thresholds.FanMaxCelsius : null,
+                }
+                : null,
         };
 
         if (reply.ChangeKind == TelemetryChangeKind.Remove)
@@ -352,6 +362,7 @@ public sealed class GrpcFrameworkTelemetryClient : IFrameworkTelemetryClient, ID
             NumericValue = reply.HasNumericValue ? reply.NumericValue : null,
             TemperatureState = ParseTemperatureState(reply.TemperatureState),
             SensorName = ParseSensorName(reply.SensorName),
+            FirmwareWarnCelsius = reply.HasFirmwareWarnCelsius ? reply.FirmwareWarnCelsius : null,
             FanName = ParseFanName(reply.FanName),
             PowerSourceState = ParsePowerSourceState(reply.PowerSourceState),
             BatteryState = ParseBatteryState(reply.BatteryState),

@@ -55,7 +55,18 @@ public sealed class AdaptiveFanController
     public const double ThrottleEscalationDutyPercent = 15d;
 
     /// <summary>
-    /// Performance ratio below which the processor counts as throttling.
+    /// Share of the escalation applied when the controller reports SOFT throttling.
+    /// </summary>
+    /// <remarks>
+    /// Soft throttling is a limit being managed, not a protection acting, and it is common enough on a
+    /// laptop under sustained load that answering it at full strength would keep the fan escalated most of
+    /// the time. Half preserves the response without letting the exceptional case become the normal one.
+    /// </remarks>
+    public const double SoftThrottleEscalationScale = 0.5d;
+
+    /// <summary>
+    /// Performance ratio below which the processor counts as throttling. The FALLBACK signal, consulted only
+    /// where the embedded controller does not report throttling itself.
     /// </summary>
     /// <remarks>
     /// <see cref="ControlTelemetrySample.CpuPerformanceRatio"/> is current clock over base clock, so values
@@ -418,10 +429,19 @@ public sealed class AdaptiveFanController
         TimeSpan elapsed,
         DateTimeOffset timestamp)
     {
-        var performanceRatio = controlTelemetry?.CpuPerformanceRatio;
-        var isThrottlingNow = performanceRatio is double ratio
-            && double.IsFinite(ratio)
-            && ratio < ThrottlePerformanceRatioThreshold;
+        // The embedded controller is asked FIRST and believed whenever it answers. The performance ratio
+        // below is a proxy: it falls for power limits, parked cores and a workload that simply stopped, none
+        // of which is a thermal emergency, and escalating the fan for those produces noise the user cannot
+        // account for. The proxy survives only for firmware that does not report throttling at all.
+        var severity = controlTelemetry?.EcThrottle;
+        var isThrottlingNow = severity switch
+        {
+            EcThrottleSeverity.Hard or EcThrottleSeverity.Soft => true,
+            EcThrottleSeverity.None => false,
+            _ => controlTelemetry?.CpuPerformanceRatio is double ratio
+                && double.IsFinite(ratio)
+                && ratio < ThrottlePerformanceRatioThreshold,
+        };
 
         if (isThrottlingNow)
         {
@@ -461,7 +481,13 @@ public sealed class AdaptiveFanController
             _belowTargetDuration = TimeSpan.Zero;
         }
 
-        return ThrottleEscalationDutyPercent;
+        // Soft throttling is the firmware trimming clocks; hard throttling is it protecting the silicon.
+        // Answering both with the same escalation either over-reacts to the first or under-reacts to the
+        // second. Firmware that does not distinguish them keeps the full escalation, which is the safe half
+        // of the choice.
+        return severity == EcThrottleSeverity.Soft
+            ? ThrottleEscalationDutyPercent * SoftThrottleEscalationScale
+            : ThrottleEscalationDutyPercent;
     }
 
     private static double ApplyLimits(double rawDutyPercent, FanCalibrationSnapshot calibration, AdaptiveFanSettings settings)

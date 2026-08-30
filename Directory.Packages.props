@@ -24,7 +24,7 @@
     <PackageVersion Include="DesktopNotificationsFixed.FreeDesktop" Version="1.0.1" />
     <PackageVersion Include="DesktopNotificationsFixed.Windows" Version="1.0.0" />
     <PackageVersion Include="DynamicData" Version="9.4.33" />
-    <PackageVersion Include="FrameworkDotnet" Version="0.8.213" />
+    <PackageVersion Include="FrameworkDotnet" Version="0.9.302" />
     <PackageVersion Include="Google.Protobuf" Version="3.36.0" />
     <PackageVersion Include="Grpc.AspNetCore" Version="2.83.0" />
     <PackageVersion Include="Grpc.Core.Api" Version="2.83.0" />

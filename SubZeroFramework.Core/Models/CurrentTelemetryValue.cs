@@ -19,6 +19,17 @@ public sealed record CurrentTelemetryValue
     /// <summary>Platform role of a temperature sensor (thermal channels only); null for non-thermal channels.</summary>
     public FrameworkSensorName? SensorName { get; init; }
 
+    /// <summary>
+    /// Where the firmware starts warning about this sensor, in canonical Celsius, or null where it reports
+    /// no threshold. Temperature channels only.
+    /// </summary>
+    /// <remarks>
+    /// Describes the sensor rather than the reading, and rides with the reading for the same reason
+    /// <see cref="SensorName"/> does: every consumer that has a value in hand needs it, and joining back to
+    /// the channel to find it would put a lookup in the path of every tick.
+    /// </remarks>
+    public double? FirmwareWarnCelsius { get; init; }
+
     /// <summary>Platform role of a fan (fan channels only); null for non-fan channels.</summary>
     public FrameworkFanName? FanName { get; init; }
 

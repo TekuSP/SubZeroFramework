@@ -90,12 +90,17 @@ public partial class ModulesModel : ObservableObject, IDisposable
             .WatchHardwareInfo()
             .Sample(TelemetryRateLimits.Inventory)
             .ObserveOn(synchronizationContext)
-            .Subscribe(snapshot => VideoControllerNames =
-            [
-                .. snapshot.Runtime.VideoControllers
-                    .Select(controller => controller.Name ?? controller.Caption ?? controller.Description ?? string.Empty)
-                    .Where(name => !string.IsNullOrWhiteSpace(name)),
-            ])
+            .Subscribe(snapshot =>
+            {
+                VideoControllerNames =
+                [
+                    .. snapshot.Runtime.VideoControllers
+                        .Select(controller => controller.Name ?? controller.Caption ?? controller.Description ?? string.Empty)
+                        .Where(name => !string.IsNullOrWhiteSpace(name)),
+                ];
+
+                ModuleFirmware = snapshot.Firmware;
+            })
             .DisposeWith(_subscriptions);
     }
 
@@ -104,6 +109,35 @@ public partial class ModulesModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(LayoutVisibility))]
     [NotifyPropertyChangedFor(nameof(PlaceholderVisibility))]
     public partial FrameworkSystemStatus? LastStatus { get; set; }
+
+    /// <summary>
+    /// Firmware versions for the modules, so a slot card can show what the thing in it is running.
+    /// </summary>
+    /// <remarks>
+    /// Matched to a slot by vendor and product id rather than by slot index. The peripheral descriptors number
+    /// slots by USB enumeration order, which has no relationship to the physical position this page draws —
+    /// joining on it would put a confident, wrong version under a picture of a slot. Two identical modules
+    /// resolve to the same version, which is correct: they are the same module.
+    /// </remarks>
+    [ObservableProperty]
+    public partial FirmwareInventorySnapshot ModuleFirmware { get; set; } = FirmwareInventorySnapshot.Empty;
+
+    /// <summary>The firmware version for one module, or empty where none was reported.</summary>
+    public string FirmwareVersionFor(ushort vendorId, ushort productId)
+    {
+        if (vendorId == 0 && productId == 0)
+        {
+            return string.Empty;
+        }
+
+        var match = ModuleFirmware.InputModules
+            .Concat(ModuleFirmware.UsbHubs)
+            .Concat(ModuleFirmware.Cameras)
+            .Concat(ModuleFirmware.AudioCards)
+            .FirstOrDefault(component => component.VendorId == vendorId && component.ProductId == productId);
+
+        return match?.Version ?? string.Empty;
+    }
 
     /// <summary>The live module inventory from the service; null until the stream produces a value.</summary>
     [ObservableProperty]
@@ -326,6 +360,8 @@ public partial class ModulesModel : ObservableObject, IDisposable
                 _slotCardsByIndex[slot.SlotIndex] = card;
             }
 
+            // Resolved BEFORE Update, because Update is what rebuilds the hero tiles the version appears in.
+            card.FirmwareVersion = FirmwareVersionFor((ushort)slot.VendorId, (ushort)slot.ProductId);
             card.Update(slot, mainboardPorts.GetValueOrDefault(slot.SlotIndex));
             (card.IsLeftSide ? leftSlots : rightSlots).Add(card);
         }

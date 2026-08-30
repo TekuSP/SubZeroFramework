@@ -23,11 +23,23 @@ public sealed record ControlTelemetrySample
     public ImmutableArray<double> PerCoreUtilizationFraction { get; init; } = [];
 
     /// <summary>
-    /// Current clock as a fraction of base clock. This IS the throttle signal: sustained values below 1 mean
-    /// the processor is not reaching its rated speed. Values above 1 are normal and mean turbo, so a consumer
-    /// must not clamp this to 1 and conclude everything is fine.
+    /// Current clock as a fraction of base clock. The FALLBACK throttle signal, used only where the embedded
+    /// controller does not report <see cref="EcThrottle"/>: sustained values below 1 mean the processor is
+    /// not reaching its rated speed. Values above 1 are normal and mean turbo, so a consumer must not clamp
+    /// this to 1 and conclude everything is fine.
     /// </summary>
     public double? CpuPerformanceRatio { get; init; }
+
+    /// <summary>
+    /// What the embedded controller says about throttling, or null where it does not report it.
+    /// </summary>
+    /// <remarks>
+    /// Authoritative, and preferred over <see cref="CpuPerformanceRatio"/> wherever it is present. The ratio
+    /// is a proxy that also falls for power limits, parked cores and a workload that merely went idle — none
+    /// of which is a thermal emergency, and each of which used to spin the fan up for no reason a user could
+    /// explain.
+    /// </remarks>
+    public EcThrottleSeverity? EcThrottle { get; init; }
 
     /// <summary>
     /// The clock the processor is actually running at, in megahertz.

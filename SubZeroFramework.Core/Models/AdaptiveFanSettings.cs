@@ -18,6 +18,37 @@ public sealed record AdaptiveFanSettings
     public const double MaximumTargetCelsius = 95d;
 
     /// <summary>
+    /// The highest target a fan driven by these sensors can usefully be asked to hold.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Takes the LOWEST firmware warning point across the driving sensors, not the highest. The fan is
+    /// holding all of them, so the first sensor to complain is the one that binds — picking the highest would
+    /// let a target sit above a limit some other sensor is already acting on.
+    /// </para>
+    /// <para>
+    /// A target above the firmware's warning point is one the machine will never be left holding: the loop
+    /// settles there and the firmware immediately intervenes, and the fan behaviour that follows reads as
+    /// this app misbehaving. Clamped into the offered range so a sensor warning below 60 °C cannot collapse
+    /// the slider to a single point.
+    /// </para>
+    /// </remarks>
+    /// <param name="drivingSensorWarnCelsius">
+    /// Firmware warning points for the sensors driving the fan. Empty where none reports one.
+    /// </param>
+    public static double ResolveTargetCeilingCelsius(IEnumerable<double> drivingSensorWarnCelsius)
+    {
+        ArgumentNullException.ThrowIfNull(drivingSensorWarnCelsius);
+
+        var lowest = drivingSensorWarnCelsius
+            .Where(static celsius => double.IsFinite(celsius))
+            .DefaultIfEmpty(MaximumTargetCelsius)
+            .Min();
+
+        return Math.Clamp(lowest, MinimumTargetCelsius, MaximumTargetCelsius);
+    }
+
+    /// <summary>
     /// Where a fan starts before the user touches anything: warm enough to stay quiet on a laptop, well
     /// clear of the throttle point on every Framework platform.
     /// </summary>

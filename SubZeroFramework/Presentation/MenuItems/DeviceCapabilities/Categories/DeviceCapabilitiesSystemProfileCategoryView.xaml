@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilities="using:SubZeroFramework.Presentation.MenuItems.DeviceCapabilities"
     xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -14,6 +15,70 @@
         <deviceCapabilitiesControls:SystemProfileSectionView ViewModel="{x:Bind ViewModel.ProfileSection, Mode=OneWay}" />
         <deviceCapabilitiesControls:CoolingSectionView ViewModel="{x:Bind ViewModel.CoolingSection, Mode=OneWay}" />
         <deviceCapabilitiesControls:PlatformFirmwareSectionView ViewModel="{x:Bind ViewModel.FirmwareSection, Mode=OneWay}" />
+
+        <!--
+            Component firmware, beneath the platform firmware it sits under logically: the BIOS and EC above,
+            then everything that reports a version of its own. Bound through Page rather than a section model
+            of its own because the whole block is derived from one field of the hardware snapshot, and the
+            page model is where that change notification already lives.
+        -->
+        <Border
+            Padding="16,14"
+            Background="{StaticResource CardBackgroundBrush}"
+            BorderBrush="{StaticResource SurfaceOutlineBrush}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Visibility="{x:Bind ViewModel.Page.FirmwareSectionVisibility, Mode=OneWay}">
+            <StackPanel Spacing="12">
+                <TextBlock
+                    FontSize="13.5"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Component firmware" />
+
+                <ItemsRepeater ItemsSource="{x:Bind ViewModel.Page.FirmwareGroups, Mode=OneWay}">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Spacing="14" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="deviceCapabilities:FirmwareGroupModel">
+                            <StackPanel Spacing="6">
+                                <TextBlock
+                                    FontSize="11.5"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                    Text="{x:Bind Title}" />
+                                <ItemsRepeater ItemsSource="{x:Bind Rows}">
+                                    <ItemsRepeater.Layout>
+                                        <StackLayout Spacing="4" />
+                                    </ItemsRepeater.Layout>
+                                    <ItemsRepeater.ItemTemplate>
+                                        <DataTemplate x:DataType="deviceCapabilities:FirmwareRowModel">
+                                            <Grid ColumnSpacing="12">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock
+                                                    FontSize="12"
+                                                    Foreground="{StaticResource TextSecondaryBrush}"
+                                                    Text="{x:Bind Name}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    FontSize="12"
+                                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                                    Text="{x:Bind Version}" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsRepeater.ItemTemplate>
+                                </ItemsRepeater>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </StackPanel>
+        </Border>
     </StackPanel>
     </ScrollViewer>
 </UserControl>

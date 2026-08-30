@@ -138,6 +138,33 @@ public class StubFrameworkDataProvider : IFrameworkDataProvider
         IsAvailable = false,
     };
 
+    /// <summary>What <see cref="GetLatestEcDiagnostics"/> returns. Unavailable unless a test says otherwise.</summary>
+    public EcDiagnosticsSnapshot EcDiagnostics { get; set; } = EcDiagnosticsSnapshot.Unavailable;
+
+    public EcDiagnosticsSnapshot GetLatestEcDiagnostics() => EcDiagnostics;
+
+    /// <summary>What <see cref="GetThermalSensorMetadata"/> returns. Empty unless a test says otherwise.</summary>
+    public IReadOnlyList<ThermalSensorMetadata> ThermalSensorMetadata { get; set; } = [];
+
+    public IReadOnlyList<ThermalSensorMetadata> GetThermalSensorMetadata() => ThermalSensorMetadata;
+
+    /// <summary>What <see cref="ReadSmartBatteryAsync"/> returns. Null unless a test says otherwise.</summary>
+    public SmartBatterySnapshot? SmartBattery { get; set; }
+
+    /// <summary>How many times the pack was actually read — the rate limiter's proof of work avoided.</summary>
+    public int SmartBatteryReadCount { get; private set; }
+
+    public Task<SmartBatterySnapshot?> ReadSmartBatteryAsync(CancellationToken cancellationToken = default)
+    {
+        SmartBatteryReadCount++;
+        return Task.FromResult(SmartBattery);
+    }
+
+    /// <summary>What <see cref="ReadFirmwareInventory"/> returns. Empty unless a test says otherwise.</summary>
+    public FirmwareInventorySnapshot FirmwareInventory { get; set; } = FirmwareInventorySnapshot.Empty;
+
+    public FirmwareInventorySnapshot ReadFirmwareInventory() => FirmwareInventory;
+
     public void SetFanControlAuthorization(bool isFanControlEnabled, bool hasCallerIdentityValidation, string? authorizationMessage)
     {
     }

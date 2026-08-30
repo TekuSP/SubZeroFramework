@@ -20,4 +20,10 @@ public sealed record TemperatureTelemetrySnapshot
     public FrameworkTemperatureState? TemperatureState { get; init; }
 
     public bool IsAvailable { get; init; }
+
+    /// <summary>
+    /// Where the firmware starts warning about this sensor, in canonical Celsius, or null where it reports
+    /// none. Bounds the Adaptive target: a target above it is one the machine will never be left to hold.
+    /// </summary>
+    public double? FirmwareWarnCelsius { get; init; }
 }

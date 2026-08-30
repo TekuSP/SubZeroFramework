@@ -98,6 +98,10 @@ public sealed class FanSensorSelectionModel
         chip.State = state;
         chip.CurrentTemperatureCelsius = state == FrameworkTemperatureState.Ok ? snapshot.TemperatureCelsius : null;
 
+        // Kept once seen: the firmware metadata read lands on the first successful thermal poll, which can be
+        // after a chip already exists, and a later tick reporting null must not erase what was learned.
+        chip.FirmwareWarnCelsius ??= snapshot.FirmwareWarnCelsius;
+
         // A chip the desired selection was waiting for is now selectable: select it so the draft matches the
         // loaded profile again. This covers both a chip streaming in for the first time AND one that was
         // already on screen but unusable — e.g. GPU sensors coming back when the GPU powers up.

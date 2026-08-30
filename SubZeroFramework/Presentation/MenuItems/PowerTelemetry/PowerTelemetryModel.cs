@@ -38,6 +38,7 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
     private readonly CompositeDisposable _subscriptions = [];
     private readonly Dictionary<TelemetryMetric, IDisposable> _trendSubscriptions = [];
     private readonly IBatteryTelemetryClient _batteryTelemetryClient;
+    private readonly ISmartBatteryClient _smartBatteryClient;
     private readonly IFrameworkFanControlClient _fanControlClient;
     private readonly IUnitFormattingService _unitFormattingService;
     private readonly SynchronizationContext _synchronizationContext;
@@ -51,6 +52,7 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
         IStringLocalizer localizer,
         IOptions<AppConfig> appInfo,
         IPowerDeliveryClient powerDeliveryClient,
+        ISmartBatteryClient smartBatteryClient,
         IBatteryTelemetryClient batteryTelemetryClient,
         IFrameworkFanControlClient fanControlClient,
         IFrameworkStatusClient frameworkStatusClient,
@@ -62,6 +64,8 @@ public partial class PowerTelemetryModel : ObservableObject, IDisposable
         ArgumentNullException.ThrowIfNull(batteryTelemetryClient);
         ArgumentNullException.ThrowIfNull(fanControlClient);
         ArgumentNullException.ThrowIfNull(frameworkStatusClient);
+        ArgumentNullException.ThrowIfNull(smartBatteryClient);
+        _smartBatteryClient = smartBatteryClient;
         _batteryTelemetryClient = batteryTelemetryClient;
         _fanControlClient = fanControlClient;
         _unitFormattingService = unitFormattingService;

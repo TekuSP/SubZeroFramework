@@ -1,6 +1,8 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using FrameworkDotnet.Enums;
+
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -278,9 +280,103 @@ public partial class WarningIssuesModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// What the embedded controller is currently reporting about itself. Empty when it has nothing to say.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EcHealthVisibility))]
+    [NotifyPropertyChangedFor(nameof(EcHealthEmptyVisibility))]
+    public partial IReadOnlyList<EcHealthItem> EcHealthItems { get; private set; } = [];
+
+    /// <summary>
+    /// Whether the controller answered at all — which is not the same as it having nothing to report.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(EcHealthCardVisibility))]
+    public partial bool HasEcDiagnostics { get; private set; }
+
+    /// <summary>The whole card, hidden on firmware that never answers a diagnostics command.</summary>
+    public Visibility EcHealthCardVisibility => HasEcDiagnostics ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility EcHealthVisibility => EcHealthItems.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public Visibility EcHealthEmptyVisibility => EcHealthItems.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// Rebuilds the EC health list, ASSIGNING it only when its content actually changed.
+    /// </summary>
+    /// <remarks>
+    /// Status pushes arrive continuously and almost always say the same thing. Assigning an equal list every
+    /// time would re-create every row in the repeater for no visible change, which is the live-update
+    /// stability rule this page has to honour like every other.
+    /// </remarks>
+    private void RefreshEcHealth(EcDiagnosticsSnapshot? diagnostics)
+    {
+        HasEcDiagnostics = diagnostics is not null;
+
+        if (diagnostics is null)
+        {
+            if (EcHealthItems.Count > 0)
+            {
+                EcHealthItems = [];
+            }
+
+            return;
+        }
+
+        List<EcHealthItem> items = [];
+
+        if (diagnostics.HardThrottled)
+        {
+            items.Add(new EcHealthItem(
+                "Processor is being held back",
+                "The controller is limiting the processor to protect the hardware. Cooling is the limit right now, not the workload.",
+                InfoBarSeverity.Error));
+        }
+        else if (diagnostics.SoftThrottled)
+        {
+            items.Add(new EcHealthItem(
+                "Processor is below full clocks",
+                "The controller is trimming clock speed. Common under sustained load, and not in itself a fault.",
+                InfoBarSeverity.Warning));
+        }
+
+        if (diagnostics.HasPanicRecord)
+        {
+            items.Add(new EcHealthItem(
+                "The controller recorded a panic",
+                "The embedded controller crashed and restarted itself. The record survives until it is cleared.",
+                InfoBarSeverity.Warning));
+        }
+
+        if (diagnostics.WriteProtectDisabled)
+        {
+            items.Add(new EcHealthItem(
+                "Firmware write protection is off",
+                "Expected while flashing firmware. Worth knowing about at any other time.",
+                InfoBarSeverity.Informational));
+        }
+
+        // Ro is the recovery image. A machine running it works, but it is not running the firmware it shipped
+        // with, which explains a great many otherwise baffling missing features.
+        if (diagnostics.CurrentImage == FrameworkEcCurrentImage.Ro)
+        {
+            items.Add(new EcHealthItem(
+                "Running the recovery firmware image",
+                "The controller booted its read-only image rather than the normal one.",
+                InfoBarSeverity.Informational));
+        }
+
+        if (!EcHealthItems.SequenceEqual(items))
+        {
+            EcHealthItems = items;
+        }
+    }
+
     private void UpdateStatus(FrameworkSystemStatus status)
     {
         _lastObservedStatus = status;
+        RefreshEcHealth(status.EcDiagnostics);
 
         if (!status.IsGrpcActive)
         {

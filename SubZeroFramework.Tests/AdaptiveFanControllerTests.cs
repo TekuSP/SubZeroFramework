@@ -410,6 +410,65 @@ public class AdaptiveFanControllerTests
         }
     }
 
+    /// <summary>
+    /// The controller saying "not throttled" must beat a performance ratio that merely fell because the
+    /// work stopped. That ratio drops for parked cores and idle workloads, and escalating the fan for those
+    /// is noise the user cannot account for.
+    /// </summary>
+    [Test]
+    public void Evaluate_WhenEcReportsNoThrottle_IgnoresALowPerformanceRatio()
+    {
+        var decision = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), temperature: 90d,
+            performanceRatio: 0.2d, ecThrottle: EcThrottleSeverity.None, ticks: 12);
+
+        Assert.That(decision.IsThrottleLatched, Is.False);
+    }
+
+    [Test]
+    public void Evaluate_WhenEcReportsHardThrottle_LatchesDespiteAHealthyPerformanceRatio()
+    {
+        var decision = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), temperature: 90d,
+            performanceRatio: 1.0d, ecThrottle: EcThrottleSeverity.Hard, ticks: 12);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(decision.IsThrottleLatched, Is.True);
+            Assert.That(decision.ThrottleEscalationDutyPercent, Is.GreaterThan(0d));
+        });
+    }
+
+    /// <summary>
+    /// Soft throttling is a limit being managed, not a protection acting, and it is common under sustained
+    /// load. Answering it at full strength would keep the fan escalated most of the time.
+    /// </summary>
+    [Test]
+    public void Evaluate_SoftThrottleEscalatesLessThanHard()
+    {
+        var soft = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), 90d, 1.0d, EcThrottleSeverity.Soft, ticks: 12);
+        var hard = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), 90d, 1.0d, EcThrottleSeverity.Hard, ticks: 12);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(soft.ThrottleEscalationDutyPercent, Is.GreaterThan(0d));
+            Assert.That(soft.ThrottleEscalationDutyPercent, Is.LessThan(hard.ThrottleEscalationDutyPercent));
+        });
+    }
+
+    /// <summary>Firmware that cannot answer must keep the old behaviour, not lose throttle handling.</summary>
+    [Test]
+    public void Evaluate_WhenEcThrottleIsUnknown_FallsBackToThePerformanceRatio()
+    {
+        var decision = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), temperature: 90d,
+            performanceRatio: 0.2d, ecThrottle: null, ticks: 12);
+
+        Assert.That(decision.IsThrottleLatched, Is.True);
+    }
+
     [Test]
     public void Evaluate_ReportsAnExpectedSpeedInsideTheFanRange()
     {
@@ -566,7 +625,8 @@ public class AdaptiveFanControllerTests
         AdaptiveFanSettings settings,
         double temperature,
         double? packageWatts = 20d,
-        double? performanceRatio = 1d)
+        double? performanceRatio = 1d,
+        EcThrottleSeverity? ecThrottle = null)
         => controller.Evaluate(
             calibration,
             settings,
@@ -575,9 +635,35 @@ public class AdaptiveFanControllerTests
             {
                 CpuPackagePowerWatts = packageWatts,
                 CpuPerformanceRatio = performanceRatio,
+                EcThrottle = ecThrottle,
             },
             TimeSpan.FromSeconds(Tick),
             DateTimeOffset.UnixEpoch);
+
+    /// <summary>
+    /// Steps the controller repeatedly and returns the LAST decision.
+    /// </summary>
+    /// <remarks>
+    /// The throttle latch needs several consecutive samples before it engages, so a single step can never
+    /// show it — a test asserting on latching from one tick would pass or fail for the wrong reason.
+    /// </remarks>
+    private static AdaptiveControlDecision StepMany(
+        AdaptiveFanController controller,
+        FanCalibrationSnapshot calibration,
+        AdaptiveFanSettings settings,
+        double temperature,
+        double? performanceRatio,
+        EcThrottleSeverity? ecThrottle,
+        int ticks)
+    {
+        AdaptiveControlDecision decision = AdaptiveControlDecision.NotDriven;
+        for (var index = 0; index < ticks; index++)
+        {
+            decision = Step(controller, calibration, settings, temperature, performanceRatio: performanceRatio, ecThrottle: ecThrottle);
+        }
+
+        return decision;
+    }
 
     /// <summary>
     /// Settings for testing the LOOP: target set, safety floor explicitly off.

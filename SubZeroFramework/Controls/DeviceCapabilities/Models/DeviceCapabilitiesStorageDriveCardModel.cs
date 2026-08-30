@@ -45,7 +45,20 @@ public partial class DeviceCapabilitiesStorageDriveCardModel : ObservableObject
     [ObservableProperty]
     public partial double? CapacityBytes { get; private set; }
 
-    public string FirmwareRevisionDisplay => FirstNonEmpty(Snapshot.FirmwareRevision) ?? "Unavailable";
+    /// <summary>
+    /// The firmware version the drive itself reports, when the operating system did not supply one.
+    /// </summary>
+    /// <remarks>
+    /// Read from the drive over NVMe rather than from WMI, and matched to this drive by device path. Only a
+    /// FALLBACK: where WMI answers, that value is kept, because it is the one every other tool on the machine
+    /// shows and disagreeing with them would raise a question this card cannot settle.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FirmwareRevisionDisplay))]
+    public partial string? NvmeFirmwareRevision { get; set; }
+
+    public string FirmwareRevisionDisplay =>
+        FirstNonEmpty(Snapshot.FirmwareRevision) ?? FirstNonEmpty(NvmeFirmwareRevision) ?? "Unavailable";
 
     /// <summary>Used space in canonical bytes.</summary>
     [ObservableProperty]

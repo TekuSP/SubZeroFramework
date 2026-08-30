@@ -43,4 +43,14 @@ public sealed record FrameworkSystemStatus
     public bool HasCallerIdentityValidation { get; init; }
 
     public string? FanControlAuthorizationMessage { get; init; }
+
+    /// <summary>
+    /// What the embedded controller reports about its own health, or null where nothing could be read.
+    /// </summary>
+    /// <remarks>
+    /// Carried on the status rather than its own stream because it changes on the same cadence and for the
+    /// same reasons: a controller that cannot answer these commands is usually a controller the rest of this
+    /// record is already describing as unavailable.
+    /// </remarks>
+    public EcDiagnosticsSnapshot? EcDiagnostics { get; init; }
 }

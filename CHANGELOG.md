@@ -4,6 +4,48 @@ All notable changes to this repository should be documented in this file.
 
 ## [0.2.2] - Unreleased
 
+### Added
+
+- **Adaptive asks the controller whether the processor is throttling, instead of guessing.** It used to infer
+  it from a performance ratio, which also falls for power limits, parked cores and a workload that simply
+  stopped — none of which is a thermal emergency, and each of which spun the fan up for a reason nobody could
+  explain. The embedded controller now states it directly, and distinguishes trimming clocks from protecting
+  the silicon, so the fan's response is proportionate to which is happening. Firmware that cannot answer keeps
+  the old behaviour rather than losing throttle handling.
+
+- **Temperature sensors are labelled with the firmware's own names.** Where the controller has a name for a
+  sensor, that is what the chips and the thermal page show, instead of a position like "Temp 0". The name is
+  the one printed in the service manual, so it is the one worth searching for.
+
+- **The firmware's own limits are visible.** The thermal history chart marks where the controller starts
+  warning, and the Adaptive target cannot be set above that point — a target beyond it is one the machine
+  would never be left to hold, and the fan behaviour that followed read as this app misbehaving.
+
+- **Embedded controller health on Warnings & Issues.** A new card reports what the controller says about
+  itself: the processor being held back, a recorded panic, firmware write protection left off, or a machine
+  running its recovery image. Only conditions that are true are listed, and the card is absent entirely on
+  firmware that does not answer — an empty card would read as "no problems" rather than "cannot be asked".
+
+- **What each USB-C port actually negotiated.** Alongside the live voltage and current, and the slot's own
+  rating, ports now show the contract this cable and this charger agreed on, and say so when it falls well
+  short of what the slot supports. Between them the three answer "why is this charging so slowly", which no
+  one of them could.
+
+- **Pack health on Power Telemetry.** A section, read on request rather than polled, showing per-cell voltages
+  with the spread called out, the pack's age beside its cycle count, what it is asking the charger for, and
+  its own state of health. Cell drift is the early sign of a failing battery and nothing in the app showed it.
+  A sealed pack says so plainly instead of showing blanks.
+
+- **Component firmware in Device Capabilities.** Versions for cameras, USB hubs, audio, input modules, the
+  power-delivery controllers, the retimer and NVMe drives, under the platform firmware they sit beneath.
+  Groups the machine does not have are omitted rather than shown empty. Each Modules slot card also names the
+  firmware of the module in it, matched by vendor and product id rather than by slot number — the peripheral
+  descriptors number slots by USB enumeration order, which bears no relation to the physical positions that
+  page draws. A drive whose firmware the operating system does not report now falls back to what the drive
+  itself says.
+
+  The proto gained fields for all of the above, so **the service and the app must be rebuilt together.**
+
 ### Changed
 
 - **Adaptive fans are driven by duty percent, always.** Where calibration judged that the embedded controller

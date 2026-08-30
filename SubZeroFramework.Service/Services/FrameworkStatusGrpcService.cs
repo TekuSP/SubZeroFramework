@@ -103,6 +103,20 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
             FanControlAuthorizationMessage = status.FanControlAuthorizationMessage ?? string.Empty,
         };
 
+        if (status.EcDiagnostics is { } diagnostics)
+        {
+            reply.EcDiagnostics = new EcDiagnosticsMessage
+            {
+                SoftThrottled = diagnostics.SoftThrottled,
+                HardThrottled = diagnostics.HardThrottled,
+                CurrentImage = diagnostics.CurrentImage.ToString(),
+                ResetFlags = (uint)diagnostics.ResetFlags,
+                HasPanicRecord = diagnostics.HasPanicRecord,
+                LidOpen = diagnostics.LidOpen,
+                WriteProtectDisabled = diagnostics.WriteProtectDisabled,
+            };
+        }
+
         reply.SupportedDrivers.AddRange(status.SupportedDrivers.Select(driver => driver.ToString()));
         return reply;
     }

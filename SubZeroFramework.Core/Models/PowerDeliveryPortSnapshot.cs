@@ -62,7 +62,15 @@ public sealed record PowerDeliveryPortSnapshot
     public required byte AltModeFlags { get; init; }
 
     /// <summary>The expansion card detected in this slot (FrameworkExpansionCardType name; "Unknown" when none).</summary>
-    public required string CardType { get; init; }
+    /// <summary>
+    /// The expansion card detected in the slot.
+    /// </summary>
+    /// <remarks>
+    /// The real enum, matching the module-inventory path, which carries this same value. It was a string here
+    /// and an enum there, and the display code that had to consume the string ended up switching on member
+    /// NAMES — where a rename would silently fall through to a wrong answer rather than an unknown one.
+    /// </remarks>
+    public required FrameworkExpansionCardType CardType { get; init; }
 
     /// <summary>Static USB-C data-lane capability of this slot (board spec, independent of the live PD state).</summary>
     public required FrameworkUsbCDataLane DataLane { get; init; }
@@ -81,6 +89,67 @@ public sealed record PowerDeliveryPortSnapshot
 
     /// <summary>Whether a documented capability matrix covers this slot and platform.</summary>
     public required bool CapabilityDocumented { get; init; }
+
+    // ── The NEGOTIATED contract ───────────────────────────────────────────────────────────────────────
+    // A third thing, distinct from the two already above it: MaxChargeWatts is what the BOARD can do, and
+    // VoltageVolts/CurrentAmperes are what is flowing right now. These are what this cable and this charger
+    // actually agreed on. Together the three answer "why is this only charging at 45 W", which no one of
+    // them can answer alone.
+
+    /// <summary>Whether the port can act as either power role, rather than only consuming.</summary>
+    public bool SupportsDualRole { get; init; }
+
+    /// <summary>
+    /// Whether the port is sourcing or sinking power, as the PD controller reports it.
+    /// </summary>
+    /// <remarks>
+    /// The real enum, like every other enum on this record. Defaults to <c>Disconnected</c>, which is what a
+    /// slot with no PD controller behind it genuinely is — not a missing value to be rendered blank.
+    /// </remarks>
+    public FrameworkUsbPowerRole UsbPowerRole { get; init; } = FrameworkUsbPowerRole.Disconnected;
+
+    /// <summary>
+    /// How the port is charging — full PD, legacy Type-C, proprietary, or not at all.
+    /// </summary>
+    /// <remarks>
+    /// Defaults to <c>None</c>. The library distinguishes that from <c>Unknown</c>, and so must this: "not
+    /// charging" and "the controller could not say" send a user looking in different places.
+    /// </remarks>
+    public FrameworkUsbChargingType ChargingType { get; init; } = FrameworkUsbChargingType.None;
+
+    /// <summary>Highest voltage in the negotiated contract, or null where no contract was reported.</summary>
+    public double? NegotiatedMaximumVoltageVolts { get; init; }
+
+    /// <summary>Highest current in the negotiated contract, or null where none was reported.</summary>
+    public double? NegotiatedMaximumCurrentAmperes { get; init; }
+
+    /// <summary>Highest power in the negotiated contract, or null where none was reported.</summary>
+    public double? NegotiatedMaximumPowerWatts { get; init; }
+
+    /// <summary>The controller's own current limit for the port, or null where none was reported.</summary>
+    public double? CurrentLimitAmperes { get; init; }
+
+    /// <summary>
+    /// The maximum power worth showing: the negotiated contract, falling back to the board's capability.
+    /// </summary>
+    /// <remarks>
+    /// The contract wins because it is the number that explains the machine's behaviour right now. The board
+    /// capability is what it could do with a better charger, which matters only once the user knows the two
+    /// differ.
+    /// </remarks>
+    public double EffectiveMaximumPowerWatts => NegotiatedMaximumPowerWatts ?? MaxChargeWatts;
+
+    /// <summary>
+    /// Whether the negotiated contract falls materially short of what the board supports.
+    /// </summary>
+    /// <remarks>
+    /// The interesting case, and the reason the contract is surfaced at all: a weak charger, or a cable that
+    /// cannot carry what both ends could manage. Ten percent of tolerance keeps rounding and a charger
+    /// advertising 99 W for a 100 W slot from reading as a fault.
+    /// </remarks>
+    public bool IsNegotiatingBelowCapability => NegotiatedMaximumPowerWatts is double negotiated
+        && MaxChargeWatts > 0
+        && negotiated < MaxChargeWatts * 0.9d;
 }
 
 /// <summary>A point-in-time projection of every reported USB-C Power Delivery port.</summary>
