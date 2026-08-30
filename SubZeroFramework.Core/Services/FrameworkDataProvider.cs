@@ -391,10 +391,17 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                         continue;
                     }
 
+                    // The APPLICATION version only. MainFirmware.ToString() spells out the bootloader base
+                    // and the application and the application's target — "Base: 3.7.0.407, App: 0.0.34
+                    // (Notebook)" — which is four facts in a column that has room for one. The application
+                    // version is the one Framework's own firmware notes quote, so it is the one worth
+                    // comparing against.
+                    var application = controller.MainFirmware.ApplicationVersion;
+
                     powerDeliveryControllers.Add(new FirmwareComponent(
                         index,
                         controller.Slot.ToString(),
-                        controller.MainFirmware.ToString(),
+                        FirmwareComponent.FormatVersion(application.Major, application.Minor, application.Circuit),
                         VendorId: 0,
                         ProductId: 0));
                 }
@@ -404,7 +411,10 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             if (isFramework16
                 && TryReadEcValue(() => connection.PowerDelivery.GetRetimerVersion()) is { IsPresent: true } retimer)
             {
-                retimerVersion = string.Join('.', retimer.Version);
+                // The library's own formatter. Version is the RAW four-byte register payload, and joining the
+                // bytes by hand produced "17.0.1.0.17.128.4.0.1.0.0.0…" — every byte of a padded buffer
+                // rendered as decimal. VersionString renders the quad the way upstream does.
+                retimerVersion = retimer.VersionString;
             }
 #pragma warning restore FD0001
         }
@@ -617,8 +627,10 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         var metadata = Volatile.Read(ref _thermalSensorMetadata);
         var match = metadata.FirstOrDefault(sensor => sensor.SensorIndex == sensorIndex);
 
-        return match is not null && !string.IsNullOrWhiteSpace(match.FirmwareName)
-            ? match.FirmwareName
+        // The FRIENDLY form, not the raw one. Firmware names carry the sensor chip and its I²C address
+        // ("apu_f75303@4d"), which name the part doing the measuring rather than the thing measured.
+        return match?.FriendlyFirmwareName is { Length: > 0 } friendly
+            ? friendly
             : $"Temperature Sensor {sensorIndex}";
     }
 

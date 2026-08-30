@@ -254,20 +254,30 @@
                     Margin="10,0"
                     HorizontalAlignment="Stretch"
                     HorizontalContentAlignment="Stretch"
+                    Expanding="PackHealthExpander_Expanding"
                     Visibility="{x:Bind ViewModel.BatterySectionVisibility, Mode=OneWay}">
                     <Expander.Header>
                         <TextBlock FontSize="13.5" FontWeight="SemiBold" Text="Pack health" />
                     </Expander.Header>
+
+                    <!--
+                        Pull down to re-read. The section reads itself once on opening — opening it is the
+                        request — so there is no button: a control whose only job is to do what the user just
+                        asked for by opening the section is a second ask for the same thing.
+                    -->
+                    <RefreshContainer RefreshRequested="PackHealthRefresh_Requested">
+                        <ScrollViewer
+                            controls:ScrollHint.IsEnabled="True"
+                            MaxHeight="420"
+                            VerticalScrollBarVisibility="Auto"
+                            VerticalScrollMode="Enabled">
                     <StackPanel Spacing="12">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <Button Command="{x:Bind ViewModel.RefreshPackHealthCommand}" Content="Read the pack" />
-                            <ProgressRing
-                                Width="20"
-                                Height="20"
-                                VerticalAlignment="Center"
-                                IsActive="True"
-                                Visibility="{x:Bind ViewModel.PackHealthBusyVisibility, Mode=OneWay}" />
-                        </StackPanel>
+                        <ProgressRing
+                            Width="20"
+                            Height="20"
+                            HorizontalAlignment="Left"
+                            IsActive="True"
+                            Visibility="{x:Bind ViewModel.PackHealthBusyVisibility, Mode=OneWay}" />
 
                         <InfoBar
                             IsClosable="False"
@@ -311,6 +321,8 @@
                                 Visibility="{x:Bind ViewModel.PackStateOfHealthVisibility, Mode=OneWay}" />
                         </StackPanel>
                     </StackPanel>
+                        </ScrollViewer>
+                    </RefreshContainer>
                 </Expander>
 
                 <!--  Row: Charge limits | Trends  -->

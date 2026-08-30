@@ -44,15 +44,28 @@ public partial class DeviceCapabilitiesModel
     {
         List<FirmwareGroupModel> groups = [];
 
-        AddGroup(groups, "Cameras", firmware.Cameras);
-        AddGroup(groups, "Input modules", firmware.InputModules);
-        AddGroup(groups, "USB hubs", firmware.UsbHubs);
-        AddGroup(groups, "Audio", firmware.AudioCards);
-        AddGroup(groups, "Power delivery", firmware.PowerDeliveryControllers);
+        AddGroup(groups, "Cameras", "Camera", firmware.Cameras);
+        AddGroup(groups, "Input modules", "Input module", firmware.InputModules);
+        AddGroup(groups, "USB hubs", "USB hub", firmware.UsbHubs);
+        AddGroup(groups, "Audio", "Audio card", firmware.AudioCards);
+
+        // The retimer joins the power-delivery group rather than getting a heading of its own. It is a
+        // USB-C signal component and there is only ever one, so a "Retimer" heading over a single "Retimer"
+        // row said the same word twice and nothing else.
+        List<FirmwareRowModel> powerDelivery =
+        [
+            .. firmware.PowerDeliveryControllers.Select(static controller =>
+                new FirmwareRowModel(PowerDeliverySlotName(controller), controller.Version)),
+        ];
 
         if (firmware.RetimerVersion.Length > 0)
         {
-            groups.Add(new FirmwareGroupModel("Retimer", [new FirmwareRowModel("Retimer", firmware.RetimerVersion)]));
+            powerDelivery.Add(new FirmwareRowModel("Retimer", firmware.RetimerVersion));
+        }
+
+        if (powerDelivery.Count > 0)
+        {
+            groups.Add(new FirmwareGroupModel("Power delivery", powerDelivery));
         }
 
         if (firmware.NvmeDrives.Count > 0)
@@ -106,7 +119,43 @@ public partial class DeviceCapabilitiesModel
         }
     }
 
-    private static void AddGroup(List<FirmwareGroupModel> groups, string title, IReadOnlyList<FirmwareComponent> components)
+    /// <summary>
+    /// Names a power-delivery controller by the ports it drives.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The firmware identifies these as Right01 / Left23 / Back, which is the probe order and the EC's own
+    /// port numbering — index 0 and 1 are the right-hand pair, 2 and 3 the left. That numbering appears
+    /// nowhere a user can see it: the ports are labelled USB-C 1 to 4 on the Power page, counting from the
+    /// right. So the raw name is not merely terse, it is off by one against everything else in the app.
+    /// </para>
+    /// <para>
+    /// An unrecognised slot keeps whatever the firmware called it. A wrong friendly name would be worse than
+    /// a terse true one.
+    /// </para>
+    /// </remarks>
+    private static string PowerDeliverySlotName(FirmwareComponent controller) => controller.ProductName switch
+    {
+        "Right01" => "Right side (USB-C 1 & 2)",
+        "Left23" => "Left side (USB-C 3 & 4)",
+        "Back" => "Rear",
+        _ => controller.ProductName.Length > 0 ? controller.ProductName : $"Controller {controller.SlotIndex + 1}",
+    };
+
+    /// <summary>
+    /// Adds one group, naming any component that reports no name of its own.
+    /// </summary>
+    /// <remarks>
+    /// The fallback counts within the group rather than echoing the slot index. A lone unnamed hub rendered
+    /// as "Slot 0" reads as a slot number the user could go and look at, when it is really a USB enumeration
+    /// index that corresponds to nothing on the machine. "USB hub 1" claims only what is true: it is the
+    /// first hub in this list.
+    /// </remarks>
+    private static void AddGroup(
+        List<FirmwareGroupModel> groups,
+        string title,
+        string singular,
+        IReadOnlyList<FirmwareComponent> components)
     {
         if (components.Count == 0)
         {
@@ -115,8 +164,10 @@ public partial class DeviceCapabilitiesModel
 
         groups.Add(new FirmwareGroupModel(
             title,
-            [.. components.Select(static component => new FirmwareRowModel(
-                component.ProductName.Length > 0 ? component.ProductName : $"Slot {component.SlotIndex}",
+            [.. components.Select((component, position) => new FirmwareRowModel(
+                component.ProductName.Length > 0
+                    ? component.ProductName
+                    : components.Count > 1 ? $"{singular} {position + 1}" : singular,
                 component.Version))]));
     }
 }

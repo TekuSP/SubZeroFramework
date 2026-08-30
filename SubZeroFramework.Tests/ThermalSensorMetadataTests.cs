@@ -13,15 +13,15 @@ namespace SubZeroFramework.Tests;
 public class ThermalSensorMetadataTests
 {
     /// <summary>
-    /// The firmware name is the one that matches the service manual and the one a user searching for their
-    /// machine will find, so it outranks the library's mapped enum.
+    /// The firmware name names the actual sensor, so it outranks the library's mapped enum — but it is
+    /// rendered as a phrase rather than reproduced verbatim, underscores and all.
     /// </summary>
     [Test]
     public void DisplayName_PrefersTheFirmwareName()
     {
         var metadata = new ThermalSensorMetadata { SensorIndex = 3, FirmwareName = "APU_SoC", MappedName = FrameworkSensorName.Generic };
 
-        Assert.That(metadata.DisplayName, Is.EqualTo("APU_SoC"));
+        Assert.That(metadata.DisplayName, Is.EqualTo("APU SOC"));
     }
 
     [Test]
@@ -63,6 +63,54 @@ public class ThermalSensorMetadataTests
 
         Assert.That(metadata.DisplayName, Is.EqualTo(nameof(FrameworkSensorName.Battery)));
     }
+
+    /// <summary>
+    /// The real names off a Framework 16. Firmware reports wiring — subject, sensor chip, I²C address — and
+    /// only the subject belongs in a dashboard row.
+    /// </summary>
+    [TestCase("ambient_f75303@4d", ExpectedResult = "Ambient")]
+    [TestCase("apu_f75303@4d", ExpectedResult = "APU")]
+    [TestCase("gpu_amb_f75303@4d", ExpectedResult = "GPU ambient")]
+    [TestCase("gpu_vram_f75303@4d", ExpectedResult = "GPU VRAM")]
+    [TestCase("charger_f75303@4d", ExpectedResult = "Charger")]
+    [TestCase("cpu@4c", ExpectedResult = "CPU")]
+    [TestCase("gpu_vr_f75303@4d", ExpectedResult = "GPU VR")]
+    [TestCase("gpu_temp@40", ExpectedResult = "GPU")]
+    public string FriendlyFirmwareName_ReducesAFirmwareNameToItsSubject(string firmwareName)
+        => new ThermalSensorMetadata { SensorIndex = 0, FirmwareName = firmwareName }.FriendlyFirmwareName;
+
+    [Test]
+    public void FriendlyFirmwareName_WithoutAFirmwareName_IsEmpty()
+        => Assert.That(new ThermalSensorMetadata { SensorIndex = 0 }.FriendlyFirmwareName, Is.Empty);
+
+    /// <summary>
+    /// A name that is nothing BUT a part number leaves no subject behind. Reporting the empty string sends
+    /// the caller to its own fallback rather than rendering a bare chip code.
+    /// </summary>
+    [Test]
+    public void FriendlyFirmwareName_WhenOnlyAPartNumberRemains_IsEmpty()
+        => Assert.That(new ThermalSensorMetadata { SensorIndex = 0, FirmwareName = "f75303@4d" }.FriendlyFirmwareName, Is.Empty);
+
+    /// <summary>
+    /// A lone "temp" IS the subject on a sensor with no other name, so the trailing-word rule must not strip
+    /// it down to nothing.
+    /// </summary>
+    [Test]
+    public void FriendlyFirmwareName_KeepsTempWhenItIsTheOnlyWord()
+        => Assert.That(new ThermalSensorMetadata { SensorIndex = 0, FirmwareName = "temp@40" }.FriendlyFirmwareName, Is.EqualTo("Temp"));
+
+    [Test]
+    public void DisplayName_UsesTheFriendlyFirmwareName()
+        => Assert.That(
+            new ThermalSensorMetadata { SensorIndex = 3, FirmwareName = "apu_f75303@4d" }.DisplayName,
+            Is.EqualTo("APU"));
+
+    /// <summary>An unusable firmware name must fall through to the mapped name, not render as blank.</summary>
+    [Test]
+    public void DisplayName_WhenTheFirmwareNameReducesToNothing_FallsBackToTheMappedName()
+        => Assert.That(
+            new ThermalSensorMetadata { SensorIndex = 3, FirmwareName = "f75303@4d", MappedName = FrameworkSensorName.Battery }.DisplayName,
+            Is.EqualTo(nameof(FrameworkSensorName.Battery)));
 
     [Test]
     public void HasThresholds_IsFalseWhenTheFirmwareReportedNone()

@@ -56,11 +56,87 @@ public sealed record ThermalSensorMetadata
     /// is the last resort — "Temp 3" is where a sensor is, not what it measures, and saying so is better than
     /// inventing a name for it.
     /// </remarks>
-    public string DisplayName => !string.IsNullOrWhiteSpace(FirmwareName)
-        ? FirmwareName
+    public string DisplayName => FriendlyFirmwareName is { Length: > 0 } firmware
+        ? firmware
         : MappedName is not (FrameworkSensorName.Unknown or FrameworkSensorName.Generic)
             ? MappedName.ToString()
             : $"Temp {SensorIndex}";
+
+    /// <summary>
+    /// <see cref="FirmwareName"/> reduced to the part that names the SENSOR, or empty when it names none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Firmware reports these as wiring, not labels: "apu_f75303@4d" is the APU sensor on an F75303 chip at
+    /// I²C address 0x4d. The chip and the address are true and useless — they identify the part that does the
+    /// measuring, not the thing being measured, and putting them in a dashboard row spends the whole column
+    /// on noise.
+    /// </para>
+    /// <para>
+    /// A trailing "temp" goes too: every sensor on this list measures temperature, so the word distinguishes
+    /// nothing. What survives is the subject — "GPU VRAM", "Charger", "APU".
+    /// </para>
+    /// </remarks>
+    public string FriendlyFirmwareName
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(FirmwareName))
+            {
+                return string.Empty;
+            }
+
+            var name = FirmwareName.Trim();
+
+            // Everything from '@' is the I²C address.
+            var addressAt = name.IndexOf('@', StringComparison.Ordinal);
+            if (addressAt >= 0)
+            {
+                name = name[..addressAt];
+            }
+
+            // Any segment carrying a digit is a part number ("f75303", "tmp451"). No sensor SUBJECT is
+            // spelled with one, so this separates the two without a list of chips to keep up to date.
+            var parts = name
+                .Split('_', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(static part => !part.Any(char.IsDigit))
+                .ToArray();
+
+            if (parts.Length > 1 && parts[^1].Equals("temp", StringComparison.OrdinalIgnoreCase))
+            {
+                parts = parts[..^1];
+            }
+
+            return parts.Length == 0
+                ? string.Empty
+                : string.Join(' ', parts.Select(static (part, index) => Prettify(part, isLeading: index == 0)));
+        }
+    }
+
+    /// <summary>
+    /// Renders one segment as a person would write it.
+    /// </summary>
+    /// <remarks>
+    /// Acronyms stay upper case wherever they fall, because "Gpu Vram" reads as a typo. Everything else is
+    /// lower case unless it leads, so a name reads as a phrase rather than a Title Cased Label.
+    /// </remarks>
+    private static string Prettify(string part, bool isLeading)
+    {
+        if (Acronyms.Contains(part))
+        {
+            return part.ToUpperInvariant();
+        }
+
+        var expanded = part.Equals("amb", StringComparison.OrdinalIgnoreCase) ? "ambient" : part.ToLowerInvariant();
+
+        return isLeading ? string.Concat(char.ToUpperInvariant(expanded[0]), expanded[1..]) : expanded;
+    }
+
+    /// <summary>Segments that are initialisms rather than words.</summary>
+    private static readonly HashSet<string> Acronyms = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "apu", "cpu", "gpu", "vram", "vr", "vrm", "ddr", "soc", "ssd", "pch", "ec", "pd",
+    };
 
     /// <summary>Whether the firmware reported any threshold at all for this sensor.</summary>
     public bool HasThresholds => WarnCelsius.HasValue

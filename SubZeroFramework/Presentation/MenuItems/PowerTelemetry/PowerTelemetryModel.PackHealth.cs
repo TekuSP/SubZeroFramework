@@ -88,13 +88,30 @@ public partial class PowerTelemetryModel
         : Visibility.Collapsed;
 
     /// <summary>
+    /// Reads the pack once, the first time the section is opened.
+    /// </summary>
+    /// <remarks>
+    /// Opening the section IS the request — it is the only reason to open it. Still not done on navigation:
+    /// the read is slow and holds the I²C passthrough, and paying that for every visit to a page that is
+    /// mostly about the live numbers above would spend the user's telemetry on a section they never looked
+    /// at. Subsequent reads come from pulling the section down to refresh.
+    /// </remarks>
+    public void OnPackHealthExpanded()
+    {
+        if (HasPackHealth || IsReadingPackHealth)
+        {
+            return;
+        }
+
+        RefreshPackHealthCommand.Execute(parameter: null);
+    }
+
+    /// <summary>
     /// Reads the pack.
     /// </summary>
     /// <remarks>
-    /// Bound to a button and nothing else. There is deliberately no automatic first read on navigation: the
-    /// read is slow and holds the I2C passthrough, and paying that cost for every visit to this page — most
-    /// of which are about the live numbers above — would be spending a user's fan telemetry on a section
-    /// they did not open.
+    /// Driven by the section opening and by a pull-to-refresh. The service rate-limits repeats to one real
+    /// read every fifteen seconds, so an impatient pull costs nothing.
     /// </remarks>
     [RelayCommand(CanExecute = nameof(CanRefreshPackHealth))]
     private async Task RefreshPackHealthAsync(CancellationToken cancellationToken)
