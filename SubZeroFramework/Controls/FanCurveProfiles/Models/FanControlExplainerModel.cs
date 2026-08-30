@@ -106,7 +106,7 @@ public sealed partial class FanControlExplainerModel
 
         BuildPlant(model);
         BuildTuning(model);
-        BuildCascade(model, control);
+        BuildSignalChain(model, control);
         BuildControlLaw(control);
         BuildProvenance(model);
     }
@@ -171,11 +171,9 @@ public sealed partial class FanControlExplainerModel
 
     public string SettlingText { get; private set; } = string.Empty;
 
-    // ----- 3. Cascade -----
+    // ----- 3. Signal chain -----
 
     public FanExplainerChainLink[] Chain { get; private set; } = [];
-
-    public bool IsCascade { get; private set; }
 
     public string TrackingVerdictTitle { get; private set; } = string.Empty;
 
@@ -264,16 +262,14 @@ public sealed partial class FanControlExplainerModel
         SettlingText = $"~{AdaptivePidTuning.EstimateSettlingSeconds(Lambda, model.DeadTimeSeconds):0} s";
     }
 
-    private void BuildCascade(FanCalibrationSnapshot model, AdaptiveControlDecision? control)
+    private void BuildSignalChain(FanCalibrationSnapshot model, AdaptiveControlDecision? control)
     {
-        IsCascade = model.TrackingMode == FanSpeedTrackingMode.Cascade;
-
         var temperature = control?.DrivingTemperatureCelsius is double driving
             ? _units.FormatTemperature(driving, decimals: 0)
             : string.Empty;
 
-        var setpoint = control?.SetpointRpm is double rpm
-            ? _units.FormatFanSpeed(rpm, decimals: 0)
+        var demand = control?.DutyPercent is double duty
+            ? _units.FormatRatio(duty, decimals: 0)
             : string.Empty;
 
         Chain =
@@ -293,21 +289,13 @@ public sealed partial class FanControlExplainerModel
                 "The control law below. Runs in SubZero, once per tick.",
                 string.Empty),
             new FanExplainerChainLink(
-                "Setpoint",
+                "Output",
                 MaterialIconKind.Target,
                 "BrandSecondaryBrush",
-                IsCascade ? "Commanded RPM" : "Commanded duty",
-                IsCascade ? "A speed request, not a duty percentage." : "A duty percentage, converted from the RPM demand.",
-                setpoint),
-            new FanExplainerChainLink(
-                "Inner loop",
-                MaterialIconKind.Chip,
-                "StatusSuccessBrush",
-                IsCascade ? "The embedded controller" : "Direct duty",
-                IsCascade
-                    ? "Already exists. The EC holds the commanded speed against its own tachometer, far faster than we could."
-                    : "No inner loop. The duty goes straight to the motor, so nothing corrects for a fan that is slowing down.",
-                string.Empty),
+                "Commanded duty",
+                "A power level, written straight to the fan. The speed shown beside it is what that duty is "
+                + "expected to produce, read off the two speeds calibration measured.",
+                demand),
             new FanExplainerChainLink(
                 "Plant",
                 MaterialIconKind.Fan,
@@ -317,32 +305,23 @@ public sealed partial class FanControlExplainerModel
                 string.Empty),
         ];
 
-        if (IsCascade)
-        {
-            TrackingVerdictTitle = "Cascade — command RPM";
-            TrackingVerdictIconKind = MaterialIconKind.CheckNetworkOutline;
-            TrackingVerdictBrushKey = "StatusSuccessBrush";
-            TrackingVerdictBody =
-                "The hot test asked for specific speeds and the EC reached them, so the outer loop outputs RPM "
-                + "and lets the firmware handle the motor. Steadiest and quietest.";
-            TrackingVerdictPlain = "This fan takes speed commands directly";
-            return;
-        }
-
-        TrackingVerdictTitle = "Fallback — command duty";
-        TrackingVerdictIconKind = MaterialIconKind.AlertDecagramOutline;
-        TrackingVerdictBrushKey = "StatusWarningBrush";
+        TrackingVerdictTitle = "Duty — the whole range";
+        TrackingVerdictIconKind = MaterialIconKind.CheckNetworkOutline;
+        TrackingVerdictBrushKey = "StatusSuccessBrush";
         TrackingVerdictBody =
-            "Tracking was poor, so the outer loop converts its RPM demand to duty through the measured "
-            + "duty→RPM curve and drives duty instead. Coarser, but it never fights the firmware.";
-        TrackingVerdictPlain = "This fan is driven by power level instead of exact speed";
+            "The fan is driven by duty percent. Commanding a speed instead would hand it to the embedded "
+            + "controller's own loop, which caps the request at the firmware's maximum — well below what the "
+            + "same fan reaches on a direct duty write, putting the top of its range out of reach.";
+        TrackingVerdictPlain = "This fan is driven by power level, across its whole range";
     }
 
     private void BuildControlLaw(AdaptiveControlDecision? control)
     {
         HasLiveDemand = control is { IsDriven: true };
-        LiveDemandText = control?.SetpointRpm is double rpm
-            ? $"Right now this fan is commanded {_units.FormatFanSpeed(rpm, decimals: 0)}"
+        LiveDemandText = control?.DutyPercent is double duty
+            ? control.ExpectedRpm is double rpm
+                ? $"Right now this fan is commanded {_units.FormatRatio(duty, decimals: 0)}, about {_units.FormatFanSpeed(rpm, decimals: 0)}"
+                : $"Right now this fan is commanded {_units.FormatRatio(duty, decimals: 0)}"
             : "This fan is not being driven by Adaptive right now";
 
         LawRows =
@@ -416,6 +395,10 @@ public sealed partial class FanControlExplainerModel
             ? $"{_units.FormatFanSpeed(model.MinimumSpinRpm, decimals: 0)} · {_units.FormatRatio(model.MinimumSpinDutyPercent, decimals: 0)}"
             : _units.FormatRatio(model.MinimumSpinDutyPercent, decimals: 0);
 
+        var maximumSpeed = model.MaximumRpm > 0d
+            ? _units.FormatFanSpeed(model.MaximumRpm, decimals: 0)
+            : "not measured";
+
         Provenance =
         [
             new FanExplainerProvenance(
@@ -444,10 +427,10 @@ public sealed partial class FanControlExplainerModel
                 + "— below it the fan stalls."),
             new FanExplainerProvenance(
                 true,
-                "Tracking verdict",
-                IsCascade ? "cascade" : "duty fallback",
-                "Calibration checked whether the controller actually holds a commanded speed. Decides RPM output "
-                + "versus duty fallback, and is stated to you in plain language above."),
+                "Full-speed reading",
+                maximumSpeed,
+                "The fastest this fan was seen turning during calibration, at 100% duty. Anchors the speed shown "
+                + "beside each duty demand; nothing in the control loop reads it."),
             new FanExplainerProvenance(
                 false,
                 "Tuning rule",

@@ -44,7 +44,6 @@ public class AdaptiveGainSchedulingTests
         // Zero, so the whole response below comes from the feedback path rather than being dominated by a
         // feed-forward term that scheduling does not touch.
         FeedForwardDutyPerWatt = 0d,
-        TrackingMode = FanSpeedTrackingMode.Duty,
         GainCurve = curve,
     };
 

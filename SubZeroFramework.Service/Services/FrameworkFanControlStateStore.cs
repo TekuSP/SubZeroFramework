@@ -690,7 +690,6 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                 ProportionalGain = calibration.ProportionalGain,
                 IntegralGain = calibration.IntegralGain,
                 FeedForwardDutyPerWatt = calibration.FeedForwardDutyPerWatt,
-                TrackingMode = calibration.TrackingMode,
                 // The gain curve is read by the control loop, so dropping it here did not merely lose a
                 // readout — it silently downgraded gain scheduling to a single averaged K after any restart.
                 GainCurvePoints =
@@ -730,7 +729,6 @@ public sealed class FrameworkFanControlStateStore : IDisposable
                 ProportionalGain = options.ProportionalGain,
                 IntegralGain = options.IntegralGain,
                 FeedForwardDutyPerWatt = options.FeedForwardDutyPerWatt,
-                TrackingMode = options.TrackingMode,
                 GainCurve = options.GainCurvePoints is { Length: > 0 } points
                     ? new FanGainCurve
                     {

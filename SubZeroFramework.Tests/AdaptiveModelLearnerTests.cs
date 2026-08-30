@@ -74,7 +74,7 @@ public class AdaptiveModelLearnerTests
             Assert.That(model.TimeConstantSeconds, Is.EqualTo(calibration.TimeConstantSeconds));
             Assert.That(model.MinimumSpinRpm, Is.EqualTo(calibration.MinimumSpinRpm));
             Assert.That(model.MinimumSpinDutyPercent, Is.EqualTo(calibration.MinimumSpinDutyPercent));
-            Assert.That(model.TrackingMode, Is.EqualTo(calibration.TrackingMode));
+            Assert.That(model.MaximumRpm, Is.EqualTo(calibration.MaximumRpm));
         });
     }
 
@@ -452,6 +452,5 @@ public class AdaptiveModelLearnerTests
             MinimumSpinDutyPercent = 17d,
             MaximumRpm = 7_000d,
             FeedForwardDutyPerWatt = CalibratedFeedForward,
-            TrackingMode = FanSpeedTrackingMode.Cascade,
         };
 }

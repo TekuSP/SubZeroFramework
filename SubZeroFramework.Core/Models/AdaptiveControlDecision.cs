@@ -43,10 +43,14 @@ public sealed record AdaptiveControlDecision
     public double DutyPercent { get; init; }
 
     /// <summary>
-    /// The RPM setpoint, when the fan is driven in <see cref="FanSpeedTrackingMode.Cascade"/>. Null under
-    /// duty tracking, where there is no speed demand to report.
+    /// What speed <see cref="DutyPercent"/> is expected to produce, for display. Null when the fan has not
+    /// been calibrated, so no speed can honestly be named.
     /// </summary>
-    public double? SetpointRpm { get; init; }
+    /// <remarks>
+    /// An estimate of an outcome, NOT a demand — the fan is driven by duty. Computed by the service, which
+    /// holds the calibration, so every client shows the same number.
+    /// </remarks>
+    public double? ExpectedRpm { get; init; }
 
     /// <summary>The driving temperature this decision reacted to.</summary>
     public double DrivingTemperatureCelsius { get; init; }

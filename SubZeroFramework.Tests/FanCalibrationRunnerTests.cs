@@ -436,31 +436,42 @@ public class FanCalibrationRunnerTests
             Is.EqualTo(FanCalibrationSnapshot.Bootstrap.MinimumSpinDutyPercent));
     }
 
+    /// <summary>
+    /// Calibration must never issue a speed command, whatever the fan would do with one.
+    /// </summary>
+    /// <remarks>
+    /// There was a probe here that asked the EC to hold a speed and recorded whether it obliged. It asked at
+    /// 60% of the range, passed, and the controller then commanded speeds across the WHOLE range — where the
+    /// EC silently caps the request at its firmware maximum. Fans are driven by duty now, so the question the
+    /// probe answered no longer has anything riding on it.
+    /// </remarks>
     [Test]
-    public async Task RunAsync_ReportsCascade_WhenTheFanHoldsACommandedSpeed()
+    public async Task RunAsync_NeverCommandsASpeed_EvenWhenTheFanWouldHoldOne()
     {
         using var plant = new SimulatedThermalPlant { HonoursSpeedCommands = true };
         using var harness = new Harness(plant);
 
         var result = await harness.RunAsync();
 
-        Assert.That(result.Calibration!.TrackingMode, Is.EqualTo(FanSpeedTrackingMode.Cascade));
+        Assert.Multiple(() =>
+        {
+            Assert.That(result.Succeeded, Is.True);
+            Assert.That(plant.SetFanRpmCalls, Is.Empty);
+        });
     }
 
+    /// <summary>
+    /// The measured full-speed reading is what every displayed speed is anchored to, so it has to survive.
+    /// </summary>
     [Test]
-    public async Task RunAsync_FallsBackToDuty_WhenTheFanIgnoresSpeedCommands()
+    public async Task RunAsync_RecordsTheSpeedReachedAtFullDuty()
     {
-        using var plant = new SimulatedThermalPlant { HonoursSpeedCommands = false };
+        using var plant = new SimulatedThermalPlant();
         using var harness = new Harness(plant);
 
         var result = await harness.RunAsync();
 
-        // Commanding RPM to a fan that ignores it would leave the controller open-loop without ever saying so.
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.Succeeded, Is.True);
-            Assert.That(result.Calibration!.TrackingMode, Is.EqualTo(FanSpeedTrackingMode.Duty));
-        });
+        Assert.That(result.Calibration!.MaximumRpm, Is.GreaterThan(0d));
     }
 
     [Test]

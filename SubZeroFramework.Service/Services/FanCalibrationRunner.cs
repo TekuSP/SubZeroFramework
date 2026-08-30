@@ -901,28 +901,28 @@ public sealed class FanCalibrationRunner : IDisposable
                 return Failed(fanIndex, fit.Failure, FanCalibrationStep.FittingModel, _elapsed.Elapsed, restored: true, averagePower: averagePower, swing: fit.TemperatureSwingCelsius, peak: _peakCelsius);
             }
 
-            // 7 — does the EC actually hold a commanded speed?
-            await ReportAsync(FanCalibrationStep.VerifyingSpeedTracking).ConfigureAwait(false);
-            var tracking = await VerifySpeedTrackingAsync(response.MaximumRpm, cancellationToken).ConfigureAwait(false);
-
-            // 8 — how cooling varies across the duty range. Last, because it uses the τ from the fit to
+            // 7 — how cooling varies across the duty range. Last, because it uses the τ from the fit to
             // extrapolate each level instead of waiting it out.
+            //
+            // There used to be a speed-tracking probe here, deciding whether the fan could be driven by RPM
+            // instead of duty. Fans are now always driven by duty, so there is nothing to decide and the run
+            // is one settle shorter.
             var (gainCurve, gainCurveAbort) = await MeasureGainCurveAsync(fit, response.SettledCelsius, cancellationToken).ConfigureAwait(false);
             if (gainCurveAbort is { } sweepAbort)
             {
                 return sweepAbort;
             }
 
-            var calibration = BuildCalibration(fit, minimumSpin, response.MaximumRpm, averagePower, tracking, gainCurve);
+            var calibration = BuildCalibration(fit, minimumSpin, response.MaximumRpm, averagePower, gainCurve);
 
             owner._fanControlStateStore.SetCalibration(fanIndex, calibration);
             owner._logger.LogInformation(
-                "Calibrated fan {FanIndex}: K={ProcessGain:0.###} C/%, tau={TimeConstant:0.#} s, L={DeadTime:0.#} s, tracking={Tracking}.",
+                "Calibrated fan {FanIndex}: K={ProcessGain:0.###} C/%, tau={TimeConstant:0.#} s, L={DeadTime:0.#} s, maxRpm={MaximumRpm:0}.",
                 fanIndex,
                 calibration.ProcessGainCelsiusPerPercent,
                 calibration.TimeConstantSeconds,
                 calibration.DeadTimeSeconds,
-                calibration.TrackingMode);
+                calibration.MaximumRpm);
 
             await ReportAsync(FanCalibrationStep.Completed).ConfigureAwait(false);
 
@@ -1019,7 +1019,6 @@ public sealed class FanCalibrationRunner : IDisposable
             MinimumSpinResult minimumSpin,
             double maximumRpm,
             double averagePower,
-            FanSpeedTrackingMode tracking,
             FanGainCurve gainCurve)
         {
             // Feed-forward from what the run actually observed: the duty needed to hold the temperature at
@@ -1037,7 +1036,6 @@ public sealed class FanCalibrationRunner : IDisposable
                 MinimumSpinDutyPercent = minimumSpin.DutyPercent,
                 MaximumRpm = maximumRpm,
                 FeedForwardDutyPerWatt = feedForward,
-                TrackingMode = tracking,
                 PerformanceResponse = BuildPerformanceResponse(),
                 GainCurve = gainCurve,
             };
@@ -1751,41 +1749,6 @@ public sealed class FanCalibrationRunner : IDisposable
             }
 
             return new MinimumSpinResult(lastTurningRpm, lastTurningDuty, null);
-        }
-
-        private async Task<FanSpeedTrackingMode> VerifySpeedTrackingAsync(double maximumRpm, CancellationToken cancellationToken)
-        {
-            // Ask for a speed the fan can definitely reach, then see whether it gets there. A fan that lands
-            // far from the request does not track, and commanding RPM to it would silently do nothing.
-            if (maximumRpm <= 0d)
-            {
-                return FanSpeedTrackingMode.Duty;
-            }
-
-            var target = maximumRpm * 0.6d;
-
-            try
-            {
-                await owner._frameworkDataProvider.SetFanRpmAsync(fanIndex, (int)Math.Round(target), cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                owner._logger.LogInformation(exception, "Fan {FanIndex} rejected a speed command; falling back to duty control.", fanIndex);
-                return FanSpeedTrackingMode.Duty;
-            }
-
-            // An abort here downgrades to duty rather than propagating. The model is already fitted and worth
-            // keeping; only the question of HOW to drive the fan is unresolved, and duty is the answer that
-            // works on every fan.
-            if (await RunStepAsync(FanCalibrationStep.VerifyingSpeedTracking, owner._timings.TrackingSettle, cancellationToken).ConfigureAwait(false) is not null)
-            {
-                return FanSpeedTrackingMode.Duty;
-            }
-
-            var reached = ReadSpeedRpm();
-            var tracked = reached is double speed && Math.Abs(speed - target) <= target * TrackingToleranceFraction;
-
-            return tracked ? FanSpeedTrackingMode.Cascade : FanSpeedTrackingMode.Duty;
         }
 
         /// <summary>Below this the fan is not meaningfully turning.</summary>

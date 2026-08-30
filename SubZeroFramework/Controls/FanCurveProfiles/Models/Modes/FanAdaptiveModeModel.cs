@@ -76,16 +76,24 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     public Visibility ControllerVisibility => IsControllerRunning ? Visibility.Visible : Visibility.Collapsed;
 
-    /// <summary>"Tracking setpoint", or how far off it is. The at-a-glance health of the loop.</summary>
+    /// <summary>Whether the fan is running at the speed its duty should produce. At-a-glance loop health.</summary>
     [ObservableProperty]
     public partial string TrackingText { get; private set; } = string.Empty;
 
     [ObservableProperty]
     public partial bool IsTracking { get; private set; } = true;
 
-    /// <summary>Commanded speed, in canonical RPM. Rendered through the unit converter.</summary>
+    /// <summary>
+    /// The speed the commanded duty is expected to produce, in canonical RPM. Rendered through the unit
+    /// converter.
+    /// </summary>
+    /// <remarks>
+    /// An expectation, not a demand — the fan is commanded in duty percent. Named that way deliberately: this
+    /// was once a genuine RPM setpoint sent to the EC, and the EC silently capped it, so the card sat reading
+    /// "off setpoint by 1,646 RPM" against a speed nothing could ever have delivered.
+    /// </remarks>
     [ObservableProperty]
-    public partial double? SetpointRpm { get; private set; }
+    public partial double? ExpectedRpm { get; private set; }
 
     [ObservableProperty]
     public partial double? ActualRpm { get; private set; }
@@ -876,7 +884,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         }
 
         IsControllerRunning = true;
-        SetpointRpm = control.SetpointRpm;
+        ExpectedRpm = control.ExpectedRpm;
         ActualRpm = SelectedFan?.Snapshot.SpeedRpm;
         DrivingTemperatureCelsius = control.DrivingTemperatureCelsius;
         TargetTemperatureCelsius = control.TargetTemperatureCelsius;
@@ -895,20 +903,30 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     private void RefreshTracking(AdaptiveControlDecision control)
     {
-        // Only meaningful under cascade, where a speed is actually commanded. Under duty tracking there is no
-        // setpoint to miss, so claiming "off setpoint" would be inventing a fault.
-        if (control.SetpointRpm is not double setpoint || SelectedFan?.Snapshot.SpeedRpm is not double actual)
+        // Needs both a calibrated expectation and a tachometer reading. Without either there is nothing to
+        // compare, and inventing a comparison would invent a fault.
+        if (control.ExpectedRpm is not double expected || SelectedFan?.Snapshot.SpeedRpm is not double actual)
         {
             IsTracking = true;
             TrackingText = "Holding temperature";
             return;
         }
 
-        var error = Math.Abs(setpoint - actual);
-        IsTracking = error <= TrackingToleranceRpm;
-        TrackingText = IsTracking
-            ? "Tracking setpoint"
-            : $"Off setpoint by {_unitFormattingService.FormatFanSpeed(error, decimals: 0)}";
+        // Proportional, with a floor. The expectation is a line drawn through two measured speeds, so its
+        // error grows with the speed being predicted — a fixed RPM band would be generous at the bottom of
+        // the range and would cry fault across the top of it.
+        var error = Math.Abs(expected - actual);
+        var tolerance = Math.Max(TrackingToleranceRpm, expected * TrackingToleranceFraction);
+        IsTracking = error <= tolerance;
+
+        // Only ever reports the fan running SHORT. Overshooting the estimate means the estimate was
+        // pessimistic, which is not the user's problem; falling short can mean an obstructed or failing fan,
+        // which is.
+        TrackingText = IsTracking || actual > expected
+            ? "Running as expected"
+            : $"Running {_unitFormattingService.FormatFanSpeed(error, decimals: 0)} below expected";
+
+        IsTracking |= actual > expected;
     }
 
     private void RefreshContributionBar(AdaptiveControlDecision control)
@@ -1212,6 +1230,16 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     /// wander is normal and flagging it would train the user to ignore the indicator.
     /// </remarks>
     private const double TrackingToleranceRpm = 350d;
+
+    /// <summary>
+    /// The same tolerance as a share of the expected speed, taken whenever it is the larger of the two.
+    /// </summary>
+    /// <remarks>
+    /// The expectation is interpolated between two measured points, so it is least accurate in the middle of
+    /// the range and its absolute error scales with the speed. 15% matches the margin calibration itself used
+    /// when it judged whether a fan had reached a commanded speed.
+    /// </remarks>
+    private const double TrackingToleranceFraction = 0.15d;
 }
 
 /// <summary>One row under the contribution bar.</summary>

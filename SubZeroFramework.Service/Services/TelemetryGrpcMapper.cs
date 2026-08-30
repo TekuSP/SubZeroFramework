@@ -441,9 +441,6 @@ internal static class TelemetryGrpcMapper
             ProportionalGain = calibration.ProportionalGain,
             IntegralGain = calibration.IntegralGain,
             FeedForwardDutyPerWatt = calibration.FeedForwardDutyPerWatt,
-            TrackingMode = calibration.TrackingMode == FanSpeedTrackingMode.Cascade
-                ? FanSpeedTrackingModeValue.Cascade
-                : FanSpeedTrackingModeValue.Duty,
         };
 
         // Only sent when something was actually measured. An empty message would tell the UI a speed
@@ -582,9 +579,9 @@ internal static class TelemetryGrpcMapper
             IsFeedForwardUnavailable = control.IsFeedForwardUnavailable,
         };
 
-        if (control.SetpointRpm is double setpointRpm)
+        if (control.ExpectedRpm is double expectedRpm)
         {
-            message.SetpointRpm = setpointRpm;
+            message.ExpectedRpm = expectedRpm;
         }
 
         if (control.ThrottleLatchReleaseSeconds is double releaseSeconds)

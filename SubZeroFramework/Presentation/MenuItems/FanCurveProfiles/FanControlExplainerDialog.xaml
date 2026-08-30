@@ -393,7 +393,7 @@
                 </StackPanel>
             </Border>
 
-            <!--  ===== 3. Cascade =====  -->
+            <!--  ===== 3. Signal chain =====  -->
             <StackPanel Margin="0,10,0,0" Orientation="Horizontal" Spacing="11">
                 <Border
                     Width="24"

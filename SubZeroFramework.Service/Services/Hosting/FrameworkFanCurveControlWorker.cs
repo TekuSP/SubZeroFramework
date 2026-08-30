@@ -368,38 +368,17 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
 
             try
             {
-                // The change threshold above gated on the DUTY DEMAND, which is the controller's output and
-                // is comparable across both tracking modes. Only the delivery differs here.
-                if (decision.SetpointRpm is double setpointRpm)
-                {
-                    var targetRpm = (int)Math.Round(setpointRpm, MidpointRounding.AwayFromZero);
-                    await _frameworkDataProvider.SetFanRpmAsync(state.FanIndex, targetRpm, cancellationToken).ConfigureAwait(false);
+                var result = await _frameworkDataProvider.SetFanDutyAsync(state.FanIndex, targetDuty, cancellationToken).ConfigureAwait(false);
 
-                    // Record the DUTY, not the speed: it is what every readout and the threshold above use,
-                    // and a cascade fan's actual RPM is reported by ordinary fan telemetry anyway.
-                    _lastAppliedDuty[state.FanIndex] = targetDuty;
-                    _fanControlStateStore.RecordAppliedDuty(state.FanIndex, targetDuty);
+                // Record the applied duty without changing the mode (RecordAppliedDuty preserves CustomCurve).
+                _lastAppliedDuty[state.FanIndex] = result.AppliedDutyPercent;
+                _fanControlStateStore.RecordAppliedDuty(state.FanIndex, result.AppliedDutyPercent);
 
-                    _logger.LogDebug(
-                        "Applied cascade speed for fan {FanIndex}. TargetRpm={TargetRpm}, DutyDemand={TargetDuty:0.#}%.",
-                        state.FanIndex,
-                        targetRpm,
-                        targetDuty);
-                }
-                else
-                {
-                    var result = await _frameworkDataProvider.SetFanDutyAsync(state.FanIndex, targetDuty, cancellationToken).ConfigureAwait(false);
-
-                    // Record the applied duty without changing the mode (RecordAppliedDuty preserves CustomCurve).
-                    _lastAppliedDuty[state.FanIndex] = result.AppliedDutyPercent;
-                    _fanControlStateStore.RecordAppliedDuty(state.FanIndex, result.AppliedDutyPercent);
-
-                    _logger.LogDebug(
-                        "Applied curve duty for fan {FanIndex}. TargetDuty={TargetDuty:0.#}%, AppliedDuty={AppliedDuty:0.#}%.",
-                        state.FanIndex,
-                        targetDuty,
-                        result.AppliedDutyPercent);
-                }
+                _logger.LogDebug(
+                    "Applied curve duty for fan {FanIndex}. TargetDuty={TargetDuty:0.#}%, AppliedDuty={AppliedDuty:0.#}%.",
+                    state.FanIndex,
+                    targetDuty,
+                    result.AppliedDutyPercent);
             }
             catch (OperationCanceledException)
             {
@@ -691,21 +670,14 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
     }
 
     /// <param name="Outcome">Whether and how this fan should be driven.</param>
-    /// <param name="Duty">The duty demand, in percent. Always meaningful — it is what the UI reports.</param>
-    /// <param name="SetpointRpm">
-    /// A speed to command instead of the duty, when the fan is cascade-tracked. Null means write duty.
-    /// </param>
-    private readonly record struct FanDutyDecision(FanDutyOutcome Outcome, double Duty, double? SetpointRpm = null)
+    /// <param name="Duty">The duty demand, in percent — the one and only thing written to a fan.</param>
+    private readonly record struct FanDutyDecision(FanDutyOutcome Outcome, double Duty)
     {
         public static readonly FanDutyDecision NotDriven = new(FanDutyOutcome.NotDriven, 0d);
 
         public static readonly FanDutyDecision SafeFallback = new(FanDutyOutcome.SafeFallback, 0d);
 
         public static FanDutyDecision Drive(double duty) => new(FanDutyOutcome.Drive, duty);
-
-        /// <summary>Drive the fan by commanding a SPEED, letting the EC's own loop hold it.</summary>
-        public static FanDutyDecision DriveSpeed(double duty, double setpointRpm)
-            => new(FanDutyOutcome.Drive, duty, setpointRpm);
     }
 
     /// <summary>
@@ -844,12 +816,7 @@ public sealed partial class FrameworkFanCurveControlWorker : BackgroundService
                 decision.DutyPercent);
         }
 
-        // Cascade when calibration verified the EC tracks speed: hand the firmware a target RPM and let its
-        // inner loop hold it. That loop is far faster than this one and absorbs the fan's non-linear
-        // duty-to-RPM curve, so the same demand produces the same airflow wherever on the curve it lands.
-        return decision.SetpointRpm is double setpointRpm
-            ? FanDutyDecision.DriveSpeed(decision.DutyPercent, setpointRpm)
-            : FanDutyDecision.Drive(decision.DutyPercent);
+        return FanDutyDecision.Drive(decision.DutyPercent);
     }
 
     /// <summary>

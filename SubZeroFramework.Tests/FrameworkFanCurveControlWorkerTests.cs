@@ -307,23 +307,29 @@ public class FrameworkFanCurveControlWorkerTests
     }
 
     /// <summary>
-    /// A cascade-tracked fan gets a SPEED command, not a duty write — that is the whole point of cascade.
+    /// An Adaptive fan is written a DUTY, never a speed.
     /// </summary>
+    /// <remarks>
+    /// This is the whole reason Adaptive could not reach the top of a fan's range. A speed command goes to the
+    /// EC's own closed loop, which clamps the request to the firmware's configured maximum — well under what
+    /// the same fan does on a direct duty write. The controller asked for a speed the EC quietly refused, and
+    /// nothing in the loop could see the substitution.
+    /// </remarks>
     [Test]
-    public async Task Evaluate_WhenCalibrationSaysCascade_CommandsSpeedInsteadOfDuty()
+    public async Task Evaluate_WhenAdaptive_WritesDutyAndNeverASpeed()
     {
         using var harness = new WorkerHarness();
 
         harness.Store.MarkAuto(0);
-        harness.Store.SetCalibration(0, Calibration() with { TrackingMode = FanSpeedTrackingMode.Cascade });
+        harness.Store.SetCalibration(0, Calibration());
         harness.Store.SetAdaptiveMode(0, [0], TemperatureAggregationMode.Maximum, null);
 
-        await harness.EvaluateAsync(() => harness.Provider.SetFanRpmCalls.Count > 0);
+        await harness.EvaluateAsync(() => harness.Provider.SetFanDutyCalls.Count > 0);
 
         Assert.Multiple(() =>
         {
-            Assert.That(harness.Provider.SetFanRpmCalls, Is.Not.Empty, "Cascade must reach the EC as a speed command.");
-            Assert.That(harness.Provider.SetFanDutyCalls, Is.Empty, "A cascade fan must not also be written a duty.");
+            Assert.That(harness.Provider.SetFanDutyCalls, Is.Not.Empty, "Adaptive must reach the EC as a duty write.");
+            Assert.That(harness.Provider.SetFanRpmCalls, Is.Empty, "A speed command hands the fan to the EC's clamped loop.");
         });
     }
 
@@ -359,7 +365,6 @@ public class FrameworkFanCurveControlWorkerTests
             MinimumSpinDutyPercent = 17d,
             MaximumRpm = 7_000d,
             FeedForwardDutyPerWatt = 0.9d,
-            TrackingMode = FanSpeedTrackingMode.Duty,
         });
 
     /// <summary>

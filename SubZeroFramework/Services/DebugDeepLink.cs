@@ -126,7 +126,7 @@ internal static class DebugDeepLink
                         DeadTimeSeconds = 4d,
                         MinimumSpinRpm = 1180d,
                         MinimumSpinDutyPercent = 17d,
-                        TrackingMode = FanSpeedTrackingMode.Cascade,
+                        MaximumRpm = 6100d,
                     },
                 });
                 break;

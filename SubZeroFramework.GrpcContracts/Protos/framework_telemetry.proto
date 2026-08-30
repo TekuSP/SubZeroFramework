@@ -562,7 +562,7 @@ message FanCalibrationMessage {
   double proportional_gain = 9;
   double integral_gain = 10;
   double feed_forward_duty_per_watt = 11;
-  FanSpeedTrackingModeValue tracking_mode = 12;
+  reserved 12;  // was tracking_mode; fans are always driven by duty.
   // What the extra fan bought in sustained speed. Absent on calibrations from before this was measured, and
   // on machines that report no clock at all.
   optional FanPerformanceResponseMessage performance_response = 13;
@@ -600,8 +600,9 @@ message AdaptiveControlMessage {
   double throttle_escalation_duty_percent = 4;
   double raw_duty_percent = 5;
   double duty_percent = 6;
-  // Present only under cascade tracking, where a speed rather than a duty is commanded.
-  optional double setpoint_rpm = 7;
+  // What duty_percent is expected to PRODUCE, interpolated from the calibrated minimum-spin and full-speed
+  // points. An estimate for display; the fan is commanded by duty. Absent on an uncalibrated fan.
+  optional double expected_rpm = 7;
   double driving_temperature_celsius = 8;
   double target_temperature_celsius = 9;
   bool is_throttle_latched = 10;
@@ -748,11 +749,6 @@ enum FanCalibrationFailureValue {
   // The fan is controlled by GPU sensors and this machine cannot generate GPU load. Reported rather than
   // silently substituting CPU load, which would heat something this fan does not cool.
   FAN_CALIBRATION_FAILURE_VALUE_GPU_LOAD_UNAVAILABLE = 8;
-}
-
-enum FanSpeedTrackingModeValue {
-  FAN_SPEED_TRACKING_MODE_VALUE_DUTY = 0;
-  FAN_SPEED_TRACKING_MODE_VALUE_CASCADE = 1;
 }
 
 message GetChargeLimitsRequest {

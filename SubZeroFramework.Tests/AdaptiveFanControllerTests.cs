@@ -411,28 +411,33 @@ public class AdaptiveFanControllerTests
     }
 
     [Test]
-    public void Evaluate_InCascadeMode_CommandsASpeedInsideTheFanRange()
+    public void Evaluate_ReportsAnExpectedSpeedInsideTheFanRange()
     {
         var controller = new AdaptiveFanController();
-        var calibration = Calibrated() with { TrackingMode = FanSpeedTrackingMode.Cascade };
+        var calibration = Calibrated();
 
         var decision = Step(controller, calibration, Settings(), temperature: 90d);
 
         Assert.Multiple(() =>
         {
-            Assert.That(decision.SetpointRpm, Is.Not.Null);
-            Assert.That(decision.SetpointRpm!.Value, Is.InRange(calibration.MinimumSpinRpm, calibration.MaximumRpm));
+            Assert.That(decision.ExpectedRpm, Is.Not.Null);
+            Assert.That(decision.ExpectedRpm!.Value, Is.InRange(calibration.MinimumSpinRpm, calibration.MaximumRpm));
         });
     }
 
+    /// <summary>
+    /// The expected speed is a DISPLAY value derived from the duty, never something the fan is commanded to.
+    /// A fan with no measured speeds has nothing to derive it from and must say so rather than guess.
+    /// </summary>
     [Test]
-    public void Evaluate_InDutyMode_ReportsNoSetpoint()
+    public void Evaluate_WithoutAMeasuredMaximum_ReportsNoExpectedSpeed()
     {
         var controller = new AdaptiveFanController();
+        var calibration = Calibrated() with { MaximumRpm = 0d };
 
-        var decision = Step(controller, Calibrated(), Settings(), temperature: 90d);
+        var decision = Step(controller, calibration, Settings(), temperature: 90d);
 
-        Assert.That(decision.SetpointRpm, Is.Null);
+        Assert.That(decision.ExpectedRpm, Is.Null);
     }
 
     [Test]
@@ -603,7 +608,6 @@ public class AdaptiveFanControllerTests
             MinimumSpinDutyPercent = 17d,
             MaximumRpm = 7_000d,
             FeedForwardDutyPerWatt = 0.9d,
-            TrackingMode = FanSpeedTrackingMode.Duty,
         };
 
         return snapshot;

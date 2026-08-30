@@ -49,7 +49,6 @@ public class AdaptivePersistenceTests
                     ProportionalGain = 2.06d,
                     IntegralGain = 0.079d,
                     FeedForwardDutyPerWatt = 0.9d,
-                    TrackingMode = FanSpeedTrackingMode.Cascade,
                 },
                 AdaptiveSettings = new AdaptiveFanSettingsOptions
                 {
@@ -90,7 +89,6 @@ public class AdaptivePersistenceTests
                 Assert.That(reloaded.Calibration.ProportionalGain, Is.EqualTo(2.06d).Within(1e-9d));
                 Assert.That(reloaded.Calibration.IntegralGain, Is.EqualTo(0.079d).Within(1e-9d));
                 Assert.That(reloaded.Calibration.FeedForwardDutyPerWatt, Is.EqualTo(0.9d).Within(1e-9d));
-                Assert.That(reloaded.Calibration.TrackingMode, Is.EqualTo(FanSpeedTrackingMode.Cascade), "Tracking mode decides whether the EC gets a speed or a duty.");
                 Assert.That(reloaded.Calibration.CalibratedAt, Is.EqualTo(new DateTimeOffset(2026, 8, 24, 10, 30, 0, TimeSpan.Zero)));
 
                 Assert.That(reloaded.AdaptiveSettings, Is.Not.Null);

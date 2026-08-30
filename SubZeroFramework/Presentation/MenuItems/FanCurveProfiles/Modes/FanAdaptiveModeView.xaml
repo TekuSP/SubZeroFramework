@@ -243,7 +243,7 @@
                             FontSize="24"
                             FontWeight="SemiBold"
                             Foreground="{StaticResource BrandPrimaryBrush}"
-                            Text="{x:Bind ViewModel.SetpointRpm, Mode=OneWay, Converter={StaticResource UnitFormatDash}, ConverterParameter=FanSpeed}" />
+                            Text="{x:Bind ViewModel.ExpectedRpm, Mode=OneWay, Converter={StaticResource UnitFormatDash}, ConverterParameter=FanSpeed}" />
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Spacing="2">

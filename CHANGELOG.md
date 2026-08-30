@@ -4,6 +4,25 @@ All notable changes to this repository should be documented in this file.
 
 ## [0.2.2] - Unreleased
 
+### Changed
+
+- **Adaptive fans are driven by duty percent, always.** Where calibration judged that the embedded controller
+  could hold a commanded speed, the demand used to be converted to an RPM setpoint and handed to the EC's own
+  loop. That loop clamps the request to the firmware's configured maximum for the channel — around 4900 RPM on
+  Framework 16, where the same fan reaches past 6200 on a direct duty write. The top quarter of the range could
+  not be asked for: the fan sat well short of a speed nothing was ever going to deliver, and because the
+  shortfall happened inside the firmware rather than at the controller's own clamp, the trim wound to +100%
+  against a ceiling it had no way to see. The learner was being taught from duty values the EC had quietly
+  replaced, so the model drifted away from the machine it was supposed to describe.
+
+  Its one advantage was the firmware holding a speed steady as a fan ages — which is exactly what the adaptive
+  learner already does, so removing it costs nothing. Speeds are still shown: each duty demand is reported
+  alongside the speed it is expected to produce, interpolated between the two speeds calibration actually
+  measures (the minimum-spin point and full duty) rather than scaled off the maximum, which read far too low
+  across the lower half of the range. Calibration no longer probes speed tracking and is one settle shorter.
+
+  **Re-run calibration on each fan** to pick up the full-speed reading the new display is anchored to.
+
 ### Fixed
 
 - **The installed 0.2.1 app could not start.** It died on launch with `Could not load file or assembly

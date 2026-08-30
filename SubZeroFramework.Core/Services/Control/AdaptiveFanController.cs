@@ -15,10 +15,15 @@ namespace SubZeroFramework.Services.Control;
 /// approximate term handles the transient, and the slow, exact term handles the steady state.
 /// </para>
 /// <para>
-/// <b>Cascade.</b> Where calibration verified the EC tracks commanded speeds, the duty demand is converted to
-/// an RPM setpoint and the firmware's own loop holds it. That inner loop runs far faster than this one and
-/// absorbs the fan's non-linear duty-to-RPM curve, so equal duty demands produce equal airflow regardless of
-/// where on the curve the fan is sitting.
+/// <b>Duty, always.</b> The output is a duty percent and it is written to the fan as a duty percent. There
+/// was once a cascade path that converted the demand to an RPM setpoint for the EC's own speed loop to hold;
+/// it was removed because that command hands the fan to a firmware loop which CLAMPS the target to its own
+/// configured maximum — around 4900 RPM on Framework 16, where the same fan reaches past 6200 on a direct
+/// duty write. The top of the range simply could not be asked for, the loop wound its integrator against a
+/// ceiling it had no way to see, and the learner was taught from duty values the EC had quietly replaced.
+/// Its one advantage — the firmware holding a speed as the fan ages — is what this controller's learner
+/// already does, so nothing was lost. <see cref="AdaptiveControlDecision.ExpectedRpm"/> still reports a speed,
+/// as an estimate for display.
 /// </para>
 /// <para>
 /// <b>Statefulness.</b> This type holds integrator and latch state, so one instance belongs to one fan and
@@ -265,10 +270,6 @@ public sealed class AdaptiveFanController
             elapsed,
             timestamp);
 
-        var setpointRpm = model.TrackingMode == FanSpeedTrackingMode.Cascade
-            ? ToSetpointRpm(limited, model)
-            : null;
-
         return new AdaptiveControlDecision
         {
             IsDriven = true,
@@ -278,7 +279,7 @@ public sealed class AdaptiveFanController
             ThrottleEscalationDutyPercent = escalation,
             RawDutyPercent = raw,
             DutyPercent = limited,
-            SetpointRpm = setpointRpm,
+            ExpectedRpm = model.EstimateRpm(limited),
             DrivingTemperatureCelsius = drivingTemperatureCelsius,
             TargetTemperatureCelsius = target,
             IsThrottleLatched = _isThrottleLatched,
@@ -557,22 +558,4 @@ public sealed class AdaptiveFanController
         _integratorDutyPercent = Math.Clamp(_integratorDutyPercent, -100d, 100d);
     }
 
-    private static double? ToSetpointRpm(double dutyPercent, FanCalibrationSnapshot calibration)
-    {
-        if (calibration.MaximumRpm <= 0d || !double.IsFinite(calibration.MaximumRpm))
-        {
-            return null;
-        }
-
-        if (dutyPercent <= 0d)
-        {
-            return 0d;
-        }
-
-        // Linear duty→RPM. The EC's own loop is what actually holds the speed, so this only has to land in
-        // the right neighbourhood; the inner loop absorbs the real curve's non-linearity. Floored at the
-        // measured minimum spin so a low demand asks for a speed the fan can actually hold.
-        var rpm = dutyPercent / 100d * calibration.MaximumRpm;
-        return Math.Clamp(Math.Max(rpm, calibration.MinimumSpinRpm), 0d, calibration.MaximumRpm);
-    }
 }

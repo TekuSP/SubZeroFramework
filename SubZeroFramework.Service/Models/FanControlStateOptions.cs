@@ -68,8 +68,6 @@ public sealed record FanCalibrationOptions
 
     public double FeedForwardDutyPerWatt { get; init; }
 
-    public FanSpeedTrackingMode TrackingMode { get; init; } = FanSpeedTrackingMode.Duty;
-
     /// <summary>
     /// The measured gain curve's points, ordered by ascending duty.
     /// </summary>
