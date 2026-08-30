@@ -12,12 +12,18 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
 {
     private readonly FrameworkFanControlAuthorizationService _authorizationService;
     private readonly IFrameworkDataProvider _frameworkDataProvider;
+    private readonly IHostApplicationLifetime _applicationLifetime;
     private readonly ILogger<FrameworkStatusGrpcService> _logger;
 
-    public FrameworkStatusGrpcService(IFrameworkDataProvider frameworkDataProvider, FrameworkFanControlAuthorizationService authorizationService, ILogger<FrameworkStatusGrpcService> logger)
+    public FrameworkStatusGrpcService(
+        IFrameworkDataProvider frameworkDataProvider,
+        FrameworkFanControlAuthorizationService authorizationService,
+        IHostApplicationLifetime applicationLifetime,
+        ILogger<FrameworkStatusGrpcService> logger)
     {
         _frameworkDataProvider = frameworkDataProvider;
         _authorizationService = authorizationService;
+        _applicationLifetime = applicationLifetime;
         _logger = logger;
     }
 
@@ -32,13 +38,19 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
 
     public override async Task WatchStatus(WatchStatusRequest request, IServerStreamWriter<FrameworkStatusReply> responseStream, ServerCallContext context)
     {
+        // Linked so the stream unwinds the moment the service starts stopping. Watching only the request's
+        // own token would keep this call in flight until Kestrel aborted it — which it does only after the
+        // whole graceful-shutdown budget has elapsed.
+        using var streamCancellation = context.LinkToShutdown(_applicationLifetime);
+        var streamToken = streamCancellation.Token;
+
         try
         {
             _logger.LogInformation("Opening status stream.");
             ApplyFanControlAuthorization();
-            var initialStatus = await _frameworkDataProvider.RefreshAsync(context.CancellationToken).ConfigureAwait(false);
+            var initialStatus = await _frameworkDataProvider.RefreshAsync(streamToken).ConfigureAwait(false);
             _logger.LogDebug("Publishing initial status stream reply. IsConnectionOpen={IsConnectionOpen}, RequiresElevation={RequiresElevation}, LastErrorPresent={HasLastError}.", initialStatus.IsConnectionOpen, initialStatus.RequiresElevation, !string.IsNullOrEmpty(initialStatus.LastError));
-            await responseStream.WriteAsync(MapStatus(initialStatus), context.CancellationToken).ConfigureAwait(false);
+            await responseStream.WriteAsync(MapStatus(initialStatus), streamToken).ConfigureAwait(false);
 
             var statusStream = _frameworkDataProvider.SystemStatus
                 .DistinctUntilChanged(status => new
@@ -60,20 +72,22 @@ public sealed class FrameworkStatusGrpcService : FrameworkStatusService.Framewor
                     status.FanControlAuthorizationMessage,
                 });
 
-            var reader = ObservableChannelBridge.CreateBoundedReader(statusStream.Skip(1), context.CancellationToken, _logger, "status stream");
+            var reader = ObservableChannelBridge.CreateBoundedReader(statusStream.Skip(1), streamToken, _logger, "status stream");
 
-            while (await reader.WaitToReadAsync(context.CancellationToken).ConfigureAwait(false))
+            while (await reader.WaitToReadAsync(streamToken).ConfigureAwait(false))
             {
                 while (reader.TryRead(out var status))
                 {
                     _logger.LogDebug("Publishing status stream update. IsConnectionOpen={IsConnectionOpen}, RequiresElevation={RequiresElevation}, LastErrorPresent={HasLastError}.", status.IsConnectionOpen, status.RequiresElevation, !string.IsNullOrEmpty(status.LastError));
-                    await responseStream.WriteAsync(MapStatus(status), context.CancellationToken).ConfigureAwait(false);
+                    await responseStream.WriteAsync(MapStatus(status), streamToken).ConfigureAwait(false);
                 }
             }
         }
-        catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+        // Filters on the LINKED token: a shutdown-triggered cancellation does not set the request's own
+        // token, so the original filter would have let it escape as an unhandled exception.
+        catch (OperationCanceledException) when (streamToken.IsCancellationRequested)
         {
-            _logger.LogDebug("Stopping status stream because the request was cancelled.");
+            _logger.LogDebug("Stopping status stream because the request was cancelled or the service is stopping.");
         }
     }
 

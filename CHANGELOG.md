@@ -67,6 +67,15 @@ All notable changes to this repository should be documented in this file.
 
 ### Fixed
 
+- **The service took its entire 90-second shutdown budget to stop whenever the app was connected**, which is
+  what made uninstalling put up "Installer is no longer responding" and need retrying until that budget ran
+  out. Every `Watch…` call streams forever by design, and each waited only on its own request's cancellation
+  token — which ASP.NET Core fires when the client disconnects, or when it *aborts* the request, and it only
+  aborts once graceful shutdown has already timed out. So the host sat waiting the full ninety seconds for
+  streams that were never going to end on their own. Each stream is now linked to the host's stopping token as
+  well and unwinds the moment shutdown is signalled, so the service stops in well under a second. Stopping,
+  restarting and upgrading the service are all affected, not only uninstalling.
+
 - **The installed 0.2.1 app could not start.** It died on launch with `Could not load file or assembly
   'SubZeroFramework.GrpcContracts, Version=0.2.1.0'` while every local build ran fine. CI built the app with
   the run's version, then built the test project without it — and that second build walks

@@ -14,14 +14,19 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
     private readonly InMemoryLogBuffer _logBuffer;
     private readonly ILogger<FrameworkServiceConfigurationGrpcService> _logger;
 
+    private readonly IHostApplicationLifetime _applicationLifetime;
+
     public FrameworkServiceConfigurationGrpcService(
         FrameworkServiceConfigurationManager configurationManager,
         InMemoryLogBuffer logBuffer,
+        IHostApplicationLifetime applicationLifetime,
         ILogger<FrameworkServiceConfigurationGrpcService> logger)
     {
         ArgumentNullException.ThrowIfNull(configurationManager);
         ArgumentNullException.ThrowIfNull(logBuffer);
+        ArgumentNullException.ThrowIfNull(applicationLifetime);
         ArgumentNullException.ThrowIfNull(logger);
+        _applicationLifetime = applicationLifetime;
 
         _configurationManager = configurationManager;
         _logBuffer = logBuffer;
@@ -72,6 +77,9 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
 
     public override async Task WatchServiceConfiguration(WatchServiceConfigurationRequest request, IServerStreamWriter<FrameworkServiceConfigurationReply> responseStream, ServerCallContext context)
     {
+        using var streamCancellation = context.LinkToShutdown(_applicationLifetime);
+        var streamToken = streamCancellation.Token;
+
         try
         {
             _logger.LogInformation("Opening service configuration stream.");
@@ -82,17 +90,17 @@ public sealed class FrameworkServiceConfigurationGrpcService : FrameworkServiceC
                 updates.Writer.TryWrite(MapConfiguration(snapshot));
             });
 
-            while (await updates.Reader.WaitToReadAsync(context.CancellationToken).ConfigureAwait(false))
+            while (await updates.Reader.WaitToReadAsync(streamToken).ConfigureAwait(false))
             {
                 while (updates.Reader.TryRead(out var reply))
                 {
-                    await responseStream.WriteAsync(reply, context.CancellationToken).ConfigureAwait(false);
+                    await responseStream.WriteAsync(reply, streamToken).ConfigureAwait(false);
                 }
             }
         }
-        catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (streamToken.IsCancellationRequested)
         {
-            _logger.LogDebug("Stopping service configuration stream because the request was cancelled.");
+            _logger.LogDebug("Stopping service configuration stream because the request was cancelled or the service is stopping.");
         }
     }
 
