@@ -2,9 +2,12 @@ using System.Collections.ObjectModel;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
+using Material.Icons;
+
 using Microsoft.UI.Xaml;
 
 using SubZeroFramework.Models;
+using SubZeroFramework.Services;
 
 namespace SubZeroFramework.Presentation.MenuItems.DeviceCapabilities;
 
@@ -44,10 +47,10 @@ public partial class DeviceCapabilitiesModel
     {
         List<FirmwareGroupModel> groups = [];
 
-        AddGroup(groups, "Cameras", "Camera", firmware.Cameras);
-        AddGroup(groups, "Input modules", "Input module", firmware.InputModules);
-        AddGroup(groups, "USB hubs", "USB hub", firmware.UsbHubs);
-        AddGroup(groups, "Audio", "Audio card", firmware.AudioCards);
+        AddGroup(groups, "Cameras", "Camera", MaterialIconKind.Webcam, firmware.Cameras);
+        AddGroup(groups, "Input modules", "Input module", MaterialIconKind.Keyboard, firmware.InputModules);
+        AddGroup(groups, "USB hubs", "USB hub", MaterialIconKind.Usb, firmware.UsbHubs);
+        AddGroup(groups, "Audio", "Audio card", MaterialIconKind.VolumeHigh, firmware.AudioCards);
 
         // The retimer joins the power-delivery group rather than getting a heading of its own. It is a
         // USB-C signal component and there is only ever one, so a "Retimer" heading over a single "Retimer"
@@ -55,12 +58,15 @@ public partial class DeviceCapabilitiesModel
         List<FirmwareRowModel> powerDelivery =
         [
             .. firmware.PowerDeliveryControllers.Select(static controller =>
-                new FirmwareRowModel(PowerDeliverySlotName(controller), controller.Version)),
+                new FirmwareRowModel(
+                    FirmwareComponentDisplay.PowerDeliverySlotName(controller),
+                    controller.Version,
+                    MaterialIconKind.PowerPlug)),
         ];
 
         if (firmware.RetimerVersion.Length > 0)
         {
-            powerDelivery.Add(new FirmwareRowModel("Retimer", firmware.RetimerVersion));
+            powerDelivery.Add(new FirmwareRowModel("Retimer", firmware.RetimerVersion, MaterialIconKind.SwapHorizontal));
         }
 
         if (powerDelivery.Count > 0)
@@ -73,7 +79,7 @@ public partial class DeviceCapabilitiesModel
             groups.Add(new FirmwareGroupModel(
                 "Storage",
                 [.. firmware.NvmeDrives.Select(static drive =>
-                    new FirmwareRowModel(drive.ModelNumber, drive.FirmwareVersion))]));
+                    new FirmwareRowModel(drive.ModelNumber, drive.FirmwareVersion, MaterialIconKind.Harddisk))]));
         }
 
         // Assigned only when the CONTENT changed. The snapshot is rebuilt on the slow tier and almost always
@@ -119,42 +125,12 @@ public partial class DeviceCapabilitiesModel
         }
     }
 
-    /// <summary>
-    /// Names a power-delivery controller by the ports it drives.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The firmware identifies these as Right01 / Left23 / Back, which is the probe order and the EC's own
-    /// port numbering — index 0 and 1 are the right-hand pair, 2 and 3 the left. That numbering appears
-    /// nowhere a user can see it: the ports are labelled USB-C 1 to 4 on the Power page, counting from the
-    /// right. So the raw name is not merely terse, it is off by one against everything else in the app.
-    /// </para>
-    /// <para>
-    /// An unrecognised slot keeps whatever the firmware called it. A wrong friendly name would be worse than
-    /// a terse true one.
-    /// </para>
-    /// </remarks>
-    private static string PowerDeliverySlotName(FirmwareComponent controller) => controller.ProductName switch
-    {
-        "Right01" => "Right side (USB-C 1 & 2)",
-        "Left23" => "Left side (USB-C 3 & 4)",
-        "Back" => "Rear",
-        _ => controller.ProductName.Length > 0 ? controller.ProductName : $"Controller {controller.SlotIndex + 1}",
-    };
-
-    /// <summary>
-    /// Adds one group, naming any component that reports no name of its own.
-    /// </summary>
-    /// <remarks>
-    /// The fallback counts within the group rather than echoing the slot index. A lone unnamed hub rendered
-    /// as "Slot 0" reads as a slot number the user could go and look at, when it is really a USB enumeration
-    /// index that corresponds to nothing on the machine. "USB hub 1" claims only what is true: it is the
-    /// first hub in this list.
-    /// </remarks>
+    /// <summary>Adds one group, naming its components through the shared display catalog.</summary>
     private static void AddGroup(
         List<FirmwareGroupModel> groups,
         string title,
         string singular,
+        MaterialIconKind icon,
         IReadOnlyList<FirmwareComponent> components)
     {
         if (components.Count == 0)
@@ -165,15 +141,22 @@ public partial class DeviceCapabilitiesModel
         groups.Add(new FirmwareGroupModel(
             title,
             [.. components.Select((component, position) => new FirmwareRowModel(
-                component.ProductName.Length > 0
-                    ? component.ProductName
-                    : components.Count > 1 ? $"{singular} {position + 1}" : singular,
-                component.Version))]));
+                FirmwareComponentDisplay.ComponentName(component, singular, position, components.Count),
+                component.Version,
+                icon))]));
     }
 }
 
-/// <summary>One firmware row: what it is, and what it is running.</summary>
-public sealed record FirmwareRowModel(string Name, string Version);
+/// <summary>
+/// One firmware tile: what it is, what it is running, and the glyph that says which kind of thing it is.
+/// </summary>
+/// <param name="Name">Becomes the tile's label — the component.</param>
+/// <param name="Version">Becomes the tile's value.</param>
+/// <param name="Icon">
+/// Carried on the row rather than the group because the tile template binds against a row and cannot reach
+/// its group's data context.
+/// </param>
+public sealed record FirmwareRowModel(string Name, string Version, MaterialIconKind Icon);
 
 /// <summary>A heading and its rows. A record so an unchanged rebuild compares equal and is skipped.</summary>
 public sealed record FirmwareGroupModel(string Title, IReadOnlyList<FirmwareRowModel> Rows);

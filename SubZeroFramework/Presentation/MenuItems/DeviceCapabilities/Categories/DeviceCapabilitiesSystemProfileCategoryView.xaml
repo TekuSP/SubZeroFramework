@@ -22,63 +22,55 @@
             of its own because the whole block is derived from one field of the hardware snapshot, and the
             page model is where that change notification already lives.
         -->
-        <Border
-            Padding="16,14"
-            Background="{StaticResource CardBackgroundBrush}"
-            BorderBrush="{StaticResource SurfaceOutlineBrush}"
-            BorderThickness="1"
-            CornerRadius="12"
-            Visibility="{x:Bind ViewModel.Page.FirmwareSectionVisibility, Mode=OneWay}">
-            <StackPanel Spacing="12">
-                <TextBlock
-                    FontSize="13.5"
-                    FontWeight="SemiBold"
-                    Foreground="{StaticResource TextPrimaryBrush}"
-                    Text="Component firmware" />
+        <!--
+            Plain heading plus stat tiles, deliberately WITHOUT card chrome — the same "simplicity" layout the
+            motherboard block above uses. Each component is its own tile: a card in a card reads as two
+            containers rather than one list.
+        -->
+        <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.Page.FirmwareSectionVisibility, Mode=OneWay}">
+            <TextBlock
+                FontSize="16"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="Component firmware" />
 
-                <ItemsRepeater ItemsSource="{x:Bind ViewModel.Page.FirmwareGroups, Mode=OneWay}">
-                    <ItemsRepeater.Layout>
-                        <StackLayout Spacing="14" />
-                    </ItemsRepeater.Layout>
-                    <ItemsRepeater.ItemTemplate>
-                        <DataTemplate x:DataType="deviceCapabilities:FirmwareGroupModel">
-                            <StackPanel Spacing="6">
-                                <TextBlock
-                                    FontSize="11.5"
-                                    FontWeight="SemiBold"
-                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                    Text="{x:Bind Title}" />
-                                <ItemsRepeater ItemsSource="{x:Bind Rows}">
-                                    <ItemsRepeater.Layout>
-                                        <StackLayout Spacing="4" />
-                                    </ItemsRepeater.Layout>
-                                    <ItemsRepeater.ItemTemplate>
-                                        <DataTemplate x:DataType="deviceCapabilities:FirmwareRowModel">
-                                            <Grid ColumnSpacing="12">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock
-                                                    FontSize="12"
-                                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                                    Text="{x:Bind Name}"
-                                                    TextTrimming="CharacterEllipsis" />
-                                                <TextBlock
-                                                    Grid.Column="1"
-                                                    FontSize="12"
-                                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                                    Text="{x:Bind Version}" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </ItemsRepeater.ItemTemplate>
-                                </ItemsRepeater>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsRepeater.ItemTemplate>
-                </ItemsRepeater>
-            </StackPanel>
-        </Border>
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Page.FirmwareGroups, Mode=OneWay}">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="14" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="deviceCapabilities:FirmwareGroupModel">
+                        <StackPanel Spacing="8">
+                            <TextBlock
+                                FontSize="12.5"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind Title}" />
+
+                            <!--  ItemsControl, not ItemsRepeater: StatTilePanel is the layout the tiles measure against.  -->
+                            <ItemsControl ItemsSource="{x:Bind Rows}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <deviceCapabilitiesControls:StatTilePanel
+                                            ColumnSpacing="10"
+                                            MinTileWidth="240"
+                                            RowSpacing="10" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="deviceCapabilities:FirmwareRowModel">
+                                        <deviceCapabilitiesControls:StatTileView
+                                            IconKind="{x:Bind Icon}"
+                                            Label="{x:Bind Name}"
+                                            Value="{x:Bind Version}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </StackPanel>
     </StackPanel>
     </ScrollViewer>
 </UserControl>
