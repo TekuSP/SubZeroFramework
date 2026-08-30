@@ -233,9 +233,6 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
                                 .Select(static point => new FanGainPoint(point.DutyPercent, point.SettledCelsius)),
                         ],
                     },
-                TrackingMode = message.TrackingMode == FanSpeedTrackingModeValue.Cascade
-                    ? FanSpeedTrackingMode.Cascade
-                    : FanSpeedTrackingMode.Duty,
             };
 
     private static AdaptiveFanSettings ParseAdaptiveSettings(AdaptiveFanSettingsMessage? message)
@@ -264,7 +261,7 @@ public sealed class GrpcFanControlStateClient : IFanControlStateClient, IDisposa
                 ThrottleEscalationDutyPercent = message.ThrottleEscalationDutyPercent,
                 RawDutyPercent = message.RawDutyPercent,
                 DutyPercent = message.DutyPercent,
-                SetpointRpm = message.HasSetpointRpm ? message.SetpointRpm : null,
+                ExpectedRpm = message.HasExpectedRpm ? message.ExpectedRpm : null,
                 DrivingTemperatureCelsius = message.DrivingTemperatureCelsius,
                 TargetTemperatureCelsius = message.TargetTemperatureCelsius,
                 IsThrottleLatched = message.IsThrottleLatched,

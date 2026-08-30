@@ -22,7 +22,7 @@ internal static class TelemetryGrpcMapper
 
     public static TelemetryChannelChangeReply MapChannelChange(Change<TelemetryChannel, TelemetryChannelId> change)
     {
-        return new TelemetryChannelChangeReply
+        var reply = new TelemetryChannelChangeReply
         {
             ChangeKind = MapChangeReason(change.Reason),
             ChannelId = MapChannelId(change.Key),
@@ -32,6 +32,39 @@ internal static class TelemetryGrpcMapper
             LastObservedAtUnixTimeMilliseconds = change.Current.LastObservedAt.ToUnixTimeMilliseconds(),
             IsAvailable = change.Current.IsAvailable,
         };
+
+        if (change.Current.FirmwareThresholds is { } thresholds)
+        {
+            var message = new GrpcContracts.FirmwareThermalThresholds();
+            if (thresholds.WarnCelsius is double warn)
+            {
+                message.WarnCelsius = warn;
+            }
+
+            if (thresholds.HighCelsius is double high)
+            {
+                message.HighCelsius = high;
+            }
+
+            if (thresholds.HaltCelsius is double halt)
+            {
+                message.HaltCelsius = halt;
+            }
+
+            if (thresholds.FanOffCelsius is double fanOff)
+            {
+                message.FanOffCelsius = fanOff;
+            }
+
+            if (thresholds.FanMaxCelsius is double fanMax)
+            {
+                message.FanMaxCelsius = fanMax;
+            }
+
+            reply.FirmwareThresholds = message;
+        }
+
+        return reply;
     }
 
     public static FanCapabilityChangeReply MapFanCapabilityChange(Change<FanCapabilityState, int> change)
@@ -264,7 +297,7 @@ internal static class TelemetryGrpcMapper
 
     public static CurrentTelemetryValueChangeReply MapCurrentValueChange(Change<CurrentTelemetryValue, TelemetryChannelId> change)
     {
-        return new CurrentTelemetryValueChangeReply
+        var reply = new CurrentTelemetryValueChangeReply
         {
             ChangeKind = MapChangeReason(change.Reason),
             ChannelId = MapChannelId(change.Key),
@@ -312,6 +345,15 @@ internal static class TelemetryGrpcMapper
 
             IsAvailable = change.Current.IsAvailable,
         };
+
+        // Assigned separately because the generated setter for a proto3 `optional double` takes a plain
+        // double: leaving the field unset is how absence is expressed, not writing a null into it.
+        if (change.Current.FirmwareWarnCelsius is double firmwareWarn)
+        {
+            reply.FirmwareWarnCelsius = firmwareWarn;
+        }
+
+        return reply;
     }
 
     public static TelemetrySeriesPointChangeReply MapTelemetryPointChange(Change<TelemetryPoint, long> change)
@@ -441,9 +483,6 @@ internal static class TelemetryGrpcMapper
             ProportionalGain = calibration.ProportionalGain,
             IntegralGain = calibration.IntegralGain,
             FeedForwardDutyPerWatt = calibration.FeedForwardDutyPerWatt,
-            TrackingMode = calibration.TrackingMode == FanSpeedTrackingMode.Cascade
-                ? FanSpeedTrackingModeValue.Cascade
-                : FanSpeedTrackingModeValue.Duty,
         };
 
         // Only sent when something was actually measured. An empty message would tell the UI a speed
@@ -582,9 +621,9 @@ internal static class TelemetryGrpcMapper
             IsFeedForwardUnavailable = control.IsFeedForwardUnavailable,
         };
 
-        if (control.SetpointRpm is double setpointRpm)
+        if (control.ExpectedRpm is double expectedRpm)
         {
-            message.SetpointRpm = setpointRpm;
+            message.ExpectedRpm = expectedRpm;
         }
 
         if (control.ThrottleLatchReleaseSeconds is double releaseSeconds)

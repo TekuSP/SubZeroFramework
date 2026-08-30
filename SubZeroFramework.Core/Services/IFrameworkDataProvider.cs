@@ -139,6 +139,46 @@ public interface IFrameworkDataProvider
 
     HardwareInfoSnapshot GetLatestHardwareInfoSnapshot();
 
+    /// <summary>
+    /// The last embedded-controller health reading taken on the telemetry poll.
+    /// </summary>
+    /// <remarks>
+    /// Never null. Reports <see cref="EcDiagnosticsSnapshot.Unavailable"/> until a read succeeds, which is
+    /// deliberately distinguishable from a controller that answered and had nothing to report.
+    /// </remarks>
+    EcDiagnosticsSnapshot GetLatestEcDiagnostics();
+
+    /// <summary>
+    /// The firmware's own name and thresholds for each temperature sensor.
+    /// </summary>
+    /// <remarks>
+    /// Read once when the connection opens, because neither changes while the machine runs and each sensor
+    /// costs its own round trips. Empty until the first thermal read succeeds, and emptied when the
+    /// connection closes — the cache describes one machine, and a reconnect may be a different one.
+    /// </remarks>
+    IReadOnlyList<ThermalSensorMetadata> GetThermalSensorMetadata();
+
+    /// <summary>
+    /// Reads the battery pack's own registers over I2C passthrough.
+    /// </summary>
+    /// <remarks>
+    /// ON DEMAND ONLY. Costs many I2C round trips and holds the passthrough while it runs — never put this on
+    /// a timer. Repeat calls inside a short window return the cached answer rather than queuing behind each
+    /// other, so a user leaning on a refresh button cannot stall ordinary telemetry. Returns null when the
+    /// pack could not be read at all.
+    /// </remarks>
+    Task<SmartBatterySnapshot?> ReadSmartBatteryAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Collects every firmware version the machine will report.
+    /// </summary>
+    /// <remarks>
+    /// On demand. Nothing here changes while the machine runs — a firmware update needs a restart — and each
+    /// component costs its own round trip. The peripheral half needs no embedded-controller connection, so a
+    /// machine whose EC is unavailable still reports its cameras, hubs and drives.
+    /// </remarks>
+    FirmwareInventorySnapshot ReadFirmwareInventory();
+
     void SetFanControlAuthorization(bool isFanControlEnabled, bool hasCallerIdentityValidation, string? authorizationMessage);
 
     Task<FrameworkSystemStatus> RefreshAsync(CancellationToken cancellationToken = default);

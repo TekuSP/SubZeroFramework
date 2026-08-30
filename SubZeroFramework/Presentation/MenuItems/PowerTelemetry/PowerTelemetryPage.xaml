@@ -245,6 +245,86 @@
                     </controls:ElevatedCard>
                 </Grid>
 
+                <!--
+                    Pack health. Collapsed by default and read only on request: this comes from the battery's
+                    own registers over I2C, which costs many round trips and holds the passthrough while it
+                    runs. Everything above is live telemetry; this is the one part driven by a button.
+                -->
+                <Expander
+                    Margin="10,0"
+                    HorizontalAlignment="Stretch"
+                    HorizontalContentAlignment="Stretch"
+                    Expanding="PackHealthExpander_Expanding"
+                    Visibility="{x:Bind ViewModel.BatterySectionVisibility, Mode=OneWay}">
+                    <Expander.Header>
+                        <TextBlock FontSize="13.5" FontWeight="SemiBold" Text="Pack health" />
+                    </Expander.Header>
+
+                    <!--
+                        Pull down to re-read. The section reads itself once on opening — opening it is the
+                        request — so there is no button: a control whose only job is to do what the user just
+                        asked for by opening the section is a second ask for the same thing.
+                    -->
+                    <RefreshContainer RefreshRequested="PackHealthRefresh_Requested">
+                        <ScrollViewer
+                            controls:ScrollHint.IsEnabled="True"
+                            MaxHeight="420"
+                            VerticalScrollBarVisibility="Auto"
+                            VerticalScrollMode="Enabled">
+                    <StackPanel Spacing="12">
+                        <ProgressRing
+                            Width="20"
+                            Height="20"
+                            HorizontalAlignment="Left"
+                            IsActive="True"
+                            Visibility="{x:Bind ViewModel.PackHealthBusyVisibility, Mode=OneWay}" />
+
+                        <InfoBar
+                            IsClosable="False"
+                            IsOpen="True"
+                            Message="{x:Bind ViewModel.PackHealthNotice, Mode=OneWay}"
+                            Severity="{x:Bind ViewModel.PackHealthNoticeSeverity, Mode=OneWay}"
+                            Visibility="{x:Bind ViewModel.PackHealthNoticeVisibility, Mode=OneWay}" />
+
+                        <StackPanel Spacing="12" Visibility="{x:Bind ViewModel.PackHealthVisibility, Mode=OneWay}">
+                            <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.PackIdentityText, Mode=OneWay}" TextWrapping="WrapWholeWords" />
+                            <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.PackAgeText, Mode=OneWay}" />
+
+                            <!--  Cell balance: bars scaled to the highest cell, so drift is visible rather than implied.  -->
+                            <ItemsRepeater ItemsSource="{x:Bind ViewModel.PackCells, Mode=OneWay}">
+                                <ItemsRepeater.Layout>
+                                    <StackLayout Spacing="6" />
+                                </ItemsRepeater.Layout>
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="pt:PackCellReading">
+                                        <Grid ColumnSpacing="10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="56" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock VerticalAlignment="Center" FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind Label}" />
+                                            <ProgressBar Grid.Column="1" Height="8" VerticalAlignment="Center" Maximum="1" Value="{x:Bind Fraction}" />
+                                            <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="11.5" Foreground="{StaticResource TextPrimaryBrush}" Text="{x:Bind VoltageText}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+
+                            <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.PackCellImbalanceText, Mode=OneWay}" TextWrapping="WrapWholeWords" />
+                            <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ViewModel.PackRequestText, Mode=OneWay}" />
+                            <TextBlock
+                                FontSize="12"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind ViewModel.PackStateOfHealthText, Mode=OneWay}"
+                                TextWrapping="WrapWholeWords"
+                                Visibility="{x:Bind ViewModel.PackStateOfHealthVisibility, Mode=OneWay}" />
+                        </StackPanel>
+                    </StackPanel>
+                        </ScrollViewer>
+                    </RefreshContainer>
+                </Expander>
+
                 <!--  Row: Charge limits | Trends  -->
                 <Grid Margin="10,0" ColumnSpacing="12" Visibility="{x:Bind ViewModel.BatterySectionVisibility, Mode=OneWay}">
                     <Grid.ColumnDefinitions>
@@ -443,6 +523,7 @@
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
 
                                         <!--  Main row: port chip | (title + badges) over role pills | negotiated power  -->
@@ -532,6 +613,21 @@
                                                 <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind AltModeText, Mode=OneWay}" />
                                             </Grid>
                                         </Border>
+
+                                        <!--
+                                            What this cable and charger actually agreed on. Distinct from the
+                                            live volts/amps above (what is flowing) and from the slot's own
+                                            rating — a shortfall between the two is the thing worth saying.
+                                        -->
+                                        <StackPanel Grid.Row="2" Margin="0,8,0,0" Spacing="2" Visibility="{x:Bind ContractVisibility, Mode=OneWay}">
+                                            <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Text="{x:Bind ContractText, Mode=OneWay}" />
+                                            <TextBlock
+                                                FontSize="11"
+                                                Foreground="{StaticResource StatusWarningBrush}"
+                                                Text="{x:Bind ContractShortfallText, Mode=OneWay}"
+                                                TextWrapping="WrapWholeWords"
+                                                Visibility="{x:Bind ContractShortfallVisibility, Mode=OneWay}" />
+                                        </StackPanel>
                                     </Grid>
                                 </controls:ElevatedCard>
                             </DataTemplate>

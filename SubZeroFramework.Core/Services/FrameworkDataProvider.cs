@@ -126,6 +126,15 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         IsAvailable = false,
         LastError = "Hardware information has not been collected yet.",
     };
+    /// <summary>
+    /// Written on the poll thread, read by fan control and the status service — hence the volatile access.
+    /// </summary>
+    private EcDiagnosticsSnapshot _ecDiagnostics = EcDiagnosticsSnapshot.Unavailable;
+
+    /// <summary>
+    /// Per-sensor firmware names and thresholds, read once per connection and cached until it closes.
+    /// </summary>
+    private IReadOnlyList<ThermalSensorMetadata> _thermalSensorMetadata = [];
     private readonly IHardwareInfo _hardwareInfo;
     private readonly IHardwareInfoLogNoiseBuffer _hardwareInfoNoiseBuffer;
     private readonly IControlTelemetryReader _controlTelemetryReader;
@@ -331,6 +340,419 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
 
     public HardwareInfoSnapshot GetLatestHardwareInfoSnapshot()
         => _latestHardwareInfoSnapshot;
+
+    public EcDiagnosticsSnapshot GetLatestEcDiagnostics()
+        => Volatile.Read(ref _ecDiagnostics);
+
+    public IReadOnlyList<ThermalSensorMetadata> GetThermalSensorMetadata()
+        => Volatile.Read(ref _thermalSensorMetadata);
+
+    /// <summary>Collected once and kept: a firmware update needs a restart, so it cannot change under us.</summary>
+    private FirmwareInventorySnapshot? _firmwareInventory;
+
+    public FirmwareInventorySnapshot ReadFirmwareInventory()
+        => _firmwareInventory ??= CollectFirmwareInventory();
+
+    private FirmwareInventorySnapshot CollectFirmwareInventory()
+    {
+        // Deliberately NOT gated on a connection. Peripheral versions come from the library's standalone
+        // surface and work with no embedded controller at all, so a machine whose EC is unavailable still
+        // reports its cameras, hubs and drives instead of showing an empty panel.
+        var peripherals = new FrameworkPeripherals();
+
+        // Input modules and the retimer are Framework 16 only — the library's own analyzer says so, and on
+        // other families the commands are rejected outright rather than returning nothing. Asked only where
+        // they exist, so a Laptop 13 gets an absent section instead of a logged failure every time.
+        var isFramework16 = TryReadEcStruct(() => _frameworkSystem.GetPlatformFamily())
+            == FrameworkPlatformFamily.Framework16;
+
+        var cameras = ReadPeripheralGroup(() => peripherals.GetCameraVersions());
+#pragma warning disable FD0001
+        var inputModules = isFramework16 ? ReadPeripheralGroup(() => peripherals.GetInputModuleVersions()) : [];
+#pragma warning restore FD0001
+        var usbHubs = ReadPeripheralGroup(() => peripherals.GetUsbHubVersions());
+        var audioCards = ReadPeripheralGroup(() => peripherals.GetAudioCardVersion());
+
+        List<FirmwareComponent> powerDeliveryControllers = [];
+        var retimerVersion = string.Empty;
+
+        if (EnsureConnection() is { } connection)
+        {
+            if (TryReadEcValue(() => connection.PowerDelivery.GetControllerVersions()) is { } controllers)
+            {
+                FrameworkPowerDeliveryControllerFirmwareSnapshot[] all =
+                    [controllers.Controller_0, controllers.Controller_1, controllers.Controller_2];
+
+                for (var index = 0; index < Math.Min(controllers.ControllerCount, all.Length); index++)
+                {
+                    var controller = all[index];
+                    if (!controller.IsPresent)
+                    {
+                        continue;
+                    }
+
+                    // The APPLICATION version only. MainFirmware.ToString() spells out the bootloader base
+                    // and the application and the application's target — "Base: 3.7.0.407, App: 0.0.34
+                    // (Notebook)" — which is four facts in a column that has room for one. The application
+                    // version is the one Framework's own firmware notes quote, so it is the one worth
+                    // comparing against.
+                    var application = controller.MainFirmware.ApplicationVersion;
+
+                    powerDeliveryControllers.Add(new FirmwareComponent(
+                        index,
+                        controller.Slot.ToString(),
+                        FirmwareComponent.FormatVersion(application.Major, application.Minor, application.Circuit),
+                        VendorId: 0,
+                        ProductId: 0));
+                }
+            }
+
+#pragma warning disable FD0001
+            if (isFramework16
+                && TryReadEcValue(() => connection.PowerDelivery.GetRetimerVersion()) is { IsPresent: true } retimer)
+            {
+                // The library's own formatter. Version is the RAW four-byte register payload, and joining the
+                // bytes by hand produced "17.0.1.0.17.128.4.0.1.0.0.0…" — every byte of a padded buffer
+                // rendered as decimal. VersionString renders the quad the way upstream does.
+                retimerVersion = retimer.VersionString;
+            }
+#pragma warning restore FD0001
+        }
+
+        return new FirmwareInventorySnapshot
+        {
+            Cameras = cameras,
+            InputModules = inputModules,
+            UsbHubs = usbHubs,
+            AudioCards = audioCards,
+            PowerDeliveryControllers = powerDeliveryControllers,
+            RetimerVersion = retimerVersion,
+            NvmeDrives = ReadNvmeFirmware(peripherals),
+            ObservedAt = DateTimeOffset.UtcNow,
+        };
+    }
+
+    /// <summary>
+    /// Flattens one peripheral-versions descriptor into the slots that are actually occupied.
+    /// </summary>
+    /// <remarks>
+    /// Absent slots are dropped rather than listed as empty. The descriptor always carries eight, and
+    /// rendering the six a machine does not have would bury the two it does.
+    /// </remarks>
+    private IReadOnlyList<FirmwareComponent> ReadPeripheralGroup(Func<FrameworkPeripheralVersionsSnapshot> read)
+    {
+        var versions = TryReadEcValue(read);
+        if (versions is null)
+        {
+            return [];
+        }
+
+        FrameworkPeripheralVersionSnapshot[] slots =
+        [
+            versions.Peripheral_0, versions.Peripheral_1, versions.Peripheral_2, versions.Peripheral_3,
+            versions.Peripheral_4, versions.Peripheral_5, versions.Peripheral_6, versions.Peripheral_7,
+        ];
+
+        List<FirmwareComponent> components = [];
+        for (var index = 0; index < Math.Min(versions.Count, slots.Length); index++)
+        {
+            var slot = slots[index];
+            if (!slot.IsPresent)
+            {
+                continue;
+            }
+
+            components.Add(new FirmwareComponent(
+                slot.SlotIndex,
+                slot.ProductName,
+                FirmwareComponent.FormatVersion(slot.Major, slot.Minor, slot.SubMinor),
+                slot.VendorId,
+                slot.ProductId));
+        }
+
+        return components;
+    }
+
+    /// <summary>
+    /// Reads each known drive's model and firmware.
+    /// </summary>
+    /// <remarks>
+    /// Driven from the hardware-info snapshot's drive list rather than by probing paths, so it reports the
+    /// drives this app already shows rather than a second, differently-discovered set.
+    /// </remarks>
+    private IReadOnlyList<NvmeFirmware> ReadNvmeFirmware(FrameworkPeripherals peripherals)
+    {
+        var drives = _latestHardwareInfoSnapshot.Drives;
+        if (drives.IsDefaultOrEmpty)
+        {
+            return [];
+        }
+
+        List<NvmeFirmware> firmware = [];
+        foreach (var drive in drives)
+        {
+            if (string.IsNullOrWhiteSpace(drive.Name))
+            {
+                continue;
+            }
+
+            var driveName = drive.Name;
+            if (TryReadEcValue(() => peripherals.GetNvmeVersion(driveName)) is { } nvme)
+            {
+                firmware.Add(new NvmeFirmware(driveName, nvme.ModelNumber, nvme.FirmwareVersion));
+            }
+        }
+
+        return firmware;
+    }
+
+    /// <summary>
+    /// The soonest another pack read is allowed before the cached one is returned instead.
+    /// </summary>
+    /// <remarks>
+    /// The read is slow and holds the I2C passthrough while it runs, so a user leaning on a refresh button
+    /// could otherwise stall ordinary telemetry behind a queue of identical requests. Fifteen seconds is far
+    /// shorter than anything on this snapshot meaningfully changes in, so the cache costs no accuracy.
+    /// </remarks>
+    private static readonly TimeSpan SmartBatteryMinimumInterval = TimeSpan.FromSeconds(15);
+
+    private readonly SemaphoreSlim _smartBatteryGate = new(1, 1);
+    private SmartBatterySnapshot? _smartBattery;
+
+    public async Task<SmartBatterySnapshot?> ReadSmartBatteryAsync(CancellationToken cancellationToken = default)
+    {
+        await _smartBatteryGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // Serialised AND rate-limited: the gate stops two readers holding the passthrough at once, and
+            // the interval stops a queue of callers each paying for a fresh read of the same numbers.
+            if (_smartBattery is { } cached && DateTimeOffset.UtcNow - cached.ObservedAt < SmartBatteryMinimumInterval)
+            {
+                return cached;
+            }
+
+            var connection = EnsureConnection();
+            if (connection is null)
+            {
+                return _smartBattery;
+            }
+
+            var pack = TryReadEcValue(() => connection.Battery.GetSmartBatterySnapshot());
+            if (pack is null)
+            {
+                return _smartBattery;
+            }
+
+            var cutoff = TryReadEcStruct(() => connection.Battery.GetCutoffState());
+            var charging = TryReadEcValue(() => connection.Battery.GetChargingState());
+
+            _smartBattery = new SmartBatterySnapshot
+            {
+                SerialNumber = pack.SerialNumber,
+                ManufactureDate = pack.ManufactureDate,
+                DeviceName = pack.DeviceName,
+                ManufacturerName = pack.ManufacturerName,
+                Chemistry = pack.DeviceChemistry,
+                TemperatureCelsius = pack.Temperature.DegreesCelsius,
+                VoltageVolts = pack.Voltage.Volts,
+                CurrentAmperes = pack.Current.Amperes,
+                CycleCount = pack.CycleCount,
+                RelativeStateOfChargePercent = pack.RelativeStateOfCharge.Percent,
+                CellVoltageVolts1 = pack.CellVoltage_1.Volts,
+                CellVoltageVolts2 = pack.CellVoltage_2.Volts,
+                CellVoltageVolts3 = pack.CellVoltage_3.Volts,
+                CellVoltageVolts4 = pack.CellVoltage_4.Volts,
+                ChargingVoltageVolts = pack.ChargingVoltage.Volts,
+                ChargingCurrentAmperes = pack.ChargingCurrent.Amperes,
+                IsUnsealed = pack.IsUnsealed,
+                StateOfHealthEnergyWattHours = pack.StateOfHealth?.EnergyCapacity?.WattHours,
+                CutoffState = cutoff ?? FrameworkBatteryCutoffState.Unknown,
+                IsCharging = charging?.IsCharging ?? false,
+                IsAcPresent = charging?.IsAcPresent ?? false,
+                ObservedAt = DateTimeOffset.UtcNow,
+            };
+
+            return _smartBattery;
+        }
+        finally
+        {
+            _smartBatteryGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// The name to publish for one temperature channel.
+    /// </summary>
+    /// <remarks>
+    /// Falls back to the old generic label rather than to something shorter, because the sensor chips derive
+    /// their own short form by rewriting exactly that string. Changing the fallback would silently change
+    /// what those chips say on every machine whose firmware reports no names.
+    /// </remarks>
+    /// <summary>
+    /// The firmware's action points for a channel's sensor, or null when it is not a temperature channel or
+    /// the firmware reported nothing.
+    /// </summary>
+    /// <remarks>
+    /// An all-null instance is deliberately returned as null rather than published: a threshold object whose
+    /// every field is empty would make consumers render an "as reported by firmware" section containing
+    /// nothing, which reads as a broken feature rather than an absent one.
+    /// </remarks>
+    private FirmwareThermalThresholds? ResolveFirmwareThresholds(TelemetryChannelId channelId)
+    {
+        if (channelId.EntityKind != TelemetryEntityKind.TemperatureSensor)
+        {
+            return null;
+        }
+
+        var match = Volatile.Read(ref _thermalSensorMetadata)
+            .FirstOrDefault(sensor => sensor.SensorIndex == channelId.Index);
+
+        if (match is null || !match.HasThresholds)
+        {
+            return null;
+        }
+
+        return new FirmwareThermalThresholds
+        {
+            WarnCelsius = match.WarnCelsius,
+            HighCelsius = match.HighCelsius,
+            HaltCelsius = match.HaltCelsius,
+            FanOffCelsius = match.FanOffCelsius,
+            FanMaxCelsius = match.FanMaxCelsius,
+        };
+    }
+
+    private string ResolveTemperatureChannelName(int sensorIndex)
+    {
+        var metadata = Volatile.Read(ref _thermalSensorMetadata);
+        var match = metadata.FirstOrDefault(sensor => sensor.SensorIndex == sensorIndex);
+
+        // The FRIENDLY form, not the raw one. Firmware names carry the sensor chip and its I²C address
+        // ("apu_f75303@4d"), which name the part doing the measuring rather than the thing measured.
+        return match?.FriendlyFirmwareName is { Length: > 0 } friendly
+            ? friendly
+            : $"Temperature Sensor {sensorIndex}";
+    }
+
+    /// <summary>
+    /// Reads every sensor's firmware name and thresholds ONCE per connection.
+    /// </summary>
+    /// <remarks>
+    /// Neither changes while the machine runs, and each sensor costs two separate embedded-controller round
+    /// trips. Polling them would add a dozen transactions to every tick to learn nothing new. The cache is
+    /// cleared when the connection closes, so a reconnect — or a different machine — re-reads.
+    /// </remarks>
+    private void RefreshThermalSensorMetadata(IFrameworkEcConnection connection, int sensorCount)
+    {
+        if (sensorCount <= 0 || Volatile.Read(ref _thermalSensorMetadata).Count == sensorCount)
+        {
+            return;
+        }
+
+        var metadata = new List<ThermalSensorMetadata>(sensorCount);
+        for (var index = 0; index < sensorCount; index++)
+        {
+            var sensorIndex = (byte)index;
+            var name = TryReadEcValue(() => connection.Thermal.GetSensorName(sensorIndex));
+            var thresholds = TryReadEcValue(() => connection.Thermal.GetThresholds(sensorIndex));
+
+            metadata.Add(new ThermalSensorMetadata
+            {
+                SensorIndex = index,
+                FirmwareName = name?.FirmwareName ?? string.Empty,
+                MappedName = name?.MappedName ?? FrameworkSensorName.Unknown,
+                SensorType = name?.SensorType ?? FrameworkTemperatureSensorType.Ignored,
+                WarnCelsius = thresholds?.Warn?.DegreesCelsius,
+                HighCelsius = thresholds?.High?.DegreesCelsius,
+                HaltCelsius = thresholds?.Halt?.DegreesCelsius,
+                FanOffCelsius = thresholds?.FanOff?.DegreesCelsius,
+                FanMaxCelsius = thresholds?.FanMax?.DegreesCelsius,
+            });
+        }
+
+        _logger.LogDebug("Read firmware metadata for {SensorCount} temperature sensor(s).", metadata.Count);
+        Volatile.Write(ref _thermalSensorMetadata, metadata);
+    }
+
+    /// <summary>
+    /// Reads the controller's own health bits and publishes them for the poll to pick up.
+    /// </summary>
+    /// <remarks>
+    /// Every command is guarded on its own. Firmware coverage is uneven — a board can answer the throttle
+    /// command and reject the next one with NotSupported — and letting a single refusal propagate would drop
+    /// four readings to punish one. Only a clean sweep of refusals reports the controller as unavailable.
+    /// </remarks>
+    private void RefreshEcDiagnostics(IFrameworkEcConnection connection)
+    {
+        var throttle = TryReadEcValue(connection.Diagnostics.GetApThrottleStatus);
+        var systemInfo = TryReadEcValue(connection.Diagnostics.GetSystemInfo);
+        var panic = TryReadEcValue(connection.Diagnostics.GetPanicInfo);
+        var switches = TryReadEcValue(connection.Diagnostics.GetSwitches);
+
+        if (throttle is null && systemInfo is null && panic is null && switches is null)
+        {
+            Volatile.Write(ref _ecDiagnostics, EcDiagnosticsSnapshot.Unavailable);
+            return;
+        }
+
+        Volatile.Write(ref _ecDiagnostics, new EcDiagnosticsSnapshot
+        {
+            IsAvailable = true,
+            SoftThrottled = throttle?.SoftThrottled ?? false,
+            HardThrottled = throttle?.HardThrottled ?? false,
+            CurrentImage = systemInfo?.CurrentImage ?? FrameworkEcCurrentImage.Unknown,
+            ResetFlags = systemInfo?.ResetFlags ?? default,
+            HasPanicRecord = panic?.IsValid ?? false,
+            LidOpen = switches?.LidOpen ?? false,
+            WriteProtectDisabled = switches?.WriteProtectDisabled ?? false,
+            ObservedAt = DateTimeOffset.UtcNow,
+        });
+    }
+
+    /// <summary>
+    /// Runs one embedded-controller read, returning null rather than throwing.
+    /// </summary>
+    /// <remarks>
+    /// For readings whose absence is ordinary. Anything whose failure the user needs told about goes through
+    /// <c>TryReadStatusValue</c> instead, which records the error on the system status.
+    /// </remarks>
+    private T? TryReadEcValue<T>(Func<T> read)
+        where T : class
+    {
+        try
+        {
+            return read();
+        }
+        catch (Exception exception)
+        {
+            // Debug, not warning: on firmware that does not implement the command this fires every poll, and
+            // a warning per tick for a permanent, harmless condition is how a log stops being read.
+            _logger.LogDebug(exception, "Unable to read {Reading} from the embedded controller.", typeof(T).Name);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The value-type counterpart of <see cref="TryReadEcValue{T}(Func{T})"/>.
+    /// </summary>
+    /// <remarks>
+    /// A separate overload rather than a relaxed constraint: with <c>where T : struct</c> the null return has
+    /// to be <c>T?</c>, which the reference-type version cannot express. Reading an enum through the other
+    /// one would box it and lose the type on the way back.
+    /// </remarks>
+    private T? TryReadEcStruct<T>(Func<T> read)
+        where T : struct
+    {
+        try
+        {
+            return read();
+        }
+        catch (Exception exception)
+        {
+            _logger.LogDebug(exception, "Unable to read {Reading} from the embedded controller.", typeof(T).Name);
+            return null;
+        }
+    }
 
     public IObservable<IChangeSet<FanCapabilityState, int>> ConnectFanCapabilities()
         => _fanCapabilities.Connect();
@@ -1177,6 +1599,8 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             ObservedAt = observedAt,
             IsAvailable = lastError is null,
             LastError = lastError,
+            // Collected on the first build and reused thereafter; see ReadFirmwareInventory.
+            Firmware = ReadFirmwareInventory(),
             Inventory = new HardwareInfoInventorySnapshot
             {
                 OperatingSystem = operatingSystem,
@@ -1334,7 +1758,7 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             }
 #pragma warning restore FD0001
 
-            var powerDeliverySnapshot = BuildPowerDeliverySnapshot(moduleInventory!, expansionBay);
+            var powerDeliverySnapshot = BuildPowerDeliverySnapshot(connection, moduleInventory!, expansionBay);
             _latestPowerDeliverySnapshot = powerDeliverySnapshot;
 
             _powerDeliverySnapshots.Publish(powerDeliverySnapshot, observedAt);
@@ -1374,6 +1798,8 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
 
         if (TryReadSnapshot(connection.GetThermalSnapshot, "thermal", ref snapshotError, out var thermalSnapshot))
         {
+            RefreshThermalSensorMetadata(connection, (int)thermalSnapshot!.SensorCount);
+
             // FanCount rather than ReportedFans.Count() — see the power snapshot above for why.
             _logger.LogDebug("Publishing thermal snapshot for {SensorCount} sensor(s) and {FanCount} reported fan(s) at {ObservedAt}.", thermalSnapshot!.SensorCount, thermalSnapshot.FanCount, observedAt);
             _thermalSnapshots.Publish(thermalSnapshot!, observedAt);
@@ -1652,6 +2078,11 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             _connection = null;
             // A fresh connection gets one fresh "bay unavailable" notice if it still applies.
             _expansionBayUnavailableLogged = false;
+
+            // The sensor cache belongs to the connection that filled it. Carrying it across would describe
+            // the previous machine, and on a docking or driver change that is a different machine.
+            Volatile.Write(ref _thermalSensorMetadata, []);
+            Volatile.Write(ref _ecDiagnostics, EcDiagnosticsSnapshot.Unavailable);
         }
     }
 
@@ -1664,6 +2095,12 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         TryReadStatusValue(connection.GetActiveDriver, "read the active EC driver", ref lastError, value => activeDriver = value);
         TryReadStatusValue(connection.GetBuildInfo, "read the EC build information", ref lastError, value => ecBuildInfo = value);
 
+        // Deliberately NOT folded into the status error: a controller that cannot answer the diagnostics
+        // commands is a controller with less to say, not a machine in a bad state. Reporting it as a status
+        // failure would put a permanent error on the Warnings page for firmware that is merely older.
+        RefreshEcDiagnostics(connection);
+        var diagnostics = Volatile.Read(ref _ecDiagnostics);
+
         return systemStatus with
         {
             IsConnectionOpen = true,
@@ -1671,6 +2108,7 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             ActiveDriver = activeDriver,
             EcBuildInfo = ecBuildInfo,
             LastError = lastError,
+            EcDiagnostics = diagnostics.IsAvailable ? diagnostics : null,
         };
     }
 
@@ -1947,12 +2385,18 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             // The reader knows CPU signals only. Adapter and GPU power come from subsystems this provider is
             // already polling, so they are folded in here rather than pushed into the reader abstraction —
             // which would force every platform reader to learn about chargers and graphics drivers.
+            // Null, not None, when the controller could not be read: the difference is what tells the fan
+            // controller to fall back to the performance-ratio proxy rather than believe a "not throttled"
+            // that nobody actually said.
+            var ecDiagnostics = Volatile.Read(ref _ecDiagnostics);
+
             var sample = _controlTelemetryReader.Sample() with
             {
                 GpuPowerWatts = ReadTotalGpuPowerWatts(),
                 GpuCoreClockMegahertz = ReadGpuCoreClockMegahertz(),
                 GpuUtilizationFraction = ReadGpuUtilizationFraction(),
                 SystemPowerWatts = ReadSystemPowerWatts(),
+                EcThrottle = ecDiagnostics.IsAvailable ? ecDiagnostics.ThrottleSeverity : null,
             };
 
             _latestControlTelemetry = new ObservedControlTelemetry(sample, observedAt);
@@ -2274,7 +2718,10 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             observedTemperatureChannels.Add(channelId);
             PublishNumericTelemetry(
                 channelId: channelId,
-                displayName: $"Temperature Sensor {temperatureIndex}",
+                // The firmware's own name for the sensor when it has one. Carried as the channel's display
+                // name rather than a new field, because every consumer already reads this and a second name
+                // alongside it would only raise the question of which one is right.
+                displayName: ResolveTemperatureChannelName(temperatureIndex),
                 unitSymbol: "C",
                 observedAt: observedAt,
                 numericValue: temperatureSnapshot.Temperature.DegreesCelsius,
@@ -2399,7 +2846,8 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
     /// mainboard PD ports (0–3).</summary>
     private const int GraphicsModulePortIndex = 4;
 
-    private static PowerDeliverySnapshot BuildPowerDeliverySnapshot(
+    private PowerDeliverySnapshot BuildPowerDeliverySnapshot(
+        IFrameworkEcConnection connection,
         FrameworkModuleInventorySnapshot inventory,
         FrameworkExpansionBaySnapshot? expansionBay)
     {
@@ -2408,8 +2856,24 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         {
             var pd = slot.PowerDelivery;
             var capability = slot.Capability;
+
+            // Per port, and guarded on its own: a slot with no PD controller behind it refuses this command,
+            // and on this chassis some slots always will. A refusal means "no contract to report", not "the
+            // snapshot failed" — treating it as the latter would lose four working ports to punish one.
+            var slotIndex = slot.SlotIndex;
+            var powerInfo = TryReadEcValue(() => connection.PowerDelivery.GetPowerInfo(slotIndex));
+
             ports.Add(new PowerDeliveryPortSnapshot
             {
+                SupportsDualRole = powerInfo?.SupportsDualRole ?? false,
+                UsbPowerRole = powerInfo?.Role ?? FrameworkUsbPowerRole.Disconnected,
+                ChargingType = powerInfo?.ChargingType ?? FrameworkUsbChargingType.None,
+                // UnitsNet exposes these as decimal; the snapshot is double throughout, like every other
+                // quantity crossing the wire.
+                NegotiatedMaximumVoltageVolts = (double?)powerInfo?.MaximumVoltage.Volts,
+                NegotiatedMaximumCurrentAmperes = (double?)powerInfo?.MaximumCurrent.Amperes,
+                NegotiatedMaximumPowerWatts = (double?)powerInfo?.MaximumPower.Watts,
+                CurrentLimitAmperes = (double?)powerInfo?.CurrentLimit.Amperes,
                 SlotIndex = slot.SlotIndex,
                 IsPresent = slot.IsPresent,
                 IsActivePort = pd.IsActivePort,
@@ -2424,7 +2888,7 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 IsEprActive = pd.IsEprActive,
                 IsEprSupported = pd.IsEprSupported,
                 AltModeFlags = pd.AltModeFlags,
-                CardType = slot.CardType.ToString(),
+                CardType = slot.CardType,
                 DataLane = capability.DataLane,
                 DisplayPortCapability = capability.DisplayPort,
                 SupportsCharging = capability.SupportsPowerDelivery,
@@ -2459,7 +2923,7 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 IsEprActive = bayPd.IsEprActive,
                 IsEprSupported = bayPd.IsEprSupported,
                 AltModeFlags = bayPd.AltModeFlags,
-                CardType = "Unknown",
+                CardType = FrameworkExpansionCardType.Unknown,
                 DataLane = bayCapability?.DataLane ?? FrameworkUsbCDataLane.Unknown,
                 DisplayPortCapability = bayCapability?.DisplayPort ?? FrameworkDisplayPortCapability.None,
                 SupportsCharging = bayCapability?.SupportsPowerDelivery ?? false,
@@ -2702,6 +3166,7 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             NumericValue = numericValue,
             TemperatureState = temperatureState,
             SensorName = sensorName,
+            FirmwareWarnCelsius = ResolveFirmwareThresholds(channelId)?.WarnCelsius,
             FanName = fanName,
             PowerSourceState = powerSourceState,
             BatteryState = batteryState,
@@ -2766,6 +3231,10 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
         var channelsItems = _activeTelemetryChannelsUpdater?.Items ?? (IEnumerable<TelemetryChannel>)_telemetryChannels.Items;
         var existingChannel = channelsItems.FirstOrDefault(channel => channel.Id == channelId);
 
+        // Resolved here rather than passed in, so it reaches every publisher without threading a parameter
+        // that only temperature channels would ever use through all twenty of them.
+        var firmwareThresholds = ResolveFirmwareThresholds(channelId);
+
         if (existingChannel is null)
         {
             var added = new TelemetryChannel
@@ -2776,6 +3245,7 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
                 FirstObservedAt = observedAt,
                 LastObservedAt = observedAt,
                 IsAvailable = isAvailable,
+                FirmwareThresholds = firmwareThresholds,
             };
             if (_activeTelemetryChannelsUpdater is { } addUpdater)
             {
@@ -2794,6 +3264,9 @@ public sealed partial class FrameworkDataProvider : IFrameworkDataProvider, IDis
             UnitSymbol = unitSymbol,
             LastObservedAt = observedAt,
             IsAvailable = isAvailable,
+            // Kept once known: the metadata read happens on the first successful thermal poll, which may be
+            // after the channel already exists, and nothing later would fill it in.
+            FirmwareThresholds = firmwareThresholds ?? existingChannel.FirmwareThresholds,
         };
         if (_activeTelemetryChannelsUpdater is { } updateUpdater)
         {

@@ -178,6 +178,14 @@ public class FrameworkShutdownCoordinatorTests
             IsAvailable = false,
         };
 
+        public EcDiagnosticsSnapshot GetLatestEcDiagnostics() => EcDiagnosticsSnapshot.Unavailable;
+
+        public IReadOnlyList<ThermalSensorMetadata> GetThermalSensorMetadata() => [];
+
+        public Task<SmartBatterySnapshot?> ReadSmartBatteryAsync(CancellationToken cancellationToken = default) => Task.FromResult<SmartBatterySnapshot?>(null);
+
+        public FirmwareInventorySnapshot ReadFirmwareInventory() => FirmwareInventorySnapshot.Empty;
+
         public void SetFanControlAuthorization(bool isFanControlEnabled, bool hasCallerIdentityValidation, string? authorizationMessage)
         {
         }

@@ -13,6 +13,7 @@ using FrameworkDotnet.Enums;
 
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
+using LiveChartsCore.Kernel;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 
@@ -401,6 +402,7 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
 
         UpdateThermalHistoryAxis(selectedSensors);
         ThermalHistorySeries = [.. selectedSensors.Select(GetOrCreateThermalHistorySeries)];
+        RefreshThermalHistorySections([.. selectedSensors.Select(sensor => sensor.Snapshot)]);
         RefreshPlottedState(selectedSensors);
     }
 
@@ -536,6 +538,65 @@ public partial class ThermalTelemetryModel : ObservableObject, IDisposable
     {
         ThermalHistoryYAxisMinLimit = _unitFormattingService.ConvertTemperature(0d);
         ThermalHistoryYAxisMaxLimit = _unitFormattingService.ConvertTemperature(100d);
+    }
+
+    /// <summary>
+    /// Where the FIRMWARE acts, drawn across the history chart. Empty where it reports nothing.
+    /// </summary>
+    /// <remarks>
+    /// These are not limits this app imposes — they are limits it works within, and a user watching a
+    /// temperature climb has no other way to know at what point the machine itself will intervene.
+    /// </remarks>
+    /// <remarks>
+    /// Typed as the chart's own <c>IEnumerable&lt;IChartElement&gt;</c> rather than as a concrete array:
+    /// x:Bind matches types exactly and will not accept a narrower one, even where C# assignment would.
+    /// </remarks>
+    [ObservableProperty]
+    public partial IEnumerable<IChartElement> ThermalHistorySections { get; private set; } = [];
+
+    /// <summary>
+    /// Rebuilds the firmware threshold lines from the sensors currently on the chart.
+    /// </summary>
+    /// <remarks>
+    /// Takes the LOWEST of each threshold across those sensors, not the highest: several sensors are plotted
+    /// together, and the first one to reach its limit is the one that decides what the machine does. Drawn in
+    /// display units, because the series are.
+    /// </remarks>
+    private void RefreshThermalHistorySections(IReadOnlyList<TemperatureTelemetrySnapshot> sensors)
+    {
+        var warn = sensors
+            .Select(static sensor => sensor.FirmwareWarnCelsius)
+            .Where(static celsius => celsius is not null)
+            .Select(static celsius => celsius!.Value)
+            .DefaultIfEmpty(double.NaN)
+            .Min();
+
+        if (double.IsNaN(warn))
+        {
+            if (ThermalHistorySections.Any())
+            {
+                ThermalHistorySections = [];
+            }
+
+            return;
+        }
+
+        var atWarn = _unitFormattingService.ConvertTemperature(warn);
+
+        // A section rather than a line, running from the warning point to the top of the axis: the meaning is
+        // "above here the firmware is unhappy", which is a region, and a hairline would read as a target.
+        ThermalHistorySections =
+        [
+            new RectangularSection
+            {
+                Yi = atWarn,
+                Yj = ThermalHistoryYAxisMaxLimit,
+                Fill = new SolidColorPaint(new SKColor(0xFF, 0x8C, 0x42, 0x1A)),
+                Label = $"Firmware warns above {_unitFormattingService.FormatTemperature(warn, decimals: 0)}",
+                LabelSize = 11,
+                LabelPaint = new SolidColorPaint(new SKColor(0xFF, 0x8C, 0x42, 0xCC)),
+            },
+        ];
     }
 
     // The series values are ALREADY in the display unit (converted in UpdateSensorHistory), so the Y-axis

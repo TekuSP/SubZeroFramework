@@ -111,7 +111,8 @@ public sealed class TemperatureTelemetryClient : ITemperatureTelemetryClient
             ObservedAt = value.ObservedAt,
             TemperatureCelsius = value.NumericValue,
             TemperatureState = normalizedTemperatureState,
-            IsAvailable = value.IsAvailable
+            IsAvailable = value.IsAvailable,
+            FirmwareWarnCelsius = value.FirmwareWarnCelsius,
         };
     }
 

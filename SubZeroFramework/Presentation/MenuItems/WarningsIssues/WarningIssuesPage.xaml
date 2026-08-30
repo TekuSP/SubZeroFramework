@@ -7,6 +7,7 @@
     xmlns:material="using:Material.Icons.UNO"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:utu="using:Uno.Toolkit.UI"
+    xmlns:warnings="using:SubZeroFramework.Presentation.MenuItems.WarningsIssues"
     Background="{StaticResource AppBackgroundBrush}"
     NavigationCacheMode="Required"
     mc:Ignorable="d">
@@ -345,6 +346,68 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
+
+                <!--
+                    What the embedded controller says about ITSELF, as opposed to everything above, which is
+                    about the service. Hidden entirely on firmware that never answers a diagnostics command:
+                    an empty card would read as a machine with no problems rather than a machine that cannot
+                    be asked.
+                -->
+                <Border
+                    MaxWidth="640"
+                    Margin="0,22,0,0"
+                    Padding="16,14"
+                    HorizontalAlignment="Center"
+                    Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource SurfaceOutlineBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Visibility="{x:Bind ViewModel.EcHealthCardVisibility, Mode=OneWay}">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <material:MaterialIcon
+                                Width="14"
+                                Height="14"
+                                VerticalAlignment="Center"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Kind="Chip" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="Embedded controller" />
+                        </StackPanel>
+
+                        <ItemsRepeater ItemsSource="{x:Bind ViewModel.EcHealthItems, Mode=OneWay}" Visibility="{x:Bind ViewModel.EcHealthVisibility, Mode=OneWay}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Spacing="10" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="warnings:EcHealthItem">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock
+                                            FontSize="13"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource TextPrimaryBrush}"
+                                            Text="{x:Bind Title}"
+                                            TextWrapping="WrapWholeWords" />
+                                        <TextBlock
+                                            FontSize="12"
+                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                            Text="{x:Bind Detail}"
+                                            TextWrapping="WrapWholeWords" />
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+
+                        <TextBlock
+                            FontSize="12.5"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            Text="Nothing to report."
+                            Visibility="{x:Bind ViewModel.EcHealthEmptyVisibility, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
 
                 <!--  Full explanation for the current state (every message variant keeps its detail text)  -->
                 <TextBlock

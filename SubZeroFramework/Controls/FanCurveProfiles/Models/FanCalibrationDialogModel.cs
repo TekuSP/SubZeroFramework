@@ -1004,13 +1004,13 @@ public sealed partial class FanCalibrationDialogModel : ObservableObject, IDispo
                     MaterialIconKind.FanMinus));
             }
 
-            facts.Add(new AdaptiveKnownFact(
-                "Speed control",
-                // Short enough for its tile — the longer phrasing clipped mid-word at this column width.
-                calibration.TrackingMode == FanSpeedTrackingMode.Cascade ? "Holds a set RPM" : "Duty only",
-                calibration.TrackingMode == FanSpeedTrackingMode.Cascade
-                    ? MaterialIconKind.CheckNetworkOutline
-                    : MaterialIconKind.AlertDecagramOutline));
+            if (calibration.MaximumRpm > 0d)
+            {
+                facts.Add(new AdaptiveKnownFact(
+                    "Full speed",
+                    _unitFormattingService.FormatFanSpeed(calibration.MaximumRpm, decimals: 0),
+                    MaterialIconKind.FanPlus));
+            }
 
             // The unflattering answer is the valuable one, and nowhere else in the app can give it.
             if (calibration.PerformanceResponse.SustainedSpeedGainFraction is double gained)

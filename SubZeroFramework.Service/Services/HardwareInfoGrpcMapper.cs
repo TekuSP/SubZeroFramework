@@ -88,9 +88,38 @@ internal static class HardwareInfoGrpcMapper
         reply.Drives.AddRange(snapshot.Inventory.Drives.Select(MapHardwareInfoDrive));
         reply.NetworkAdapters.AddRange(snapshot.Inventory.NetworkAdapters.Select(MapHardwareInfoNetworkAdapter));
         reply.ComputeAccelerators.AddRange(snapshot.Inventory.ComputeAccelerators.Select(MapHardwareInfoComputeAccelerator));
+        reply.Firmware = MapFirmwareInventory(snapshot.Firmware);
 
         return reply;
     }
+
+    private static FirmwareInventoryReply MapFirmwareInventory(FirmwareInventorySnapshot firmware)
+    {
+        var reply = new FirmwareInventoryReply { RetimerVersion = firmware.RetimerVersion };
+
+        reply.Cameras.AddRange(firmware.Cameras.Select(MapFirmwareComponent));
+        reply.InputModules.AddRange(firmware.InputModules.Select(MapFirmwareComponent));
+        reply.UsbHubs.AddRange(firmware.UsbHubs.Select(MapFirmwareComponent));
+        reply.AudioCards.AddRange(firmware.AudioCards.Select(MapFirmwareComponent));
+        reply.PowerDeliveryControllers.AddRange(firmware.PowerDeliveryControllers.Select(MapFirmwareComponent));
+        reply.NvmeDrives.AddRange(firmware.NvmeDrives.Select(static drive => new NvmeFirmwareReply
+        {
+            DevicePath = drive.DevicePath,
+            ModelNumber = drive.ModelNumber,
+            FirmwareVersion = drive.FirmwareVersion,
+        }));
+
+        return reply;
+    }
+
+    private static FirmwareComponentReply MapFirmwareComponent(FirmwareComponent component) => new()
+    {
+        SlotIndex = component.SlotIndex,
+        ProductName = component.ProductName,
+        Version = component.Version,
+        VendorId = component.VendorId,
+        ProductId = component.ProductId,
+    };
 
     public static HardwareInfoHistoryChangeReply MapHardwareInfoHistoryChange(Change<HistoricalRecord<HardwareInfoSnapshot>, long> change)
     {

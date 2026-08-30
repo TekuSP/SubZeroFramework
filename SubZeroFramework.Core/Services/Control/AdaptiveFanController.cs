@@ -15,10 +15,15 @@ namespace SubZeroFramework.Services.Control;
 /// approximate term handles the transient, and the slow, exact term handles the steady state.
 /// </para>
 /// <para>
-/// <b>Cascade.</b> Where calibration verified the EC tracks commanded speeds, the duty demand is converted to
-/// an RPM setpoint and the firmware's own loop holds it. That inner loop runs far faster than this one and
-/// absorbs the fan's non-linear duty-to-RPM curve, so equal duty demands produce equal airflow regardless of
-/// where on the curve the fan is sitting.
+/// <b>Duty, always.</b> The output is a duty percent and it is written to the fan as a duty percent. There
+/// was once a cascade path that converted the demand to an RPM setpoint for the EC's own speed loop to hold;
+/// it was removed because that command hands the fan to a firmware loop which CLAMPS the target to its own
+/// configured maximum — around 4900 RPM on Framework 16, where the same fan reaches past 6200 on a direct
+/// duty write. The top of the range simply could not be asked for, the loop wound its integrator against a
+/// ceiling it had no way to see, and the learner was taught from duty values the EC had quietly replaced.
+/// Its one advantage — the firmware holding a speed as the fan ages — is what this controller's learner
+/// already does, so nothing was lost. <see cref="AdaptiveControlDecision.ExpectedRpm"/> still reports a speed,
+/// as an estimate for display.
 /// </para>
 /// <para>
 /// <b>Statefulness.</b> This type holds integrator and latch state, so one instance belongs to one fan and
@@ -50,7 +55,18 @@ public sealed class AdaptiveFanController
     public const double ThrottleEscalationDutyPercent = 15d;
 
     /// <summary>
-    /// Performance ratio below which the processor counts as throttling.
+    /// Share of the escalation applied when the controller reports SOFT throttling.
+    /// </summary>
+    /// <remarks>
+    /// Soft throttling is a limit being managed, not a protection acting, and it is common enough on a
+    /// laptop under sustained load that answering it at full strength would keep the fan escalated most of
+    /// the time. Half preserves the response without letting the exceptional case become the normal one.
+    /// </remarks>
+    public const double SoftThrottleEscalationScale = 0.5d;
+
+    /// <summary>
+    /// Performance ratio below which the processor counts as throttling. The FALLBACK signal, consulted only
+    /// where the embedded controller does not report throttling itself.
     /// </summary>
     /// <remarks>
     /// <see cref="ControlTelemetrySample.CpuPerformanceRatio"/> is current clock over base clock, so values
@@ -167,13 +183,18 @@ public sealed class AdaptiveFanController
     /// <param name="timestamp">Now, used to stamp a throttle latch.</param>
     /// <returns>The decomposed decision.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="calibration"/> or <paramref name="settings"/> is null.</exception>
+    /// <param name="coolingRole">
+    /// What this fan cools. Decides whether the processor's throttle status applies to it at all — see
+    /// <see cref="UpdateThrottleLatch"/>.
+    /// </param>
     public AdaptiveControlDecision Evaluate(
         FanCalibrationSnapshot calibration,
         AdaptiveFanSettings settings,
         double drivingTemperatureCelsius,
         ControlTelemetrySample controlTelemetry,
         TimeSpan elapsed,
-        DateTimeOffset timestamp)
+        DateTimeOffset timestamp,
+        FanCoolingRole coolingRole = FanCoolingRole.Unknown)
     {
         ArgumentNullException.ThrowIfNull(calibration);
         ArgumentNullException.ThrowIfNull(settings);
@@ -226,7 +247,7 @@ public sealed class AdaptiveFanController
         var feedForward = ComputeFeedForward(controlTelemetry, elapsed, out var feedForwardUnavailable);
         var proportionalIntegral = ComputeProportionalIntegral(gains, error, elapsed);
         var lead = ComputeLead(drivingTemperatureCelsius, elapsed);
-        var escalation = UpdateThrottleLatch(controlTelemetry, error, elapsed, timestamp);
+        var escalation = UpdateThrottleLatch(controlTelemetry, error, elapsed, timestamp, coolingRole);
 
         var raw = feedForward + proportionalIntegral + lead + escalation;
         var limited = ApplyLimits(raw, model, sanitized);
@@ -265,10 +286,6 @@ public sealed class AdaptiveFanController
             elapsed,
             timestamp);
 
-        var setpointRpm = model.TrackingMode == FanSpeedTrackingMode.Cascade
-            ? ToSetpointRpm(limited, model)
-            : null;
-
         return new AdaptiveControlDecision
         {
             IsDriven = true,
@@ -278,7 +295,7 @@ public sealed class AdaptiveFanController
             ThrottleEscalationDutyPercent = escalation,
             RawDutyPercent = raw,
             DutyPercent = limited,
-            SetpointRpm = setpointRpm,
+            ExpectedRpm = model.EstimateRpm(limited),
             DrivingTemperatureCelsius = drivingTemperatureCelsius,
             TargetTemperatureCelsius = target,
             IsThrottleLatched = _isThrottleLatched,
@@ -411,16 +428,61 @@ public sealed class AdaptiveFanController
         return capped * LeadDutyPerCelsiusPerSecond;
     }
 
+    /// <summary>
+    /// Escalates the fan while the processor is being held back, and holds that escalation until the
+    /// temperature settles.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// SCOPED BY COOLING ROLE. Both signals available here — the controller's throttle status and the
+    /// performance ratio — describe the APPLICATION PROCESSOR and nothing else. A fan over the graphics
+    /// module cannot do anything about a CPU that is overheating, so escalating it there spins a fan for a
+    /// problem it cannot reach and tells the user "the processor reported thermal throttling" on a card about
+    /// their GPU.
+    /// </para>
+    /// <para>
+    /// A fan whose role is unknown still escalates. Guessing wrong in that direction costs some noise;
+    /// guessing wrong the other way leaves a processor-cooling fan idle while the processor throttles.
+    /// </para>
+    /// <para>
+    /// There is deliberately no GPU equivalent yet. The graphics throttle reasons exist in telemetry but are
+    /// not carried on the control sample, and on this platform's integrated AMD graphics under Windows the
+    /// source reports none at all — so a GPU-role fan currently has no throttle escalation rather than a
+    /// fabricated one.
+    /// </para>
+    /// </remarks>
     private double UpdateThrottleLatch(
         ControlTelemetrySample controlTelemetry,
         double error,
         TimeSpan elapsed,
-        DateTimeOffset timestamp)
+        DateTimeOffset timestamp,
+        FanCoolingRole coolingRole)
     {
-        var performanceRatio = controlTelemetry?.CpuPerformanceRatio;
-        var isThrottlingNow = performanceRatio is double ratio
-            && double.IsFinite(ratio)
-            && ratio < ThrottlePerformanceRatioThreshold;
+        if (coolingRole == FanCoolingRole.Gpu)
+        {
+            // Not merely "do not escalate": release any latch this fan is already holding, so a role that
+            // changes under a running controller cannot strand it at an elevated speed forever.
+            if (_isThrottleLatched)
+            {
+                ReleaseThrottleLatch();
+            }
+
+            return 0d;
+        }
+
+        // The embedded controller is asked FIRST and believed whenever it answers. The performance ratio
+        // below is a proxy: it falls for power limits, parked cores and a workload that simply stopped, none
+        // of which is a thermal emergency, and escalating the fan for those produces noise the user cannot
+        // account for. The proxy survives only for firmware that does not report throttling at all.
+        var severity = controlTelemetry?.EcThrottle;
+        var isThrottlingNow = severity switch
+        {
+            EcThrottleSeverity.Hard or EcThrottleSeverity.Soft => true,
+            EcThrottleSeverity.None => false,
+            _ => controlTelemetry?.CpuPerformanceRatio is double ratio
+                && double.IsFinite(ratio)
+                && ratio < ThrottlePerformanceRatioThreshold,
+        };
 
         if (isThrottlingNow)
         {
@@ -460,7 +522,13 @@ public sealed class AdaptiveFanController
             _belowTargetDuration = TimeSpan.Zero;
         }
 
-        return ThrottleEscalationDutyPercent;
+        // Soft throttling is the firmware trimming clocks; hard throttling is it protecting the silicon.
+        // Answering both with the same escalation either over-reacts to the first or under-reacts to the
+        // second. Firmware that does not distinguish them keeps the full escalation, which is the safe half
+        // of the choice.
+        return severity == EcThrottleSeverity.Soft
+            ? ThrottleEscalationDutyPercent * SoftThrottleEscalationScale
+            : ThrottleEscalationDutyPercent;
     }
 
     private static double ApplyLimits(double rawDutyPercent, FanCalibrationSnapshot calibration, AdaptiveFanSettings settings)
@@ -557,22 +625,4 @@ public sealed class AdaptiveFanController
         _integratorDutyPercent = Math.Clamp(_integratorDutyPercent, -100d, 100d);
     }
 
-    private static double? ToSetpointRpm(double dutyPercent, FanCalibrationSnapshot calibration)
-    {
-        if (calibration.MaximumRpm <= 0d || !double.IsFinite(calibration.MaximumRpm))
-        {
-            return null;
-        }
-
-        if (dutyPercent <= 0d)
-        {
-            return 0d;
-        }
-
-        // Linear duty→RPM. The EC's own loop is what actually holds the speed, so this only has to land in
-        // the right neighbourhood; the inner loop absorbs the real curve's non-linearity. Floored at the
-        // measured minimum spin so a low demand asks for a speed the fan can actually hold.
-        var rpm = dutyPercent / 100d * calibration.MaximumRpm;
-        return Math.Clamp(Math.Max(rpm, calibration.MinimumSpinRpm), 0d, calibration.MaximumRpm);
-    }
 }

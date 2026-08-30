@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:SubZeroFramework.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:deviceCapabilities="using:SubZeroFramework.Presentation.MenuItems.DeviceCapabilities"
     xmlns:deviceCapabilitiesControls="using:SubZeroFramework.Controls.DeviceCapabilities"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -14,6 +15,62 @@
         <deviceCapabilitiesControls:SystemProfileSectionView ViewModel="{x:Bind ViewModel.ProfileSection, Mode=OneWay}" />
         <deviceCapabilitiesControls:CoolingSectionView ViewModel="{x:Bind ViewModel.CoolingSection, Mode=OneWay}" />
         <deviceCapabilitiesControls:PlatformFirmwareSectionView ViewModel="{x:Bind ViewModel.FirmwareSection, Mode=OneWay}" />
+
+        <!--
+            Component firmware, beneath the platform firmware it sits under logically: the BIOS and EC above,
+            then everything that reports a version of its own. Bound through Page rather than a section model
+            of its own because the whole block is derived from one field of the hardware snapshot, and the
+            page model is where that change notification already lives.
+        -->
+        <!--
+            Plain heading plus stat tiles, deliberately WITHOUT card chrome — the same "simplicity" layout the
+            motherboard block above uses. Each component is its own tile: a card in a card reads as two
+            containers rather than one list.
+        -->
+        <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.Page.FirmwareSectionVisibility, Mode=OneWay}">
+            <TextBlock
+                FontSize="16"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource TextPrimaryBrush}"
+                Text="Component firmware" />
+
+            <ItemsRepeater ItemsSource="{x:Bind ViewModel.Page.FirmwareGroups, Mode=OneWay}">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="14" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="deviceCapabilities:FirmwareGroupModel">
+                        <StackPanel Spacing="8">
+                            <TextBlock
+                                FontSize="12.5"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource TextSecondaryBrush}"
+                                Text="{x:Bind Title}" />
+
+                            <!--  ItemsControl, not ItemsRepeater: StatTilePanel is the layout the tiles measure against.  -->
+                            <ItemsControl ItemsSource="{x:Bind Rows}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <deviceCapabilitiesControls:StatTilePanel
+                                            ColumnSpacing="10"
+                                            MinTileWidth="240"
+                                            RowSpacing="10" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="deviceCapabilities:FirmwareRowModel">
+                                        <deviceCapabilitiesControls:StatTileView
+                                            IconKind="{x:Bind Icon}"
+                                            Label="{x:Bind Name}"
+                                            Value="{x:Bind Version}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </StackPanel>
     </StackPanel>
     </ScrollViewer>
 </UserControl>

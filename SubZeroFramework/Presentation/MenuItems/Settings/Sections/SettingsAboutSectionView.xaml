@@ -89,6 +89,25 @@
                 MinWidth="560"
                 ItemTemplate="{StaticResource AboutRowTemplate}"
                 ItemsSource="{x:Bind ViewModel.AboutRows, Mode=OneWay}" />
+
+            <!--
+                The same component firmware Device Capabilities lists, repeated here because About is where a
+                person collects everything a bug report needs. Heading and list share one visibility so a
+                machine reporting no firmware shows neither.
+            -->
+            <StackPanel Spacing="10" Visibility="{x:Bind ViewModel.FirmwareVisibility, Mode=OneWay}">
+                <TextBlock
+                    Margin="0,14,0,0"
+                    FontSize="16"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource TextPrimaryBrush}"
+                    Text="Component firmware" />
+
+                <ItemsControl
+                    MinWidth="560"
+                    ItemTemplate="{StaticResource AboutRowTemplate}"
+                    ItemsSource="{x:Bind ViewModel.FirmwareRows, Mode=OneWay}" />
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

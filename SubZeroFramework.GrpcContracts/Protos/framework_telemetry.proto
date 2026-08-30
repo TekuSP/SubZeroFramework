@@ -31,6 +31,9 @@ service FrameworkTelemetryService {
   rpc WatchPowerDelivery (WatchPowerDeliveryRequest) returns (stream PowerDeliveryReply);
   rpc WatchModuleInventory (WatchModuleInventoryRequest) returns (stream ModuleInventoryReply);
   rpc WatchCoolingProfiles (WatchCoolingProfilesRequest) returns (stream CoolingProfileChangeBatchReply);
+  // ON DEMAND ONLY. Costs many I2C round trips to the pack and holds the passthrough while it runs; the
+  // service rate-limits repeats. Never call this on a timer.
+  rpc GetSmartBattery (GetSmartBatteryRequest) returns (SmartBatteryReply);
 }
 
 service HardwareInfoService {
@@ -373,6 +376,35 @@ message HardwareInfoReply {
   repeated HardwareInfoDriveReply drives = 13;
   repeated HardwareInfoNetworkAdapterReply network_adapters = 14;
   repeated HardwareInfoComputeAcceleratorReply compute_accelerators = 15;
+  // Firmware versions, collected in the same pass. Absent where the machine reports none.
+  FirmwareInventoryReply firmware = 16;
+}
+
+// One thing in the machine that reports a firmware version.
+message FirmwareComponentReply {
+  int32 slot_index = 1;
+  string product_name = 2;
+  string version = 3;        // Already formatted major.minor.subminor.
+  uint32 vendor_id = 4;
+  uint32 product_id = 5;
+}
+
+message NvmeFirmwareReply {
+  string device_path = 1;
+  string model_number = 2;
+  string firmware_version = 3;
+}
+
+// Every firmware version the machine will report. Absent groups mean "nothing there", not "not read":
+// the collector drops slots the descriptors report as unoccupied.
+message FirmwareInventoryReply {
+  repeated FirmwareComponentReply cameras = 1;
+  repeated FirmwareComponentReply input_modules = 2;
+  repeated FirmwareComponentReply usb_hubs = 3;
+  repeated FirmwareComponentReply audio_cards = 4;
+  repeated FirmwareComponentReply power_delivery_controllers = 5;
+  string retimer_version = 6;
+  repeated NvmeFirmwareReply nvme_drives = 7;
 }
 
 message HardwareInfoHistoryChangeReply {
@@ -562,7 +594,7 @@ message FanCalibrationMessage {
   double proportional_gain = 9;
   double integral_gain = 10;
   double feed_forward_duty_per_watt = 11;
-  FanSpeedTrackingModeValue tracking_mode = 12;
+  reserved 12;  // was tracking_mode; fans are always driven by duty.
   // What the extra fan bought in sustained speed. Absent on calibrations from before this was measured, and
   // on machines that report no clock at all.
   optional FanPerformanceResponseMessage performance_response = 13;
@@ -600,8 +632,9 @@ message AdaptiveControlMessage {
   double throttle_escalation_duty_percent = 4;
   double raw_duty_percent = 5;
   double duty_percent = 6;
-  // Present only under cascade tracking, where a speed rather than a duty is commanded.
-  optional double setpoint_rpm = 7;
+  // What duty_percent is expected to PRODUCE, interpolated from the calibrated minimum-spin and full-speed
+  // points. An estimate for display; the fan is commanded by duty. Absent on an uncalibrated fan.
+  optional double expected_rpm = 7;
   double driving_temperature_celsius = 8;
   double target_temperature_celsius = 9;
   bool is_throttle_latched = 10;
@@ -748,11 +781,6 @@ enum FanCalibrationFailureValue {
   // The fan is controlled by GPU sensors and this machine cannot generate GPU load. Reported rather than
   // silently substituting CPU load, which would heat something this fan does not cool.
   FAN_CALIBRATION_FAILURE_VALUE_GPU_LOAD_UNAVAILABLE = 8;
-}
-
-enum FanSpeedTrackingModeValue {
-  FAN_SPEED_TRACKING_MODE_VALUE_DUTY = 0;
-  FAN_SPEED_TRACKING_MODE_VALUE_CASCADE = 1;
 }
 
 message GetChargeLimitsRequest {
@@ -945,6 +973,18 @@ message TelemetryChannelChangeReply {
   int64 first_observed_at_unix_time_milliseconds = 5;
   int64 last_observed_at_unix_time_milliseconds = 6;
   bool is_available = 7;
+  // The firmware's own action points for this channel's sensor, in canonical Celsius. Temperature channels
+  // only, and only on firmware that reports them. Static for the life of the connection.
+  optional FirmwareThermalThresholds firmware_thresholds = 8;
+}
+
+// Where the firmware itself acts on a temperature. Not limits this app imposes — limits it must respect.
+message FirmwareThermalThresholds {
+  optional double warn_celsius = 1;
+  optional double high_celsius = 2;
+  optional double halt_celsius = 3;
+  optional double fan_off_celsius = 4;
+  optional double fan_max_celsius = 5;
 }
 
 message TelemetryChannelChangeBatchReply {
@@ -1160,6 +1200,10 @@ message CurrentTelemetryValueChangeReply {
   double compute_vram_used_bytes = 39;
   bool has_compute_vram_total_bytes = 40;
   double compute_vram_total_bytes = 41;
+  // Where the FIRMWARE starts warning about this sensor, in canonical Celsius. Temperature channels only,
+  // and only on firmware that reports it. Rides with the value the way display_name and sensor_name already
+  // do — it describes the sensor rather than the reading, but every consumer of a reading needs it.
+  optional double firmware_warn_celsius = 42;
 }
 
 // Why a compute device is clocked below its rating. A BITMASK: several can hold at once.
@@ -1210,6 +1254,23 @@ message FrameworkStatusReply {
   bool is_fan_control_enabled = 19;
   bool has_caller_identity_validation = 20;
   string fan_control_authorization_message = 21;
+  // EC-reported health. Absent when no diagnostics command has ever answered, which is NOT the same as a
+  // controller that answered and had nothing to report.
+  optional EcDiagnosticsMessage ec_diagnostics = 22;
+}
+
+// What the embedded controller says about its own state. Every field is one cheap EC transaction, read on
+// the ordinary telemetry poll.
+message EcDiagnosticsMessage {
+  bool soft_throttled = 1;
+  bool hard_throttled = 2;
+  string current_image = 3;   // FrameworkEcCurrentImage name ("Ro" / "Rw" / "Unknown").
+  // FrameworkEcResetFlag BITS, not a name: it is a flags value, and the numeric form round-trips exactly
+  // whatever the service reports — including a flag a newer firmware knows and this client does not.
+  uint32 reset_flags = 4;
+  bool has_panic_record = 5;
+  bool lid_open = 6;
+  bool write_protect_disabled = 7;
 }
 
 message WatchPowerDeliveryRequest {
@@ -1246,10 +1307,52 @@ message PowerDeliveryPortState {
   string port_position = 23;
   // Whether the port is on the left side of the chassis (upstream: PD ports 2 & 3 are left).
   bool port_is_left = 24;
+  // The NEGOTIATED contract: what this cable and this charger actually agreed on. A third thing, distinct
+  // from max_charge_watts (what the BOARD can do) and from voltage/current above (what is flowing now).
+  bool supports_dual_role = 25;
+  string usb_power_role = 26;            // FrameworkUsbPowerRole name.
+  string charging_type = 27;             // FrameworkUsbChargingType name.
+  optional double negotiated_maximum_voltage_volts = 28;
+  optional double negotiated_maximum_current_amperes = 29;
+  optional double negotiated_maximum_power_watts = 30;
+  optional double current_limit_amperes = 31;
 }
 
 message PowerDeliveryReply {
   repeated PowerDeliveryPortState ports = 1;
+}
+
+message GetSmartBatteryRequest {
+}
+
+// The battery pack's own registers. is_available separates "the pack could not be read" from "the pack was
+// read and is sealed", which are different things to tell a user.
+message SmartBatteryReply {
+  bool is_available = 1;
+  uint32 serial_number = 2;
+  // Days since the epoch, or absent where the pack reported an unusable date.
+  optional int32 manufacture_date_day_number = 3;
+  string device_name = 4;
+  string manufacturer_name = 5;
+  string chemistry = 6;                  // Smart Battery STRING register; free text from the pack.
+  double temperature_celsius = 7;
+  double voltage_volts = 8;
+  double current_amperes = 9;
+  uint32 cycle_count = 10;
+  double relative_state_of_charge_percent = 11;
+  // Zero where the pack did not report that cell — a three-cell pack reports three.
+  double cell_voltage_volts_1 = 12;
+  double cell_voltage_volts_2 = 13;
+  double cell_voltage_volts_3 = 14;
+  double cell_voltage_volts_4 = 15;
+  double charging_voltage_volts = 16;    // What the pack is ASKING for, not what it is getting.
+  double charging_current_amperes = 17;
+  bool is_unsealed = 18;
+  optional double state_of_health_energy_watt_hours = 19;
+  string cutoff_state = 20;              // FrameworkBatteryCutoffState name.
+  bool is_charging = 21;
+  bool is_ac_present = 22;
+  int64 observed_at_unix_time_milliseconds = 23;
 }
 
 message WatchModuleInventoryRequest {

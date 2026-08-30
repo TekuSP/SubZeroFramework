@@ -14,6 +14,17 @@ public sealed record HardwareInfoSnapshot
 
     public HardwareInfoRuntimeSnapshot Runtime { get; init; } = new();
 
+    /// <summary>
+    /// Firmware versions for the peripherals, PD controllers and drives.
+    /// </summary>
+    /// <remarks>
+    /// Rides on this snapshot rather than an RPC of its own because Device Capabilities already consumes it
+    /// and nothing here changes at runtime — a firmware update needs a restart. The provider collects it once
+    /// and reuses the result, so carrying it on a repeatedly-rebuilt snapshot costs one collection, not one
+    /// per rebuild.
+    /// </remarks>
+    public FirmwareInventorySnapshot Firmware { get; init; } = FirmwareInventorySnapshot.Empty;
+
     public HardwareInfoOperatingSystem? OperatingSystem => Inventory.OperatingSystem;
 
     public HardwareInfoComputerSystem? ComputerSystem => Inventory.ComputerSystem;

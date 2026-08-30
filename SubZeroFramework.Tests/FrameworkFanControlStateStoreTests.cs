@@ -213,7 +213,6 @@ public class FrameworkFanControlStateStoreTests
         MinimumSpinDutyPercent = 17d,
         MaximumRpm = 7_000d,
         FeedForwardDutyPerWatt = 0.9d,
-        TrackingMode = FanSpeedTrackingMode.Duty,
     };
 
     private static FanStateSnapshot NewFanState(int fanIndex, DateTimeOffset observedAt) => new()

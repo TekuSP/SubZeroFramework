@@ -658,12 +658,15 @@ public sealed partial class FrameworkFanControlGrpcService : FrameworkFanControl
         {
             await responseStream.WriteAsync(new HoldFanPreviewReply { Ready = true }).ConfigureAwait(false);
 
-            // Hold the stream open until the client closes it (commit / revert / fan switch) or disconnects.
-            await Task.Delay(Timeout.InfiniteTimeSpan, context.CancellationToken).ConfigureAwait(false);
+            // Hold the stream open until the client closes it (commit / revert / fan switch), disconnects, or
+            // the service starts stopping. Linked to shutdown so an abandoned preview cannot hold the whole
+            // service open for its graceful-shutdown budget — the finally below still releases the hold.
+            using var streamCancellation = context.LinkToShutdown(_applicationLifetime);
+            await Task.Delay(Timeout.InfiniteTimeSpan, streamCancellation.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            // Expected when the client cancels the call or disconnects.
+            // Expected when the client cancels the call, disconnects, or the service is stopping.
         }
         finally
         {

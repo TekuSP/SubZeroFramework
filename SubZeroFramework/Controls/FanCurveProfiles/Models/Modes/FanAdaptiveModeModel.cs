@@ -76,16 +76,24 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     public Visibility ControllerVisibility => IsControllerRunning ? Visibility.Visible : Visibility.Collapsed;
 
-    /// <summary>"Tracking setpoint", or how far off it is. The at-a-glance health of the loop.</summary>
+    /// <summary>Whether the fan is running at the speed its duty should produce. At-a-glance loop health.</summary>
     [ObservableProperty]
     public partial string TrackingText { get; private set; } = string.Empty;
 
     [ObservableProperty]
     public partial bool IsTracking { get; private set; } = true;
 
-    /// <summary>Commanded speed, in canonical RPM. Rendered through the unit converter.</summary>
+    /// <summary>
+    /// The speed the commanded duty is expected to produce, in canonical RPM. Rendered through the unit
+    /// converter.
+    /// </summary>
+    /// <remarks>
+    /// An expectation, not a demand — the fan is commanded in duty percent. Named that way deliberately: this
+    /// was once a genuine RPM setpoint sent to the EC, and the EC silently capped it, so the card sat reading
+    /// "off setpoint by 1,646 RPM" against a speed nothing could ever have delivered.
+    /// </remarks>
     [ObservableProperty]
-    public partial double? SetpointRpm { get; private set; }
+    public partial double? ExpectedRpm { get; private set; }
 
     [ObservableProperty]
     public partial double? ActualRpm { get; private set; }
@@ -592,6 +600,50 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     [ObservableProperty]
     public partial double TargetDisplayMaximum { get; private set; }
 
+    /// <summary>
+    /// The highest target this fan's driving sensor can actually be asked to hold, in canonical Celsius.
+    /// </summary>
+    /// <remarks>
+    /// The firmware's own warning point when it reports one, otherwise the app's own maximum. A target above
+    /// the point where the firmware starts acting is a target the machine will never be allowed to sit at:
+    /// the loop would settle there and the firmware would immediately intervene, and the user would read the
+    /// resulting fan behaviour as this app misbehaving.
+    /// </remarks>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TargetCeilingCaption))]
+    [NotifyPropertyChangedFor(nameof(TargetCeilingVisibility))]
+    public partial double TargetCeilingCelsius { get; private set; } = AdaptiveFanSettings.MaximumTargetCelsius;
+
+    /// <summary>Names the bound, so a slider that stops early does not look broken.</summary>
+    [ObservableProperty]
+    public partial string TargetCeilingCaption { get; private set; } = string.Empty;
+
+    public Visibility TargetCeilingVisibility => TargetCeilingCelsius < AdaptiveFanSettings.MaximumTargetCelsius
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    /// <summary>
+    /// Recomputes the ceiling from the driving sensor's firmware thresholds.
+    /// </summary>
+    /// <remarks>
+    /// Takes the LOWEST warning point across the driving sensors, not the highest: the fan is holding all of
+    /// them, so the first one to complain is the one that binds.
+    /// </remarks>
+    private void RefreshTargetCeiling(IReadOnlyList<double> drivingSensorWarnCelsius)
+    {
+        var ceiling = AdaptiveFanSettings.ResolveTargetCeilingCelsius(drivingSensorWarnCelsius);
+
+        TargetCeilingCelsius = ceiling;
+        TargetCeilingCaption = ceiling < AdaptiveFanSettings.MaximumTargetCelsius
+            ? $"The firmware starts warning at {_unitFormattingService.FormatTemperature(ceiling, decimals: 0)}."
+            : string.Empty;
+
+        if (TargetDraftCelsius > ceiling)
+        {
+            TargetDraftCelsius = ceiling;
+        }
+    }
+
     /// <summary>The staged floor in the user's chosen unit (TwoWay slider value).</summary>
     /// <remarks>
     /// A ratio, which every supported unit renders identically — but it goes through the service anyway, so
@@ -627,7 +679,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         TargetDraftCelsius = Math.Clamp(
             _unitFormattingService.ConvertTemperatureToCelsius(value),
             AdaptiveFanSettings.MinimumTargetCelsius,
-            AdaptiveFanSettings.MaximumTargetCelsius);
+            TargetCeilingCelsius);
     }
 
     partial void OnSafetyFloorDisplayValueChanged(double value)
@@ -655,7 +707,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         try
         {
             TargetDisplayMinimum = _unitFormattingService.ConvertTemperature(AdaptiveFanSettings.MinimumTargetCelsius);
-            TargetDisplayMaximum = _unitFormattingService.ConvertTemperature(AdaptiveFanSettings.MaximumTargetCelsius);
+            TargetDisplayMaximum = _unitFormattingService.ConvertTemperature(TargetCeilingCelsius);
             TargetDisplayValue = _unitFormattingService.ConvertTemperature(TargetDraftCelsius);
 
             SafetyFloorDisplayMaximum = _unitFormattingService.ConvertRatio(AdaptiveFanSettings.MaximumSafetyFloorPercent);
@@ -876,7 +928,7 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
         }
 
         IsControllerRunning = true;
-        SetpointRpm = control.SetpointRpm;
+        ExpectedRpm = control.ExpectedRpm;
         ActualRpm = SelectedFan?.Snapshot.SpeedRpm;
         DrivingTemperatureCelsius = control.DrivingTemperatureCelsius;
         TargetTemperatureCelsius = control.TargetTemperatureCelsius;
@@ -895,20 +947,30 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
     private void RefreshTracking(AdaptiveControlDecision control)
     {
-        // Only meaningful under cascade, where a speed is actually commanded. Under duty tracking there is no
-        // setpoint to miss, so claiming "off setpoint" would be inventing a fault.
-        if (control.SetpointRpm is not double setpoint || SelectedFan?.Snapshot.SpeedRpm is not double actual)
+        // Needs both a calibrated expectation and a tachometer reading. Without either there is nothing to
+        // compare, and inventing a comparison would invent a fault.
+        if (control.ExpectedRpm is not double expected || SelectedFan?.Snapshot.SpeedRpm is not double actual)
         {
             IsTracking = true;
             TrackingText = "Holding temperature";
             return;
         }
 
-        var error = Math.Abs(setpoint - actual);
-        IsTracking = error <= TrackingToleranceRpm;
-        TrackingText = IsTracking
-            ? "Tracking setpoint"
-            : $"Off setpoint by {_unitFormattingService.FormatFanSpeed(error, decimals: 0)}";
+        // Proportional, with a floor. The expectation is a line drawn through two measured speeds, so its
+        // error grows with the speed being predicted — a fixed RPM band would be generous at the bottom of
+        // the range and would cry fault across the top of it.
+        var error = Math.Abs(expected - actual);
+        var tolerance = Math.Max(TrackingToleranceRpm, expected * TrackingToleranceFraction);
+        IsTracking = error <= tolerance;
+
+        // Only ever reports the fan running SHORT. Overshooting the estimate means the estimate was
+        // pessimistic, which is not the user's problem; falling short can mean an obstructed or failing fan,
+        // which is.
+        TrackingText = IsTracking || actual > expected
+            ? "Running as expected"
+            : $"Running {_unitFormattingService.FormatFanSpeed(error, decimals: 0)} below expected";
+
+        IsTracking |= actual > expected;
     }
 
     private void RefreshContributionBar(AdaptiveControlDecision control)
@@ -1023,6 +1085,11 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
 
         CoolingRole = state?.CoolingRole ?? FanCoolingRole.Unknown;
         DrivingSensorIndices = state?.DrivingSensorIndices ?? [];
+
+        RefreshTargetCeiling([.. DrivingSensorIndices
+            .Select(index => AvailableSensors.FirstOrDefault(sensor => sensor.SensorIndex == index)?.FirmwareWarnCelsius)
+            .Where(static warn => warn is not null)
+            .Select(static warn => warn!.Value)]);
 
         var confidence = learning.ConfidenceAt(DateTimeOffset.UtcNow);
         List<AdaptiveKnownFact> facts = [];
@@ -1212,6 +1279,16 @@ public sealed partial class FanAdaptiveModeModel : FanModeModelBase
     /// wander is normal and flagging it would train the user to ignore the indicator.
     /// </remarks>
     private const double TrackingToleranceRpm = 350d;
+
+    /// <summary>
+    /// The same tolerance as a share of the expected speed, taken whenever it is the larger of the two.
+    /// </summary>
+    /// <remarks>
+    /// The expectation is interpolated between two measured points, so it is least accurate in the middle of
+    /// the range and its absolute error scales with the speed. 15% matches the margin calibration itself used
+    /// when it judged whether a fan had reached a commanded speed.
+    /// </remarks>
+    private const double TrackingToleranceFraction = 0.15d;
 }
 
 /// <summary>One row under the contribution bar.</summary>

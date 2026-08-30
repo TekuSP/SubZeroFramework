@@ -138,6 +138,7 @@ public partial class App : Application
                     services.AddSingleton<ITemperatureTelemetryClient, TemperatureTelemetryClient>();
                     services.AddSingleton<IBatteryTelemetryClient, BatteryTelemetryClient>();
                     services.AddSingleton<IPowerDeliveryClient, GrpcPowerDeliveryClient>();
+                    services.AddSingleton<ISmartBatteryClient, GrpcSmartBatteryClient>();
                     services.AddSingleton<IModuleInventoryClient, GrpcModuleInventoryClient>();
                     // Display units are client-owned: selections persist in the per-user app-data folder
                     // and never travel to the background service.

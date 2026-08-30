@@ -32,11 +32,6 @@ public sealed record FanCalibrationSnapshot
     /// toward the truth from the safe side.
     /// </para>
     /// <para>
-    /// Tracking is <see cref="FanSpeedTrackingMode.Duty"/> because cascade requires the hot test's verdict
-    /// that the EC actually holds a commanded speed. Commanding RPM to a fan that does not track it would
-    /// silently do nothing.
-    /// </para>
-    /// <para>
     /// The stall floor is a guess, so it is deliberately generous: a fan held slightly too fast is quieter
     /// than one buzzing at a duty it cannot turn at.
     /// </para>
@@ -60,7 +55,6 @@ public sealed record FanCalibrationSnapshot
         MinimumSpinDutyPercent = 20d,
         MinimumSpinRpm = 0d,
         MaximumRpm = 0d,
-        TrackingMode = FanSpeedTrackingMode.Duty,
     };
 
     /// <summary>How much of this model is usable; see <see cref="IsUsable"/> for the honest check.</summary>
@@ -90,7 +84,7 @@ public sealed record FanCalibrationSnapshot
     /// <summary>The duty corresponding to <see cref="MinimumSpinRpm"/>; the default safety floor.</summary>
     public double MinimumSpinDutyPercent { get; init; }
 
-    /// <summary>The fastest speed observed at 100% duty, used to turn a duty demand into an RPM setpoint.</summary>
+    /// <summary>The fastest speed observed at 100% duty. Display only; see <see cref="EstimateRpm"/>.</summary>
     public double MaximumRpm { get; init; }
 
     /// <summary>Proportional gain, in duty points per °C of error.</summary>
@@ -106,8 +100,49 @@ public sealed record FanCalibrationSnapshot
     /// </summary>
     public double FeedForwardDutyPerWatt { get; init; }
 
-    /// <summary>Whether the EC tracked commanded speeds during verification.</summary>
-    public FanSpeedTrackingMode TrackingMode { get; init; } = FanSpeedTrackingMode.Duty;
+    /// <summary>
+    /// What speed a duty demand is expected to produce, for DISPLAY. Null when nothing was measured.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An estimate, and never an instruction. The fan is always driven by duty; this only turns the number the
+    /// controller decided into the unit a person reads a fan in.
+    /// </para>
+    /// <para>
+    /// Interpolates between the two speeds actually MEASURED — the minimum-spin point and the speed at 100%
+    /// duty — rather than scaling the maximum by the duty fraction. A fan's speed does not start at zero: it
+    /// begins turning at some hundreds of RPM at its stall duty, so a straight <c>duty ÷ 100 × max</c> reads
+    /// far too low across the whole lower half of the range. Both endpoints here come from the calibration
+    /// run, so the line is anchored to this fan rather than to an assumption about fans.
+    /// </para>
+    /// </remarks>
+    public double? EstimateRpm(double dutyPercent)
+    {
+        if (MaximumRpm <= 0d || !double.IsFinite(MaximumRpm))
+        {
+            return null;
+        }
+
+        if (dutyPercent <= 0d)
+        {
+            return 0d;
+        }
+
+        // Below the duty where the fan was last seen turning, it is stalling rather than running slowly.
+        if (dutyPercent < MinimumSpinDutyPercent)
+        {
+            return 0d;
+        }
+
+        var dutySpan = 100d - MinimumSpinDutyPercent;
+        if (dutySpan <= 0d)
+        {
+            return Math.Clamp(dutyPercent / 100d * MaximumRpm, 0d, MaximumRpm);
+        }
+
+        var fraction = Math.Clamp((dutyPercent - MinimumSpinDutyPercent) / dutySpan, 0d, 1d);
+        return MinimumSpinRpm + (fraction * (MaximumRpm - MinimumSpinRpm));
+    }
 
     /// <summary>
     /// What the extra fan actually bought in sustained speed. See <see cref="FanPerformanceResponse"/>.

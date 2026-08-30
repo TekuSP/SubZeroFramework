@@ -45,6 +45,16 @@ public partial class SensorChipModel : ObservableObject
     public partial FrameworkTemperatureState State { get; set; } = FrameworkTemperatureState.Ok;
 
     /// <summary>
+    /// Where the firmware starts warning about this sensor, in canonical Celsius, or null where it reports
+    /// none.
+    /// </summary>
+    /// <remarks>
+    /// Not shown on the chip itself — it bounds the Adaptive target for any fan driven by this sensor. Kept
+    /// here because the chip is already the per-sensor object every consumer holds.
+    /// </remarks>
+    public double? FirmwareWarnCelsius { get; set; }
+
+    /// <summary>
     /// Whether the sensor is currently reporting a reading. NOT a gate on selecting it: a sensor may be
     /// chosen while it is dark (a GPU sensor picked with the machine idle), and one that goes dark stays
     /// chosen — the selection is the user's, availability is just its live status.

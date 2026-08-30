@@ -1,3 +1,5 @@
+using FrameworkDotnet.Enums;
+
 using Grpc.Core;
 
 using SubZeroFramework.GrpcContracts;
@@ -105,7 +107,10 @@ public sealed class GrpcPowerDeliveryClient : IPowerDeliveryClient
                 IsEprActive = port.IsEprActive,
                 IsEprSupported = port.IsEprSupported,
                 AltModeFlags = (byte)port.AltModeFlags,
-                CardType = port.CardType,
+                // Unrecognised names (e.g. a newer service) fall back to the enum default rather than throwing.
+                CardType = Enum.TryParse<FrameworkExpansionCardType>(port.CardType, out var cardType)
+                    ? cardType
+                    : FrameworkExpansionCardType.Unknown,
                 DataLane = port.DataLane,
                 DisplayPortCapability = port.DisplayPortCapability,
                 SupportsCharging = port.CapabilitySupportsCharging,
@@ -115,6 +120,17 @@ public sealed class GrpcPowerDeliveryClient : IPowerDeliveryClient
                 PortSource = port.PortSource,
                 PortPosition = port.PortPosition,
                 PortIsLeft = port.PortIsLeft,
+                SupportsDualRole = port.SupportsDualRole,
+                UsbPowerRole = Enum.TryParse<FrameworkUsbPowerRole>(port.UsbPowerRole, out var powerRole)
+                    ? powerRole
+                    : FrameworkUsbPowerRole.Disconnected,
+                ChargingType = Enum.TryParse<FrameworkUsbChargingType>(port.ChargingType, out var chargingType)
+                    ? chargingType
+                    : FrameworkUsbChargingType.None,
+                NegotiatedMaximumVoltageVolts = port.HasNegotiatedMaximumVoltageVolts ? port.NegotiatedMaximumVoltageVolts : null,
+                NegotiatedMaximumCurrentAmperes = port.HasNegotiatedMaximumCurrentAmperes ? port.NegotiatedMaximumCurrentAmperes : null,
+                NegotiatedMaximumPowerWatts = port.HasNegotiatedMaximumPowerWatts ? port.NegotiatedMaximumPowerWatts : null,
+                CurrentLimitAmperes = port.HasCurrentLimitAmperes ? port.CurrentLimitAmperes : null,
             });
         }
 

@@ -110,6 +110,7 @@ public partial class DeviceCapabilitiesModel : ObservableObject, IDisposable
         // The accelerator list arrives with the snapshot, while the cards come from the telemetry stream;
         // whichever lands second has to do the join.
         RefreshComputeAcceleratorDetails();
+        RefreshFirmware(value?.Firmware ?? FirmwareInventorySnapshot.Empty);
     }
 
     public ReadOnlyObservableCollection<DeviceCapabilitiesCpuPackageCardModel> CpuPackageCards { get; }

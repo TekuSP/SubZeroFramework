@@ -445,6 +445,7 @@
                                     AutoUpdateEnabled="True"
                                     Background="Transparent"
                                     LegendPosition="Hidden"
+                                    Sections="{x:Bind ViewModel.ThermalHistorySections, Mode=OneWay}"
                                     Series="{x:Bind ViewModel.ThermalHistorySeries, Mode=OneWay}"
                                     TooltipPosition="Top">
                                     <lvc:CartesianChart.XAxes>

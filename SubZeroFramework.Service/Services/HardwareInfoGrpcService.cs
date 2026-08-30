@@ -11,9 +11,15 @@ public sealed class HardwareInfoGrpcService : HardwareInfoService.HardwareInfoSe
     private readonly IFrameworkDataProvider _frameworkDataProvider;
     private readonly ILogger<HardwareInfoGrpcService> _logger;
 
-    public HardwareInfoGrpcService(IFrameworkDataProvider frameworkDataProvider, ILogger<HardwareInfoGrpcService> logger)
+    private readonly IHostApplicationLifetime _applicationLifetime;
+
+    public HardwareInfoGrpcService(
+        IFrameworkDataProvider frameworkDataProvider,
+        IHostApplicationLifetime applicationLifetime,
+        ILogger<HardwareInfoGrpcService> logger)
     {
         _frameworkDataProvider = frameworkDataProvider;
+        _applicationLifetime = applicationLifetime;
         _logger = logger;
     }
 
@@ -27,26 +33,28 @@ public sealed class HardwareInfoGrpcService : HardwareInfoService.HardwareInfoSe
     public override async Task WatchHardwareInfo(WatchHardwareInfoRequest request, IServerStreamWriter<HardwareInfoReply> responseStream, ServerCallContext context)
     {
         _logger.LogInformation("Opening hardware info stream.");
-        var reader = ObservableChannelBridge.CreateBoundedReader(_frameworkDataProvider.HardwareInfoSnapshots, context.CancellationToken, _logger, "hardware info stream");
+        using var streamCancellation = context.LinkToShutdown(_applicationLifetime);
+        var streamToken = streamCancellation.Token;
+        var reader = ObservableChannelBridge.CreateBoundedReader(_frameworkDataProvider.HardwareInfoSnapshots, streamToken, _logger, "hardware info stream");
 
         try
         {
-            while (await reader.WaitToReadAsync(context.CancellationToken).ConfigureAwait(false))
+            while (await reader.WaitToReadAsync(streamToken).ConfigureAwait(false))
             {
                 while (reader.TryRead(out var snapshot))
                 {
                     _logger.LogDebug("Publishing hardware info stream snapshot. IsAvailable={IsAvailable}, LastErrorPresent={HasLastError}.", snapshot.IsAvailable, !string.IsNullOrEmpty(snapshot.LastError));
-                    await responseStream.WriteAsync(HardwareInfoGrpcMapper.MapHardwareInfoSnapshot(snapshot), context.CancellationToken).ConfigureAwait(false);
+                    await responseStream.WriteAsync(HardwareInfoGrpcMapper.MapHardwareInfoSnapshot(snapshot), streamToken).ConfigureAwait(false);
                 }
             }
         }
-        catch (OperationCanceledException) when (context.CancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (streamToken.IsCancellationRequested)
         {
-            _logger.LogDebug("Stopping hardware info stream because the request was cancelled.");
+            _logger.LogDebug("Stopping hardware info stream because the request was cancelled or the service is stopping.");
         }
     }
 
-    public override Task WatchHardwareInfoHistory(WatchHardwareInfoHistoryRequest request, IServerStreamWriter<HardwareInfoHistoryChangeBatchReply> responseStream, ServerCallContext context)
+    public override async Task WatchHardwareInfoHistory(WatchHardwareInfoHistoryRequest request, IServerStreamWriter<HardwareInfoHistoryChangeBatchReply> responseStream, ServerCallContext context)
     {
         var requestedHistoryWindow = TimeSpan.FromSeconds(request.HistoryWindowSeconds);
         if (requestedHistoryWindow <= TimeSpan.Zero || requestedHistoryWindow > TelemetryHistoryLimits.MaximumHistoryWindow)
@@ -57,13 +65,14 @@ public sealed class HardwareInfoGrpcService : HardwareInfoService.HardwareInfoSe
 
         _logger.LogInformation("Opening hardware info history stream with history window {HistoryWindowSeconds}s.", request.HistoryWindowSeconds);
 
-        return GrpcChangeSetWriter.WriteAsync(
+        using var streamCancellation = context.LinkToShutdown(_applicationLifetime);
+        await GrpcChangeSetWriter.WriteAsync(
             _frameworkDataProvider.ConnectHardwareInfoHistory(requestedHistoryWindow),
             responseStream,
             HardwareInfoGrpcMapper.MapHardwareInfoHistoryChange,
             HardwareInfoGrpcMapper.MapHardwareInfoHistoryBatch,
-            context.CancellationToken,
+            streamCancellation.Token,
             _logger,
-            "hardware info history stream");
+            "hardware info history stream").ConfigureAwait(false);
     }
 }

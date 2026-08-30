@@ -411,7 +411,6 @@ public sealed class FrameworkServiceConfigurationStore : IDisposable
             ["ProportionalGain"] = calibration.ProportionalGain,
             ["IntegralGain"] = calibration.IntegralGain,
             ["FeedForwardDutyPerWatt"] = calibration.FeedForwardDutyPerWatt,
-            ["TrackingMode"] = calibration.TrackingMode.ToString(),
         };
 
         if (calibration.CalibratedAt is DateTimeOffset calibratedAt)

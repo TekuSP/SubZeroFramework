@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
+using FrameworkDotnet.Enums;
+
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
@@ -113,6 +115,8 @@ public partial class PowerDeliveryPortViewModel : ObservableObject
         WattVisibility = WattText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         AltModeText = status.AltModeFlags != 0 && !isInvalid ? "DisplayPort" : "No alt-mode";
+
+        RefreshContract(status, isDataOnly);
 
         CardTypeText = status.IsPresent ? $"Card: {FriendlyCardType(status.CardType)}" : "No card in slot";
 
@@ -264,18 +268,97 @@ public partial class PowerDeliveryPortViewModel : ObservableObject
         _ => string.Empty,
     };
 
-    private static string FriendlyCardType(string cardType) => cardType switch
+    /// <summary>What this cable and this charger agreed on, against what the board could have managed.</summary>
+    [ObservableProperty]
+    public partial string ContractText { get; private set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial Visibility ContractVisibility { get; private set; } = Visibility.Collapsed;
+
+    /// <summary>Set when the contract falls materially short of the slot's capability.</summary>
+    [ObservableProperty]
+    public partial string ContractShortfallText { get; private set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial Visibility ContractShortfallVisibility { get; private set; } = Visibility.Collapsed;
+
+    /// <summary>
+    /// Builds the negotiated-contract line.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The third of three numbers this card can show, and the one that explains the other two. The live
+    /// voltage and current above say what is flowing; the board capability says what the slot could take;
+    /// this says what the two ends actually settled on. Only together do they answer "why is this charging
+    /// so slowly".
+    /// </para>
+    /// <para>
+    /// Absent entirely on a slot with no PD controller behind it, rather than shown as zero — a data-only
+    /// port has no contract to fall short of, and saying "0 W of 100 W" about one would be a fabricated
+    /// fault.
+    /// </para>
+    /// </remarks>
+    private void RefreshContract(PowerDeliveryPortStatus status, bool isDataOnly)
     {
-        "DisplayPort" => "DisplayPort",
-        "Hdmi" => "HDMI",
-        "Audio" => "Audio",
-        "UsbA" => "USB-A",
-        "UsbC" => "USB-C",
-        "Ethernet" => "Ethernet",
-        "Ethernet10G" => "Ethernet 10G",
-        "MicroSd" => "microSD",
-        "Sd" => "SD",
-        "Ssd" => "SSD",
+        if (isDataOnly || status.NegotiatedMaximumPowerWatts is not double negotiated || negotiated <= 0d)
+        {
+            ContractText = string.Empty;
+            ContractVisibility = Visibility.Collapsed;
+            ContractShortfallText = string.Empty;
+            ContractShortfallVisibility = Visibility.Collapsed;
+            return;
+        }
+
+        var negotiatedText = _unitFormattingService.FormatPowerWatts(Math.Round(negotiated), decimals: 0);
+
+        // The charging type is worth naming because it is the usual cause of a low contract: a charger that
+        // negotiated plain Type-C rather than PD cannot go past 15 W however good the cable is.
+        var chargingType = status.ChargingType switch
+        {
+            FrameworkUsbChargingType.Pd => "USB-PD",
+            FrameworkUsbChargingType.TypeC => "Type-C",
+            FrameworkUsbChargingType.Proprietary => "proprietary",
+            FrameworkUsbChargingType.VBus => "VBUS",
+            _ => string.Empty,
+        };
+
+        ContractText = chargingType.Length > 0
+            ? $"Negotiated {negotiatedText} · {chargingType}"
+            : $"Negotiated {negotiatedText}";
+        ContractVisibility = Visibility.Visible;
+
+        if (status.IsNegotiatingBelowCapability)
+        {
+            ContractShortfallText =
+                $"This slot supports {_unitFormattingService.FormatPowerWatts(status.MaxChargeWatts, decimals: 0)}.";
+            ContractShortfallVisibility = Visibility.Visible;
+            return;
+        }
+
+        ContractShortfallText = string.Empty;
+        ContractShortfallVisibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// The card type as a person writes it — "microSD", not "MicroSd".
+    /// </summary>
+    /// <remarks>
+    /// Switches on the ENUM, not on member names. As a string switch, renaming a member in the library would
+    /// have fallen silently through to the default and labelled every card "USB-C" — a wrong answer rather
+    /// than an unknown one, and one nothing would have caught.
+    /// </remarks>
+    private static string FriendlyCardType(FrameworkExpansionCardType cardType) => cardType switch
+    {
+        FrameworkExpansionCardType.DisplayPort => "DisplayPort",
+        FrameworkExpansionCardType.Hdmi => "HDMI",
+        FrameworkExpansionCardType.Audio => "Audio",
+        FrameworkExpansionCardType.UsbA => "USB-A",
+        FrameworkExpansionCardType.UsbC => "USB-C",
+        FrameworkExpansionCardType.Ethernet => "Ethernet",
+        FrameworkExpansionCardType.Ethernet10G => "Ethernet 10G",
+        FrameworkExpansionCardType.MicroSd => "microSD",
+        FrameworkExpansionCardType.Sd => "SD",
+        FrameworkExpansionCardType.Ssd => "SSD",
         _ => "USB-C",
     };
 

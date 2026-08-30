@@ -1,5 +1,7 @@
 using System.Reactive.Linq;
 
+using FrameworkDotnet.Enums;
+
 using Grpc.Core;
 
 using SubZeroFramework.GrpcContracts;
@@ -164,6 +166,28 @@ public sealed class GrpcFrameworkStatusClient : IFrameworkStatusClient, IDisposa
             IsFanControlEnabled = reply.IsFanControlEnabled,
             HasCallerIdentityValidation = reply.HasCallerIdentityValidation,
             FanControlAuthorizationMessage = string.IsNullOrEmpty(reply.FanControlAuthorizationMessage) ? null : reply.FanControlAuthorizationMessage,
+            EcDiagnostics = reply.EcDiagnostics is { } diagnostics
+                ? new EcDiagnosticsSnapshot
+                {
+                    IsAvailable = true,
+                    SoftThrottled = diagnostics.SoftThrottled,
+                    HardThrottled = diagnostics.HardThrottled,
+                    // Parsed by name, like ParseSensorName elsewhere in this layer. A name this build does not
+                    // know falls back to Unknown rather than throwing, so a newer service cannot break an
+                    // older app over a value it only displays.
+                    CurrentImage = Enum.TryParse<FrameworkEcCurrentImage>(diagnostics.CurrentImage, ignoreCase: true, out var image)
+                        ? image
+                        : FrameworkEcCurrentImage.Unknown,
+
+                    // Cast, not parsed: a flags value round-trips exactly as bits, including a flag only a
+                    // newer firmware knows about.
+                    ResetFlags = (FrameworkEcResetFlag)diagnostics.ResetFlags,
+                    HasPanicRecord = diagnostics.HasPanicRecord,
+                    LidOpen = diagnostics.LidOpen,
+                    WriteProtectDisabled = diagnostics.WriteProtectDisabled,
+                    ObservedAt = DateTimeOffset.FromUnixTimeMilliseconds(reply.ObservedAtUnixTimeMilliseconds),
+                }
+                : null,
         };
     }
 

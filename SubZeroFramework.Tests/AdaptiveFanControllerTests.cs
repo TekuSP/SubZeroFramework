@@ -410,29 +410,142 @@ public class AdaptiveFanControllerTests
         }
     }
 
+    /// <summary>
+    /// The controller saying "not throttled" must beat a performance ratio that merely fell because the
+    /// work stopped. That ratio drops for parked cores and idle workloads, and escalating the fan for those
+    /// is noise the user cannot account for.
+    /// </summary>
     [Test]
-    public void Evaluate_InCascadeMode_CommandsASpeedInsideTheFanRange()
+    public void Evaluate_WhenEcReportsNoThrottle_IgnoresALowPerformanceRatio()
+    {
+        var decision = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), temperature: 90d,
+            performanceRatio: 0.2d, ecThrottle: EcThrottleSeverity.None, ticks: 12);
+
+        Assert.That(decision.IsThrottleLatched, Is.False);
+    }
+
+    [Test]
+    public void Evaluate_WhenEcReportsHardThrottle_LatchesDespiteAHealthyPerformanceRatio()
+    {
+        var decision = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), temperature: 90d,
+            performanceRatio: 1.0d, ecThrottle: EcThrottleSeverity.Hard, ticks: 12);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(decision.IsThrottleLatched, Is.True);
+            Assert.That(decision.ThrottleEscalationDutyPercent, Is.GreaterThan(0d));
+        });
+    }
+
+    /// <summary>
+    /// Soft throttling is a limit being managed, not a protection acting, and it is common under sustained
+    /// load. Answering it at full strength would keep the fan escalated most of the time.
+    /// </summary>
+    [Test]
+    public void Evaluate_SoftThrottleEscalatesLessThanHard()
+    {
+        var soft = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), 90d, 1.0d, EcThrottleSeverity.Soft, ticks: 12);
+        var hard = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), 90d, 1.0d, EcThrottleSeverity.Hard, ticks: 12);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(soft.ThrottleEscalationDutyPercent, Is.GreaterThan(0d));
+            Assert.That(soft.ThrottleEscalationDutyPercent, Is.LessThan(hard.ThrottleEscalationDutyPercent));
+        });
+    }
+
+    /// <summary>
+    /// The processor's throttle status says nothing about the graphics die, so a fan over the graphics
+    /// module must not escalate on it — nor tell the user "the processor reported thermal throttling" on a
+    /// card about their GPU.
+    /// </summary>
+    [Test]
+    public void Evaluate_OnAGpuFan_IgnoresProcessorThrottling()
+    {
+        var decision = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), temperature: 90d,
+            performanceRatio: 1.0d, ecThrottle: EcThrottleSeverity.Hard, ticks: 12,
+            coolingRole: FanCoolingRole.Gpu);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(decision.IsThrottleLatched, Is.False);
+            Assert.That(decision.ThrottleEscalationDutyPercent, Is.Zero);
+        });
+    }
+
+    /// <summary>
+    /// A chassis fan moves air over the whole machine, processor included, so it keeps the escalation.
+    /// </summary>
+    [Test]
+    public void Evaluate_OnASystemFan_StillEscalatesOnProcessorThrottling()
+    {
+        var decision = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), temperature: 90d,
+            performanceRatio: 1.0d, ecThrottle: EcThrottleSeverity.Hard, ticks: 12,
+            coolingRole: FanCoolingRole.System);
+
+        Assert.That(decision.IsThrottleLatched, Is.True);
+    }
+
+    /// <summary>
+    /// Guessing wrong here costs noise; guessing wrong the other way leaves a processor-cooling fan idle
+    /// while the processor throttles. So an unclassified fan escalates.
+    /// </summary>
+    [Test]
+    public void Evaluate_OnAFanOfUnknownRole_StillEscalatesOnProcessorThrottling()
+    {
+        var decision = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), temperature: 90d,
+            performanceRatio: 1.0d, ecThrottle: EcThrottleSeverity.Hard, ticks: 12,
+            coolingRole: FanCoolingRole.Unknown);
+
+        Assert.That(decision.IsThrottleLatched, Is.True);
+    }
+
+    /// <summary>Firmware that cannot answer must keep the old behaviour, not lose throttle handling.</summary>
+    [Test]
+    public void Evaluate_WhenEcThrottleIsUnknown_FallsBackToThePerformanceRatio()
+    {
+        var decision = StepMany(
+            new AdaptiveFanController(), Calibrated(), Settings(), temperature: 90d,
+            performanceRatio: 0.2d, ecThrottle: null, ticks: 12);
+
+        Assert.That(decision.IsThrottleLatched, Is.True);
+    }
+
+    [Test]
+    public void Evaluate_ReportsAnExpectedSpeedInsideTheFanRange()
     {
         var controller = new AdaptiveFanController();
-        var calibration = Calibrated() with { TrackingMode = FanSpeedTrackingMode.Cascade };
+        var calibration = Calibrated();
 
         var decision = Step(controller, calibration, Settings(), temperature: 90d);
 
         Assert.Multiple(() =>
         {
-            Assert.That(decision.SetpointRpm, Is.Not.Null);
-            Assert.That(decision.SetpointRpm!.Value, Is.InRange(calibration.MinimumSpinRpm, calibration.MaximumRpm));
+            Assert.That(decision.ExpectedRpm, Is.Not.Null);
+            Assert.That(decision.ExpectedRpm!.Value, Is.InRange(calibration.MinimumSpinRpm, calibration.MaximumRpm));
         });
     }
 
+    /// <summary>
+    /// The expected speed is a DISPLAY value derived from the duty, never something the fan is commanded to.
+    /// A fan with no measured speeds has nothing to derive it from and must say so rather than guess.
+    /// </summary>
     [Test]
-    public void Evaluate_InDutyMode_ReportsNoSetpoint()
+    public void Evaluate_WithoutAMeasuredMaximum_ReportsNoExpectedSpeed()
     {
         var controller = new AdaptiveFanController();
+        var calibration = Calibrated() with { MaximumRpm = 0d };
 
-        var decision = Step(controller, Calibrated(), Settings(), temperature: 90d);
+        var decision = Step(controller, calibration, Settings(), temperature: 90d);
 
-        Assert.That(decision.SetpointRpm, Is.Null);
+        Assert.That(decision.ExpectedRpm, Is.Null);
     }
 
     [Test]
@@ -561,7 +674,9 @@ public class AdaptiveFanControllerTests
         AdaptiveFanSettings settings,
         double temperature,
         double? packageWatts = 20d,
-        double? performanceRatio = 1d)
+        double? performanceRatio = 1d,
+        EcThrottleSeverity? ecThrottle = null,
+        FanCoolingRole coolingRole = FanCoolingRole.Cpu)
         => controller.Evaluate(
             calibration,
             settings,
@@ -570,9 +685,39 @@ public class AdaptiveFanControllerTests
             {
                 CpuPackagePowerWatts = packageWatts,
                 CpuPerformanceRatio = performanceRatio,
+                EcThrottle = ecThrottle,
             },
             TimeSpan.FromSeconds(Tick),
-            DateTimeOffset.UnixEpoch);
+            DateTimeOffset.UnixEpoch,
+            coolingRole);
+
+    /// <summary>
+    /// Steps the controller repeatedly and returns the LAST decision.
+    /// </summary>
+    /// <remarks>
+    /// The throttle latch needs several consecutive samples before it engages, so a single step can never
+    /// show it — a test asserting on latching from one tick would pass or fail for the wrong reason.
+    /// </remarks>
+    private static AdaptiveControlDecision StepMany(
+        AdaptiveFanController controller,
+        FanCalibrationSnapshot calibration,
+        AdaptiveFanSettings settings,
+        double temperature,
+        double? performanceRatio,
+        EcThrottleSeverity? ecThrottle,
+        int ticks,
+        FanCoolingRole coolingRole = FanCoolingRole.Cpu)
+    {
+        AdaptiveControlDecision decision = AdaptiveControlDecision.NotDriven;
+        for (var index = 0; index < ticks; index++)
+        {
+            decision = Step(
+                controller, calibration, settings, temperature,
+                performanceRatio: performanceRatio, ecThrottle: ecThrottle, coolingRole: coolingRole);
+        }
+
+        return decision;
+    }
 
     /// <summary>
     /// Settings for testing the LOOP: target set, safety floor explicitly off.
@@ -603,7 +748,6 @@ public class AdaptiveFanControllerTests
             MinimumSpinDutyPercent = 17d,
             MaximumRpm = 7_000d,
             FeedForwardDutyPerWatt = 0.9d,
-            TrackingMode = FanSpeedTrackingMode.Duty,
         };
 
         return snapshot;
