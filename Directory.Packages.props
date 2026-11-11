@@ -36,8 +36,8 @@
     <PackageVersion Include="Vanara.PInvoke.Msi" Version="5.0.7" />
     <PackageVersion Include="Vanara.PInvoke.Pdh" Version="5.0.7" />
     <PackageVersion Include="Vanara.PInvoke.SetupAPI" Version="5.0.7" />
-    <PackageVersion Include="IconifyBundle" Version="0.3.1" />
-    <PackageVersion Include="IconifyBundle.Logos" Version="0.3.1" />
+    <PackageVersion Include="IconifyBundle" Version="1.1.0" />
+    <PackageVersion Include="IconifyBundle.Logos" Version="1.1.0" />
     <PackageVersion Include="IconifyBundle.SimpleIcons" Version="0.3.1" />
     <PackageVersion Include="LiveChartsCore.SkiaSharpView.Uno.WinUI" Version="2.1.0-dev-798" />
     <PackageVersion Include="Material.Icons" Version="3.0.2" />
